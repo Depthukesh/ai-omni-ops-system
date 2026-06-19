@@ -94,10 +94,31 @@ export const SKILL_CENTER_TREE: SkillCenterPrimaryConfig[] = [
         items: [
           {
             id: "xhs-original-copy",
-            label: "原创笔记-原创文案",
-            description: "对应前台原创笔记工作台，生成可直接发布的标题、正文与标签。",
+            label: "原创笔记-通用文案",
+            description: "对应前台原创笔记工作台里的通用笔记，生成可直接发布的标题、正文与标签。",
             skillSlug: "original_copy",
             promptScene: "小红书原创笔记文案",
+          },
+          {
+            id: "xhs-original-copy-science",
+            label: "原创笔记-科普类文案",
+            description: "对应前台原创笔记工作台里的科普类笔记，突出知识解释、判断标准与收藏价值。",
+            skillSlug: "xhs-original-copy-science",
+            promptScene: "小红书原创笔记-科普类文案",
+          },
+          {
+            id: "xhs-original-copy-review",
+            label: "原创笔记-测评类文案",
+            description: "对应前台原创笔记工作台里的测评类笔记，突出同维度对比、测评结构与选择建议。",
+            skillSlug: "xhs-original-copy-review",
+            promptScene: "小红书原创笔记-测评类文案",
+          },
+          {
+            id: "xhs-original-copy-avoid-pitfall",
+            label: "原创笔记-避坑类文案",
+            description: "对应前台原创笔记工作台里的避坑类笔记，突出误区识别、风险提醒与正确选择标准。",
+            skillSlug: "xhs-original-copy-avoid-pitfall",
+            promptScene: "小红书原创笔记-避坑类文案",
           },
           {
             id: "xhs-original-image",

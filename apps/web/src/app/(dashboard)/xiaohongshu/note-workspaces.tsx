@@ -59,6 +59,7 @@ export interface OriginalWorkspaceProps {
   customTopic: string;
   productValue: string;
   accountRoleValue: string;
+  noteModeValue: string;
   accountRoleOptions: SelectOption[];
   imageCountValue: string;
   injectMarketingPlanValue: string;
@@ -88,6 +89,7 @@ export interface OriginalWorkspaceProps {
   onCustomTopicChange: StringChangeHandler;
   onProductChange: StringChangeHandler;
   onAccountRoleChange: StringChangeHandler;
+  onNoteModeChange: StringChangeHandler;
   onImageCountChange: StringChangeHandler;
   onInjectMarketingPlanChange: StringChangeHandler;
   onAdditionalInstructionChange: StringChangeHandler;

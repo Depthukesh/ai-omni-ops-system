@@ -56,6 +56,7 @@ export type XhsOriginalReferenceTemplateRecord = {
 };
 
 export type XiaohongshuAccountRole = "BRAND" | "STAFF" | "TALENT";
+export type XiaohongshuOriginalNoteMode = "GENERAL" | "SCIENCE" | "REVIEW" | "AVOID_PITFALL";
 export type VideoNoteKind = "BRAND_PROMO" | "SPOKEN_SELLING" | "SKIT_SELLING" | "REMIX";
 export type VideoAspectRatio = "9:16" | "3:4" | "16:9" | "4:3";
 export type VideoWorkflowStage =
@@ -98,6 +99,7 @@ export type XiaohongshuOriginalWorkRecord = {
   taskId: string;
   brandId?: string;
   accountRole: XiaohongshuAccountRole;
+  noteMode?: XiaohongshuOriginalNoteMode;
   title: string;
   content: string;
   coverImageUrl?: string;
@@ -724,6 +726,7 @@ export type GenerateXiaohongshuOriginalNoteForm = {
   customTopicName?: string;
   productId?: string;
   accountRole?: XiaohongshuAccountRole;
+  noteMode?: XiaohongshuOriginalNoteMode;
   imageCount?: number;
   includeMarketingPlan?: boolean;
   additionalInstruction?: string;
@@ -993,6 +996,7 @@ export async function generateXiaohongshuOriginalWork(brandId: string, form: Gen
     customTopicName: form.customTopicName,
     productId: form.productId,
     accountRole: form.accountRole,
+    noteMode: form.noteMode,
     imageCount: form.imageCount,
     includeMarketingPlan: form.includeMarketingPlan,
     additionalInstruction: form.additionalInstruction,

@@ -331,6 +331,30 @@ const SKILL_PROMPT_BINDINGS: Record<string, SkillPromptBindingRule> = {
     promptIds: ["prompt_xhs_original_copy"],
     promptScenes: ["小红书原创笔记文案"],
   },
+  skill_xhs_original_copy_science: {
+    promptIds: ["prompt_xhs_original_copy_science"],
+    promptScenes: ["小红书原创笔记-科普类文案"],
+  },
+  "xhs-original-copy-science": {
+    promptIds: ["prompt_xhs_original_copy_science"],
+    promptScenes: ["小红书原创笔记-科普类文案"],
+  },
+  skill_xhs_original_copy_review: {
+    promptIds: ["prompt_xhs_original_copy_review"],
+    promptScenes: ["小红书原创笔记-测评类文案"],
+  },
+  "xhs-original-copy-review": {
+    promptIds: ["prompt_xhs_original_copy_review"],
+    promptScenes: ["小红书原创笔记-测评类文案"],
+  },
+  skill_xhs_original_copy_avoid_pitfall: {
+    promptIds: ["prompt_xhs_original_copy_avoid_pitfall"],
+    promptScenes: ["小红书原创笔记-避坑类文案"],
+  },
+  "xhs-original-copy-avoid-pitfall": {
+    promptIds: ["prompt_xhs_original_copy_avoid_pitfall"],
+    promptScenes: ["小红书原创笔记-避坑类文案"],
+  },
   skill_xhs_original_note: {
     promptIds: ["prompt_xhs_original_note"],
     promptScenes: ["小红书原创笔记配图"],

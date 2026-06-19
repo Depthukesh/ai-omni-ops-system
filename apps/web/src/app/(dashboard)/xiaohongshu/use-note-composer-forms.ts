@@ -27,6 +27,7 @@ export function useNoteComposerForms(options: {
   const [originalCustomTopic, setOriginalCustomTopic] = useState("");
   const [originalProductValue, setOriginalProductValue] = useState(options.defaultProductId || options.noProductOption);
   const [originalAccountRoleValue, setOriginalAccountRoleValue] = useState(options.defaultOriginalAccountRoleValue || "BRAND");
+  const [originalNoteModeValue, setOriginalNoteModeValue] = useState("GENERAL");
   const [originalImageCountValue, setOriginalImageCountValue] = useState(options.autoImageCountOption);
   const [originalInjectMarketingPlanValue, setOriginalInjectMarketingPlanValue] = useState("yes");
   const [originalAdditionalInstruction, setOriginalAdditionalInstruction] = useState("");
@@ -89,6 +90,7 @@ export function useNoteComposerForms(options: {
     setOriginalCustomTopic("");
     setOriginalProductValue(products[0]?.id || options.noProductOption);
     setOriginalAccountRoleValue(resolveDefaultOriginalAccountRoleValue());
+    setOriginalNoteModeValue("GENERAL");
     setOriginalImageCountValue(options.autoImageCountOption);
     setOriginalInjectMarketingPlanValue("yes");
     setOriginalAdditionalInstruction("");
@@ -232,6 +234,7 @@ export function useNoteComposerForms(options: {
     originalCustomTopic,
     originalProductValue,
     originalAccountRoleValue,
+    originalNoteModeValue,
     originalImageCountValue,
     originalInjectMarketingPlanValue,
     originalAdditionalInstruction,
@@ -264,6 +267,7 @@ export function useNoteComposerForms(options: {
     setOriginalCustomTopic,
     setOriginalProductValue,
     setOriginalAccountRoleValue,
+    setOriginalNoteModeValue,
     setOriginalImageCountValue,
     setOriginalInjectMarketingPlanValue,
     setOriginalAdditionalInstruction,

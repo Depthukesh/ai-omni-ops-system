@@ -28,6 +28,7 @@ export interface OriginalCreateModalProps {
   customTopic: string;
   productValue: string;
   accountRoleValue: string;
+  noteModeValue: string;
   accountRoleOptions: SelectOption[];
   imageCountValue: string;
   injectMarketingPlanValue: string;
@@ -44,6 +45,7 @@ export interface OriginalCreateModalProps {
   onCustomTopicChange: StringChangeHandler;
   onProductChange: StringChangeHandler;
   onAccountRoleChange: StringChangeHandler;
+  onNoteModeChange: StringChangeHandler;
   onImageCountChange: StringChangeHandler;
   onInjectMarketingPlanChange: StringChangeHandler;
   onAdditionalInstructionChange: StringChangeHandler;
@@ -70,11 +72,13 @@ export function OriginalCreateModal(props: OriginalCreateModalProps) {
         customTopic={props.customTopic}
         productValue={props.productValue}
         accountRoleValue={props.accountRoleValue}
+        noteModeValue={props.noteModeValue}
         accountRoleOptions={props.accountRoleOptions}
         onCalendarChange={props.onCalendarChange}
         onCustomTopicChange={props.onCustomTopicChange}
         onProductChange={props.onProductChange}
         onAccountRoleChange={props.onAccountRoleChange}
+        onNoteModeChange={props.onNoteModeChange}
       />
       <OriginalCreateReferenceFields
         coverReferenceFile={props.coverReferenceFile}

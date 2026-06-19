@@ -20,6 +20,7 @@ type OriginalComposerState = {
   customTopic: string;
   productValue: string;
   accountRoleValue: string;
+  noteModeValue: string;
   imageCountValue: string;
   injectMarketingPlanValue: string;
   additionalInstruction: string;
@@ -118,6 +119,7 @@ export function useWorkComposerActions(options: {
         customTopicName: isCustomTopic ? customTopicName : undefined,
         productId: options.original.productValue === options.noProductOption ? undefined : options.original.productValue,
         accountRole: options.original.accountRoleValue as "BRAND" | "STAFF" | "TALENT",
+        noteMode: options.original.noteModeValue as "GENERAL" | "SCIENCE" | "REVIEW" | "AVOID_PITFALL",
         imageCount:
           options.original.imageCountValue === options.autoImageCountOption
             ? undefined

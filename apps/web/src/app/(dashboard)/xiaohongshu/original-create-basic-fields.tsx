@@ -11,11 +11,13 @@ export interface OriginalCreateBasicFieldsProps {
   customTopic: string;
   productValue: string;
   accountRoleValue: string;
+  noteModeValue: string;
   accountRoleOptions: SelectOption[];
   onCalendarChange: StringChangeHandler;
   onCustomTopicChange: StringChangeHandler;
   onProductChange: StringChangeHandler;
   onAccountRoleChange: StringChangeHandler;
+  onNoteModeChange: StringChangeHandler;
 }
 
 export function OriginalCreateBasicFields(props: OriginalCreateBasicFieldsProps) {
@@ -51,6 +53,15 @@ export function OriginalCreateBasicFields(props: OriginalCreateBasicFieldsProps)
               {item.label}
             </option>
           ))}
+        </select>
+      </label>
+      <label>
+        <span>笔记类型</span>
+        <select value={props.noteModeValue} onChange={(event) => props.onNoteModeChange(event.target.value)}>
+          <option value="GENERAL">通用笔记</option>
+          <option value="SCIENCE">科普类笔记</option>
+          <option value="REVIEW">测评类笔记</option>
+          <option value="AVOID_PITFALL">避坑类笔记</option>
         </select>
       </label>
       {props.calendarValue === props.customTopicOption ? (

@@ -8,6 +8,7 @@ import { BadRequestException, Inject, Injectable, NotFoundException, ServiceUnav
 import { MediaType, TaskStatus, type Prisma } from "@prisma/client";
 import { createId, database, type ApiProviderRecord } from "../../common/mock-data";
 import { XHS_IMAGE_ANALYSIS_PROMPT_FALLBACK } from "../../common/prompt-fallbacks";
+import { readPromptSourceBundle } from "../../common/prompt-source-loader";
 import { applySkillProviderSelectionRule } from "../../common/skill-provider-selection";
 import { AppConfigService } from "../../config/app-config.service";
 import { PrismaService } from "../../prisma/prisma.service";
@@ -168,6 +169,7 @@ type UploadFilePayload = {
 };
 
 type OriginalAccountRole = "BRAND" | "STAFF" | "TALENT";
+type XiaohongshuOriginalNoteMode = "GENERAL" | "SCIENCE" | "REVIEW" | "AVOID_PITFALL";
 export type VideoNoteKind = "BRAND_PROMO" | "SPOKEN_SELLING" | "SKIT_SELLING" | "REMIX";
 type VideoAspectRatio = "9:16" | "3:4" | "16:9" | "4:3";
 type VideoWorkKind = "XHS_VIDEO_NOTE" | "DOUYIN_VIDEO_NOTE" | "DOUYIN_DIRECT_VIDEO";
@@ -183,11 +185,52 @@ type DigitalHumanFigureType = "whole_body" | "sit_body" | "circle_view";
 type DigitalHumanSource = "COMMON" | "CUSTOM";
 type DigitalHumanVideoStage = "QUEUED" | "GENERATING" | "SUCCESS" | "FAILED";
 
+const XHS_ORIGINAL_NOTE_MODE_PROFILES: Record<
+  XiaohongshuOriginalNoteMode,
+  {
+    label: string;
+    skillSlug: string;
+    promptId: string;
+    promptScene: string;
+    defaultPromptFallback: string;
+  }
+> = {
+  GENERAL: {
+    label: "通用笔记",
+    skillSlug: "original_copy",
+    promptId: "prompt_xhs_original_copy",
+    promptScene: "小红书原创笔记文案",
+    defaultPromptFallback: "根据营销规划方案、营销日历选题、产品信息和用户附加要求，生成可直接发布的小红书原创标题、正文与标签。",
+  },
+  SCIENCE: {
+    label: "科普类笔记",
+    skillSlug: "xhs-original-copy-science",
+    promptId: "prompt_xhs_original_copy_science",
+    promptScene: "小红书原创笔记-科普类文案",
+    defaultPromptFallback: "根据营销规划方案、营销日历选题、产品信息和用户附加要求，生成适合小红书发布的科普类原创标题、正文与标签。",
+  },
+  REVIEW: {
+    label: "测评类笔记",
+    skillSlug: "xhs-original-copy-review",
+    promptId: "prompt_xhs_original_copy_review",
+    promptScene: "小红书原创笔记-测评类文案",
+    defaultPromptFallback: "根据营销规划方案、营销日历选题、产品信息和用户附加要求，生成适合小红书发布的测评类原创标题、正文与标签。",
+  },
+  AVOID_PITFALL: {
+    label: "避坑类笔记",
+    skillSlug: "xhs-original-copy-avoid-pitfall",
+    promptId: "prompt_xhs_original_copy_avoid_pitfall",
+    promptScene: "小红书原创笔记-避坑类文案",
+    defaultPromptFallback: "根据营销规划方案、营销日历选题、产品信息和用户附加要求，生成适合小红书发布的避坑类原创标题、正文与标签。",
+  },
+};
+
 export type GenerateXiaohongshuOriginalNotePayload = {
   calendarItemId?: string;
   customTopicName?: string;
   productId?: string;
   accountRole?: OriginalAccountRole;
+  noteMode?: XiaohongshuOriginalNoteMode;
   imageCount?: number;
   includeMarketingPlan?: boolean;
   additionalInstruction?: string;
@@ -1330,6 +1373,7 @@ type OriginalWorkAssetMeta = {
   noteCategory: "原创";
   noteType: "图文";
   accountRole: OriginalAccountRole;
+  noteMode?: XiaohongshuOriginalNoteMode;
   title: string;
   content: string;
   htmlContent: string;
@@ -1972,6 +2016,7 @@ export type XiaohongshuOriginalWorkRecord = {
   taskId: string;
   brandId?: string;
   accountRole: OriginalAccountRole;
+  noteMode?: XiaohongshuOriginalNoteMode;
   title: string;
   content: string;
   coverImageUrl?: string;
@@ -6135,10 +6180,12 @@ export class WorksService {
 
     const userId = await this.resolveTaskUserId(brandId, auth);
     const resolvedAccountRole = this.resolveOriginalAccountRole(payload.accountRole, collaboratorRole);
-    const taskTitle = `生成小红书原创笔记：${selectedCalendarItem?.topicName || payload.customTopicName?.trim() || "自定义选题"}`;
+    const resolvedNoteMode = this.resolveXiaohongshuOriginalNoteMode(payload.noteMode);
+    const originalCopyProfile = this.getXiaohongshuOriginalCopyProfile(resolvedNoteMode);
+    const taskTitle = `生成小红书${originalCopyProfile.label}：${selectedCalendarItem?.topicName || payload.customTopicName?.trim() || "自定义选题"}`;
     const originalCopyPreference = await this.loadSkillModelPreference(
-      "original_copy",
-      "prompt_xhs_original_copy",
+      originalCopyProfile.skillSlug,
+      originalCopyProfile.promptId,
       ["deepseek-v4-pro", "deepseek-v4-flash", "doubao-seed-2-0-pro-260215", "doubao-seed-2-0-mini-260215", "kimi-k2.6"],
     );
     const originalCopyProviders = await this.loadOriginalCopyProviders(brandId, originalCopyPreference);
@@ -6165,6 +6212,7 @@ export class WorksService {
       const copyResult = await this.generateOriginalCopy({
         brandId,
         accountRole: resolvedAccountRole,
+        noteMode: resolvedNoteMode,
         marketingPlanMarkdown: originalMarketingPlanMarkdown,
         selectedCalendarItem,
         customTopicName: payload.customTopicName?.trim(),
@@ -6273,6 +6321,7 @@ export class WorksService {
         noteCategory: "原创",
         noteType: "图文",
         accountRole: resolvedAccountRole,
+        noteMode: resolvedNoteMode,
         title: copyResult.title,
         content: copyResult.content,
         htmlContent,
@@ -8151,6 +8200,7 @@ export class WorksService {
   private async generateOriginalCopy(params: {
     brandId: string;
     accountRole: OriginalAccountRole;
+    noteMode: XiaohongshuOriginalNoteMode;
     marketingPlanMarkdown: string;
     selectedCalendarItem?: {
       id: string;
@@ -8175,14 +8225,20 @@ export class WorksService {
     includeMarketingPlan?: boolean;
     additionalInstruction?: string;
   }): Promise<OriginalCopyModelResult> {
-    const skillPrompt = await this.loadOriginalCopyPrompt();
+    const originalCopyProfile = this.getXiaohongshuOriginalCopyProfile(params.noteMode);
+    const skillPrompt = await this.loadOriginalCopyPrompt(
+      originalCopyProfile.promptId,
+      originalCopyProfile.defaultPromptFallback,
+    );
     const preference = await this.loadSkillModelPreference(
-      "original_copy",
-      "prompt_xhs_original_copy",
+      originalCopyProfile.skillSlug,
+      originalCopyProfile.promptId,
       ["deepseek-v4-pro", "deepseek-v4-flash", "doubao-seed-2-0-pro-260215", "doubao-seed-2-0-mini-260215", "kimi-k2.6"],
     );
     const providers = await this.loadOriginalCopyProviders(params.brandId, preference);
     const inputPayload = {
+      noteMode: params.noteMode,
+      noteModeLabel: originalCopyProfile.label,
       marketingPlanMarkdown: params.marketingPlanMarkdown,
       accountRole: params.accountRole,
       accountRoleLabel: this.getOriginalAccountRoleLabel(params.accountRole),
@@ -8215,6 +8271,7 @@ export class WorksService {
       skillPrompt,
       "",
       "你当前要输出一篇可直接发布的小红书原创图文笔记。",
+      `本次笔记类型为“${originalCopyProfile.label}”，请严格按照该类型的内容结构、判断标准与表达边界来写。`,
       `本次发布账号角色为“${this.getOriginalAccountRoleLabel(params.accountRole)}”，请让人设、语气、叙述视角和可信度与该账号角色一致。`,
       params.includeMarketingPlan === false
         ? "本次明确要求不要植入营销策划方案；你只能使用营销日历选题、产品资料、参考图风格和用户要求，禁止自行吸收营销策划方案里的卖点、产品矩阵、价格、门店、促销或投放口径。"
@@ -11654,6 +11711,7 @@ export class WorksService {
   private async buildXiaohongshuOriginalCopyKnowledgeContext(params: {
     marketingPlanMarkdown: string;
     accountRole: OriginalAccountRole;
+    noteMode: XiaohongshuOriginalNoteMode;
     selectedCalendarItem?: {
       topicName: string;
       topicContent?: string;
@@ -11671,9 +11729,11 @@ export class WorksService {
     };
     additionalInstruction?: string;
   }) {
+    const originalCopyProfile = this.getXiaohongshuOriginalCopyProfile(params.noteMode);
     const retrievalQuery = this.buildWorksKnowledgeQuery([
-      "小红书原创笔记文案",
+      `小红书原创笔记${originalCopyProfile.label}`,
       `账号角色：${this.getOriginalAccountRoleLabel(params.accountRole)}`,
+      `笔记类型：${originalCopyProfile.label}`,
       params.selectedCalendarItem?.topicName ? `选题：${params.selectedCalendarItem.topicName}` : "",
       params.customTopicName ? `自定义选题：${params.customTopicName}` : "",
       params.selectedCalendarItem?.contentGoal ? `内容目标：${params.selectedCalendarItem.contentGoal}` : "",
@@ -11693,12 +11753,12 @@ export class WorksService {
       scope: {
         moduleTargetId: "xiaohongshu-workbench",
         skillPackageKey: "xiaohongshu-content-original",
-        skillSlug: "original_copy",
-        legacyPromptId: "prompt_xhs_original_copy",
+        skillSlug: originalCopyProfile.skillSlug,
+        legacyPromptId: originalCopyProfile.promptId,
       },
-      sceneLabel: "小红书原创文案",
+      sceneLabel: originalCopyProfile.promptScene,
       retrievalQuery,
-      leadText: "以下是系统按接入对象从企业知识库召回的补充上下文，请结合这些内容完成小红书原创文案创作：",
+      leadText: `以下是系统按接入对象从企业知识库召回的补充上下文，请结合这些内容完成小红书${originalCopyProfile.label}创作：`,
     });
   }
 
@@ -14681,6 +14741,7 @@ export class WorksService {
       taskId: taskId || meta.taskId,
       brandId,
       accountRole: meta.accountRole,
+      noteMode: this.resolveXiaohongshuOriginalNoteMode(meta.noteMode),
       title: meta.title,
       content: meta.content,
       coverImageUrl: meta.coverImageUrl,
@@ -18079,25 +18140,23 @@ export class WorksService {
     return item.metadataJson;
   }
 
-  private async loadOriginalCopyPrompt() {
-    const prompt = await this.skillsPromptsService.getActivePromptById("prompt_xhs_original_copy");
+  private resolveXiaohongshuOriginalNoteMode(value?: string): XiaohongshuOriginalNoteMode {
+    if (value === "SCIENCE" || value === "REVIEW" || value === "AVOID_PITFALL") {
+      return value;
+    }
+    return "GENERAL";
+  }
+
+  private getXiaohongshuOriginalCopyProfile(noteMode?: XiaohongshuOriginalNoteMode) {
+    return XHS_ORIGINAL_NOTE_MODE_PROFILES[this.resolveXiaohongshuOriginalNoteMode(noteMode)];
+  }
+
+  private async loadOriginalCopyPrompt(promptId: string, fallback: string) {
+    const prompt = await this.skillsPromptsService.getActivePromptById(promptId);
     if (prompt?.content?.trim()) {
       return prompt.content.trim();
     }
-    const candidates = [
-      resolve(this.resolveAiWorkspaceRoot(), ".runtime", "prompt_extract", "original_copy", "original_copy", "SKILL.md"),
-      resolve(this.resolveWorkspaceRoot(), ".runtime", "prompt_extract", "original_copy", "original_copy", "SKILL.md"),
-    ];
-    for (const filePath of candidates) {
-      if (existsSync(filePath)) {
-        return readFileSync(filePath, "utf8").trim();
-      }
-    }
-    return [
-      "# 小红书原创文案生成器",
-      "你需要根据营销策划方案、营销日历、产品信息和用户附加要求生成一篇小红书原创图文笔记。",
-      "输出标题、正文和标签，确保标题20字以内，正文300字以内，适合小红书图文发布。",
-    ].join("\n");
+    return readPromptSourceBundle(promptId, fallback).content.trim();
   }
 
   private async loadOriginalImagePrompt() {
