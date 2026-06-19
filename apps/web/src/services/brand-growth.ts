@@ -31,6 +31,7 @@ export type BrandPermissionKey =
   | "douyin.original"
   | "xiaohongshu.remix"
   | "douyin.remix"
+  | "douyin.remixShortVideo"
   | "xiaohongshu.video"
   | "douyin.video"
   | "douyin.videoDirect"
