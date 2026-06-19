@@ -26,13 +26,20 @@ type DouyinWorkKind =
   | "DOUYIN_LOW_FAN_EXPLOSIVE_WORK"
   | "DOUYIN_HIGH_COMPLETION_RATE_WORK"
   | "DOUYIN_HIGH_LIKE_RATE_WORK";
+type DouyinKeywordRecommendationKind = "DOUYIN_KEYWORD_RECOMMENDATION";
 type DouyinCityHotspotKind = "DOUYIN_CITY_HOTSPOT";
 type CollectorNoteKind =
   | "XHS_BRAND_NOTE"
   | "XHS_BENCHMARK_NOTE"
   | "XHS_SEARCH_NOTE";
 type CollectorTargetKind = "XHS_TARGET_USER";
-type CollectorAssetKind = CollectorAccountKind | CollectorNoteKind | DouyinWorkKind | CollectorTargetKind | DouyinCityHotspotKind;
+type CollectorAssetKind =
+  | CollectorAccountKind
+  | CollectorNoteKind
+  | DouyinWorkKind
+  | DouyinKeywordRecommendationKind
+  | CollectorTargetKind
+  | DouyinCityHotspotKind;
 type CollectorSyncStatus = "IDLE" | "RUNNING" | "SUCCESS" | "FAILED";
 type DailyHotspotSyncStatus = "IDLE" | "RUNNING" | "SUCCESS" | "FAILED";
 type DouyinBillboardScopeKey =
@@ -40,6 +47,7 @@ type DouyinBillboardScopeKey =
   | "highCompletionRateWorks"
   | "highLikeRateWorks";
 type DouyinSearchScopeKey = "searchWorks";
+type DouyinKeywordRecommendationScopeKey = "keywordRecommendations";
 type DouyinCityHotspotScopeKey = "cityHotspots";
 export type XhsAccountRole = "BRAND" | "STAFF" | "TALENT";
 type XhsSyncAccountEntry = {
@@ -54,7 +62,15 @@ type DouyinContentTagSelection = {
   secondaryTagId?: number;
 };
 type DouyinSyncInput = {
-  scope?: "brandAccount" | "competitorAccount" | "brandWorks" | "benchmarkWorks" | DouyinSearchScopeKey | DouyinBillboardScopeKey | DouyinCityHotspotScopeKey;
+  scope?:
+    | "brandAccount"
+    | "competitorAccount"
+    | "brandWorks"
+    | "benchmarkWorks"
+    | DouyinSearchScopeKey
+    | DouyinKeywordRecommendationScopeKey
+    | DouyinBillboardScopeKey
+    | DouyinCityHotspotScopeKey;
   brandAccountLinks?: string[];
   competitorAccountLinks?: string[];
   brandAccountEntries?: XhsSyncAccountEntry[];
@@ -310,12 +326,25 @@ export type DouyinCollectedWorkRecord = {
   score?: number;
 };
 
+export type DouyinKeywordRecommendationRecord = {
+  id: string;
+  kind: DouyinKeywordRecommendationKind;
+  searchKeyword: string;
+  recommendedKeyword: string;
+  searchTime?: string;
+  collectedAt: string;
+  queryId?: string;
+  wordsSource?: string;
+  position?: number;
+};
+
 export type DouyinCollectionWorkspace = {
   brandAccounts: DouyinCollectedAccountRecord[];
   competitorAccounts: DouyinCollectedAccountRecord[];
   brandWorks: DouyinCollectedWorkRecord[];
   benchmarkWorks: DouyinCollectedWorkRecord[];
   searchWorks: DouyinCollectedWorkRecord[];
+  keywordRecommendations: DouyinKeywordRecommendationRecord[];
   lowFanExplosiveWorks: DouyinCollectedWorkRecord[];
   highCompletionRateWorks: DouyinCollectedWorkRecord[];
   highLikeRateWorks: DouyinCollectedWorkRecord[];
@@ -495,6 +524,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     const shouldSyncBrandWorks = !scope || scope === "brandWorks";
     const shouldSyncBenchmarkWorks = !scope || scope === "benchmarkWorks";
     const shouldSyncSearchWorks = scope === "searchWorks";
+    const shouldSyncKeywordRecommendations = scope === "keywordRecommendations";
     const shouldSyncLowFanExplosiveWorks = scope === "lowFanExplosiveWorks";
     const shouldSyncHighCompletionRateWorks = scope === "highCompletionRateWorks";
     const shouldSyncHighLikeRateWorks = scope === "highLikeRateWorks";
@@ -543,6 +573,9 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     const searchWorkRows = shouldSyncSearchWorks
       ? await this.collectAndStoreDouyinSearchWorks(brandId, input.searchKeyword)
       : [];
+    const keywordRecommendationRows = shouldSyncKeywordRecommendations
+      ? await this.collectAndStoreDouyinKeywordRecommendations(brandId, input.searchKeyword)
+      : [];
     const lowFanExplosiveRows = shouldSyncLowFanExplosiveWorks
       ? await this.collectAndStoreDouyinBillboardWorks(brandId, {
           kind: "DOUYIN_LOW_FAN_EXPLOSIVE_WORK",
@@ -590,6 +623,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
         + brandWorkRows.reduce((sum, items) => sum + items.length, 0)
         + benchmarkWorkCount
         + searchWorkRows.length
+        + keywordRecommendationRows.length
         + lowFanExplosiveRows.length
         + highCompletionRateRows.length
         + highLikeRateRows.length
@@ -600,6 +634,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
         brandWorks: brandWorkRows.reduce((sum, items) => sum + items.length, 0),
         benchmarkWorks: benchmarkWorkCount,
         searchWorks: searchWorkRows.length,
+        keywordRecommendations: keywordRecommendationRows.length,
         lowFanExplosiveWorks: lowFanExplosiveRows.length,
         highCompletionRateWorks: highCompletionRateRows.length,
         highLikeRateWorks: highLikeRateRows.length,
@@ -734,6 +769,21 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
         isInMaterialLibrary: undefined,
         materialAddedAt: undefined,
       },
+      workspace: await this.getDouyinWorkspace(brandId),
+    };
+  }
+
+  async removeDouyinKeywordRecommendation(brandId: string, assetId: string) {
+    this.ensureBrandExistsInMockOrDatabase(brandId);
+    const asset = await this.getCollectorAssetById(brandId, assetId);
+    const meta = this.asMeta(asset.metadataJson);
+    const kind = this.readMetaString(meta, "kind");
+    if (kind !== "DOUYIN_KEYWORD_RECOMMENDATION") {
+      throw new BadRequestException("仅支持删除抖音关键词推荐结果");
+    }
+
+    await this.deleteCollectorAssetById(brandId, assetId);
+    return {
       workspace: await this.getDouyinWorkspace(brandId),
     };
   }
@@ -1113,6 +1163,9 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     const searchWorks = assets
       .filter((item) => item.metadataJson?.kind === "DOUYIN_SEARCH_WORK")
       .map((item) => this.mapDouyinCollectedWork(item, "DOUYIN_SEARCH_WORK"));
+    const keywordRecommendations = assets
+      .filter((item) => item.metadataJson?.kind === "DOUYIN_KEYWORD_RECOMMENDATION")
+      .map((item) => this.mapDouyinKeywordRecommendation(item));
     const lowFanExplosiveWorks = assets
       .filter((item) => item.metadataJson?.kind === "DOUYIN_LOW_FAN_EXPLOSIVE_WORK")
       .map((item) => this.mapDouyinCollectedWork(item, "DOUYIN_LOW_FAN_EXPLOSIVE_WORK"));
@@ -1133,6 +1186,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       brandWorks,
       benchmarkWorks,
       searchWorks,
+      keywordRecommendations,
       lowFanExplosiveWorks,
       highCompletionRateWorks,
       highLikeRateWorks,
@@ -1303,6 +1357,21 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       primaryTagLabel: this.readMetaString(meta, "primaryTagLabel") || undefined,
       secondaryTagLabel: this.readMetaString(meta, "secondaryTagLabel") || undefined,
       score: this.readMetaNumber(meta, "score"),
+    };
+  }
+
+  private mapDouyinKeywordRecommendation(asset: AssetRecord): DouyinKeywordRecommendationRecord {
+    const meta = this.asMeta(asset.metadataJson);
+    return {
+      id: asset.id,
+      kind: "DOUYIN_KEYWORD_RECOMMENDATION",
+      searchKeyword: this.readMetaString(meta, "searchKeyword"),
+      recommendedKeyword: this.readMetaString(meta, "recommendedKeyword") || asset.title,
+      searchTime: this.readMetaString(meta, "searchTime") || undefined,
+      collectedAt: this.readMetaString(meta, "collectedAt") || new Date().toISOString(),
+      queryId: this.readMetaString(meta, "queryId") || undefined,
+      wordsSource: this.readMetaString(meta, "wordsSource") || undefined,
+      position: this.readMetaNumber(meta, "position"),
     };
   }
 
@@ -3802,6 +3871,69 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     return rows;
   }
 
+  private async collectAndStoreDouyinKeywordRecommendations(
+    brandId: string,
+    keyword?: string,
+  ): Promise<DouyinKeywordRecommendationRecord[]> {
+    const normalizedKeyword = String(keyword || "").trim();
+    if (!normalizedKeyword) {
+      throw new BadRequestException("请输入关键词后再提交关键词推荐。");
+    }
+
+    const raw = await this.fetchTikHubPost(
+      "/api/v1/douyin/search/fetch_search_suggest",
+      {
+        keyword: normalizedKeyword,
+      },
+      brandId,
+    );
+    const payload = this.asMeta(raw);
+    const data = this.asMeta(payload.data);
+    const extra = this.asMeta(data.extra);
+    const searchTime = this.formatUnixTimestampText(this.pickNumber(extra, ["now"])) || new Date().toISOString().replace("T", " ").slice(0, 19);
+    const collectedAt = new Date().toISOString();
+    const items = this.extractDouyinKeywordRecommendationItems(raw).slice(0, 20);
+    const rows: DouyinKeywordRecommendationRecord[] = [];
+
+    for (const item of items) {
+      const wordRecord = this.asMeta(item.word_record);
+      const queryRecord = this.asMeta(item.words_query_record);
+      const recommendedKeyword =
+        this.pickString(item, ["content"])
+        || this.pickString(wordRecord, ["words_content"]);
+      if (!recommendedKeyword) {
+        continue;
+      }
+
+      const compositeKey = `${normalizedKeyword}::${recommendedKeyword}`.toLowerCase();
+      const asset = await this.upsertCollectorAsset({
+        brandId,
+        kind: "DOUYIN_KEYWORD_RECOMMENDATION",
+        matchValue: compositeKey,
+        title: recommendedKeyword,
+        description: `搜索关键词：${normalizedKeyword}`,
+        metadata: {
+          kind: "DOUYIN_KEYWORD_RECOMMENDATION",
+          sourceAccountId: compositeKey,
+          searchKeyword: normalizedKeyword,
+          recommendedKeyword,
+          searchTime,
+          collectedAt,
+          queryId: this.pickString(queryRecord, ["query_id"]) || undefined,
+          wordsSource: this.pickString(wordRecord, ["words_source"]) || this.pickString(queryRecord, ["words_source"]) || undefined,
+          position: this.pickNumber(wordRecord, ["words_position"]),
+          rawFields: {
+            keyword: normalizedKeyword,
+            item,
+          },
+        },
+      });
+      rows.push(this.mapDouyinKeywordRecommendation(asset));
+    }
+
+    return rows;
+  }
+
   private async collectAndStoreBenchmarkNote(brandId: string, sourceUrl: string): Promise<XhsCollectedNoteRecord> {
     const collectedAt = new Date().toISOString();
     const noteQuery = this.resolveXhsNoteQuery(sourceUrl);
@@ -4184,7 +4316,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       if (kind === "XHS_BRAND_NOTE" || kind === "XHS_BENCHMARK_NOTE" || kind === "XHS_SEARCH_NOTE") {
         return item.brandId === brandId && meta.kind === kind && this.readMetaString(meta, "noteId") === matchValue;
       }
-        if (this.isDouyinWorkKind(kind)) {
+      if (this.isDouyinWorkKind(kind)) {
         return item.brandId === brandId && meta.kind === kind && this.readMetaString(meta, "workId") === matchValue;
       }
       if (kind === "XHS_TARGET_USER") {
@@ -4215,6 +4347,21 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     }
 
     return asset;
+  }
+
+  private async deleteCollectorAssetById(brandId: string, assetId: string) {
+    if (await this.prismaService.canUseDatabase()) {
+      await this.prismaService.businessAsset.deleteMany({
+        where: {
+          id: assetId,
+          brandId,
+          category: AssetCategory.PLATFORM_EXPORT,
+        },
+      });
+      return;
+    }
+
+    database.assets = database.assets.filter((item) => !(item.id === assetId && item.brandId === brandId && item.category === "PLATFORM_EXPORT"));
   }
 
   private async cleanupDuplicateCollectorAssets(brandId: string) {
@@ -4397,6 +4544,13 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       );
       if (accountIdentityKeys.length) {
         return `${kind}:account:${accountIdentityKeys[0]}`;
+      }
+    }
+
+    if (kind === "DOUYIN_KEYWORD_RECOMMENDATION") {
+      const sourceAccountId = this.readMetaString(meta, "sourceAccountId");
+      if (sourceAccountId) {
+        return `${kind}:keyword:${sourceAccountId}`;
       }
     }
 
@@ -5612,6 +5766,19 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
         const aweme = this.asMeta(item.aweme_info);
         return Boolean(this.pickString(aweme, ["aweme_id"]));
       });
+  }
+
+  private extractDouyinKeywordRecommendationItems(raw: unknown): Record<string, unknown>[] {
+    const payload = this.asMeta(raw);
+    const data = this.asMeta(payload.data);
+    const list = Array.isArray(data.sug_list) ? data.sug_list : Array.isArray(payload.sug_list) ? payload.sug_list : [];
+    return list
+      .map((item) => this.asMeta(item))
+      .filter((item) =>
+        Boolean(
+          this.pickString(item, ["content"])
+          || this.pickString(this.asMeta(item.word_record), ["words_content"]),
+        ));
   }
 
   private extractDouyinStatisticsMap(raw: unknown) {

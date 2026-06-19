@@ -188,6 +188,17 @@ export type DouyinCollectedWorkRecord = {
   secondaryTagLabel?: string;
   score?: number;
 };
+export type DouyinKeywordRecommendationRecord = {
+  id: string;
+  kind: "DOUYIN_KEYWORD_RECOMMENDATION";
+  searchKeyword: string;
+  recommendedKeyword: string;
+  searchTime?: string;
+  collectedAt: string;
+  queryId?: string;
+  wordsSource?: string;
+  position?: number;
+};
 export type DouyinCityHotspotRecord = {
   id: string;
   kind: "DOUYIN_CITY_HOTSPOT";
@@ -211,6 +222,7 @@ export type DouyinCollectionWorkspace = {
   brandWorks: DouyinCollectedWorkRecord[];
   benchmarkWorks: DouyinCollectedWorkRecord[];
   searchWorks: DouyinCollectedWorkRecord[];
+  keywordRecommendations: DouyinKeywordRecommendationRecord[];
   lowFanExplosiveWorks: DouyinCollectedWorkRecord[];
   highCompletionRateWorks: DouyinCollectedWorkRecord[];
   highLikeRateWorks: DouyinCollectedWorkRecord[];
@@ -226,6 +238,7 @@ export type DouyinSyncPayload = {
     | "brandWorks"
     | "benchmarkWorks"
     | "searchWorks"
+    | "keywordRecommendations"
     | "lowFanExplosiveWorks"
     | "highCompletionRateWorks"
     | "highLikeRateWorks"
@@ -414,6 +427,7 @@ export const douyinCollectionSeed: DouyinCollectionWorkspace = {
     },
   ],
   searchWorks: [],
+  keywordRecommendations: [],
   lowFanExplosiveWorks: [],
   highCompletionRateWorks: [],
   highLikeRateWorks: [],
@@ -435,6 +449,7 @@ export async function syncDouyinCollectionWorkspace(payload: DouyinSyncPayload =
       brandWorks: number;
       benchmarkWorks: number;
       searchWorks: number;
+      keywordRecommendations: number;
       lowFanExplosiveWorks: number;
       highCompletionRateWorks: number;
       highLikeRateWorks: number;
@@ -460,6 +475,14 @@ export async function addDouyinBenchmarkWorkToMaterialLibrary(assetId: string, b
 export async function removeDouyinBenchmarkWorkFromMaterialLibrary(assetId: string, brandId?: string) {
   return jsonRequest<{ item: DouyinCollectedWorkRecord; workspace: DouyinCollectionWorkspace }>(
     `/collectors/douyin/brands/${resolveBrandId(brandId)}/material-library/${assetId}`,
+    "DELETE",
+    {},
+  );
+}
+
+export async function removeDouyinKeywordRecommendation(assetId: string, brandId?: string) {
+  return jsonRequest<{ workspace: DouyinCollectionWorkspace }>(
+    `/collectors/douyin/brands/${resolveBrandId(brandId)}/keyword-recommendations/${assetId}`,
     "DELETE",
     {},
   );

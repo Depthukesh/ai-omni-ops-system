@@ -45,6 +45,7 @@ import {
   addBenchmarkNoteToMaterialLibrary,
   getDouyinCollectionWorkspace,
   getXiaohongshuCollectionWorkspace,
+  removeDouyinKeywordRecommendation,
   removeDouyinBenchmarkWorkFromMaterialLibrary,
   syncDouyinCollectionWorkspace,
   syncXiaohongshuFromFeishu,
@@ -54,6 +55,7 @@ import {
   syncXiaohongshuCompetitorAccounts,
   syncXiaohongshuSearchNotes,
   type DouyinCollectedAccountRecord,
+  type DouyinKeywordRecommendationRecord,
   type XhsAccountRole,
   type XhsSyncAccountEntry,
   type DouyinSyncPayload,
@@ -289,6 +291,7 @@ function createEmptyDouyinCollectionWorkspace(): DouyinCollectionWorkspace {
     brandWorks: [],
     benchmarkWorks: [],
     searchWorks: [],
+    keywordRecommendations: [],
     lowFanExplosiveWorks: [],
     highCompletionRateWorks: [],
     highLikeRateWorks: [],
@@ -569,6 +572,10 @@ type DouyinSyncForm = {
   competitorAccountEntries: XhsAccountBindingEntry[];
   benchmarkAwemeIds: string;
   searchKeyword: string;
+  keywordRecommendationEntries: Array<{
+    id: string;
+    keyword: string;
+  }>;
   lowFanExplosiveWorks: {
     primaryTagId: string;
     secondaryTagId: string;
@@ -610,6 +617,7 @@ function createEmptyDouyinSyncForm(): DouyinSyncForm {
     competitorAccountEntries: [],
     benchmarkAwemeIds: "",
     searchKeyword: "",
+    keywordRecommendationEntries: [],
     lowFanExplosiveWorks: {
       primaryTagId: "",
       secondaryTagId: "",
@@ -851,6 +859,7 @@ export function BrandGrowthWorkspace() {
   const [calendarItemDraft, setCalendarItemDraft] = useState<XiaohongshuMarketingCalendarItem | null>(null);
   const [uploadingProductId, setUploadingProductId] = useState("");
   const [addingMaterialAssetId, setAddingMaterialAssetId] = useState("");
+  const [deletingDouyinKeywordRecommendationId, setDeletingDouyinKeywordRecommendationId] = useState("");
   const [notice, setNotice] = useState<string>("");
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [reportMarkdownDraft, setReportMarkdownDraft] = useState("");
@@ -979,6 +988,10 @@ export function BrandGrowthWorkspace() {
   const sortedDouyinSearchWorks = useMemo(
     () => sortByCollectedAtDesc(douyinCollectionWorkspace.searchWorks),
     [douyinCollectionWorkspace.searchWorks],
+  );
+  const sortedDouyinKeywordRecommendations = useMemo(
+    () => sortByCollectedAtDesc(douyinCollectionWorkspace.keywordRecommendations),
+    [douyinCollectionWorkspace.keywordRecommendations],
   );
   const sortedDouyinLowFanExplosiveWorks = useMemo(
     () => sortByCollectedAtDesc(douyinCollectionWorkspace.lowFanExplosiveWorks),
@@ -2286,7 +2299,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
       setDouyinCollectionWorkspace(response.workspace);
       const summary =
         `抖音同步完成：品牌账号 ${response.breakdown.brandAccounts} 条，竞品账号 ${response.breakdown.competitorAccounts} 条，` +
-        `品牌作品 ${response.breakdown.brandWorks} 条，对标作品 ${response.breakdown.benchmarkWorks} 条，搜索关键词 ${response.breakdown.searchWorks} 条，` +
+        `品牌作品 ${response.breakdown.brandWorks} 条，对标作品 ${response.breakdown.benchmarkWorks} 条，搜索关键词 ${response.breakdown.searchWorks} 条，关键词推荐 ${response.breakdown.keywordRecommendations} 条，` +
         `低粉爆款榜 ${response.breakdown.lowFanExplosiveWorks} 条，高完播率榜 ${response.breakdown.highCompletionRateWorks} 条，` +
         `高点赞率榜 ${response.breakdown.highLikeRateWorks} 条，同城热点榜 ${response.breakdown.cityHotspots} 条。`;
       const warningText = response.warnings?.filter(Boolean).join("；");
@@ -2386,6 +2399,62 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
       setErrorMessage(`竞品抖音账号同步失败：${message}`);
     } finally {
       setIsSyncingDouyinWorkspace(false);
+    }
+  }
+
+  async function handleSyncSingleDouyinKeywordRecommendation(keyword: string) {
+    if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.collection.douyinCollection"]?.edit) {
+      setErrorMessage("当前账号没有同步收集数据板块的编辑权限。");
+      return;
+    }
+    const normalizedKeyword = keyword.trim();
+    if (!normalizedKeyword) {
+      setErrorMessage("请输入关键词后再提交。");
+      return;
+    }
+
+    setIsSyncingDouyinWorkspace(true);
+    clearMessages();
+
+    try {
+      const response = await syncDouyinCollectionWorkspace(
+        {
+          scope: "keywordRecommendations",
+          searchKeyword: normalizedKeyword,
+        },
+        activeBrandId || archive.brand.id,
+      );
+      setDouyinCollectionWorkspace(response.workspace);
+      setNotice(`关键词推荐同步完成，已更新 ${response.breakdown.keywordRecommendations} 条结果。`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "同步失败";
+      setErrorMessage(`关键词推荐同步失败：${message}`);
+    } finally {
+      setIsSyncingDouyinWorkspace(false);
+    }
+  }
+
+  async function handleRemoveDouyinKeywordRecommendation(itemId: string) {
+    if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.collection.douyinCollection"]?.edit) {
+      setErrorMessage("当前账号没有编辑抖音收集数据的权限。");
+      return;
+    }
+    if (!itemId) {
+      return;
+    }
+
+    setDeletingDouyinKeywordRecommendationId(itemId);
+    clearMessages();
+
+    try {
+      const response = await removeDouyinKeywordRecommendation(itemId, activeBrandId || archive.brand.id);
+      setDouyinCollectionWorkspace(response.workspace);
+      setNotice("已删除关键词推荐结果。");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "删除失败";
+      setErrorMessage(`删除关键词推荐结果失败：${message}`);
+    } finally {
+      setDeletingDouyinKeywordRecommendationId("");
     }
   }
 
@@ -2782,6 +2851,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
         onSyncAllDouyinBrandAccounts={handleSyncAllDouyinBrandAccounts}
         onSyncSingleDouyinBrandAccount={handleSyncSingleDouyinBrandAccount}
         onSyncSingleDouyinCompetitorAccount={handleSyncSingleDouyinCompetitorAccount}
+        onSyncSingleDouyinKeywordRecommendation={handleSyncSingleDouyinKeywordRecommendation}
         sortedBrandAccounts={sortedBrandAccounts}
         sortedCompetitorAccounts={sortedCompetitorAccounts}
         sortedBrandNotes={sortedBrandNotes}
@@ -2792,6 +2862,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
         sortedDouyinBrandWorks={sortedDouyinBrandWorks}
         sortedDouyinBenchmarkWorks={sortedDouyinBenchmarkWorks}
         sortedDouyinSearchWorks={sortedDouyinSearchWorks}
+        sortedDouyinKeywordRecommendations={sortedDouyinKeywordRecommendations}
         sortedDouyinLowFanExplosiveWorks={sortedDouyinLowFanExplosiveWorks}
         sortedDouyinHighCompletionRateWorks={sortedDouyinHighCompletionRateWorks}
         sortedDouyinHighLikeRateWorks={sortedDouyinHighLikeRateWorks}
@@ -2805,12 +2876,14 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
         addingMaterialAssetId={addingMaterialAssetId}
         onAddBenchmarkNoteToMaterial={handleAddBenchmarkNoteToMaterial}
         onAddDouyinBenchmarkWorkToMaterial={handleToggleDouyinBenchmarkWorkMaterial}
+        onRemoveDouyinKeywordRecommendation={handleRemoveDouyinKeywordRecommendation}
         onPreviewMedia={setMediaPreview}
         buildFeishuMediaProxyUrl={(sourceUrl, download) => buildFeishuMediaProxyUrl(sourceUrl, download, activeBrandId || archive.brand.id)}
         formatDateTime={formatDateTime}
         formatDateLabel={formatDateLabel}
         formatCount={formatCount}
         formatMetric={formatMetric}
+        deletingDouyinKeywordRecommendationId={deletingDouyinKeywordRecommendationId}
         selectedHotspotDate={selectedHotspotDate}
         hotspotAvailableDates={hotspotAvailableDates}
         activeHotspotRecord={activeHotspotRecord}

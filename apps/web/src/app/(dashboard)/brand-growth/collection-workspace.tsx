@@ -16,6 +16,7 @@ import type {
   DouyinCityOption,
   DouyinContentTagOption,
   DouyinCollectionWorkspace,
+  DouyinKeywordRecommendationRecord,
   DouyinCollectedWorkRecord,
   XhsAccountRole,
   XhsCollectedAccountRecord,
@@ -59,6 +60,7 @@ export type DouyinCollectionCardKey =
   | "brandWorks"
   | "benchmarkWorks"
   | "searchWorks"
+  | "keywordRecommendations"
   | "lowFanExplosiveWorks"
   | "highCompletionRateWorks"
   | "highLikeRateWorks"
@@ -73,6 +75,7 @@ export const douyinCollectionCards: Array<{
   { key: "brandWorks", label: "品牌作品信息及数据" },
   { key: "benchmarkWorks", label: "对标作品信息及数据" },
   { key: "searchWorks", label: "搜索关键词" },
+  { key: "keywordRecommendations", label: "关键词推荐" },
   { key: "lowFanExplosiveWorks", label: "获取低粉爆款榜" },
   { key: "highCompletionRateWorks", label: "获取高完播率榜" },
   { key: "highLikeRateWorks", label: "获取高点赞率榜" },
@@ -86,6 +89,11 @@ type DouyinFieldPreviewRow = {
   path: string;
   required: "必需" | "可选";
   patch: "否" | "是";
+};
+
+type KeywordRecommendationEntry = {
+  id: string;
+  keyword: string;
 };
 
 const douyinFieldPreviewMap: Record<DouyinCollectionCardKey, DouyinFieldPreviewRow[]> = {
@@ -159,6 +167,12 @@ const douyinFieldPreviewMap: Record<DouyinCollectionCardKey, DouyinFieldPreviewR
     { field: "commentCount", label: "评论数", source: "获取综合搜索 V1", path: "data[].aweme_info.statistics.comment_count", required: "可选", patch: "否" },
     { field: "shareCount", label: "分享数", source: "获取综合搜索 V1", path: "data[].aweme_info.statistics.share_count", required: "可选", patch: "否" },
     { field: "collectCount", label: "收藏数", source: "获取综合搜索 V1", path: "data[].aweme_info.statistics.collect_count", required: "可选", patch: "否" },
+  ],
+  keywordRecommendations: [
+    { field: "searchKeyword", label: "搜索关键词", source: "获取搜索关键词推荐", path: "data.sug_list[].content", required: "必需", patch: "否" },
+    { field: "recommendedKeyword", label: "推荐关键词", source: "获取搜索关键词推荐", path: "data.sug_list[].content / data.sug_list[].word_record.words_content", required: "必需", patch: "否" },
+    { field: "searchTime", label: "搜索时间", source: "获取搜索关键词推荐", path: "data.extra.now", required: "可选", patch: "否" },
+    { field: "queryId", label: "推荐查询 ID", source: "获取搜索关键词推荐", path: "data.sug_list[].words_query_record.query_id", required: "可选", patch: "否" },
   ],
   lowFanExplosiveWorks: [
     { field: "workId", label: "作品 ID", source: "获取低粉爆款榜", path: "data.data.data[].item_id", required: "必需", patch: "否" },
@@ -262,6 +276,7 @@ export interface BrandGrowthCollectionWorkspaceProps {
     competitorAccountEntries: XhsAccountBindingEntry[];
     benchmarkAwemeIds: string;
     searchKeyword: string;
+    keywordRecommendationEntries: KeywordRecommendationEntry[];
     lowFanExplosiveWorks: {
       primaryTagId: string;
       secondaryTagId: string;
@@ -283,6 +298,7 @@ export interface BrandGrowthCollectionWorkspaceProps {
     competitorAccountEntries: XhsAccountBindingEntry[];
     benchmarkAwemeIds: string;
     searchKeyword: string;
+    keywordRecommendationEntries: KeywordRecommendationEntry[];
     lowFanExplosiveWorks: {
       primaryTagId: string;
       secondaryTagId: string;
@@ -312,6 +328,7 @@ export interface BrandGrowthCollectionWorkspaceProps {
   onSyncAllDouyinBrandAccounts: AsyncAction;
   onSyncSingleDouyinBrandAccount: ValueAction<XhsAccountBindingEntry>;
   onSyncSingleDouyinCompetitorAccount: ValueAction<XhsAccountBindingEntry>;
+  onSyncSingleDouyinKeywordRecommendation: ValueAction<string>;
   sortedBrandAccounts: XhsCollectedAccountRecord[];
   sortedCompetitorAccounts: XhsCollectedAccountRecord[];
   sortedBrandNotes: XhsCollectedNoteRecord[];
@@ -322,6 +339,7 @@ export interface BrandGrowthCollectionWorkspaceProps {
   sortedDouyinBrandWorks: DouyinCollectedWorkRecord[];
   sortedDouyinBenchmarkWorks: DouyinCollectedWorkRecord[];
   sortedDouyinSearchWorks: DouyinCollectedWorkRecord[];
+  sortedDouyinKeywordRecommendations: DouyinKeywordRecommendationRecord[];
   sortedDouyinLowFanExplosiveWorks: DouyinCollectedWorkRecord[];
   sortedDouyinHighCompletionRateWorks: DouyinCollectedWorkRecord[];
   sortedDouyinHighLikeRateWorks: DouyinCollectedWorkRecord[];
@@ -335,12 +353,14 @@ export interface BrandGrowthCollectionWorkspaceProps {
   addingMaterialAssetId: string;
   onAddBenchmarkNoteToMaterial: ValueAction<string>;
   onAddDouyinBenchmarkWorkToMaterial: ValueAction<DouyinCollectedWorkRecord>;
+  onRemoveDouyinKeywordRecommendation: ValueAction<string>;
   onPreviewMedia: ValueAction<MediaPreviewState>;
   buildFeishuMediaProxyUrl: (sourceUrl?: string, download?: boolean) => string;
   formatDateTime: OptionalDateFormatter;
   formatDateLabel: OptionalDateFormatter;
   formatCount: OptionalNumberFormatter;
   formatMetric: OptionalNumberFormatter;
+  deletingDouyinKeywordRecommendationId: string;
   selectedHotspotDate: string;
   hotspotAvailableDates: string[];
   activeHotspotRecord?: DailyHotspotPlatformRecord;
@@ -866,6 +886,40 @@ function doesDouyinAccountMatchEntry(account: DouyinCollectedAccountRecord, entr
   return entryTokens.some((token) => accountTokens.has(token));
 }
 
+function normalizeKeywordRecommendationKeyword(keyword: string) {
+  return keyword.trim().toLowerCase();
+}
+
+function buildKeywordRecommendationEntryId() {
+  return `douyin_keyword_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function upsertKeywordRecommendationEntries(
+  entries: KeywordRecommendationEntry[],
+  nextEntry: KeywordRecommendationEntry,
+) {
+  const normalizedKeyword = normalizeKeywordRecommendationKeyword(nextEntry.keyword);
+  if (!normalizedKeyword) {
+    return entries;
+  }
+  const preparedEntry = {
+    ...nextEntry,
+    keyword: nextEntry.keyword.trim(),
+  };
+  const matchedIndex = entries.findIndex((item) => normalizeKeywordRecommendationKeyword(item.keyword) === normalizedKeyword);
+  if (matchedIndex < 0) {
+    return [...entries, preparedEntry];
+  }
+  return entries.map((item, index) => (index === matchedIndex ? { ...item, ...preparedEntry } : item));
+}
+
+function doesKeywordRecommendationMatchEntry(
+  item: DouyinKeywordRecommendationRecord,
+  entry: KeywordRecommendationEntry,
+) {
+  return normalizeKeywordRecommendationKeyword(item.searchKeyword) === normalizeKeywordRecommendationKeyword(entry.keyword);
+}
+
 function XhsAccountBindingSubmitPanel(props: {
   title: string;
   description: string;
@@ -1155,6 +1209,181 @@ function DouyinAccountBindingSubmitPanel(props: {
         </div>
       ) : null}
     </>
+  );
+}
+
+function DouyinKeywordRecommendationBuilder(props: {
+  entries: KeywordRecommendationEntry[];
+  results: DouyinKeywordRecommendationRecord[];
+  isSubmitting: boolean;
+  onChangeEntries: ValueAction<KeywordRecommendationEntry[]>;
+  onSubmitEntry: ValueAction<string>;
+}) {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [draftKeyword, setDraftKeyword] = useState("");
+
+  const handleSave = () => {
+    const trimmedKeyword = draftKeyword.trim();
+    if (!trimmedKeyword) {
+      return;
+    }
+    props.onChangeEntries(
+      upsertKeywordRecommendationEntries(props.entries, {
+        id: buildKeywordRecommendationEntryId(),
+        keyword: trimmedKeyword,
+      }),
+    );
+    setDraftKeyword("");
+    setIsModalOpen(false);
+  };
+
+  const handleDelete = (entryId: string) => {
+    props.onChangeEntries(props.entries.filter((item) => item.id !== entryId));
+  };
+
+  return (
+    <>
+      <article className="light-data-panel xhs-account-builder keyword-recommendation-builder">
+        <div className="collection-result-head">
+          <div>
+            <h3>关键词推荐</h3>
+            <p>延续品牌账号信息的轻卡片管理方式，先维护关键词池，再按需逐条提交获取推荐词结果。</p>
+          </div>
+          <button type="button" className="secondary-button" onClick={() => setIsModalOpen(true)} disabled={props.isSubmitting}>
+            添加关键词
+          </button>
+        </div>
+        {props.entries.length ? (
+          <div className="keyword-recommendation-entry-grid">
+            {props.entries.map((entry) => {
+              const hasSyncedResult = props.results.some((item) => doesKeywordRecommendationMatchEntry(item, entry));
+              return (
+                <article key={entry.id} className="keyword-recommendation-entry-card">
+                  <div className="keyword-recommendation-entry-card__head">
+                    <span className={`archive-pill ${hasSyncedResult ? "status-ready" : "status-pending"}`}>
+                      {hasSyncedResult ? "已回填" : "待提交"}
+                    </span>
+                  </div>
+                  <strong>{entry.keyword}</strong>
+                  <div className="keyword-recommendation-entry-card__actions">
+                    <button
+                      type="button"
+                      className="primary-button"
+                      onClick={() => void props.onSubmitEntry(entry.keyword)}
+                      disabled={props.isSubmitting}
+                    >
+                      {props.isSubmitting ? "提交中..." : "提交"}
+                    </button>
+                    <button
+                      type="button"
+                      className="note-inline-button"
+                      onClick={() => handleDelete(entry.id)}
+                      disabled={props.isSubmitting}
+                    >
+                      删除
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="xhs-account-entry-empty">
+            当前还没有添加推荐关键词，请先新增关键词后再逐条提交。
+          </div>
+        )}
+      </article>
+      {isModalOpen ? (
+        <div className="xhs-account-modal-backdrop" role="dialog" aria-modal="true" onClick={() => setIsModalOpen(false)}>
+          <div className="xhs-account-modal keyword-recommendation-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="xhs-account-modal__head">
+              <div>
+                <strong>添加关键词</strong>
+                <p>保存后进入待提交列表。每个关键词都支持单独提交并回填推荐结果。</p>
+              </div>
+              <button type="button" className="xhs-account-modal__close" onClick={() => setIsModalOpen(false)}>
+                关闭
+              </button>
+            </div>
+            <label className="field">
+              <span>关键词</span>
+              <input
+                value={draftKeyword}
+                onChange={(event) => setDraftKeyword(event.target.value)}
+                placeholder="请输入搜索关键词，例如：生日蛋糕、轻食沙拉、门店探店"
+              />
+            </label>
+            <div className="xhs-account-modal__actions">
+              <button type="button" className="secondary-button" onClick={() => setIsModalOpen(false)}>
+                取消
+              </button>
+              <button type="button" className="primary-button" onClick={handleSave} disabled={!draftKeyword.trim()}>
+                保存
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+function DouyinKeywordRecommendationResults(props: {
+  items: DouyinKeywordRecommendationRecord[];
+  deletingItemId: string;
+  onDelete: ValueAction<string>;
+}) {
+  return (
+    <article className="light-data-panel">
+      <div className="collection-result-head">
+        <div>
+          <h3>关键词推荐结果</h3>
+          <p>调用 TikHub 抖音搜索关键词推荐接口，回填搜索关键词、推荐关键词和搜索时间。</p>
+        </div>
+      </div>
+      {props.items.length ? (
+        <div className="keyword-recommendation-results-grid">
+          {props.items.map((item) => (
+            <article key={item.id} className="keyword-recommendation-result-card">
+              <div className="keyword-recommendation-result-card__head">
+                <div className="keyword-recommendation-result-card__title">
+                  <strong>{item.recommendedKeyword || "-"}</strong>
+                  <span>{item.searchKeyword || "-"}</span>
+                </div>
+                <button
+                  type="button"
+                  className="note-inline-button"
+                  onClick={() => void props.onDelete(item.id)}
+                  disabled={props.deletingItemId === item.id}
+                >
+                  {props.deletingItemId === item.id ? "删除中..." : "删除"}
+                </button>
+              </div>
+              <div className="keyword-recommendation-result-card__grid">
+                <div className="keyword-recommendation-result-card__item">
+                  <span>搜索关键词</span>
+                  <strong>{item.searchKeyword || "-"}</strong>
+                </div>
+                <div className="keyword-recommendation-result-card__item">
+                  <span>推荐关键词</span>
+                  <strong>{item.recommendedKeyword || "-"}</strong>
+                </div>
+                <div className="keyword-recommendation-result-card__item">
+                  <span>搜索时间</span>
+                  <strong>{item.searchTime || "-"}</strong>
+                </div>
+                <div className="keyword-recommendation-result-card__item">
+                  <span>来源信息</span>
+                  <strong>{item.wordsSource || item.queryId || "-"}</strong>
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <div className="note-empty-state">当前还没有关键词推荐结果，请先提交右侧关键词。</div>
+      )}
+    </article>
   );
 }
 
@@ -2337,6 +2566,7 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
     props.sortedDouyinBrandWorks.length +
     props.sortedDouyinBenchmarkWorks.length +
     props.sortedDouyinSearchWorks.length +
+    props.sortedDouyinKeywordRecommendations.length +
     props.sortedDouyinLowFanExplosiveWorks.length +
     props.sortedDouyinHighCompletionRateWorks.length +
     props.sortedDouyinHighLikeRateWorks.length +
@@ -3226,35 +3456,69 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
           ) : null}
           {props.activeDouyinCollectionCard === "searchWorks" ? (
             <>
-              <DouyinSubmitPanel
-                title="搜索关键词"
-                value={props.douyinSyncForm.searchKeyword}
-                onChange={(value) => props.setDouyinSyncForm((current) => ({ ...current, searchKeyword: value }))}
-                placeholder="请输入抖音搜索关键词，例如：生日蛋糕、探店咖啡、烘焙教程"
-                isSubmitting={props.isHydrating || props.isSyncingDouyinWorkspace}
-                onSubmit={props.onSyncDouyinWorkspace}
-              />
-              <article className="light-data-panel">
-                <div className="collection-result-head">
-                  <div>
-                    <h3>搜索关键词结果</h3>
-                    <p>调用 TikHub 抖音综合搜索接口，返回关键词下的视频结果，支持加入抖音素材库。</p>
+              <div className="keyword-recommendation-split-grid">
+                <DouyinSubmitPanel
+                  title="搜索关键词"
+                  value={props.douyinSyncForm.searchKeyword}
+                  onChange={(value) => props.setDouyinSyncForm((current) => ({ ...current, searchKeyword: value }))}
+                  placeholder="请输入抖音搜索关键词，例如：生日蛋糕、探店咖啡、烘焙教程"
+                  isSubmitting={props.isHydrating || props.isSyncingDouyinWorkspace}
+                  onSubmit={props.onSyncDouyinWorkspace}
+                />
+                <DouyinKeywordRecommendationBuilder
+                  entries={props.douyinSyncForm.keywordRecommendationEntries}
+                  results={props.sortedDouyinKeywordRecommendations}
+                  isSubmitting={props.isHydrating || props.isSyncingDouyinWorkspace}
+                  onChangeEntries={(entries) =>
+                    props.setDouyinSyncForm((current) => ({ ...current, keywordRecommendationEntries: entries }))}
+                  onSubmitEntry={props.onSyncSingleDouyinKeywordRecommendation}
+                />
+              </div>
+              <div className="keyword-recommendation-split-grid keyword-recommendation-split-grid--results">
+                <article className="light-data-panel">
+                  <div className="collection-result-head">
+                    <div>
+                      <h3>搜索关键词结果</h3>
+                      <p>调用 TikHub 抖音综合搜索接口，返回关键词下的视频结果，支持加入抖音素材库。</p>
+                    </div>
                   </div>
-                </div>
-                {douyinPreviewItems.length ? (
-                  <DouyinMaterialReadyWorksTable
-                    items={douyinPreviewItems as DouyinCollectedWorkRecord[]}
-                    addingMaterialAssetId={props.addingMaterialAssetId}
-                    onAddToMaterialLibrary={props.onAddDouyinBenchmarkWorkToMaterial}
-                    formatDateTime={props.formatDateTime}
-                    formatCount={props.formatCount}
-                    onPreviewMedia={props.onPreviewMedia}
-                    showBillboardColumns={false}
-                  />
-                ) : (
-                  <div className="note-empty-state">当前还没有搜索结果，请先输入关键词并提交。</div>
-                )}
-              </article>
+                  {douyinPreviewItems.length ? (
+                    <DouyinMaterialReadyWorksTable
+                      items={douyinPreviewItems as DouyinCollectedWorkRecord[]}
+                      addingMaterialAssetId={props.addingMaterialAssetId}
+                      onAddToMaterialLibrary={props.onAddDouyinBenchmarkWorkToMaterial}
+                      formatDateTime={props.formatDateTime}
+                      formatCount={props.formatCount}
+                      onPreviewMedia={props.onPreviewMedia}
+                      showBillboardColumns={false}
+                    />
+                  ) : (
+                    <div className="note-empty-state">当前还没有搜索结果，请先输入关键词并提交。</div>
+                  )}
+                </article>
+                <DouyinKeywordRecommendationResults
+                  items={props.sortedDouyinKeywordRecommendations}
+                  deletingItemId={props.deletingDouyinKeywordRecommendationId}
+                  onDelete={props.onRemoveDouyinKeywordRecommendation}
+                />
+              </div>
+            </>
+          ) : null}
+          {props.activeDouyinCollectionCard === "keywordRecommendations" ? (
+            <>
+              <DouyinKeywordRecommendationBuilder
+                entries={props.douyinSyncForm.keywordRecommendationEntries}
+                results={props.sortedDouyinKeywordRecommendations}
+                isSubmitting={props.isHydrating || props.isSyncingDouyinWorkspace}
+                onChangeEntries={(entries) =>
+                  props.setDouyinSyncForm((current) => ({ ...current, keywordRecommendationEntries: entries }))}
+                onSubmitEntry={props.onSyncSingleDouyinKeywordRecommendation}
+              />
+              <DouyinKeywordRecommendationResults
+                items={props.sortedDouyinKeywordRecommendations}
+                deletingItemId={props.deletingDouyinKeywordRecommendationId}
+                onDelete={props.onRemoveDouyinKeywordRecommendation}
+              />
             </>
           ) : null}
           {props.activeDouyinCollectionCard === "lowFanExplosiveWorks" ? (

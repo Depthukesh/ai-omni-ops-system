@@ -172,6 +172,7 @@ export class DouyinCollectorsController {
         | "brandWorks"
         | "benchmarkWorks"
         | "searchWorks"
+        | "keywordRecommendations"
         | "lowFanExplosiveWorks"
         | "highCompletionRateWorks"
         | "highLikeRateWorks"
@@ -215,5 +216,16 @@ export class DouyinCollectorsController {
     const auth = await this.authService.resolveRequestAuthContext(headers);
     await this.authService.assertBrandAccess(brandId, auth);
     return this.collectorsService.removeDouyinBenchmarkWorkFromMaterialLibrary(brandId, assetId);
+  }
+
+  @Delete("brands/:brandId/keyword-recommendations/:assetId")
+  async removeKeywordRecommendation(
+    @Param("brandId") brandId: string,
+    @Param("assetId") assetId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(brandId, auth);
+    return this.collectorsService.removeDouyinKeywordRecommendation(brandId, assetId);
   }
 }
