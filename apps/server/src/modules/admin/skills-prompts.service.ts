@@ -157,6 +157,15 @@ const DOUYIN_ORIGINAL_COPY_LEGACY_FALLBACKS: Record<string, string> = {
   prompt_douyin_original_copy_local_sales: "根据品牌资料、营销日历、选题内容与抖音营销策划方案，生成同城带货类抖音原创文案。",
 };
 
+const XHS_ORIGINAL_COPY_LEGACY_FALLBACKS: Record<string, string> = {
+  prompt_xhs_original_copy_science:
+    "根据营销规划方案、营销日历选题、产品信息和用户附加要求，生成适合小红书发布的科普类原创标题、正文与标签。",
+  prompt_xhs_original_copy_review:
+    "根据营销规划方案、营销日历选题、产品信息和用户附加要求，生成适合小红书发布的测评类原创标题、正文与标签。",
+  prompt_xhs_original_copy_avoid_pitfall:
+    "根据营销规划方案、营销日历选题、产品信息和用户附加要求，生成适合小红书发布的避坑类原创标题、正文与标签。",
+};
+
 const WECHAT_HTML_RENDER_PROMPT_ID = "prompt_wechat_html_render";
 const WECHAT_HTML_RENDER_SCENE = "公众号HTML渲染";
 const WECHAT_HTML_RENDER_REQUIRED_MARKER = "## 参数映射协议";
@@ -1523,6 +1532,7 @@ export class SkillsPromptsService implements OnModuleInit {
 
     await this.removeRetiredOpenDesignArtifacts();
     await this.backfillDouyinOriginalCopyPromptContents();
+    await this.backfillXhsOriginalCopyPromptContents();
     await this.backfillWechatHtmlRenderPromptContents();
     await this.backfillImageGenerationSkillDefaults();
     await this.backfillLegacyVideoNoteDefaults();
@@ -1619,6 +1629,30 @@ export class SkillsPromptsService implements OnModuleInit {
   private async backfillDouyinOriginalCopyPromptContents() {
     for (const prompt of database.promptTemplates) {
       const legacyFallback = DOUYIN_ORIGINAL_COPY_LEGACY_FALLBACKS[prompt.id];
+      if (!legacyFallback) {
+        continue;
+      }
+      const seedContent = this.readPromptContent(prompt.id, prompt.content);
+      if (!seedContent || seedContent.trim() === legacyFallback.trim()) {
+        continue;
+      }
+      await this.prismaService.$executeRaw`
+        UPDATE "PromptTemplate"
+        SET
+          "content" = ${seedContent},
+          "updatedAt" = CURRENT_TIMESTAMP
+        WHERE "id" = ${prompt.id}
+          AND (
+            COALESCE(BTRIM("content"), '') = ''
+            OR BTRIM("content") = ${legacyFallback.trim()}
+          )
+      `;
+    }
+  }
+
+  private async backfillXhsOriginalCopyPromptContents() {
+    for (const prompt of database.promptTemplates) {
+      const legacyFallback = XHS_ORIGINAL_COPY_LEGACY_FALLBACKS[prompt.id];
       if (!legacyFallback) {
         continue;
       }
