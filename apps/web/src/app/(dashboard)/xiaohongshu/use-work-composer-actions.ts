@@ -241,16 +241,6 @@ export function useWorkComposerActions(options: {
       return;
     }
 
-    if (options.video.videoKindValue === "REMIX" && !options.video.materialValue) {
-      options.setErrorMessage("复刻视频必须先选择一个视频素材。");
-      return;
-    }
-
-    if (options.video.videoKindValue === "REMIX" && !selectedMaterial?.videoUrl) {
-      options.setErrorMessage("复刻视频必须选择素材库中的视频类型素材。");
-      return;
-    }
-
     videoCreateInFlightRef.current = true;
     setIsPublishing(true);
     setIsVideoSubmitting(true);
@@ -269,7 +259,7 @@ export function useWorkComposerActions(options: {
         materialId: options.video.materialValue || undefined,
         accountRole: options.video.accountRoleValue as "BRAND" | "STAFF" | "TALENT",
         referenceImageFile: options.video.referenceImageFile,
-        videoKind: options.video.videoKindValue as "BRAND_PROMO" | "SPOKEN_SELLING" | "SKIT_SELLING" | "REMIX",
+        videoKind: options.video.videoKindValue as "BRAND_PROMO" | "SPOKEN_SELLING" | "SKIT_SELLING",
         copyAdditionalInstruction: options.video.copyAdditionalInstruction.trim() || undefined,
         videoProvider: resolvedProvider,
         customVideoModelName: options.video.customModelName.trim() || undefined,

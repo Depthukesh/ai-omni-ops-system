@@ -161,13 +161,6 @@ export const SKILL_CENTER_TREE: SkillCenterPrimaryConfig[] = [
             skillSlug: "short-video-api-studio",
             promptScene: "视频笔记-短剧带货剧本",
           },
-          {
-            id: "xhs-video-remix-script",
-            label: "视频笔记-复刻视频拆解",
-            description: "对应前台复刻视频，第 1 阶段根据素材视频拆解剧情脚本。",
-            skillSlug: "short-video-api-studio",
-            promptScene: "视频笔记-复刻视频拆解",
-          },
         ],
       },
       {

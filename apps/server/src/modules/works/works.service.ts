@@ -13603,6 +13603,9 @@ export class WorksService {
       throw new BadRequestException("上传参考图时不能同时选择产品，请二选一。");
     }
     const videoKind = (payload.videoKind || "BRAND_PROMO") as VideoNoteKind;
+    if (videoKind === "REMIX") {
+      throw new BadRequestException("小红书视频笔记已下线“复刻视频”类型，请改用其他视频类型。");
+    }
     const product = payload.productId
       ? archive.products.find((item) => item.id === payload.productId)
       : undefined;
@@ -13624,9 +13627,6 @@ export class WorksService {
       if (!target) {
         throw new BadRequestException("未找到你选择的素材库作品，请确认该素材已加入素材库。");
       }
-      if (videoKind === "REMIX" && !target.videoUrl) {
-        throw new BadRequestException("复刻视频必须选择视频类型素材，请重新选择素材库中的视频素材。");
-      }
       material = {
         id: target.id,
         title: target.title,
@@ -13635,8 +13635,6 @@ export class WorksService {
         sourceUrl: target.sourceUrl || undefined,
         videoUrl: target.videoUrl || "",
       };
-    } else if (videoKind === "REMIX") {
-      throw new BadRequestException("复刻视频必须先选择一个视频素材。");
     }
     const referenceImageUrl = payload.referenceImage?.dataBase64
       ? (

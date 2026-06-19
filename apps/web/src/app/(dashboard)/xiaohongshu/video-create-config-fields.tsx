@@ -48,7 +48,6 @@ export function VideoCreateConfigFields(props: VideoCreateConfigFieldsProps) {
           <option value="BRAND_PROMO">品牌宣传视频</option>
           <option value="SPOKEN_SELLING">口播带货视频</option>
           <option value="SKIT_SELLING">短剧带货视频</option>
-          <option value="REMIX">复刻视频</option>
         </select>
       </label>
       <label>
@@ -64,9 +63,7 @@ export function VideoCreateConfigFields(props: VideoCreateConfigFieldsProps) {
             ))}
         </select>
         <p className="panel-subtext">
-          {props.videoKindValue === "REMIX"
-            ? "复刻视频必须选择一个视频素材。"
-            : "可选：只展示素材库中的视频类型素材。"}
+          可选：只展示素材库中的视频类型素材。
         </p>
       </label>
       <label className="field-full">
