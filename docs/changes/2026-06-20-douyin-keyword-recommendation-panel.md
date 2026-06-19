@@ -17,20 +17,21 @@
 ### 3.1 前端
 
 - 在 `apps/web/src/app/(dashboard)/brand-growth/collection-workspace.tsx` 补齐 `BrandGrowthCollectionWorkspaceProps`，接入关键词推荐相关状态与事件。
-- 新增“关键词推荐”弹窗、关键词池卡片区、推荐结果卡片区，并在“搜索关键词”页面内以左右双栏方式展示。
+- 新增“关键词推荐”弹窗、关键词池卡片区、推荐结果卡片区，并在“搜索关键词”页面内以更紧凑的双层双栏方式展示，避免中间留白过大。
 - 新增独立 `keywordRecommendations` 卡片视图，便于后续单独查看和维护推荐结果。
-- 在 `apps/web/src/styles/globals.css` 新增三列关键词池、两列推荐结果卡片和响应式布局样式，复用现有品牌账号信息的卡片视觉语言。
+- 在 `apps/web/src/styles/globals.css` 新增三列关键词池、两列推荐结果卡片、历史记录弹窗和响应式布局样式，复用现有品牌账号信息的卡片视觉语言。
 
 ### 3.2 后端
 
 - 复用此前已扩展的 collectors 能力：`keywordRecommendations` scope、TikHub 搜索推荐接口采集、推荐结果删除接口。
-- 本次未新增新的服务端接口协议，只完成前端收口并对齐现有返回结构。
+- 将关键词推荐结果从“按关键词覆盖更新”调整为“按提交批次追加写入”，保留历史记录并确保最新结果显示在最前面。
 
 ### 3.3 数据与配置
 
 - 继续使用 `DouyinCollectionWorkspace.keywordRecommendations` 作为工作区持久化结果集。
 - 继续使用 `douyinSyncForm.keywordRecommendationEntries` 作为前端待提交关键词池。
 - 推荐结果字段统一展示 `searchKeyword`、`recommendedKeyword`、`searchTime`，并保留 `queryId` / `wordsSource` 作为辅助信息。
+- 每个待提交关键词都支持“查看历史”，可按搜索关键词回看历史推荐结果。
 
 ## 4. 修改意图
 
@@ -47,14 +48,14 @@
 
 ## 6. 验证方式
 
-- 手工验证：检查“搜索关键词”页是否出现右侧“关键词推荐”板块，是否支持弹窗新增、提交、删除，以及两列结果展示。
+- 手工验证：检查“搜索关键词”页是否出现右侧“关键词推荐”板块，是否支持弹窗新增、提交、删除、查看历史，以及两列结果展示。
 - 接口验证：通过已有 `syncDouyinCollectionWorkspace(scope: "keywordRecommendations")` 与删除接口完成联动。
 - 日志验证：保持现有 collectors 运行日志口径，不新增额外日志依赖。
 - 编译/诊断验证：已执行前端文件诊断；后续继续执行 `npm run build:web` 与 `npm --workspace apps/server run build`。
 
 ## 7. 风险与后续
 
-- 当前关键词池保存在前端表单状态中，页面刷新后不会保留待提交关键词，只会保留已提交的推荐结果。
+- 当前关键词池保存在前端表单状态中，页面刷新后不会保留待提交关键词，只会保留已提交的推荐结果和历史记录。
 - 本地完整联调仍受现有服务端开发态环境影响，若服务端 watch 进程再次异常，需要单独排查运行时问题。
 - 如果后续需要批量提交关键词，可以在当前单条提交模型上继续扩展批量任务入口。
 

@@ -3895,7 +3895,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     const items = this.extractDouyinKeywordRecommendationItems(raw).slice(0, 20);
     const rows: DouyinKeywordRecommendationRecord[] = [];
 
-    for (const item of items) {
+    for (const [index, item] of items.entries()) {
       const wordRecord = this.asMeta(item.word_record);
       const queryRecord = this.asMeta(item.words_query_record);
       const recommendedKeyword =
@@ -3905,16 +3905,16 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
         continue;
       }
 
-      const compositeKey = `${normalizedKeyword}::${recommendedKeyword}`.toLowerCase();
+      const historyKey = `${normalizedKeyword}::${recommendedKeyword}::${collectedAt}::${index}`.toLowerCase();
       const asset = await this.upsertCollectorAsset({
         brandId,
         kind: "DOUYIN_KEYWORD_RECOMMENDATION",
-        matchValue: compositeKey,
+        matchValue: historyKey,
         title: recommendedKeyword,
         description: `搜索关键词：${normalizedKeyword}`,
         metadata: {
           kind: "DOUYIN_KEYWORD_RECOMMENDATION",
-          sourceAccountId: compositeKey,
+          sourceAccountId: historyKey,
           searchKeyword: normalizedKeyword,
           recommendedKeyword,
           searchTime,

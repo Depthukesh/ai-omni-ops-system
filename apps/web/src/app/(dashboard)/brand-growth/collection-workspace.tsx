@@ -1221,6 +1221,7 @@ function DouyinKeywordRecommendationBuilder(props: {
 }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [draftKeyword, setDraftKeyword] = useState("");
+  const [historyKeyword, setHistoryKeyword] = useState("");
 
   const handleSave = () => {
     const trimmedKeyword = draftKeyword.trim();
@@ -1240,6 +1241,10 @@ function DouyinKeywordRecommendationBuilder(props: {
   const handleDelete = (entryId: string) => {
     props.onChangeEntries(props.entries.filter((item) => item.id !== entryId));
   };
+
+  const historyItems = historyKeyword
+    ? props.results.filter((item) => normalizeKeywordRecommendationKeyword(item.searchKeyword) === normalizeKeywordRecommendationKeyword(historyKeyword))
+    : [];
 
   return (
     <>
@@ -1263,6 +1268,9 @@ function DouyinKeywordRecommendationBuilder(props: {
                     <span className={`archive-pill ${hasSyncedResult ? "status-ready" : "status-pending"}`}>
                       {hasSyncedResult ? "已回填" : "待提交"}
                     </span>
+                    <span className="keyword-recommendation-entry-card__meta">
+                      历史 {props.results.filter((item) => doesKeywordRecommendationMatchEntry(item, entry)).length} 条
+                    </span>
                   </div>
                   <strong>{entry.keyword}</strong>
                   <div className="keyword-recommendation-entry-card__actions">
@@ -1273,6 +1281,13 @@ function DouyinKeywordRecommendationBuilder(props: {
                       disabled={props.isSubmitting}
                     >
                       {props.isSubmitting ? "提交中..." : "提交"}
+                    </button>
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      onClick={() => setHistoryKeyword(entry.keyword)}
+                    >
+                      查看
                     </button>
                     <button
                       type="button"
@@ -1321,6 +1336,43 @@ function DouyinKeywordRecommendationBuilder(props: {
                 保存
               </button>
             </div>
+          </div>
+        </div>
+      ) : null}
+      {historyKeyword ? (
+        <div className="xhs-account-modal-backdrop" role="dialog" aria-modal="true" onClick={() => setHistoryKeyword("")}>
+          <div className="xhs-account-modal keyword-recommendation-history-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="xhs-account-modal__head">
+              <div>
+                <strong>历史记录</strong>
+                <p>关键词“{historyKeyword}”的历史推荐结果按时间倒序展示，最新结果排在最前面。</p>
+              </div>
+              <button type="button" className="xhs-account-modal__close" onClick={() => setHistoryKeyword("")}>
+                关闭
+              </button>
+            </div>
+            {historyItems.length ? (
+              <div className="keyword-recommendation-history-list">
+                {historyItems.map((item) => (
+                  <article key={item.id} className="keyword-recommendation-history-card">
+                    <div className="keyword-recommendation-history-card__head">
+                      <strong>{item.recommendedKeyword || "-"}</strong>
+                      <span>{item.searchTime || item.collectedAt || "-"}</span>
+                    </div>
+                    <div className="keyword-recommendation-history-card__meta">
+                      <span>搜索关键词</span>
+                      <strong>{item.searchKeyword || "-"}</strong>
+                    </div>
+                    <div className="keyword-recommendation-history-card__meta">
+                      <span>来源信息</span>
+                      <strong>{item.wordsSource || item.queryId || "-"}</strong>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <div className="note-empty-state">当前关键词还没有历史记录，请先提交一次再查看。</div>
+            )}
           </div>
         </div>
       ) : null}
@@ -3456,7 +3508,7 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
           ) : null}
           {props.activeDouyinCollectionCard === "searchWorks" ? (
             <>
-              <div className="keyword-recommendation-split-grid">
+              <div className="keyword-recommendation-top-grid">
                 <DouyinSubmitPanel
                   title="搜索关键词"
                   value={props.douyinSyncForm.searchKeyword}
@@ -3474,7 +3526,7 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                   onSubmitEntry={props.onSyncSingleDouyinKeywordRecommendation}
                 />
               </div>
-              <div className="keyword-recommendation-split-grid keyword-recommendation-split-grid--results">
+              <div className="keyword-recommendation-content-grid">
                 <article className="light-data-panel">
                   <div className="collection-result-head">
                     <div>
