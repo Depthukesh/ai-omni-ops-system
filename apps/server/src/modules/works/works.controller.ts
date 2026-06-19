@@ -8,6 +8,7 @@ import {
   type CreateDouyinAdPreAuditUploadPayload,
   type CreateDouyinDigitalHumanScriptTemplatePayload,
   type ContinueDouyinDirectVideoGenerationPayload,
+  type ContinueDouyinRemixShortVideoGenerationPayload,
   type ContinueDouyinVideoGenerationPayload,
   type ContinueXiaohongshuVideoGenerationPayload,
   type GenerateDesignWorkPayload,
@@ -21,6 +22,7 @@ import {
   type GenerateDouyinDigitalHumanScriptPayload,
   type GenerateDouyinDigitalHumanVideoPayload,
   type GenerateDouyinDirectVideoPayload,
+  type GenerateDouyinRemixShortVideoPayload,
   type GenerateDouyinVideoNotePayload,
   type GenerateXiaohongshuVideoNotePayload,
   type RecoverDouyinDigitalHumanVideoPayload,
@@ -132,6 +134,16 @@ export class WorksController {
     const auth = await this.authService.resolveRequestAuthContext(headers);
     await this.authService.assertBrandPermission(brandId, "douyin.videoDirect", "view", auth);
     return this.worksService.listDouyinDirectVideoWorks(brandId);
+  }
+
+  @Get("brands/:brandId/douyin/remix-short-video")
+  async listDouyinRemixShortVideoWorks(
+    @Param("brandId") brandId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "douyin.remixShortVideo", "view", auth);
+    return this.worksService.listDouyinRemixShortVideoWorks(brandId);
   }
 
   @Get("brands/:brandId/wechat/articles")
@@ -908,6 +920,20 @@ export class WorksController {
       });
   }
 
+  @Post("brands/:brandId/douyin/remix-short-video/generate")
+  generateDouyinRemixShortVideo(
+    @Param("brandId") brandId: string,
+    @Body() payload: GenerateDouyinRemixShortVideoPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    return this.authService
+      .resolveRequestAuthContext(headers)
+      .then(async (auth) => {
+        const access = await this.authService.assertBrandPermission(brandId, "douyin.remixShortVideo", "edit", auth);
+        return this.worksService.generateDouyinRemixShortVideo(brandId, payload, auth, access.role);
+      });
+  }
+
   @Post("brands/:brandId/douyin/digital-human/video/generate")
   generateDouyinDigitalHumanVideo(
     @Param("brandId") brandId: string,
@@ -998,6 +1024,19 @@ export class WorksController {
     return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
       await this.authService.assertBrandPermission(brandId, "douyin.videoDirect", "edit", auth);
       return this.worksService.continueDouyinDirectVideoGeneration(brandId, workId, payload, auth);
+    });
+  }
+
+  @Post("brands/:brandId/douyin/remix-short-video/:workId/video/generate")
+  continueDouyinRemixShortVideoGeneration(
+    @Param("brandId") brandId: string,
+    @Param("workId") workId: string,
+    @Body() payload: ContinueDouyinRemixShortVideoGenerationPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
+      await this.authService.assertBrandPermission(brandId, "douyin.remixShortVideo", "edit", auth);
+      return this.worksService.continueDouyinRemixShortVideoGeneration(brandId, workId, payload, auth);
     });
   }
 

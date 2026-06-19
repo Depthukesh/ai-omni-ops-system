@@ -648,6 +648,22 @@ const SKILL_PROMPT_BINDINGS: Record<string, SkillPromptBindingRule> = {
     promptIds: ["prompt_douyin_direct_video"],
     promptScenes: ["抖音AI生视频-Seedance提示词"],
   },
+  skill_douyin_remix_short_video: {
+    promptIds: ["prompt_douyin_remix_short_video"],
+    promptScenes: ["抖音复刻短视频-复刻分析"],
+  },
+  "douyin-remix-short-video-studio": {
+    promptIds: ["prompt_douyin_remix_short_video"],
+    promptScenes: ["抖音复刻短视频-复刻分析"],
+  },
+  skill_douyin_remix_short_video_compose: {
+    promptIds: ["prompt_douyin_remix_short_video_compose"],
+    promptScenes: ["拼接复刻短视频-分段提示词"],
+  },
+  "douyin-remix-short-video-compose": {
+    promptIds: ["prompt_douyin_remix_short_video_compose"],
+    promptScenes: ["拼接复刻短视频-分段提示词"],
+  },
   skill_douyin_digital_human_script: {
     promptIds: ["prompt_douyin_digital_human_script"],
     promptScenes: ["抖音数字人-口播脚本"],

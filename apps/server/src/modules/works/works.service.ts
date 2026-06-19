@@ -172,7 +172,7 @@ type OriginalAccountRole = "BRAND" | "STAFF" | "TALENT";
 type XiaohongshuOriginalNoteMode = "GENERAL" | "SCIENCE" | "REVIEW" | "AVOID_PITFALL";
 export type VideoNoteKind = "BRAND_PROMO" | "SPOKEN_SELLING" | "SKIT_SELLING" | "REMIX";
 type VideoAspectRatio = "9:16" | "3:4" | "16:9" | "4:3";
-type VideoWorkKind = "XHS_VIDEO_NOTE" | "DOUYIN_VIDEO_NOTE" | "DOUYIN_DIRECT_VIDEO";
+type VideoWorkKind = "XHS_VIDEO_NOTE" | "DOUYIN_VIDEO_NOTE" | "DOUYIN_DIRECT_VIDEO" | "DOUYIN_REMIX_SHORT_VIDEO";
 type VideoWorkflowStage =
   | "QUEUED"
   | "GENERATING_SCRIPT"
@@ -289,6 +289,19 @@ export type GenerateDouyinVideoNotePayload = {
   includeMarketingPlan?: boolean;
 };
 
+export type GenerateDouyinRemixShortVideoPayload = {
+  sourceMaterialUrl?: string;
+  injectBrandProfile?: boolean;
+  productId?: string;
+  includeMarketingPlan?: boolean;
+  sourceVideo?: UploadFilePayload;
+  referenceImage?: UploadFilePayload;
+  videoProvider?: string;
+  customVideoModelName?: string;
+  storyboardImageModel?: string;
+  additionalInstruction?: string;
+};
+
 export type GenerateDouyinDirectVideoPayload = {
   calendarItemId?: string;
   customTopicName?: string;
@@ -347,6 +360,7 @@ export type ContinueXiaohongshuVideoGenerationPayload = {
 
 export type ContinueDouyinVideoGenerationPayload = ContinueXiaohongshuVideoGenerationPayload;
 export type ContinueDouyinDirectVideoGenerationPayload = ContinueXiaohongshuVideoGenerationPayload;
+export type ContinueDouyinRemixShortVideoGenerationPayload = ContinueXiaohongshuVideoGenerationPayload;
 
 export type RecoverXiaohongshuVideoGenerationPayload = {
   workId?: string;
@@ -1473,6 +1487,8 @@ type VideoProgressStepEntry = {
   status: "PENDING" | "RUNNING" | "SUCCESS" | "FAILED";
 };
 
+type VideoWorkRecord = XiaohongshuVideoWorkRecord & Record<string, unknown>;
+
 type ResolvedVideoComposerContext = {
   workKind: VideoWorkKind;
   accountRole: OriginalAccountRole;
@@ -1516,6 +1532,46 @@ type VideoScriptStageResult = {
   modelName: string;
   businessScene?: string;
   videoType?: string;
+};
+
+type ResolvedDouyinRemixShortVideoContext = ResolvedVideoComposerContext & {
+  sourceVideoUrl: string;
+  sourceVideoFileName?: string;
+  sourceDurationSec?: number;
+  injectBrandProfile: boolean;
+};
+
+type RemixShortVideoAnalysisStageResult = {
+  title: string;
+  content: string;
+  hashtags: string[];
+  modelName: string;
+  totalDurationSec: number;
+  segmentDurationSec: number;
+  segments: Array<
+    RemixShortVideoSegmentMeta & {
+      roleImagePrompt: string;
+      storyboardImagePrompt: string;
+    }
+  >;
+};
+
+type RemixShortVideoSegmentMeta = {
+  order: number;
+  segmentLabel: string;
+  startSec: number;
+  endSec: number;
+  analysisReport: string;
+  roleCardText: string;
+  storyboardScript: string;
+  roleImageUrl?: string;
+  storyboardImageUrl?: string;
+  consistencyCheck: string;
+  videoPrompt?: string;
+  videoUrl?: string;
+  videoCoverImageUrl?: string;
+  videoProviderTaskId?: string;
+  videoAssetId?: string;
 };
 
 type VideoWorkAssetMeta = {
@@ -1573,6 +1629,19 @@ type VideoWorkAssetMeta = {
   segmentExecutionStatus?: "SUCCESS" | "PARTIAL" | "FAILED" | "SKIPPED";
   segmentExecutionError?: string;
   segmentAssets?: VideoSegmentAssetEntry[];
+  sourceVideoUrl?: string;
+  sourceVideoFileName?: string;
+  sourceDurationSec?: number;
+  segmentDurationSec?: number;
+  injectBrandProfile?: boolean;
+  analysisModel?: string;
+  storyboardImageModelSelection?: string;
+  remixSegments?: RemixShortVideoSegmentMeta[];
+  composeStatus?: "IDLE" | "RUNNING" | "SUCCESS" | "FAILED";
+  composeError?: string;
+  mergedVideoUrl?: string;
+  mergedVideoCoverImageUrl?: string;
+  mergedVideoAssetId?: string;
   providerTaskId?: string;
   thirdPartyStatus?: string;
   thirdPartyStatusLabel?: string;
@@ -3423,7 +3492,7 @@ export class WorksService {
       );
 
       return {
-        items: items.filter((item): item is XiaohongshuVideoWorkRecord => Boolean(item)),
+        items: items.filter((item: VideoWorkRecord | undefined): item is VideoWorkRecord => Boolean(item)),
       };
     }
 
@@ -3454,7 +3523,7 @@ export class WorksService {
       );
 
       return {
-        items: items.filter((item): item is XiaohongshuVideoWorkRecord => Boolean(item)),
+        items: items.filter((item: VideoWorkRecord | undefined): item is VideoWorkRecord => Boolean(item)),
       };
     }
 
@@ -3485,13 +3554,44 @@ export class WorksService {
       );
 
       return {
-        items: items.filter((item): item is XiaohongshuVideoWorkRecord => Boolean(item)),
+        items: items.filter((item: VideoWorkRecord | undefined): item is VideoWorkRecord => Boolean(item)),
       };
     }
 
     const items = database.media
       .filter((item) => item.brandId === brandId && item.mediaType === "HTML")
       .filter((item) => this.isVideoWorkMeta((item as { metadataJson?: unknown }).metadataJson, "DOUYIN_DIRECT_VIDEO"))
+      .map((item) => this.mapVideoWorkFromMock(item))
+      .filter((item): item is XiaohongshuVideoWorkRecord => Boolean(item))
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    return { items };
+  }
+
+  async listDouyinRemixShortVideoWorks(brandId: string) {
+    if (await this.prismaService.canUseDatabase()) {
+      const workRows = await this.prismaService.mediaAsset.findMany({
+        where: {
+          brandId,
+          mediaType: MediaType.HTML,
+        },
+        orderBy: { createdAt: "desc" },
+      });
+
+      const items = await Promise.all(
+        workRows
+          .filter((item) => this.isVideoWorkMeta(item.metadataJson, "DOUYIN_REMIX_SHORT_VIDEO"))
+          .map(async (item) => this.mapVideoWorkFromDatabase(item)),
+      );
+
+      return {
+        items: items.filter((item: VideoWorkRecord | undefined): item is VideoWorkRecord => Boolean(item)),
+      };
+    }
+
+    const items = database.media
+      .filter((item) => item.brandId === brandId && item.mediaType === "HTML")
+      .filter((item) => this.isVideoWorkMeta((item as { metadataJson?: unknown }).metadataJson, "DOUYIN_REMIX_SHORT_VIDEO"))
       .map((item) => this.mapVideoWorkFromMock(item))
       .filter((item): item is XiaohongshuVideoWorkRecord => Boolean(item))
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -6859,6 +6959,91 @@ export class WorksService {
     };
   }
 
+  async generateDouyinRemixShortVideo(
+    brandId: string,
+    payload: GenerateDouyinRemixShortVideoPayload,
+    auth?: RequestAuthContext,
+    collaboratorRole: "ADMIN" | "STAFF" | "TALENT" = "ADMIN",
+  ) {
+    const context = await this.resolveDouyinRemixShortVideoComposerContext(brandId, payload, collaboratorRole);
+    const userId = await this.resolveTaskUserId(brandId, auth);
+    const task = await this.createVideoTask({
+      userId,
+      brandId,
+      taskType: "DOUYIN_REMIX_SHORT_VIDEO",
+      taskTitle: `创建复刻视频：${context.topicLabel}`,
+      requestedVideoProvider: context.requestedVideoProvider,
+      modelName: "kimi-k2.6",
+    });
+    const now = new Date().toISOString();
+    const htmlContent = this.renderGeneratedVideoNoteHtml({
+      title: context.topicLabel,
+      content: "",
+      hashtags: [],
+      coverImageUrl: context.referenceImageUrl || context.product?.imageUrl,
+      noteLabel: "复刻短视频生成中",
+      videoKindLabel: this.getVideoKindLabel("REMIX"),
+      workflowStage: "QUEUED",
+      progressSteps: this.buildVideoProgressSteps("QUEUED", "DOUYIN_REMIX_SHORT_VIDEO"),
+    });
+    const htmlFile = await this.writeGeneratedTextFile(brandId, `${task.id}-douyin-remix-short-video.html`, htmlContent);
+    const metadata: VideoWorkAssetMeta = {
+      kind: "DOUYIN_REMIX_SHORT_VIDEO",
+      taskId: task.id,
+      noteCategory: "原创",
+      noteType: "视频",
+      accountRole: context.accountRole,
+      videoKind: "REMIX",
+      workflowStage: "QUEUED",
+      title: context.topicLabel,
+      content: "",
+      htmlContent,
+      hashtags: [],
+      productId: context.product?.id,
+      productName: context.product?.productName,
+      materialTitle: context.sourceVideoFileName || context.material?.title || context.topicLabel,
+      materialVideoUrl: context.sourceVideoUrl,
+      referenceImageUrl: context.referenceImageUrl,
+      copyAdditionalInstruction: context.copyAdditionalInstruction,
+      videoAdditionalInstruction: context.videoAdditionalInstruction,
+      includeMarketingPlan: context.includeMarketingPlan,
+      requestedVideoProvider: context.requestedVideoProvider,
+      resolvedVideoProvider: context.requestedVideoProvider,
+      requestedStoryboardImageModel: context.requestedStoryboardImageModel,
+      requestedDurationSec: 15,
+      requestedAspectRatio: "9:16",
+      progressSteps: this.buildVideoProgressSteps("QUEUED", "DOUYIN_REMIX_SHORT_VIDEO"),
+      storyboardRevisions: [],
+      segmentPrompts: [],
+      segmentAssets: [],
+      sourceVideoUrl: context.sourceVideoUrl,
+      sourceVideoFileName: context.sourceVideoFileName,
+      sourceDurationSec: context.sourceDurationSec,
+      segmentDurationSec: 15,
+      injectBrandProfile: context.injectBrandProfile,
+      storyboardImageModelSelection: context.requestedStoryboardImageModel,
+      remixSegments: [],
+      composeStatus: "IDLE",
+      createdAt: now,
+      updatedAt: now,
+    };
+    const workMedia = await this.createWorkHtmlMedia({
+      userId,
+      brandId,
+      taskId: task.id,
+      title: `抖音复刻短视频 - ${context.topicLabel}`,
+      storageKey: htmlFile.storageKey,
+      sourceUrl: htmlFile.url,
+      metadata,
+    });
+    setTimeout(() => {
+      void this.runInitialRemixShortVideoWorkflowTask(brandId, workMedia.id, task.id, context, htmlFile.storageKey);
+    }, 0);
+    return {
+      item: this.mapVideoWorkRecord(workMedia.id, brandId, task.id, metadata, "QUEUED"),
+    };
+  }
+
   async generateDouyinDirectVideo(
     brandId: string,
     payload: GenerateDouyinDirectVideoPayload,
@@ -7428,6 +7613,56 @@ export class WorksService {
     await this.saveVideoWorkMetadataSnapshot(brandId, workId, target.storageKey || `${workId}.html`, nextMeta);
     setTimeout(() => {
       void this.runContinueVideoGenerationTask(
+        brandId,
+        workId,
+        task.id,
+        target.storageKey || `${workId}.html`,
+        payload.customVideoModelName?.trim(),
+      );
+    }, 0);
+    return {
+      item: this.mapVideoWorkRecord(workId, brandId, task.id, nextMeta, "QUEUED"),
+    };
+  }
+
+  async continueDouyinRemixShortVideoGeneration(
+    brandId: string,
+    workId: string,
+    payload: ContinueDouyinRemixShortVideoGenerationPayload,
+    auth?: RequestAuthContext,
+  ) {
+    const target = await this.getVideoWorkRowById(brandId, workId);
+    const meta = this.readVideoWorkMeta(this.getMediaMetadata(target));
+    this.ensureVideoWorkKind(meta, "DOUYIN_REMIX_SHORT_VIDEO");
+    const remixSegments = meta.remixSegments || [];
+    if (!remixSegments.length) {
+      throw new BadRequestException("请先完成复刻分析与分镜出图，再继续生成视频。");
+    }
+    if (remixSegments.some((item) => !item.storyboardImageUrl)) {
+      throw new BadRequestException("仍有分段缺少分镜图，请等待第一阶段完成后再试。");
+    }
+    const userId = await this.resolveTaskUserId(brandId, auth);
+    const task = await this.createVideoTask({
+      userId,
+      brandId,
+      taskType: "DOUYIN_REMIX_SHORT_VIDEO",
+      taskTitle: `拼接复刻短视频：${meta.title}`,
+      requestedVideoProvider: meta.requestedVideoProvider,
+      modelName: payload.customVideoModelName?.trim() || meta.resolvedVideoModel || meta.requestedVideoProvider,
+    });
+    const nextMeta: VideoWorkAssetMeta = {
+      ...meta,
+      taskId: task.id,
+      workflowStage: "GENERATING_VIDEO",
+      progressSteps: this.buildVideoProgressSteps("GENERATING_VIDEO", meta.kind),
+      resolvedVideoModel: payload.customVideoModelName?.trim() || meta.resolvedVideoModel,
+      composeStatus: "RUNNING",
+      composeError: undefined,
+      updatedAt: new Date().toISOString(),
+    };
+    await this.saveVideoWorkMetadataSnapshot(brandId, workId, target.storageKey || `${workId}.html`, nextMeta);
+    setTimeout(() => {
+      void this.runContinueRemixShortVideoGenerationTask(
         brandId,
         workId,
         task.id,
@@ -11920,6 +12155,16 @@ export class WorksService {
   }
 
   private resolveWorksVideoKnowledgeScope(kind: VideoWorkKind, legacyPromptId: string) {
+    if (kind === "DOUYIN_REMIX_SHORT_VIDEO") {
+      return {
+        moduleTargetId: "douyin-workbench",
+        skillPackageKey: "douyin-video-production",
+        skillSlug: legacyPromptId === "prompt_douyin_remix_short_video_compose"
+          ? "douyin-remix-short-video-compose"
+          : "douyin-remix-short-video-studio",
+        legacyPromptId,
+      };
+    }
     if (kind === "DOUYIN_VIDEO_NOTE") {
       return {
         moduleTargetId: "douyin-workbench",
@@ -13518,6 +13763,34 @@ export class WorksService {
   }
 
   private buildVideoProgressSteps(stage: VideoWorkflowStage, kind: VideoWorkKind = "XHS_VIDEO_NOTE"): VideoProgressStepEntry[] {
+    if (kind === "DOUYIN_REMIX_SHORT_VIDEO") {
+      const mapStatus = (key: VideoProgressStepEntry["key"]): VideoProgressStepEntry["status"] => {
+        if (stage === "FAILED") {
+          return key === "VIDEO" ? "FAILED" : "SUCCESS";
+        }
+        if (stage === "QUEUED") {
+          return "PENDING";
+        }
+        if (stage === "GENERATING_SCRIPT") {
+          return key === "SCRIPT" ? "RUNNING" : "PENDING";
+        }
+        if (stage === "GENERATING_STORYBOARD") {
+          return key === "SCRIPT" ? "SUCCESS" : key === "STORYBOARD" ? "RUNNING" : "PENDING";
+        }
+        if (stage === "WAITING_VIDEO") {
+          return key === "VIDEO" ? "PENDING" : "SUCCESS";
+        }
+        if (stage === "GENERATING_VIDEO") {
+          return key === "VIDEO" ? "RUNNING" : "SUCCESS";
+        }
+        return "SUCCESS";
+      };
+      return [
+        { key: "SCRIPT", label: "复刻分析", status: mapStatus("SCRIPT") },
+        { key: "STORYBOARD", label: "角色卡与分镜图", status: mapStatus("STORYBOARD") },
+        { key: "VIDEO", label: "拼接短视频", status: mapStatus("VIDEO") },
+      ];
+    }
     if (kind === "DOUYIN_DIRECT_VIDEO") {
       const mapStatus = (key: "SCRIPT" | "VIDEO"): VideoProgressStepEntry["status"] => {
         if (stage === "FAILED") {
@@ -13571,6 +13844,15 @@ export class WorksService {
   }
 
   private getVideoWorkKindCopy(kind: VideoWorkKind) {
+    if (kind === "DOUYIN_REMIX_SHORT_VIDEO") {
+      return {
+        taskLabel: "复刻短视频",
+        generatingLabel: "复刻短视频生成中",
+        noteLabel: "抖音复刻短视频",
+        htmlTitlePrefix: "抖音复刻短视频",
+        videoAssetTitlePrefix: "复刻短视频视频",
+      };
+    }
     if (kind === "DOUYIN_VIDEO_NOTE") {
       return {
         taskLabel: "AI 生视频（故事板）",
@@ -13599,6 +13881,18 @@ export class WorksService {
   }
 
   private getVideoSkillProfile(kind: VideoWorkKind) {
+    if (kind === "DOUYIN_REMIX_SHORT_VIDEO") {
+      return {
+        skillSlug: "douyin-remix-short-video-studio",
+        promptId: "prompt_douyin_remix_short_video",
+        brandScriptPromptId: "prompt_douyin_remix_short_video",
+        spokenScriptPromptId: "prompt_douyin_remix_short_video",
+        skitScriptPromptId: "prompt_douyin_remix_short_video",
+        remixScriptPromptId: "prompt_douyin_remix_short_video",
+        storyboardPromptId: "prompt_douyin_remix_short_video",
+        skillLabel: "抖音复刻短视频",
+      } as const;
+    }
     if (kind === "DOUYIN_VIDEO_NOTE") {
       return {
         skillSlug: "douyin-video-storyboard-studio",
@@ -13926,6 +14220,95 @@ export class WorksService {
     };
   }
 
+  private async resolveDouyinRemixShortVideoComposerContext(
+    brandId: string,
+    payload: GenerateDouyinRemixShortVideoPayload,
+    collaboratorRole: "ADMIN" | "STAFF" | "TALENT",
+  ): Promise<ResolvedDouyinRemixShortVideoContext> {
+    const archive = await this.brandsService.getArchive(brandId);
+    const injectBrandProfile = payload.injectBrandProfile !== false;
+    const includeMarketingPlan = payload.includeMarketingPlan === true;
+    const marketingPlanWorkspace = await this.reportsService.getDouyinMarketingPlanWorkspace(brandId);
+    const latestMarketingPlan = marketingPlanWorkspace.latest;
+    if (includeMarketingPlan && !latestMarketingPlan) {
+      throw new BadRequestException("你已选择植入营销策划方案，请先在抖音营销策划方案板块生成方案。");
+    }
+    const product = payload.productId
+      ? archive.products.find((item) => item.id === payload.productId)
+      : undefined;
+    const normalizedProduct = product
+      ? {
+          id: product.id,
+          productName: product.productName,
+          detailDescription: product.detailDescription || "",
+          usageScenario: product.usageScenario || "",
+          targetAudience: product.targetAudience || "",
+          differentiators: product.differentiators || "",
+          imageUrl: product.imageUrl || undefined,
+        }
+      : undefined;
+    const persistedSourceVideo = payload.sourceVideo?.dataBase64
+      ? await this.persistUploadFile(
+          brandId,
+          `${randomUUID()}-douyin-remix-source${this.resolveVideoExtensionFromMimeType(payload.sourceVideo.contentType, payload.sourceVideo.fileName)}`,
+          payload.sourceVideo,
+        )
+      : undefined;
+    const persistedReferenceImage = payload.referenceImage?.dataBase64
+      ? await this.persistUploadFile(
+          brandId,
+          `${randomUUID()}-douyin-remix-reference${this.resolveImageExtensionFromMimeType(payload.referenceImage.contentType, payload.referenceImage.fileName)}`,
+          payload.referenceImage,
+        )
+      : undefined;
+    const sourceMaterialUrl = payload.sourceMaterialUrl?.trim() || undefined;
+    const sourceVideoUrl = persistedSourceVideo?.url || sourceMaterialUrl;
+    if (!sourceVideoUrl) {
+      throw new BadRequestException("请至少填写素材库短视频链接，或上传一个短视频文件。");
+    }
+    const requestedVideoProvider = await this.resolveVideoProviderWithoutReferenceFallback(
+      brandId,
+      this.normalizeVideoProvider(payload.videoProvider),
+      true,
+    );
+    const sourceDurationSec = await this.tryProbeVideoDurationSec({
+      sourceUrl: sourceMaterialUrl,
+      upload: payload.sourceVideo,
+    });
+    const sourceTitle = this.buildRemixShortVideoSourceTitle({
+      sourceMaterialUrl,
+      sourceVideoFileName: payload.sourceVideo?.fileName,
+    });
+    return {
+      workKind: "DOUYIN_REMIX_SHORT_VIDEO",
+      accountRole: this.resolveOriginalAccountRole(undefined, collaboratorRole),
+      videoKind: "REMIX",
+      topicLabel: sourceTitle,
+      product: normalizedProduct,
+      material: {
+        id: randomUUID(),
+        title: sourceTitle,
+        description: sourceMaterialUrl ? `素材库短视频链接：${sourceMaterialUrl}` : "用户上传短视频",
+        sourceUrl: sourceMaterialUrl || sourceVideoUrl,
+        noteUrl: sourceMaterialUrl,
+        videoUrl: sourceVideoUrl,
+      },
+      referenceImageUrl: persistedReferenceImage?.url,
+      includeMarketingPlan,
+      marketingPlanMarkdown: includeMarketingPlan ? latestMarketingPlan?.reportMarkdown || "" : "",
+      requestedVideoProvider,
+      requestedDurationSec: 15,
+      requestedAspectRatio: "9:16",
+      requestedStoryboardImageModel: payload.storyboardImageModel?.trim() || undefined,
+      copyAdditionalInstruction: payload.additionalInstruction?.trim() || undefined,
+      videoAdditionalInstruction: payload.additionalInstruction?.trim() || undefined,
+      sourceVideoUrl,
+      sourceVideoFileName: payload.sourceVideo?.fileName,
+      sourceDurationSec,
+      injectBrandProfile,
+    };
+  }
+
   private async saveVideoWorkMetadataSnapshot(
     brandId: string,
     workId: string,
@@ -14050,6 +14433,133 @@ export class WorksService {
         storyboardImageModel: storyboardImage.modelName,
         storyboardImageProvider: storyboardImage.providerName,
         storyboardImageProviderHost: this.describeProviderBaseUrl(storyboardImage.providerBaseUrl),
+      });
+    } catch (error) {
+      await this.handleVideoWorkflowFailure(brandId, workId, taskId, storageKey, error);
+    }
+  }
+
+  private async runInitialRemixShortVideoWorkflowTask(
+    brandId: string,
+    workId: string,
+    taskId: string,
+    context: ResolvedDouyinRemixShortVideoContext,
+    storageKey: string,
+  ) {
+    try {
+      await this.markTaskRunning(taskId);
+      await this.updateTaskOutputJson(taskId, { workId, stage: "GENERATING_SCRIPT", title: context.topicLabel });
+      const target = await this.getVideoWorkRowById(brandId, workId);
+      let meta = await this.saveVideoWorkMetadataSnapshot(brandId, workId, storageKey, {
+        ...this.readVideoWorkMeta(this.getMediaMetadata(target)),
+        taskId,
+        workflowStage: "GENERATING_SCRIPT",
+        progressSteps: this.buildVideoProgressSteps("GENERATING_SCRIPT", "DOUYIN_REMIX_SHORT_VIDEO"),
+      });
+      const analysis = await this.generateDouyinRemixShortVideoAnalysis(brandId, context);
+      meta = await this.saveVideoWorkMetadataSnapshot(brandId, workId, storageKey, {
+        ...meta,
+        taskId,
+        title: analysis.title,
+        content: analysis.content,
+        hashtags: analysis.hashtags,
+        scriptModel: analysis.modelName,
+        analysisModel: analysis.modelName,
+        sourceDurationSec: analysis.totalDurationSec,
+        segmentDurationSec: analysis.segmentDurationSec,
+        workflowStage: "GENERATING_STORYBOARD",
+        progressSteps: this.buildVideoProgressSteps("GENERATING_STORYBOARD", "DOUYIN_REMIX_SHORT_VIDEO"),
+      });
+      await this.updateTaskOutputJson(taskId, {
+        workId,
+        stage: "GENERATING_STORYBOARD",
+        title: analysis.title,
+        segmentCount: analysis.segments.length,
+        analysisModel: analysis.modelName,
+      });
+
+      const skillProfile = this.getVideoSkillProfile(context.workKind);
+      const imageConfig = await this.loadImageGenerationExecutionConfig({
+        brandId,
+        skillSlug: skillProfile.skillSlug,
+        promptId: skillProfile.storyboardPromptId,
+        fallbackModels: ["gpt-image-2", "gpt-image-2-vip", "nano-banana-2"],
+        preferredModelSelection: context.requestedStoryboardImageModel,
+        usage: "storyboard-text-only",
+      });
+      const remixSegments: RemixShortVideoSegmentMeta[] = [];
+      for (let index = 0; index < analysis.segments.length; index += 1) {
+        const segment = analysis.segments[index];
+        await this.ensureTaskNotCancelled(taskId);
+        const roleImage = await this.generateImageAsset({
+          brandId,
+          taskId: `${taskId}-role-${index + 1}`,
+          title: `复刻角色卡 - ${analysis.title} - ${segment.segmentLabel}`,
+          workLabel: "复刻角色卡",
+          role: "GALLERY",
+          order: index * 2,
+          providers: imageConfig.providers,
+          executionPrompt: imageConfig.executionPrompt,
+          prompt: segment.roleImagePrompt,
+          referenceImageUrls: [context.referenceImageUrl, context.product?.imageUrl].filter((item): item is string => Boolean(item)),
+          promptMode: "video_storyboard",
+          includeFallbackPrompt: false,
+          maxProvidersToTry: 2,
+          maxModelsPerProvider: 1,
+          attemptTimeoutMs: 120000,
+        });
+        const storyboardImage = await this.generateImageAsset({
+          brandId,
+          taskId: `${taskId}-storyboard-${index + 1}`,
+          title: `复刻分镜图 - ${analysis.title} - ${segment.segmentLabel}`,
+          workLabel: "复刻分镜图",
+          role: "GALLERY",
+          order: index * 2 + 1,
+          providers: imageConfig.providers,
+          executionPrompt: imageConfig.executionPrompt,
+          prompt: segment.storyboardImagePrompt,
+          referenceImageUrls: [roleImage.url, context.referenceImageUrl, context.product?.imageUrl].filter((item): item is string => Boolean(item)),
+          promptMode: "video_storyboard",
+          includeFallbackPrompt: false,
+          maxProvidersToTry: 2,
+          maxModelsPerProvider: 1,
+          attemptTimeoutMs: 120000,
+        });
+        remixSegments.push({
+          ...segment,
+          roleImageUrl: roleImage.url,
+          storyboardImageUrl: storyboardImage.url,
+        });
+        meta = await this.saveVideoWorkMetadataSnapshot(brandId, workId, storageKey, {
+          ...meta,
+          taskId,
+          workflowStage: "GENERATING_STORYBOARD",
+          coverImageUrl: storyboardImage.url,
+          storyboardImageUrl: storyboardImage.url,
+          storyboardImageModel: storyboardImage.modelName,
+          storyboardImageProvider: storyboardImage.providerName,
+          storyboardImageProviderHost: this.describeProviderBaseUrl(storyboardImage.providerBaseUrl),
+          storyboardImageProviderTaskId: storyboardImage.providerTaskId,
+          remixSegments: [...remixSegments],
+          progressSteps: this.buildVideoProgressSteps("GENERATING_STORYBOARD", "DOUYIN_REMIX_SHORT_VIDEO"),
+        });
+      }
+      meta = await this.saveVideoWorkMetadataSnapshot(brandId, workId, storageKey, {
+        ...meta,
+        taskId,
+        workflowStage: "WAITING_VIDEO",
+        remixSegments,
+        composeStatus: "IDLE",
+        composeError: undefined,
+        progressSteps: this.buildVideoProgressSteps("WAITING_VIDEO", "DOUYIN_REMIX_SHORT_VIDEO"),
+      });
+      await this.markTaskSuccess(taskId, {
+        workId,
+        stage: "REMIX_STORYBOARD_READY",
+        title: meta.title,
+        segmentCount: remixSegments.length,
+        analysisModel: analysis.modelName,
+        storyboardImageModel: meta.storyboardImageModel,
       });
     } catch (error) {
       await this.handleVideoWorkflowFailure(brandId, workId, taskId, storageKey, error);
@@ -14374,6 +14884,161 @@ export class WorksService {
     }
   }
 
+  private async runContinueRemixShortVideoGenerationTask(
+    brandId: string,
+    workId: string,
+    taskId: string,
+    storageKey: string,
+    customVideoModelName?: string,
+  ) {
+    try {
+      await this.markTaskRunning(taskId);
+      await this.updateTaskOutputJson(taskId, { workId, stage: "GENERATING_VIDEO", title: "拼接复刻短视频" });
+      const target = await this.getVideoWorkRowById(brandId, workId);
+      let meta = await this.saveVideoWorkMetadataSnapshot(brandId, workId, storageKey, {
+        ...this.readVideoWorkMeta(this.getMediaMetadata(target)),
+        taskId,
+        workflowStage: "GENERATING_VIDEO",
+        composeStatus: "RUNNING",
+        composeError: undefined,
+        progressSteps: this.buildVideoProgressSteps("GENERATING_VIDEO", "DOUYIN_REMIX_SHORT_VIDEO"),
+      });
+      const userId = await this.getBrandOwnerUserId(brandId);
+      const pendingSegments = meta.remixSegments || [];
+      const nextSegments: RemixShortVideoSegmentMeta[] = [];
+      for (let index = 0; index < pendingSegments.length; index += 1) {
+        await this.ensureTaskNotCancelled(taskId);
+        const segment = pendingSegments[index];
+        if (!segment.storyboardImageUrl) {
+          throw new BadRequestException(`第 ${index + 1} 段缺少分镜图，无法继续生成视频。`);
+        }
+        await this.updateTaskOutputJson(taskId, {
+          workId,
+          stage: "GENERATING_SEGMENT_VIDEO",
+          title: meta.title,
+          segmentIndex: index + 1,
+          segmentCount: pendingSegments.length,
+          segmentLabel: segment.segmentLabel,
+        });
+        const promptResult = await this.generateDouyinRemixShortVideoComposePrompt(brandId, meta, segment);
+        const referenceImageUrl = await this.resolveThirdPartyAccessibleAssetUrl(segment.storyboardImageUrl, brandId);
+        const videoResult = await this.generateVideoAsset({
+          brandId,
+          taskId: `${taskId}-segment-video-${index + 1}`,
+          title: `复刻短视频片段 ${index + 1} - ${meta.title}`,
+          requestedVideoProvider: meta.requestedVideoProvider,
+          customVideoModelName,
+          prompt: promptResult.videoPrompt,
+          requestedDurationSec: Math.max(5, Math.min(segment.endSec - segment.startSec || meta.segmentDurationSec || 15, 15)),
+          requestedAspectRatio: "9:16",
+          referenceImageUrl,
+        });
+        const videoAsset = await this.createWorkVideoMedia({
+          userId,
+          brandId,
+          taskId,
+          workId,
+          title: `${meta.title} - ${segment.segmentLabel}`,
+          sourceUrl: videoResult.url,
+          provider: videoResult.provider,
+          modelName: videoResult.modelName,
+          providerTaskId: videoResult.providerTaskId,
+          durationSec: videoResult.renderedDurationSec,
+        });
+        nextSegments.push({
+          ...segment,
+          videoPrompt: promptResult.videoPrompt,
+          videoUrl: videoResult.url,
+          videoCoverImageUrl: videoResult.coverImageUrl,
+          videoProviderTaskId: videoResult.providerTaskId,
+          videoAssetId: videoAsset.id,
+        });
+        meta = await this.saveVideoWorkMetadataSnapshot(brandId, workId, storageKey, {
+          ...meta,
+          taskId,
+          workflowStage: "GENERATING_VIDEO",
+          composeStatus: "RUNNING",
+          resolvedVideoProvider: videoResult.provider,
+          resolvedVideoModel: videoResult.modelName,
+          thirdPartyStatus: "QUERYING",
+          thirdPartyStatusLabel: `正在生成第 ${index + 1}/${pendingSegments.length} 段`,
+          thirdPartyStatusDetail: segment.segmentLabel,
+          thirdPartyStatusUpdatedAt: new Date().toISOString(),
+          remixSegments: [...nextSegments, ...pendingSegments.slice(index + 1)],
+          progressSteps: this.buildVideoProgressSteps("GENERATING_VIDEO", "DOUYIN_REMIX_SHORT_VIDEO"),
+        });
+      }
+      const merged = await this.mergeRemixShortVideoSegmentVideos({
+        brandId,
+        taskId,
+        title: meta.title,
+        segmentVideoUrls: nextSegments.map((item) => item.videoUrl).filter((item): item is string => Boolean(item)),
+      });
+      const mergedVideoAsset = await this.createWorkVideoMedia({
+        userId,
+        brandId,
+        taskId,
+        workId,
+        title: `${meta.title} - 完整复刻视频`,
+        sourceUrl: merged.videoUrl,
+        provider: "ffmpeg_concat",
+        modelName: customVideoModelName || meta.resolvedVideoModel,
+        durationSec: merged.durationSec,
+      });
+      const mergedCoverImageUrl =
+        nextSegments[nextSegments.length - 1]?.videoCoverImageUrl
+        || nextSegments[nextSegments.length - 1]?.storyboardImageUrl
+        || meta.coverImageUrl;
+      meta = await this.saveVideoWorkMetadataSnapshot(brandId, workId, storageKey, {
+        ...meta,
+        taskId,
+        workflowStage: "SUCCESS",
+        composeStatus: "SUCCESS",
+        composeError: undefined,
+        thirdPartyStatus: "SUCCESS",
+        thirdPartyStatusLabel: this.buildVideoThirdPartyStatusLabel("SUCCESS"),
+        thirdPartyStatusDetail: "所有片段已生成并完成拼接",
+        thirdPartyStatusUpdatedAt: new Date().toISOString(),
+        remixSegments: nextSegments,
+        mergedVideoUrl: merged.videoUrl,
+        mergedVideoCoverImageUrl: mergedCoverImageUrl,
+        mergedVideoAssetId: mergedVideoAsset.id,
+        videoUrl: merged.videoUrl,
+        coverImageUrl: mergedCoverImageUrl,
+        videoAssetId: mergedVideoAsset.id,
+        renderedDurationSec: merged.durationSec,
+        progressSteps: this.buildVideoProgressSteps("SUCCESS", "DOUYIN_REMIX_SHORT_VIDEO"),
+      });
+      await this.markTaskSuccess(taskId, {
+        workId,
+        stage: "REMIX_VIDEO_READY",
+        title: meta.title,
+        segmentCount: nextSegments.length,
+        mergedVideoUrl: merged.videoUrl,
+      }, { modelName: meta.resolvedVideoModel });
+    } catch (error) {
+      const target = await this.getVideoWorkRowById(brandId, workId);
+      const meta = this.readVideoWorkMeta(this.getMediaMetadata(target));
+      const errorMessage = error instanceof Error ? error.message : "复刻短视频拼接失败";
+      await this.saveVideoWorkMetadataSnapshot(brandId, workId, storageKey, {
+        ...meta,
+        taskId,
+        workflowStage: "FAILED",
+        composeStatus: "FAILED",
+        composeError: errorMessage,
+        thirdPartyStatus: "FAILED",
+        thirdPartyStatusLabel: this.buildVideoThirdPartyStatusLabel("FAILED"),
+        thirdPartyStatusDetail: errorMessage,
+        thirdPartyStatusUpdatedAt: new Date().toISOString(),
+        videoProviderErrors: this.appendVideoProviderError(meta.videoProviderErrors, errorMessage),
+        progressSteps: this.buildVideoProgressSteps("FAILED", "DOUYIN_REMIX_SHORT_VIDEO"),
+      });
+      if (!(await this.isTaskCancelled(taskId))) {
+        await this.markTaskFailed(taskId, errorMessage);
+      }
+    }
+  }
+
   private async handleVideoWorkflowFailure(
     brandId: string,
     workId: string,
@@ -14393,7 +15058,7 @@ export class WorksService {
       thirdPartyStatusDetail: errorMessage,
       thirdPartyStatusUpdatedAt: new Date().toISOString(),
       videoProviderErrors: this.appendVideoProviderError(meta.videoProviderErrors, errorMessage),
-          progressSteps: this.buildVideoProgressSteps("FAILED", meta.kind),
+      progressSteps: this.buildVideoProgressSteps("FAILED", meta.kind),
     });
     if (!(await this.isTaskCancelled(taskId))) {
       await this.markTaskFailed(taskId, errorMessage);
@@ -14442,20 +15107,24 @@ export class WorksService {
     systemInstruction: string;
     inputPayload: Record<string, unknown>;
     stageLabel: string;
+    skillSlugOverride?: string;
+    includeKnowledgeContext?: boolean;
   }) {
     const prompt = await this.skillsPromptsService.getActivePromptById(params.promptId);
     const skillPrompt = String(prompt?.content || params.fallbackPrompt).trim() || params.fallbackPrompt;
     const skillProfile = this.getVideoSkillProfile(params.workKind);
-    const preference = await this.loadSkillModelPreference(skillProfile.skillSlug, params.promptId, params.fallbackModels);
+    const preference = await this.loadSkillModelPreference(params.skillSlugOverride || skillProfile.skillSlug, params.promptId, params.fallbackModels);
     const providers = await this.loadOriginalCopyProviders(params.brandId, preference);
     const systemPrompt = [skillPrompt, "", params.systemInstruction].join("\n");
-    const knowledgeContext = await this.buildVideoStageKnowledgeContext({
-      workKind: params.workKind,
-      promptId: params.promptId,
-      stageLabel: params.stageLabel,
-      inputPayload: params.inputPayload,
-      leadText: `以下是系统按接入对象从企业知识库召回的补充上下文，请把这些内容融合到${params.stageLabel}中：`,
-    });
+    const knowledgeContext = params.includeKnowledgeContext === false
+      ? ""
+      : await this.buildVideoStageKnowledgeContext({
+          workKind: params.workKind,
+          promptId: params.promptId,
+          stageLabel: params.stageLabel,
+          inputPayload: params.inputPayload,
+          leadText: `以下是系统按接入对象从企业知识库召回的补充上下文，请把这些内容融合到${params.stageLabel}中：`,
+        });
     const userPrompt = ["以下是本次视频阶段输入：", "", JSON.stringify(params.inputPayload, null, 2), knowledgeContext].join("\n");
     let lastError = "";
     const attemptTrail: string[] = [];
@@ -14689,6 +15358,153 @@ export class WorksService {
       businessScene: this.readOptionalString(result.parsed.business_scene ?? result.parsed.businessScene),
       videoType: this.readOptionalString(result.parsed.video_type ?? result.parsed.videoType),
     };
+  }
+
+  private async generateDouyinRemixShortVideoAnalysis(
+    brandId: string,
+    context: ResolvedDouyinRemixShortVideoContext,
+  ): Promise<RemixShortVideoAnalysisStageResult> {
+    const result = await this.requestVideoStageJson({
+      brandId,
+      workKind: context.workKind,
+      promptId: "prompt_douyin_remix_short_video",
+      fallbackModels: ["kimi-k2.6", "deepseek-v4-pro", "doubao-seed-2-0-pro-260215"],
+      fallbackPrompt: "根据输入的短视频链接或上传短视频，完成 15 秒分段复刻分析并输出角色卡、分镜脚本和出图提示词。",
+      stageLabel: "抖音复刻短视频拉片分析",
+      includeKnowledgeContext: context.injectBrandProfile,
+      systemInstruction: [
+        "请仅输出 JSON 对象，不要输出 Markdown。",
+        "将视频按每 15 秒切成一段；如果最后不足 15 秒，也要保留最后一段。",
+        "JSON 结构固定为：",
+        '{ "title": "作品标题", "content": "整体复刻总结", "hashtags": ["标签"], "total_duration_sec": 45, "segment_duration_sec": 15, "segments": [',
+        '  { "segment_label": "第1段", "start_sec": 0, "end_sec": 15, "analysis_report": "全局风格 + 剧情 + 角色 + 本段逐段画面", "role_card_text": "角色卡文字版", "storyboard_script": "分镜脚本", "consistency_check": "一致性质检结果", "role_image_prompt": "纯白底、无字、全身角色图提示词", "storyboard_image_prompt": "本段分镜图提示词", "video_prompt": "本段图生视频提示词" }',
+        "] }",
+      ].join("\n"),
+      inputPayload: {
+        topic: context.topicLabel,
+        sourceMaterial: context.material,
+        sourceVideoUrl: context.sourceVideoUrl,
+        sourceVideoFileName: context.sourceVideoFileName || null,
+        sourceDurationSec: context.sourceDurationSec || null,
+        segmentDurationSec: 15,
+        injectBrandProfile: context.injectBrandProfile,
+        referenceImageUrl: context.referenceImageUrl || null,
+        product: context.product || null,
+        marketingPlanMarkdown: context.includeMarketingPlan ? this.buildVideoMarketingPlanContext(context.marketingPlanMarkdown) : "",
+        additionalInstruction: context.videoAdditionalInstruction || context.copyAdditionalInstruction || null,
+      },
+    });
+    const rawSegments = Array.isArray(result.parsed.segments) ? result.parsed.segments : [];
+    if (!rawSegments.length) {
+      throw new ServiceUnavailableException("复刻短视频第一阶段未返回有效分段，请稍后重试。");
+    }
+    const segmentDurationSec = 15;
+    const modelTotalDuration = this.readOptionalNumber(result.parsed.total_duration_sec ?? result.parsed.totalDurationSec);
+    const totalDurationSec = Math.max(
+      segmentDurationSec,
+      context.sourceDurationSec || modelTotalDuration || rawSegments.length * segmentDurationSec,
+    );
+    const segments = rawSegments.map((item, index) => {
+      const record = this.asRecord(item);
+      const fallbackStart = index * segmentDurationSec;
+      const fallbackEnd = Math.min(totalDurationSec, fallbackStart + segmentDurationSec);
+      const startSec = this.readOptionalNumber(record?.start_sec ?? record?.startSec) ?? fallbackStart;
+      const rawEndSec = this.readOptionalNumber(record?.end_sec ?? record?.endSec);
+      const endSec = rawEndSec && rawEndSec > startSec ? rawEndSec : fallbackEnd;
+      const roleCardText = String(record?.role_card_text ?? record?.roleCardText ?? "").trim();
+      const storyboardScript = String(record?.storyboard_script ?? record?.storyboardScript ?? "").trim();
+      return {
+        order: index,
+        segmentLabel: this.readOptionalString(record?.segment_label ?? record?.segmentLabel) || `第 ${index + 1} 段`,
+        startSec,
+        endSec,
+        analysisReport: String(record?.analysis_report ?? record?.analysisReport ?? "").trim(),
+        roleCardText,
+        storyboardScript,
+        consistencyCheck: String(record?.consistency_check ?? record?.consistencyCheck ?? "").trim(),
+        videoPrompt: this.readOptionalString(record?.video_prompt ?? record?.videoPrompt),
+        roleImagePrompt:
+          this.readOptionalString(record?.role_image_prompt ?? record?.roleImagePrompt)
+          || `${roleCardText}\n纯白背景，全身站姿，无文字，无道具遮挡，角色设定图，影视角色三视图感，高细节。`,
+        storyboardImagePrompt:
+          this.readOptionalString(record?.storyboard_image_prompt ?? record?.storyboardImagePrompt)
+          || `${storyboardScript}\n请输出适合 9:16 竖屏短视频的单张分镜图，保持角色一致。`,
+      };
+    });
+    return {
+      title: String(result.parsed.title ?? "").trim() || context.topicLabel,
+      content:
+        String(result.parsed.content ?? result.parsed.summary ?? "").trim()
+        || `源视频共 ${totalDurationSec} 秒，已按每 15 秒一段完成 ${segments.length} 段复刻分析。`,
+      hashtags: this.normalizeStringArray(result.parsed.hashtags, [], 8),
+      modelName: result.modelName,
+      totalDurationSec,
+      segmentDurationSec,
+      segments,
+    };
+  }
+
+  private async generateDouyinRemixShortVideoComposePrompt(
+    brandId: string,
+    meta: VideoWorkAssetMeta,
+    segment: RemixShortVideoSegmentMeta,
+  ) {
+    const result = await this.requestVideoStageJson({
+      brandId,
+      workKind: "DOUYIN_REMIX_SHORT_VIDEO",
+      promptId: "prompt_douyin_remix_short_video_compose",
+      skillSlugOverride: "douyin-remix-short-video-compose",
+      fallbackModels: ["kimi-k2.6", "deepseek-v4-pro", "doubao-seed-2-0-pro-260215"],
+      fallbackPrompt: "根据复刻短视频的分段分析、角色卡、分镜图和用户要求，生成可直接用于图生视频的分段提示词。",
+      stageLabel: "拼接复刻短视频-分段提示词",
+      includeKnowledgeContext: meta.injectBrandProfile !== false,
+      systemInstruction: [
+        "请仅输出 JSON 对象，不要输出 Markdown。",
+        "JSON 结构固定为：",
+        '{ "video_prompt": "可直接用于图生视频的提示词" }',
+      ].join("\n"),
+      inputPayload: {
+        title: meta.title,
+        sourceVideoUrl: meta.sourceVideoUrl || null,
+        sourceDurationSec: meta.sourceDurationSec || null,
+        segmentLabel: segment.segmentLabel,
+        startSec: segment.startSec,
+        endSec: segment.endSec,
+        analysisReport: segment.analysisReport,
+        roleCardText: segment.roleCardText,
+        storyboardScript: segment.storyboardScript,
+        consistencyCheck: segment.consistencyCheck,
+        baseVideoPrompt: segment.videoPrompt || null,
+        storyboardImageUrl: segment.storyboardImageUrl || null,
+        referenceImageUrl: meta.referenceImageUrl || null,
+        productName: meta.productName || null,
+        includeMarketingPlan: meta.includeMarketingPlan,
+        additionalInstruction: meta.videoAdditionalInstruction || meta.copyAdditionalInstruction || null,
+      },
+    });
+    const videoPrompt = String(result.parsed.video_prompt ?? result.parsed.videoPrompt ?? segment.videoPrompt ?? segment.storyboardScript).trim();
+    if (!videoPrompt) {
+      throw new ServiceUnavailableException(`第 ${segment.order + 1} 段未生成有效的视频提示词。`);
+    }
+    return {
+      videoPrompt,
+      modelName: result.modelName,
+    };
+  }
+
+  private buildRemixShortVideoSourceTitle(params: {
+    sourceMaterialUrl?: string;
+    sourceVideoFileName?: string;
+  }) {
+    const rawName = params.sourceVideoFileName || params.sourceMaterialUrl || "复刻短视频";
+    const normalized = String(rawName || "").trim();
+    if (!normalized) {
+      return "复刻短视频";
+    }
+    const decoded = decodeURIComponent(normalized).replace(/[?#].*$/, "");
+    const lastSegment = decoded.split("/").filter(Boolean).pop() || decoded;
+    const cleanName = lastSegment.replace(extname(lastSegment), "").trim();
+    return cleanName || "复刻短视频";
   }
 
   private mapOriginalWorkFromDatabase(
@@ -15064,7 +15880,7 @@ export class WorksService {
     taskStatus?: WorkTaskStatus,
     createdAt?: string,
     updatedAt?: string,
-  ): XiaohongshuVideoWorkRecord {
+  ): VideoWorkRecord {
     return {
       id,
       taskId: meta.taskId || taskId || "",
@@ -15114,6 +15930,19 @@ export class WorksService {
       segmentExecutionStatus: meta.segmentExecutionStatus,
       segmentExecutionError: meta.segmentExecutionError,
       segmentAssets: meta.segmentAssets || [],
+      sourceVideoUrl: meta.sourceVideoUrl,
+      sourceVideoFileName: meta.sourceVideoFileName,
+      sourceDurationSec: meta.sourceDurationSec,
+      segmentDurationSec: meta.segmentDurationSec,
+      injectBrandProfile: meta.injectBrandProfile,
+      analysisModel: meta.analysisModel,
+      storyboardImageModelSelection: meta.storyboardImageModelSelection || meta.requestedStoryboardImageModel,
+      remixSegments: this.normalizeRemixShortVideoSegments(meta.remixSegments),
+      composeStatus: meta.composeStatus,
+      composeError: meta.composeError,
+      mergedVideoUrl: meta.mergedVideoUrl,
+      mergedVideoCoverImageUrl: meta.mergedVideoCoverImageUrl,
+      mergedVideoAssetId: meta.mergedVideoAssetId,
       providerTaskId: meta.providerTaskId,
       thirdPartyStatus: meta.thirdPartyStatus,
       thirdPartyStatusLabel: meta.thirdPartyStatusLabel,
@@ -15130,7 +15959,7 @@ export class WorksService {
   private isVideoWorkMeta(metadataJson: unknown, expectedKind?: VideoWorkKind) {
     const meta = this.asRecord(metadataJson);
     const kind = meta?.kind;
-    if (kind !== "XHS_VIDEO_NOTE" && kind !== "DOUYIN_VIDEO_NOTE" && kind !== "DOUYIN_DIRECT_VIDEO") {
+    if (kind !== "XHS_VIDEO_NOTE" && kind !== "DOUYIN_VIDEO_NOTE" && kind !== "DOUYIN_DIRECT_VIDEO" && kind !== "DOUYIN_REMIX_SHORT_VIDEO") {
       return false;
     }
     return expectedKind ? kind === expectedKind : true;
@@ -15138,7 +15967,7 @@ export class WorksService {
 
   private readVideoWorkMeta(metadataJson: unknown): VideoWorkAssetMeta {
     const meta = this.asRecord(metadataJson);
-    if (!meta || (meta.kind !== "XHS_VIDEO_NOTE" && meta.kind !== "DOUYIN_VIDEO_NOTE" && meta.kind !== "DOUYIN_DIRECT_VIDEO")) {
+    if (!meta || (meta.kind !== "XHS_VIDEO_NOTE" && meta.kind !== "DOUYIN_VIDEO_NOTE" && meta.kind !== "DOUYIN_DIRECT_VIDEO" && meta.kind !== "DOUYIN_REMIX_SHORT_VIDEO")) {
       throw new NotFoundException("视频笔记不存在");
     }
     const kind = meta.kind as VideoWorkKind;
@@ -15198,6 +16027,19 @@ export class WorksService {
       segmentExecutionStatus: this.readOptionalString(meta.segmentExecutionStatus) as VideoWorkAssetMeta["segmentExecutionStatus"],
       segmentExecutionError: this.readOptionalString(meta.segmentExecutionError),
       segmentAssets: this.normalizeVideoSegmentAssets(meta.segmentAssets),
+      sourceVideoUrl: this.readOptionalString(meta.sourceVideoUrl),
+      sourceVideoFileName: this.readOptionalString(meta.sourceVideoFileName),
+      sourceDurationSec: this.readOptionalNumber(meta.sourceDurationSec),
+      segmentDurationSec: this.readOptionalNumber(meta.segmentDurationSec),
+      injectBrandProfile: meta.injectBrandProfile !== false,
+      analysisModel: this.readOptionalString(meta.analysisModel),
+      storyboardImageModelSelection: this.readOptionalString(meta.storyboardImageModelSelection),
+      remixSegments: this.normalizeRemixShortVideoSegments(meta.remixSegments),
+      composeStatus: this.readOptionalString(meta.composeStatus) as VideoWorkAssetMeta["composeStatus"],
+      composeError: this.readOptionalString(meta.composeError),
+      mergedVideoUrl: this.readOptionalString(meta.mergedVideoUrl),
+      mergedVideoCoverImageUrl: this.readOptionalString(meta.mergedVideoCoverImageUrl),
+      mergedVideoAssetId: this.readOptionalString(meta.mergedVideoAssetId),
       providerTaskId: this.readOptionalString(meta.providerTaskId),
       thirdPartyStatus: this.readOptionalString(meta.thirdPartyStatus),
       thirdPartyStatusLabel: this.readOptionalString(meta.thirdPartyStatusLabel),
@@ -15277,6 +16119,35 @@ export class WorksService {
         providerTaskId: this.readOptionalString(record.providerTaskId),
         renderedDurationSec: typeof record.renderedDurationSec === "number" ? record.renderedDurationSec : undefined,
         referenceImageUrl: this.readOptionalString(record.referenceImageUrl),
+        videoAssetId: this.readOptionalString(record.videoAssetId),
+      });
+    });
+    return result;
+  }
+
+  private normalizeRemixShortVideoSegments(value: unknown) {
+    const items = Array.isArray(value) ? value : [];
+    const result: RemixShortVideoSegmentMeta[] = [];
+    items.forEach((item, index) => {
+      const record = this.asRecord(item);
+      if (!record) {
+        return;
+      }
+      result.push({
+        order: typeof record.order === "number" ? record.order : index,
+        segmentLabel: this.readOptionalString(record.segmentLabel) || `第 ${index + 1} 段`,
+        startSec: this.readOptionalNumber(record.startSec) ?? index * 15,
+        endSec: this.readOptionalNumber(record.endSec) ?? ((index + 1) * 15),
+        analysisReport: String(record.analysisReport ?? "").trim(),
+        roleCardText: String(record.roleCardText ?? "").trim(),
+        storyboardScript: String(record.storyboardScript ?? "").trim(),
+        roleImageUrl: this.readOptionalString(record.roleImageUrl),
+        storyboardImageUrl: this.readOptionalString(record.storyboardImageUrl),
+        consistencyCheck: String(record.consistencyCheck ?? "").trim(),
+        videoPrompt: this.readOptionalString(record.videoPrompt),
+        videoUrl: this.readOptionalString(record.videoUrl),
+        videoCoverImageUrl: this.readOptionalString(record.videoCoverImageUrl),
+        videoProviderTaskId: this.readOptionalString(record.videoProviderTaskId),
         videoAssetId: this.readOptionalString(record.videoAssetId),
       });
     });
@@ -17056,6 +17927,171 @@ export class WorksService {
     return latestSnapshot;
   }
 
+  private async tryProbeVideoDurationSec(params: {
+    sourceUrl?: string;
+    upload?: UploadFilePayload;
+  }) {
+    if (!params.sourceUrl && !params.upload) {
+      return undefined;
+    }
+    const binary = String(process.env.FFPROBE_BINARY || "").trim() || "ffprobe";
+    const tempRoot = await mkdtemp(join(tmpdir(), "video-duration-probe-"));
+    try {
+      const extension = params.upload
+        ? this.resolveVideoExtensionFromMimeType(params.upload.contentType, params.upload.fileName)
+        : this.resolveVideoExtensionFromMimeType("video/mp4", params.sourceUrl || "source.mp4");
+      const filePath = join(tempRoot, `source${extension}`);
+      if (params.upload) {
+        await writeFile(filePath, Buffer.from(params.upload.dataBase64, "base64"));
+      } else if (params.sourceUrl) {
+        const response = await fetch(params.sourceUrl);
+        if (!response.ok) {
+          return undefined;
+        }
+        await writeFile(filePath, Buffer.from(await response.arrayBuffer()));
+      }
+      const output = await new Promise<string>((resolvePromise, rejectPromise) => {
+        const command = spawn(binary, [
+          "-v",
+          "error",
+          "-show_entries",
+          "format=duration",
+          "-of",
+          "default=noprint_wrappers=1:nokey=1",
+          filePath,
+        ], {
+          windowsHide: true,
+        });
+        let stdout = "";
+        let stderr = "";
+        command.stdout.on("data", (chunk) => {
+          stdout += String(chunk || "");
+        });
+        command.stderr.on("data", (chunk) => {
+          stderr += String(chunk || "");
+        });
+        command.on("error", (error) => {
+          rejectPromise(error);
+        });
+        command.on("close", (code) => {
+          if (code === 0) {
+            resolvePromise(stdout);
+            return;
+          }
+          rejectPromise(new Error(stderr.trim() || `ffprobe 退出码 ${code}`));
+        });
+      });
+      const parsed = Number.parseFloat(String(output || "").trim());
+      if (!Number.isFinite(parsed) || parsed <= 0) {
+        return undefined;
+      }
+      return Math.max(1, Math.ceil(parsed));
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        return undefined;
+      }
+      return undefined;
+    } finally {
+      await rm(tempRoot, { recursive: true, force: true }).catch(() => false);
+    }
+  }
+
+  private async mergeRemixShortVideoSegmentVideos(params: {
+    brandId: string;
+    taskId: string;
+    title: string;
+    segmentVideoUrls: string[];
+  }) {
+    if (params.segmentVideoUrls.length < 2) {
+      throw new BadRequestException("完整复刻短视频至少需要 2 个已生成片段。");
+    }
+    const binary = resolveFfmpegBinary();
+    const tempRoot = await mkdtemp(join(tmpdir(), "remix-short-video-compose-"));
+    try {
+      const localSegmentPaths: string[] = [];
+      for (let index = 0; index < params.segmentVideoUrls.length; index += 1) {
+        const sourceUrl = params.segmentVideoUrls[index];
+        const response = await fetch(sourceUrl);
+        if (!response.ok) {
+          throw new ServiceUnavailableException(`下载第 ${index + 1} 段复刻视频失败：${response.status}`);
+        }
+        const filePath = join(tempRoot, `segment-${index + 1}.mp4`);
+        await writeFile(filePath, Buffer.from(await response.arrayBuffer()));
+        localSegmentPaths.push(filePath);
+      }
+      const concatListPath = join(tempRoot, "concat.txt");
+      await writeFile(
+        concatListPath,
+        `${localSegmentPaths.map((item) => `file '${item.replace(/\\/g, "/").replace(/'/g, "'\\''")}'`).join("\n")}\n`,
+        "utf8",
+      );
+      const outputPath = join(tempRoot, "merged-output.mp4");
+      await new Promise<void>((resolvePromise, rejectPromise) => {
+        const command = spawn(binary, [
+          "-y",
+          "-f",
+          "concat",
+          "-safe",
+          "0",
+          "-i",
+          concatListPath,
+          "-c:v",
+          "libx264",
+          "-preset",
+          "veryfast",
+          "-crf",
+          "23",
+          "-c:a",
+          "aac",
+          "-movflags",
+          "+faststart",
+          outputPath,
+        ], {
+          windowsHide: true,
+        });
+        let stderr = "";
+        command.stderr.on("data", (chunk) => {
+          stderr += String(chunk || "");
+        });
+        command.on("error", (error) => {
+          if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+            rejectPromise(new ServiceUnavailableException("当前服务端未安装 ffmpeg，暂时无法拼接完整复刻短视频。"));
+            return;
+          }
+          rejectPromise(error);
+        });
+        command.on("close", (code) => {
+          if (code === 0) {
+            resolvePromise();
+            return;
+          }
+          rejectPromise(new Error(stderr.trim() || `ffmpeg 退出码 ${code}`));
+        });
+      });
+      const outputBuffer = await readFile(outputPath);
+      const fileName = `${params.taskId}-douyin-remix-short-video-complete.mp4`;
+      const saved = await this.writeGeneratedBinaryFile(
+        params.brandId,
+        fileName,
+        outputBuffer.toString("base64"),
+        "video/mp4",
+      );
+      const durationSec = await this.tryProbeVideoDurationSec({
+        upload: {
+          fileName,
+          contentType: "video/mp4",
+          dataBase64: outputBuffer.toString("base64"),
+        },
+      });
+      return {
+        videoUrl: saved.url,
+        durationSec,
+      };
+    } finally {
+      await rm(tempRoot, { recursive: true, force: true }).catch(() => false);
+    }
+  }
+
   private async mergeDigitalHumanSegmentVideos(params: {
     brandId: string;
     taskId: string;
@@ -18762,53 +19798,79 @@ export class WorksService {
       this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-kimi"),
       this.apiProvidersService.listActiveProvidersByRuntimeKey("text-global"),
     ]);
-    const [deepseekApiKeys, doubaoApiKeys, kimiApiKeys, globalApiKeyGroups] = await Promise.all([
-      this.resolveBrandAwareApiKeys(brandId, deepseekProvider),
-      this.resolveBrandAwareApiKeys(brandId, doubaoProvider),
-      this.resolveBrandAwareApiKeys(brandId, kimiProvider),
-      Promise.all(globalProviders.map((item) => this.resolveBrandAwareApiKeys(brandId, item))),
-    ]);
     const preferredModels = preference?.configuredModels?.length
       ? preference.configuredModels
       : ["deepseek-v4-pro", "deepseek-v4-flash", "doubao-seed-2-0-pro-260215", "doubao-seed-2-0-mini-260215", "kimi-k2.6"];
-
-    const providers = [
-      this.buildTextProviderConfig(deepseekProvider, "DEEPSEEK", preferredModels, {
-        apiKeys: deepseekApiKeys,
-        temperature: 0.3,
+    const skippedReasons: string[] = [];
+    const providers: TextProviderConfig[] = [];
+    type TextProviderRuntimeOptions = {
+      temperature: number;
+      maxTokens: number;
+      requestTimeoutMs: number;
+      jsonResponse?: boolean;
+      thinkingDisabled?: boolean;
+      tokenLimitField?: "max_tokens" | "max_completion_tokens";
+    };
+    const appendProvider = async (
+      provider: ApiProviderRecord | undefined,
+      providerType: TextProviderConfig["provider"],
+      options: TextProviderRuntimeOptions,
+    ) => {
+      if (!provider) {
+        return;
+      }
+      try {
+        const apiKeys = await this.resolveBrandAwareApiKeys(brandId, provider);
+        const config = this.buildTextProviderConfig(provider, providerType, preferredModels, {
+          apiKeys,
+          temperature: options.temperature,
+          maxTokens: options.maxTokens,
+          requestTimeoutMs: options.requestTimeoutMs,
+          jsonResponse: options.jsonResponse,
+          thinkingDisabled: options.thinkingDisabled,
+          tokenLimitField: options.tokenLimitField,
+        });
+        if (config) {
+          providers.push(config);
+          return;
+        }
+        skippedReasons.push(`${provider.name}：未匹配到可用模型或基础配置不完整`);
+      } catch (error) {
+        skippedReasons.push(`${provider.name}：${error instanceof Error ? error.message : "当前 Provider 不可用"}`);
+      }
+    };
+    await appendProvider(deepseekProvider, "DEEPSEEK", {
+      temperature: 0.3,
+      maxTokens: 2200,
+      requestTimeoutMs: 180000,
+      jsonResponse: true,
+      thinkingDisabled: true,
+    });
+    await appendProvider(doubaoProvider, "ARK", {
+      temperature: 0.6,
+      maxTokens: 2200,
+      requestTimeoutMs: 180000,
+      jsonResponse: true,
+      thinkingDisabled: true,
+    });
+    await appendProvider(kimiProvider, "KIMI", {
+      temperature: 1,
+      maxTokens: 2200,
+      requestTimeoutMs: 180000,
+      jsonResponse: true,
+      tokenLimitField: "max_completion_tokens",
+    });
+    for (const provider of globalProviders) {
+      await appendProvider(provider, "THIRD_PARTY", {
+        temperature: 0.7,
         maxTokens: 2200,
         requestTimeoutMs: 180000,
         jsonResponse: true,
-        thinkingDisabled: true,
-      }),
-      this.buildTextProviderConfig(doubaoProvider, "ARK", preferredModels, {
-        apiKeys: doubaoApiKeys,
-        temperature: 0.6,
-        maxTokens: 2200,
-        requestTimeoutMs: 180000,
-        jsonResponse: true,
-        thinkingDisabled: true,
-      }),
-      this.buildTextProviderConfig(kimiProvider, "KIMI", preferredModels, {
-        apiKeys: kimiApiKeys,
-        temperature: 1,
-        maxTokens: 2200,
-        requestTimeoutMs: 180000,
-        jsonResponse: true,
-        tokenLimitField: "max_completion_tokens",
-      }),
-      ...globalProviders.map((provider, index) =>
-        this.buildTextProviderConfig(provider, "THIRD_PARTY", preferredModels, {
-          apiKeys: globalApiKeyGroups[index],
-          temperature: 0.7,
-          maxTokens: 2200,
-          requestTimeoutMs: 180000,
-          jsonResponse: true,
-        })),
-    ].filter((item): item is TextProviderConfig => Boolean(item));
-
+      });
+    }
     if (!providers.length) {
-      throw new ServiceUnavailableException("原创笔记文案模型配置读取失败");
+      const reasonText = skippedReasons.length ? `当前排查结果：${skippedReasons.join("；")}。` : "";
+      throw new ServiceUnavailableException(`原创笔记文案模型配置读取失败。${reasonText}`);
     }
     return this.reorderTextProvidersByPrimaryModel(
       this.applyTextProviderSelectionRule(providers, preference),
@@ -18824,53 +19886,79 @@ export class WorksService {
       this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-kimi"),
       this.apiProvidersService.listActiveProvidersByRuntimeKey("text-global"),
     ]);
-    const [deepseekApiKeys, doubaoApiKeys, kimiApiKeys, globalApiKeyGroups] = await Promise.all([
-      this.resolveBrandAwareApiKeys(brandId, deepseekProvider),
-      this.resolveBrandAwareApiKeys(brandId, doubaoProvider),
-      this.resolveBrandAwareApiKeys(brandId, kimiProvider),
-      Promise.all(globalProviders.map((item) => this.resolveBrandAwareApiKeys(brandId, item))),
-    ]);
     const preferredModels = preference?.configuredModels?.length
       ? preference.configuredModels
       : ["deepseek-v4-pro", "deepseek-v4-flash", "doubao-seed-2-0-pro-260215", "doubao-seed-2-0-mini-260215", "kimi-k2.6"];
-
-    const providers = [
-      this.buildTextProviderConfig(deepseekProvider, "DEEPSEEK", preferredModels, {
-        apiKeys: deepseekApiKeys,
-        temperature: 0.3,
+    const skippedReasons: string[] = [];
+    const providers: TextProviderConfig[] = [];
+    type TextProviderRuntimeOptions = {
+      temperature: number;
+      maxTokens: number;
+      requestTimeoutMs: number;
+      jsonResponse?: boolean;
+      thinkingDisabled?: boolean;
+      tokenLimitField?: "max_tokens" | "max_completion_tokens";
+    };
+    const appendProvider = async (
+      provider: ApiProviderRecord | undefined,
+      providerType: TextProviderConfig["provider"],
+      options: TextProviderRuntimeOptions,
+    ) => {
+      if (!provider) {
+        return;
+      }
+      try {
+        const apiKeys = await this.resolveBrandAwareApiKeys(brandId, provider);
+        const config = this.buildTextProviderConfig(provider, providerType, preferredModels, {
+          apiKeys,
+          temperature: options.temperature,
+          maxTokens: options.maxTokens,
+          requestTimeoutMs: options.requestTimeoutMs,
+          jsonResponse: options.jsonResponse,
+          thinkingDisabled: options.thinkingDisabled,
+          tokenLimitField: options.tokenLimitField,
+        });
+        if (config) {
+          providers.push(config);
+          return;
+        }
+        skippedReasons.push(`${provider.name}：未匹配到可用模型或基础配置不完整`);
+      } catch (error) {
+        skippedReasons.push(`${provider.name}：${error instanceof Error ? error.message : "当前 Provider 不可用"}`);
+      }
+    };
+    await appendProvider(deepseekProvider, "DEEPSEEK", {
+      temperature: 0.3,
+      maxTokens: 2800,
+      requestTimeoutMs: 180000,
+      jsonResponse: true,
+      thinkingDisabled: true,
+    });
+    await appendProvider(doubaoProvider, "ARK", {
+      temperature: 0.5,
+      maxTokens: 2800,
+      requestTimeoutMs: 180000,
+      jsonResponse: true,
+      thinkingDisabled: true,
+    });
+    await appendProvider(kimiProvider, "KIMI", {
+      temperature: 1,
+      maxTokens: 2800,
+      requestTimeoutMs: 180000,
+      jsonResponse: true,
+      tokenLimitField: "max_completion_tokens",
+    });
+    for (const provider of globalProviders) {
+      await appendProvider(provider, "THIRD_PARTY", {
+        temperature: 0.8,
         maxTokens: 2800,
         requestTimeoutMs: 180000,
         jsonResponse: true,
-        thinkingDisabled: true,
-      }),
-      this.buildTextProviderConfig(doubaoProvider, "ARK", preferredModels, {
-        apiKeys: doubaoApiKeys,
-        temperature: 0.5,
-        maxTokens: 2800,
-        requestTimeoutMs: 180000,
-        jsonResponse: true,
-        thinkingDisabled: true,
-      }),
-      this.buildTextProviderConfig(kimiProvider, "KIMI", preferredModels, {
-        apiKeys: kimiApiKeys,
-        temperature: 1,
-        maxTokens: 2800,
-        requestTimeoutMs: 180000,
-        jsonResponse: true,
-        tokenLimitField: "max_completion_tokens",
-      }),
-      ...globalProviders.map((provider, index) =>
-        this.buildTextProviderConfig(provider, "THIRD_PARTY", preferredModels, {
-          apiKeys: globalApiKeyGroups[index],
-          temperature: 0.8,
-          maxTokens: 2800,
-          requestTimeoutMs: 180000,
-          jsonResponse: true,
-        })),
-    ].filter((item): item is TextProviderConfig => Boolean(item));
-
+      });
+    }
     if (!providers.length) {
-      throw new ServiceUnavailableException("原创笔记配图提示词模型配置读取失败");
+      const reasonText = skippedReasons.length ? `当前排查结果：${skippedReasons.join("；")}。` : "";
+      throw new ServiceUnavailableException(`原创笔记配图提示词模型配置读取失败。${reasonText}`);
     }
     return this.reorderTextProvidersByPrimaryModel(
       this.applyTextProviderSelectionRule(providers, preference),

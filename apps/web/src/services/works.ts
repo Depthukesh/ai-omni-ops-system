@@ -18,6 +18,24 @@ export type VideoSegmentAssetEntry = {
   videoAssetId?: string;
 };
 
+export type DouyinRemixShortVideoSegmentRecord = {
+  order: number;
+  segmentLabel: string;
+  startSec: number;
+  endSec: number;
+  analysisReport: string;
+  roleCardText: string;
+  storyboardScript: string;
+  roleImageUrl?: string;
+  storyboardImageUrl?: string;
+  consistencyCheck: string;
+  videoPrompt?: string;
+  videoUrl?: string;
+  videoCoverImageUrl?: string;
+  videoProviderTaskId?: string;
+  videoAssetId?: string;
+};
+
 export type VideoProviderOptionRecord = {
   backendKey: string;
   label: string;
@@ -224,6 +242,21 @@ export type XiaohongshuVideoWorkRecord = {
 
 export type DouyinVideoWorkRecord = XiaohongshuVideoWorkRecord;
 export type DouyinDirectVideoWorkRecord = XiaohongshuVideoWorkRecord;
+export type DouyinRemixShortVideoWorkRecord = XiaohongshuVideoWorkRecord & {
+  sourceVideoUrl?: string;
+  sourceVideoFileName?: string;
+  sourceDurationSec?: number;
+  segmentDurationSec?: number;
+  injectBrandProfile?: boolean;
+  analysisModel?: string;
+  storyboardImageModelSelection?: string;
+  remixSegments: DouyinRemixShortVideoSegmentRecord[];
+  composeStatus?: "IDLE" | "RUNNING" | "SUCCESS" | "FAILED";
+  composeError?: string;
+  mergedVideoUrl?: string;
+  mergedVideoCoverImageUrl?: string;
+  mergedVideoAssetId?: string;
+};
 export type DouyinAdPreAuditExecutionStatus = "PendingStart" | "Running" | "Success" | "Failed" | "Terminated" | "Unknown";
 export type DouyinAdPreAuditResultStatus = "AuditResult__PASS" | "AuditResult__REJECT" | "PENDING" | "UNKNOWN";
 
@@ -850,6 +883,19 @@ export type GenerateDouyinVideoNoteForm = {
   includeMarketingPlan?: boolean;
 };
 
+export type GenerateDouyinRemixShortVideoForm = {
+  sourceMaterialUrl?: string;
+  injectBrandProfile?: boolean;
+  productId?: string;
+  includeMarketingPlan?: boolean;
+  sourceVideoFile?: File | null;
+  referenceImageFile?: File | null;
+  videoProvider?: string;
+  customVideoModelName?: string;
+  storyboardImageModel?: string;
+  additionalInstruction?: string;
+};
+
 export type GenerateDouyinDirectVideoForm = {
   calendarItemId?: string;
   customTopicName?: string;
@@ -1276,6 +1322,46 @@ export async function deleteDouyinVideoWork(brandId: string, workId: string) {
   return request<{ success: boolean }>(`/works/brands/${brandId}/douyin/video/${workId}`, {
     method: "DELETE",
   });
+}
+
+export async function getDouyinRemixShortVideoWorks(brandId: string) {
+  return request<{ items: DouyinRemixShortVideoWorkRecord[] }>(`/works/brands/${brandId}/douyin/remix-short-video`);
+}
+
+export async function generateDouyinRemixShortVideoWork(brandId: string, form: GenerateDouyinRemixShortVideoForm) {
+  const sourceVideo = form.sourceVideoFile ? await toUploadPayload(form.sourceVideoFile) : undefined;
+  const referenceImage = form.referenceImageFile ? await toUploadPayload(form.referenceImageFile) : undefined;
+
+  return jsonRequest<{ item: DouyinRemixShortVideoWorkRecord }>(
+    `/works/brands/${brandId}/douyin/remix-short-video/generate`,
+    "POST",
+    {
+      sourceMaterialUrl: form.sourceMaterialUrl,
+      injectBrandProfile: form.injectBrandProfile,
+      productId: form.productId,
+      includeMarketingPlan: form.includeMarketingPlan,
+      sourceVideo,
+      referenceImage,
+      videoProvider: form.videoProvider,
+      customVideoModelName: form.customVideoModelName,
+      storyboardImageModel: form.storyboardImageModel,
+      additionalInstruction: form.additionalInstruction,
+    },
+  );
+}
+
+export async function continueDouyinRemixShortVideoGeneration(
+  brandId: string,
+  workId: string,
+  payload?: {
+    customVideoModelName?: string;
+  },
+) {
+  return jsonRequest<{ item: DouyinRemixShortVideoWorkRecord }>(
+    `/works/brands/${brandId}/douyin/remix-short-video/${workId}/video/generate`,
+    "POST",
+    payload || {},
+  );
 }
 
 export async function getDouyinDirectVideoWorks(brandId: string) {

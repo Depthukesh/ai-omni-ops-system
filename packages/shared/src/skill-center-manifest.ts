@@ -367,6 +367,26 @@ export const SKILL_CENTER_TREE: SkillCenterPrimaryConfig[] = [
         ],
       },
       {
+        id: "douyin-remix-short-video",
+        label: "复刻短视频",
+        items: [
+          {
+            id: "douyin-remix-short-video-analysis",
+            label: "复刻短视频-复刻分析",
+            description: "对应前台抖音复刻短视频板块，按每 15 秒一段完成视频分析、角色卡、分镜脚本和出图提示词。",
+            skillSlug: "douyin-remix-short-video-studio",
+            promptScene: "抖音复刻短视频-复刻分析",
+          },
+          {
+            id: "douyin-remix-short-video-compose",
+            label: "复刻短视频-拼接成片",
+            description: "对应前台抖音复刻短视频板块第二阶段，根据分镜图生成各段视频并拼接完整成片。",
+            skillSlug: "douyin-remix-short-video-compose",
+            promptScene: "拼接复刻短视频-分段提示词",
+          },
+        ],
+      },
+      {
         id: "douyin-digital-human",
         label: "数字人",
         items: [

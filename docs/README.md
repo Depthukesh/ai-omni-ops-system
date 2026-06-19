@@ -108,6 +108,10 @@
   - 本轮系统文档全面清理、代码对照和删改结果总报告
 - `docs/changes/2026-06-13-docs-baseline-cleanup.md`
   - 本轮文档清理、修复和删除说明
+- `docs/changes/2026-06-16-douyin-ad-preaudit-and-vod-upload.md`
+  - 抖音广告预审、作品区视频上传到 VOD、品牌默认配置与首屏加载修复说明
+- `docs/changes/2026-06-19-douyin-remix-short-video-workspace.md`
+  - 抖音独立复刻短视频板块、15 秒分段复刻流程、拼接成片与技能注册说明
 - `docs/changes/2026-06-10-knowledge-binding-runtime-and-docs-sync.md`
   - 知识绑定从治理层进入运行时后的同步口径
 - `docs/changes/2026-06-03-wechat-workspace-and-publishing.md`

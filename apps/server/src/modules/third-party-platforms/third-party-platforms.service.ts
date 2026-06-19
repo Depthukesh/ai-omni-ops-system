@@ -357,6 +357,18 @@ export class ThirdPartyPlatformsService {
     );
     const apiKey = String(secret?.apiKey || "").trim();
     if (!apiKey) {
+      const envApiKeys = this.resolveLocalEnvApiKeysForPlatform(platform);
+      if (envApiKeys.length) {
+        return {
+          status: "resolved",
+          platform: {
+            id: platform.id,
+            name: platform.name,
+            baseUrl: platform.baseUrl,
+          },
+          apiKeys: envApiKeys,
+        };
+      }
       return {
         status: "brand-api-key-missing",
         platform: {
@@ -377,6 +389,38 @@ export class ThirdPartyPlatformsService {
       },
       apiKeys: [apiKey],
     };
+  }
+
+  private resolveLocalEnvApiKeysForPlatform(platform: Pick<ThirdPartyPlatformRecord, "baseUrl"> | undefined) {
+    if (!platform || process.env.NODE_ENV === "production") {
+      return [];
+    }
+
+    let host = "";
+    try {
+      host = new URL(platform.baseUrl).host.toLowerCase();
+    } catch {
+      return [];
+    }
+
+    const envKeysByHost: Record<string, string[]> = {
+      "api.apiz.ai": ["APIZ_API_KEY", "NEX_AI_API_KEY"],
+      "api.deepseek.com": ["DEEPSEEK_API_KEY"],
+      "api.moonshot.cn": ["KIMI_API_KEY", "MOONSHOT_API_KEY"],
+      "api.tikhub.io": ["TIKHUB_API_KEY"],
+      "api.xskill.ai": ["APIZ_API_KEY", "NEX_AI_API_KEY"],
+      "ark.cn-beijing.volces.com": ["ARK_API_KEY", "VOLCENGINE_ARK_API_KEY", "DOUBAO_API_KEY"],
+      "open.bigmodel.cn": ["GLM_API_KEY", "ZHIPU_API_KEY"],
+      "www.right.codes": ["RIGHT_CODES_API_KEY"],
+    };
+
+    return Array.from(
+      new Set(
+        (envKeysByHost[host] || [])
+          .map((envName) => String(process.env[envName] || "").trim())
+          .filter(Boolean),
+      ),
+    );
   }
 
   private normalizeUserPlatform(platform: ThirdPartyPlatformRecord, apiKey: string): UserThirdPartyPlatformRecord {
