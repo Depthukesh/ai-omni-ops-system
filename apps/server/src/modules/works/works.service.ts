@@ -290,6 +290,7 @@ export type GenerateDouyinVideoNotePayload = {
 };
 
 export type GenerateDouyinRemixShortVideoPayload = {
+  sourceMaterialId?: string;
   sourceMaterialUrl?: string;
   injectBrandProfile?: boolean;
   productId?: string;
@@ -14261,10 +14262,42 @@ export class WorksService {
           payload.referenceImage,
         )
       : undefined;
-    const sourceMaterialUrl = payload.sourceMaterialUrl?.trim() || undefined;
-    const sourceVideoUrl = persistedSourceVideo?.url || sourceMaterialUrl;
+    const sourceMaterialId = payload.sourceMaterialId?.trim();
+    let selectedMaterial: {
+      id: string;
+      title: string;
+      description?: string;
+      workUrl?: string;
+      videoUrl?: string;
+    } | undefined;
+    if (sourceMaterialId) {
+      const workspace = await this.collectorsService.getDouyinWorkspace(brandId);
+      const target = [
+        ...workspace.benchmarkWorks,
+        ...workspace.lowFanExplosiveWorks,
+        ...workspace.highCompletionRateWorks,
+        ...workspace.highLikeRateWorks,
+      ].find((item) => item.id === sourceMaterialId && item.isInMaterialLibrary);
+      if (!target) {
+        throw new BadRequestException("未找到你选择的抖音素材，请确认该作品已加入抖音素材库。");
+      }
+      if (!target.videoUrl) {
+        throw new BadRequestException("复刻短视频必须选择带视频链接的抖音素材，请重新选择。");
+      }
+      selectedMaterial = {
+        id: target.id,
+        title: target.title,
+        description: target.description || undefined,
+        workUrl: target.workUrl || undefined,
+        videoUrl: target.videoUrl || undefined,
+      };
+    }
+    const sourceMaterialUrl = payload.sourceMaterialUrl?.trim()
+      || selectedMaterial?.workUrl
+      || undefined;
+    const sourceVideoUrl = persistedSourceVideo?.url || selectedMaterial?.videoUrl || sourceMaterialUrl;
     if (!sourceVideoUrl) {
-      throw new BadRequestException("请至少填写素材库短视频链接，或上传一个短视频文件。");
+      throw new BadRequestException("请先从抖音素材库选择一个短视频素材，或上传一个短视频文件。");
     }
     const requestedVideoProvider = await this.resolveVideoProviderWithoutReferenceFallback(
       brandId,
@@ -14272,10 +14305,11 @@ export class WorksService {
       true,
     );
     const sourceDurationSec = await this.tryProbeVideoDurationSec({
-      sourceUrl: sourceMaterialUrl,
+      sourceUrl: sourceVideoUrl,
       upload: payload.sourceVideo,
     });
     const sourceTitle = this.buildRemixShortVideoSourceTitle({
+      sourceMaterialTitle: selectedMaterial?.title,
       sourceMaterialUrl,
       sourceVideoFileName: payload.sourceVideo?.fileName,
     });
@@ -14286,10 +14320,10 @@ export class WorksService {
       topicLabel: sourceTitle,
       product: normalizedProduct,
       material: {
-        id: randomUUID(),
-        title: sourceTitle,
-        description: sourceMaterialUrl ? `素材库短视频链接：${sourceMaterialUrl}` : "用户上传短视频",
-        sourceUrl: sourceMaterialUrl || sourceVideoUrl,
+        id: selectedMaterial?.id || randomUUID(),
+        title: selectedMaterial?.title || sourceTitle,
+        description: selectedMaterial?.description || (sourceMaterialUrl ? `素材库短视频链接：${sourceMaterialUrl}` : "用户上传短视频"),
+        sourceUrl: sourceVideoUrl,
         noteUrl: sourceMaterialUrl,
         videoUrl: sourceVideoUrl,
       },
@@ -15493,10 +15527,11 @@ export class WorksService {
   }
 
   private buildRemixShortVideoSourceTitle(params: {
+    sourceMaterialTitle?: string;
     sourceMaterialUrl?: string;
     sourceVideoFileName?: string;
   }) {
-    const rawName = params.sourceVideoFileName || params.sourceMaterialUrl || "复刻短视频";
+    const rawName = params.sourceMaterialTitle || params.sourceVideoFileName || params.sourceMaterialUrl || "复刻短视频";
     const normalized = String(rawName || "").trim();
     if (!normalized) {
       return "复刻短视频";

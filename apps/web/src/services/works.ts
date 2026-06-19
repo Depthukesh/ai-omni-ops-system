@@ -884,14 +884,13 @@ export type GenerateDouyinVideoNoteForm = {
 };
 
 export type GenerateDouyinRemixShortVideoForm = {
-  sourceMaterialUrl?: string;
+  sourceMaterialId?: string;
   injectBrandProfile?: boolean;
   productId?: string;
   includeMarketingPlan?: boolean;
   sourceVideoFile?: File | null;
   referenceImageFile?: File | null;
   videoProvider?: string;
-  customVideoModelName?: string;
   storyboardImageModel?: string;
   additionalInstruction?: string;
 };
@@ -1336,14 +1335,13 @@ export async function generateDouyinRemixShortVideoWork(brandId: string, form: G
     `/works/brands/${brandId}/douyin/remix-short-video/generate`,
     "POST",
     {
-      sourceMaterialUrl: form.sourceMaterialUrl,
+      sourceMaterialId: form.sourceMaterialId,
       injectBrandProfile: form.injectBrandProfile,
       productId: form.productId,
       includeMarketingPlan: form.includeMarketingPlan,
       sourceVideo,
       referenceImage,
       videoProvider: form.videoProvider,
-      customVideoModelName: form.customVideoModelName,
       storyboardImageModel: form.storyboardImageModel,
       additionalInstruction: form.additionalInstruction,
     },

@@ -1746,7 +1746,6 @@ export function DouyinWorkspaceShell() {
 
   const handleGenerateRemixShortVideo = useCallback(async (payload: {
     workId: string;
-    customVideoModelName?: string;
   }) => {
     if (!canEditRemixShortVideo) {
       setErrorMessage("当前账号只有查看权限，不能生成复刻短视频。");
@@ -1756,7 +1755,7 @@ export function DouyinWorkspaceShell() {
     setErrorMessage("");
     setNotice("");
     try {
-      await continueDouyinRemixShortVideoGeneration(activeBrandId, payload.workId, { customVideoModelName: payload.customVideoModelName });
+      await continueDouyinRemixShortVideoGeneration(activeBrandId, payload.workId);
       await refreshRemixShortVideoWorkspace();
       setNotice("复刻短视频拼接任务已提交，系统正在后台生成分段视频并自动拼接。");
       return true;
@@ -2775,6 +2774,7 @@ export function DouyinWorkspaceShell() {
                     isSubmitting={isSubmittingVideo}
                     canEdit={canEditRemixShortVideo}
                     items={remixShortVideoWorks}
+                    materialOptions={materialWorks.map((item) => ({ id: item.id, label: item.title, videoUrl: item.videoUrl }))}
                     productOptions={remixCopyWorkspace.productOptions.map((item) => ({ id: item.id, label: item.productName }))}
                     videoProviderOptions={videoProviderOptions}
                     storyboardImageModelOptions={storyboardImageModelOptions}

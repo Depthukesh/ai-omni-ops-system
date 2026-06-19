@@ -33,6 +33,7 @@ export interface DouyinRemixShortVideoWorkspaceProps {
   isSubmitting: boolean;
   canEdit: boolean;
   items: DouyinRemixShortVideoWorkRecord[];
+  materialOptions: Array<{ id: string; label: string; videoUrl?: string }>;
   productOptions: Array<{ id: string; label: string }>;
   videoProviderOptions: VideoProviderOptionRecord[];
   storyboardImageModelOptions: StoryboardImageModelOptionRecord[];
@@ -41,21 +42,17 @@ export interface DouyinRemixShortVideoWorkspaceProps {
   onRefresh: () => void | Promise<void>;
   onPreview: (item: DouyinRemixShortVideoWorkRecord) => void;
   onCreate: (payload: {
-    sourceMaterialUrl?: string;
+    sourceMaterialId?: string;
     injectBrandProfile?: boolean;
     productId?: string;
     includeMarketingPlan?: boolean;
     sourceVideoFile?: File | null;
     referenceImageFile?: File | null;
     videoProvider?: string;
-    customVideoModelName?: string;
     storyboardImageModel?: string;
     additionalInstruction?: string;
   }) => Promise<boolean>;
-  onGenerateVideo: (payload: {
-    workId: string;
-    customVideoModelName?: string;
-  }) => Promise<boolean>;
+  onGenerateVideo: (payload: { workId: string }) => Promise<boolean>;
   formatDateTime: OptionalDateFormatter;
 }
 
@@ -93,7 +90,7 @@ export function DouyinRemixShortVideoWorkspace(props: DouyinRemixShortVideoWorks
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [selectedWorkId, setSelectedWorkId] = useState("");
 
-  const [sourceMaterialUrl, setSourceMaterialUrl] = useState("");
+  const [sourceMaterialId, setSourceMaterialId] = useState("");
   const [injectBrandProfileValue, setInjectBrandProfileValue] = useState("yes");
   const [productValue, setProductValue] = useState(NO_PRODUCT_OPTION);
   const [injectMarketingPlanValue, setInjectMarketingPlanValue] = useState("yes");
@@ -101,8 +98,11 @@ export function DouyinRemixShortVideoWorkspace(props: DouyinRemixShortVideoWorks
   const [referenceImageFile, setReferenceImageFile] = useState<File | null>(null);
   const [providerValue, setProviderValue] = useState("");
   const [storyboardImageModelValue, setStoryboardImageModelValue] = useState("");
-  const [customModelName, setCustomModelName] = useState("");
   const [additionalInstruction, setAdditionalInstruction] = useState("");
+  const materialOptions = useMemo(
+    () => props.materialOptions.filter((item) => Boolean(item.videoUrl)),
+    [props.materialOptions],
+  );
 
   const pagedItems = useMemo(() => {
     const start = (page - 1) * PAGE_SIZE;
@@ -123,7 +123,7 @@ export function DouyinRemixShortVideoWorkspace(props: DouyinRemixShortVideoWorks
   );
   const createDisabled = !providerValue
     || !storyboardImageModelValue
-    || (!sourceMaterialUrl.trim() && !sourceVideoFile)
+    || (!sourceMaterialId && !sourceVideoFile)
     || (injectMarketingPlanValue === "yes" && !props.hasMarketingPlan);
   const isTaskActive = latestTaskItem?.taskStatus === "RUNNING" || latestTaskItem?.taskStatus === "QUEUED" || latestTaskItem?.taskStatus === "PENDING";
 
@@ -153,14 +153,13 @@ export function DouyinRemixShortVideoWorkspace(props: DouyinRemixShortVideoWorks
 
   async function handleCreate() {
     const success = await props.onCreate({
-      sourceMaterialUrl: sourceMaterialUrl.trim() || undefined,
+      sourceMaterialId: sourceMaterialId || undefined,
       injectBrandProfile: injectBrandProfileValue === "yes",
       productId: productValue !== NO_PRODUCT_OPTION ? productValue : undefined,
       includeMarketingPlan: injectMarketingPlanValue === "yes",
       sourceVideoFile,
       referenceImageFile,
       videoProvider: providerValue || undefined,
-      customVideoModelName: customModelName.trim() || undefined,
       storyboardImageModel: storyboardImageModelValue || undefined,
       additionalInstruction: additionalInstruction.trim() || undefined,
     });
@@ -168,13 +167,12 @@ export function DouyinRemixShortVideoWorkspace(props: DouyinRemixShortVideoWorks
       return;
     }
     setIsCreateOpen(false);
-    setSourceMaterialUrl("");
+    setSourceMaterialId("");
     setInjectBrandProfileValue("yes");
     setProductValue(NO_PRODUCT_OPTION);
     setInjectMarketingPlanValue("yes");
     setSourceVideoFile(null);
     setReferenceImageFile(null);
-    setCustomModelName("");
     setAdditionalInstruction("");
   }
 
@@ -184,7 +182,6 @@ export function DouyinRemixShortVideoWorkspace(props: DouyinRemixShortVideoWorks
     }
     await props.onGenerateVideo({
       workId: selectedWork.id,
-      customVideoModelName: customModelName.trim() || undefined,
     });
   }
 
@@ -475,12 +472,16 @@ export function DouyinRemixShortVideoWorkspace(props: DouyinRemixShortVideoWorks
         onCreate={handleCreate}
       >
         <label className="field-full">
-          <span>素材库（可选不植入）</span>
-          <input
-            value={sourceMaterialUrl}
-            onChange={(event) => setSourceMaterialUrl(event.target.value)}
-            placeholder="可直接输入短视频链接；若留空，请至少上传一个短视频文件。"
-          />
+          <span>素材库（同步抖音-素材库）</span>
+          <select value={sourceMaterialId} onChange={(event) => setSourceMaterialId(event.target.value)}>
+            <option value="">不植入素材库，改为上传短视频</option>
+            {materialOptions.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+          <p className="panel-subtext">默认只展示已加入抖音素材库且带视频链接的素材；若不选，请至少上传一个短视频文件。</p>
         </label>
         <label>
           <span>是否植入品牌资料</span>
@@ -555,14 +556,6 @@ export function DouyinRemixShortVideoWorkspace(props: DouyinRemixShortVideoWorks
               </option>
             ))}
           </select>
-        </label>
-        <label>
-          <span>自定义视频模型名</span>
-          <input
-            value={customModelName}
-            onChange={(event) => setCustomModelName(event.target.value)}
-            placeholder="可选：手动输入该后端的具体 model"
-          />
         </label>
         <label className="field-full">
           <span>用户要求</span>
