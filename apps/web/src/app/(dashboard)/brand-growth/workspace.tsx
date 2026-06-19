@@ -288,6 +288,7 @@ function createEmptyDouyinCollectionWorkspace(): DouyinCollectionWorkspace {
     competitorAccounts: [],
     brandWorks: [],
     benchmarkWorks: [],
+    searchWorks: [],
     lowFanExplosiveWorks: [],
     highCompletionRateWorks: [],
     highLikeRateWorks: [],
@@ -567,6 +568,7 @@ type DouyinSyncForm = {
   brandAccountEntries: XhsAccountBindingEntry[];
   competitorAccountEntries: XhsAccountBindingEntry[];
   benchmarkAwemeIds: string;
+  searchKeyword: string;
   lowFanExplosiveWorks: {
     primaryTagId: string;
     secondaryTagId: string;
@@ -607,6 +609,7 @@ function createEmptyDouyinSyncForm(): DouyinSyncForm {
     brandAccountEntries: [],
     competitorAccountEntries: [],
     benchmarkAwemeIds: "",
+    searchKeyword: "",
     lowFanExplosiveWorks: {
       primaryTagId: "",
       secondaryTagId: "",
@@ -972,6 +975,10 @@ export function BrandGrowthWorkspace() {
   const sortedDouyinBenchmarkWorks = useMemo(
     () => sortByCollectedAtDesc(douyinCollectionWorkspace.benchmarkWorks),
     [douyinCollectionWorkspace.benchmarkWorks],
+  );
+  const sortedDouyinSearchWorks = useMemo(
+    () => sortByCollectedAtDesc(douyinCollectionWorkspace.searchWorks),
+    [douyinCollectionWorkspace.searchWorks],
   );
   const sortedDouyinLowFanExplosiveWorks = useMemo(
     () => sortByCollectedAtDesc(douyinCollectionWorkspace.lowFanExplosiveWorks),
@@ -2239,6 +2246,15 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
       if (activeDouyinCollectionCard === "benchmarkWorks") {
         payload.benchmarkAwemeIds = parseDouyinSyncLines(douyinSyncForm.benchmarkAwemeIds);
       }
+      if (activeDouyinCollectionCard === "searchWorks") {
+        const searchKeyword = douyinSyncForm.searchKeyword.trim();
+        if (!searchKeyword) {
+          setErrorMessage("请输入关键词后再提交。");
+          setIsSyncingDouyinWorkspace(false);
+          return;
+        }
+        payload.searchKeyword = searchKeyword;
+      }
       if (
         activeDouyinCollectionCard === "lowFanExplosiveWorks"
         || activeDouyinCollectionCard === "highCompletionRateWorks"
@@ -2270,7 +2286,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
       setDouyinCollectionWorkspace(response.workspace);
       const summary =
         `抖音同步完成：品牌账号 ${response.breakdown.brandAccounts} 条，竞品账号 ${response.breakdown.competitorAccounts} 条，` +
-        `品牌作品 ${response.breakdown.brandWorks} 条，对标作品 ${response.breakdown.benchmarkWorks} 条，` +
+        `品牌作品 ${response.breakdown.brandWorks} 条，对标作品 ${response.breakdown.benchmarkWorks} 条，搜索关键词 ${response.breakdown.searchWorks} 条，` +
         `低粉爆款榜 ${response.breakdown.lowFanExplosiveWorks} 条，高完播率榜 ${response.breakdown.highCompletionRateWorks} 条，` +
         `高点赞率榜 ${response.breakdown.highLikeRateWorks} 条，同城热点榜 ${response.breakdown.cityHotspots} 条。`;
       const warningText = response.warnings?.filter(Boolean).join("；");
@@ -2775,6 +2791,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
         sortedDouyinCompetitorAccounts={sortedDouyinCompetitorAccounts}
         sortedDouyinBrandWorks={sortedDouyinBrandWorks}
         sortedDouyinBenchmarkWorks={sortedDouyinBenchmarkWorks}
+        sortedDouyinSearchWorks={sortedDouyinSearchWorks}
         sortedDouyinLowFanExplosiveWorks={sortedDouyinLowFanExplosiveWorks}
         sortedDouyinHighCompletionRateWorks={sortedDouyinHighCompletionRateWorks}
         sortedDouyinHighLikeRateWorks={sortedDouyinHighLikeRateWorks}

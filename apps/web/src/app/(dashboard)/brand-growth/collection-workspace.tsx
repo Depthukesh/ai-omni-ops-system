@@ -58,6 +58,7 @@ export type DouyinCollectionCardKey =
   | "competitorAccount"
   | "brandWorks"
   | "benchmarkWorks"
+  | "searchWorks"
   | "lowFanExplosiveWorks"
   | "highCompletionRateWorks"
   | "highLikeRateWorks"
@@ -71,6 +72,7 @@ export const douyinCollectionCards: Array<{
   { key: "competitorAccount", label: "竞品账号信息" },
   { key: "brandWorks", label: "品牌作品信息及数据" },
   { key: "benchmarkWorks", label: "对标作品信息及数据" },
+  { key: "searchWorks", label: "搜索关键词" },
   { key: "lowFanExplosiveWorks", label: "获取低粉爆款榜" },
   { key: "highCompletionRateWorks", label: "获取高完播率榜" },
   { key: "highLikeRateWorks", label: "获取高点赞率榜" },
@@ -141,6 +143,22 @@ const douyinFieldPreviewMap: Record<DouyinCollectionCardKey, DouyinFieldPreviewR
     { field: "shareCount", label: "分享数", source: "获取单个作品数据 V3 / 统计数据", path: "data.aweme_detail.statistics.share_count / data.statistics_list[].share_count", required: "可选", patch: "是" },
     { field: "downloadCount", label: "下载数", source: "获取作品的统计数据", path: "data.statistics_list[].download_count", required: "可选", patch: "是" },
     { field: "commentCount", label: "评论数", source: "获取单个作品数据 V3", path: "data.aweme_detail.statistics.comment_count", required: "可选", patch: "否" },
+  ],
+  searchWorks: [
+    { field: "workId", label: "作品 ID", source: "获取综合搜索 V1", path: "data[].aweme_info.aweme_id", required: "必需", patch: "否" },
+    { field: "description", label: "作品描述", source: "获取综合搜索 V1", path: "data[].aweme_info.desc", required: "必需", patch: "否" },
+    { field: "coverUrl", label: "视频封面", source: "获取综合搜索 V1", path: "data[].aweme_info.video.cover.url_list[0]", required: "可选", patch: "否" },
+    { field: "videoUrl", label: "视频地址", source: "获取综合搜索 V1", path: "data[].aweme_info.video.download_addr.url_list[0]", required: "可选", patch: "否" },
+    { field: "authorName", label: "作者昵称", source: "获取综合搜索 V1", path: "data[].aweme_info.author.nickname", required: "可选", patch: "否" },
+    { field: "authorUniqueId", label: "作者抖音号", source: "获取综合搜索 V1", path: "data[].aweme_info.author.unique_id", required: "可选", patch: "否" },
+    { field: "authorAvatar", label: "作者头像", source: "获取综合搜索 V1", path: "data[].aweme_info.author.avatar_medium.url_list[0]", required: "可选", patch: "否" },
+    { field: "durationMs", label: "作品时长", source: "获取综合搜索 V1", path: "data[].aweme_info.video.duration", required: "可选", patch: "否" },
+    { field: "publishTimeText", label: "发布时间", source: "获取综合搜索 V1", path: "data[].aweme_info.create_time", required: "可选", patch: "否" },
+    { field: "playCount", label: "播放量", source: "获取综合搜索 V1", path: "data[].aweme_info.statistics.play_count", required: "可选", patch: "否" },
+    { field: "likeCount", label: "点赞数", source: "获取综合搜索 V1", path: "data[].aweme_info.statistics.digg_count", required: "可选", patch: "否" },
+    { field: "commentCount", label: "评论数", source: "获取综合搜索 V1", path: "data[].aweme_info.statistics.comment_count", required: "可选", patch: "否" },
+    { field: "shareCount", label: "分享数", source: "获取综合搜索 V1", path: "data[].aweme_info.statistics.share_count", required: "可选", patch: "否" },
+    { field: "collectCount", label: "收藏数", source: "获取综合搜索 V1", path: "data[].aweme_info.statistics.collect_count", required: "可选", patch: "否" },
   ],
   lowFanExplosiveWorks: [
     { field: "workId", label: "作品 ID", source: "获取低粉爆款榜", path: "data.data.data[].item_id", required: "必需", patch: "否" },
@@ -243,6 +261,7 @@ export interface BrandGrowthCollectionWorkspaceProps {
     brandAccountEntries: XhsAccountBindingEntry[];
     competitorAccountEntries: XhsAccountBindingEntry[];
     benchmarkAwemeIds: string;
+    searchKeyword: string;
     lowFanExplosiveWorks: {
       primaryTagId: string;
       secondaryTagId: string;
@@ -263,6 +282,7 @@ export interface BrandGrowthCollectionWorkspaceProps {
     brandAccountEntries: XhsAccountBindingEntry[];
     competitorAccountEntries: XhsAccountBindingEntry[];
     benchmarkAwemeIds: string;
+    searchKeyword: string;
     lowFanExplosiveWorks: {
       primaryTagId: string;
       secondaryTagId: string;
@@ -301,6 +321,7 @@ export interface BrandGrowthCollectionWorkspaceProps {
   sortedDouyinCompetitorAccounts: DouyinCollectedAccountRecord[];
   sortedDouyinBrandWorks: DouyinCollectedWorkRecord[];
   sortedDouyinBenchmarkWorks: DouyinCollectedWorkRecord[];
+  sortedDouyinSearchWorks: DouyinCollectedWorkRecord[];
   sortedDouyinLowFanExplosiveWorks: DouyinCollectedWorkRecord[];
   sortedDouyinHighCompletionRateWorks: DouyinCollectedWorkRecord[];
   sortedDouyinHighLikeRateWorks: DouyinCollectedWorkRecord[];
@@ -2315,6 +2336,7 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
     props.sortedDouyinCompetitorAccounts.length +
     props.sortedDouyinBrandWorks.length +
     props.sortedDouyinBenchmarkWorks.length +
+    props.sortedDouyinSearchWorks.length +
     props.sortedDouyinLowFanExplosiveWorks.length +
     props.sortedDouyinHighCompletionRateWorks.length +
     props.sortedDouyinHighLikeRateWorks.length +
@@ -2332,6 +2354,8 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
           ? props.sortedDouyinBrandWorks
           : props.activeDouyinCollectionCard === "benchmarkWorks"
             ? props.sortedDouyinBenchmarkWorks
+            : props.activeDouyinCollectionCard === "searchWorks"
+              ? props.sortedDouyinSearchWorks
             : props.activeDouyinCollectionCard === "lowFanExplosiveWorks"
               ? props.sortedDouyinLowFanExplosiveWorks
               : props.activeDouyinCollectionCard === "highCompletionRateWorks"
@@ -3196,6 +3220,39 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                   />
                 ) : (
                   <div className="note-empty-state">当前还没有采集到对标作品信息，请先输入作品链接并提交。</div>
+                )}
+              </article>
+            </>
+          ) : null}
+          {props.activeDouyinCollectionCard === "searchWorks" ? (
+            <>
+              <DouyinSubmitPanel
+                title="搜索关键词"
+                value={props.douyinSyncForm.searchKeyword}
+                onChange={(value) => props.setDouyinSyncForm((current) => ({ ...current, searchKeyword: value }))}
+                placeholder="请输入抖音搜索关键词，例如：生日蛋糕、探店咖啡、烘焙教程"
+                isSubmitting={props.isHydrating || props.isSyncingDouyinWorkspace}
+                onSubmit={props.onSyncDouyinWorkspace}
+              />
+              <article className="light-data-panel">
+                <div className="collection-result-head">
+                  <div>
+                    <h3>搜索关键词结果</h3>
+                    <p>调用 TikHub 抖音综合搜索接口，返回关键词下的视频结果，支持加入抖音素材库。</p>
+                  </div>
+                </div>
+                {douyinPreviewItems.length ? (
+                  <DouyinMaterialReadyWorksTable
+                    items={douyinPreviewItems as DouyinCollectedWorkRecord[]}
+                    addingMaterialAssetId={props.addingMaterialAssetId}
+                    onAddToMaterialLibrary={props.onAddDouyinBenchmarkWorkToMaterial}
+                    formatDateTime={props.formatDateTime}
+                    formatCount={props.formatCount}
+                    onPreviewMedia={props.onPreviewMedia}
+                    showBillboardColumns={false}
+                  />
+                ) : (
+                  <div className="note-empty-state">当前还没有搜索结果，请先输入关键词并提交。</div>
                 )}
               </article>
             </>

@@ -137,6 +137,7 @@ export type DouyinCollectedWorkRecord = {
   kind:
     | "DOUYIN_BRAND_WORK"
     | "DOUYIN_BENCHMARK_WORK"
+    | "DOUYIN_SEARCH_WORK"
     | "DOUYIN_LOW_FAN_EXPLOSIVE_WORK"
     | "DOUYIN_HIGH_COMPLETION_RATE_WORK"
     | "DOUYIN_HIGH_LIKE_RATE_WORK";
@@ -209,6 +210,7 @@ export type DouyinCollectionWorkspace = {
   competitorAccounts: DouyinCollectedAccountRecord[];
   brandWorks: DouyinCollectedWorkRecord[];
   benchmarkWorks: DouyinCollectedWorkRecord[];
+  searchWorks: DouyinCollectedWorkRecord[];
   lowFanExplosiveWorks: DouyinCollectedWorkRecord[];
   highCompletionRateWorks: DouyinCollectedWorkRecord[];
   highLikeRateWorks: DouyinCollectedWorkRecord[];
@@ -223,6 +225,7 @@ export type DouyinSyncPayload = {
     | "competitorAccount"
     | "brandWorks"
     | "benchmarkWorks"
+    | "searchWorks"
     | "lowFanExplosiveWorks"
     | "highCompletionRateWorks"
     | "highLikeRateWorks"
@@ -232,6 +235,7 @@ export type DouyinSyncPayload = {
   brandAccountEntries?: XhsSyncAccountEntry[];
   competitorAccountEntries?: XhsSyncAccountEntry[];
   benchmarkAwemeIds?: string[];
+  searchKeyword?: string;
   contentTagSelection?: {
     primaryTagId?: number;
     secondaryTagId?: number;
@@ -409,6 +413,7 @@ export const douyinCollectionSeed: DouyinCollectionWorkspace = {
       collectedAt: "2026-05-20T08:08:00.000Z",
     },
   ],
+  searchWorks: [],
   lowFanExplosiveWorks: [],
   highCompletionRateWorks: [],
   highLikeRateWorks: [],
@@ -429,6 +434,7 @@ export async function syncDouyinCollectionWorkspace(payload: DouyinSyncPayload =
       competitorAccounts: number;
       brandWorks: number;
       benchmarkWorks: number;
+      searchWorks: number;
       lowFanExplosiveWorks: number;
       highCompletionRateWorks: number;
       highLikeRateWorks: number;

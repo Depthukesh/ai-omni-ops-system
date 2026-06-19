@@ -171,6 +171,7 @@ export class DouyinCollectorsController {
         | "competitorAccount"
         | "brandWorks"
         | "benchmarkWorks"
+        | "searchWorks"
         | "lowFanExplosiveWorks"
         | "highCompletionRateWorks"
         | "highLikeRateWorks"
@@ -180,6 +181,7 @@ export class DouyinCollectorsController {
       brandAccountEntries?: Array<{ locator: string; accountRole?: "BRAND" | "STAFF" | "TALENT" }>;
       competitorAccountEntries?: Array<{ locator: string; accountRole?: "BRAND" | "STAFF" | "TALENT" }>;
       benchmarkAwemeIds?: string[];
+      searchKeyword?: string;
       contentTagSelection?: {
         primaryTagId?: number;
         secondaryTagId?: number;
