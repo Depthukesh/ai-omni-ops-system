@@ -3235,57 +3235,36 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       const imageList = this.extractXhsImageList(item);
       const externalUserId = this.pickString(item, ["userid", "user_id", "userId", "author_id"]);
       const createdAtText = this.pickString(item, ["create_time", "time", "publish_time"]);
-      const detailRaw = imageList.length <= 1
-        ? await this.tryFetchXhsNoteDetail(brandId, noteId, noteUrl)
-        : null;
-      const detailImageList = detailRaw ? this.extractXhsImageList(detailRaw) : [];
-      const finalImageList = detailImageList.length > imageList.length ? detailImageList : imageList;
-      const detailVideoUrl = detailRaw ? this.extractXhsVideoUrl(detailRaw) : "";
-      const videoUrl = detailVideoUrl || this.extractXhsVideoUrl(item);
-      const cachedMedia = await this.cacheXhsNoteMediaBundle(brandId, noteId, finalImageList, videoUrl);
-      const finalTitle = detailRaw ? this.pickString(detailRaw, ["title", "name"]) || title : title;
-      const finalDescription = detailRaw ? this.pickString(detailRaw, ["desc", "description", "content", "text"]) || description : description;
-      const finalLikeCount = detailRaw ? this.pickNumber(detailRaw, ["likes", "liked_count", "like_count", "likedCount", "digg_count"]) ?? likeCount : likeCount;
-      const finalCollectCount = detailRaw ? this.pickNumber(detailRaw, ["collected_count", "collect_count", "collectedCount", "collect_num"]) ?? collectCount : collectCount;
-      const finalShareCount = detailRaw ? this.pickNumber(detailRaw, ["share_count", "shareCount", "shared_count", "share_num"]) ?? shareCount : shareCount;
-      const finalCommentCount = detailRaw ? this.pickNumber(detailRaw, ["comments_count", "comment_count", "commentCount", "comment_num"]) ?? commentCount : commentCount;
-      const finalNoteType = detailRaw ? this.pickString(detailRaw, ["type", "note_type"]) || noteType : noteType;
-      const finalNickname = detailRaw ? this.pickString(detailRaw, ["nickname", "user_name", "author_name"]) || nickname : nickname;
-      const finalExternalUserId = detailRaw ? this.pickString(detailRaw, ["userid", "user_id", "userId", "author_id"]) || externalUserId : externalUserId;
-      const finalCreatedAtText = detailRaw ? this.pickString(detailRaw, ["create_time", "time", "publish_time"]) || createdAtText : createdAtText;
-      const finalNoteUrl = detailRaw
-        ? this.pickString(detailRaw, ["note_url", "noteUrl", "share_url", "shareUrl"])
-          || this.extractShareUrl(detailRaw)
-          || noteUrl
-        : noteUrl;
+      const videoUrl = this.extractXhsVideoUrl(item);
+      const cachedMedia = await this.cacheXhsNoteMediaBundle(brandId, noteId, imageList, videoUrl);
 
       const asset = await this.upsertCollectorAsset({
         brandId,
         kind: "XHS_BRAND_NOTE",
         matchValue: noteId,
-        title: finalTitle,
-        description: finalDescription,
-        fileUrl: finalNoteUrl,
+        title,
+        description,
+        fileUrl: noteUrl,
         metadata: {
           kind: "XHS_BRAND_NOTE",
           sourceAccountId: account.id,
           sourceAccountLink: account.accountLink,
           noteId,
-          noteUrl: finalNoteUrl,
-          noteType: finalNoteType,
-          nickname: finalNickname,
+          noteUrl,
+          noteType,
+          nickname,
           imageList: cachedMedia.imageList,
-          imageSourceList: finalImageList,
-          externalUserId: finalExternalUserId,
-          likeCount: finalLikeCount,
-          collectCount: finalCollectCount,
-          createdAtText: finalCreatedAtText,
-          shareCount: finalShareCount,
-          commentCount: finalCommentCount,
+          imageSourceList: imageList,
+          externalUserId,
+          likeCount,
+          collectCount,
+          createdAtText,
+          shareCount,
+          commentCount,
           videoUrl: cachedMedia.videoUrl,
           videoSourceUrl: videoUrl,
           collectedAt,
-          rawFields: this.asMeta(detailRaw || item),
+          rawFields: this.asMeta(item),
         },
       });
 
@@ -3798,27 +3777,6 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     });
 
     return this.mapCollectedNote(asset);
-  }
-
-  private async tryFetchXhsNoteDetail(brandId: string, noteId?: string, sourceUrl?: string) {
-    const noteQuery = this.resolveXhsNoteQuery(sourceUrl || noteId || "");
-    if (!noteQuery.noteId && !noteQuery.shareText) {
-      return null;
-    }
-    try {
-      return await this.fetchTikHub(
-        "/api/v1/xiaohongshu/app_v2/get_image_note_detail",
-        {
-          note_id: noteQuery.noteId,
-          share_text: noteQuery.shareText,
-        },
-        brandId,
-      );
-    } catch (error) {
-      const detail = error instanceof Error ? error.message : "未知错误";
-      this.logger.warn(`小红书笔记详情补齐失败：${noteQuery.noteId || sourceUrl || "unknown"} ${detail}`);
-      return null;
-    }
   }
 
   private async collectAndStoreSearchNotes(brandId: string, keyword: string): Promise<XhsCollectedNoteRecord[]> {
