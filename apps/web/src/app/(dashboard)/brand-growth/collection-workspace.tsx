@@ -1352,23 +1352,21 @@ function DouyinKeywordRecommendationBuilder(props: {
               </button>
             </div>
             {historyItems.length ? (
-              <div className="keyword-recommendation-history-list">
-                {historyItems.map((item) => (
-                  <article key={item.id} className="keyword-recommendation-history-card">
-                    <div className="keyword-recommendation-history-card__head">
-                      <strong>{item.recommendedKeyword || "-"}</strong>
-                      <span>{item.searchTime || item.collectedAt || "-"}</span>
-                    </div>
-                    <div className="keyword-recommendation-history-card__meta">
-                      <span>搜索关键词</span>
+              <div className="keyword-recommendation-table keyword-recommendation-table--history">
+                <div className="keyword-recommendation-table__head">
+                  <span>搜索关键词</span>
+                  <span>推荐关键词</span>
+                  <span>搜索时间</span>
+                </div>
+                <div className="keyword-recommendation-table__body">
+                  {historyItems.map((item) => (
+                    <div key={item.id} className="keyword-recommendation-table__row">
                       <strong>{item.searchKeyword || "-"}</strong>
+                      <strong>{item.recommendedKeyword || "-"}</strong>
+                      <strong>{item.searchTime || item.collectedAt || "-"}</strong>
                     </div>
-                    <div className="keyword-recommendation-history-card__meta">
-                      <span>来源信息</span>
-                      <strong>{item.wordsSource || item.queryId || "-"}</strong>
-                    </div>
-                  </article>
-                ))}
+                  ))}
+                </div>
               </div>
             ) : (
               <div className="note-empty-state">当前关键词还没有历史记录，请先提交一次再查看。</div>
@@ -1394,43 +1392,32 @@ function DouyinKeywordRecommendationResults(props: {
         </div>
       </div>
       {props.items.length ? (
-        <div className="keyword-recommendation-results-grid">
-          {props.items.map((item) => (
-            <article key={item.id} className="keyword-recommendation-result-card">
-              <div className="keyword-recommendation-result-card__head">
-                <div className="keyword-recommendation-result-card__title">
-                  <strong>{item.recommendedKeyword || "-"}</strong>
-                  <span>{item.searchKeyword || "-"}</span>
-                </div>
-                <button
-                  type="button"
-                  className="note-inline-button"
-                  onClick={() => void props.onDelete(item.id)}
-                  disabled={props.deletingItemId === item.id}
-                >
-                  {props.deletingItemId === item.id ? "删除中..." : "删除"}
-                </button>
-              </div>
-              <div className="keyword-recommendation-result-card__grid">
-                <div className="keyword-recommendation-result-card__item">
-                  <span>搜索关键词</span>
-                  <strong>{item.searchKeyword || "-"}</strong>
-                </div>
-                <div className="keyword-recommendation-result-card__item">
-                  <span>推荐关键词</span>
-                  <strong>{item.recommendedKeyword || "-"}</strong>
-                </div>
-                <div className="keyword-recommendation-result-card__item">
-                  <span>搜索时间</span>
-                  <strong>{item.searchTime || "-"}</strong>
-                </div>
-                <div className="keyword-recommendation-result-card__item">
-                  <span>来源信息</span>
-                  <strong>{item.wordsSource || item.queryId || "-"}</strong>
+        <div className="keyword-recommendation-table">
+          <div className="keyword-recommendation-table__head keyword-recommendation-table__head--with-action">
+            <span>搜索关键词</span>
+            <span>推荐关键词</span>
+            <span>搜索时间</span>
+            <span>操作</span>
+          </div>
+          <div className="keyword-recommendation-table__body">
+            {props.items.map((item) => (
+              <div key={item.id} className="keyword-recommendation-table__row keyword-recommendation-table__row--with-action">
+                <strong>{item.searchKeyword || "-"}</strong>
+                <strong>{item.recommendedKeyword || "-"}</strong>
+                <strong>{item.searchTime || "-"}</strong>
+                <div className="keyword-recommendation-table__action">
+                  <button
+                    type="button"
+                    className="note-inline-button"
+                    onClick={() => void props.onDelete(item.id)}
+                    disabled={props.deletingItemId === item.id}
+                  >
+                    {props.deletingItemId === item.id ? "删除中..." : "删除"}
+                  </button>
                 </div>
               </div>
-            </article>
-          ))}
+            ))}
+          </div>
         </div>
       ) : (
         <div className="note-empty-state">当前还没有关键词推荐结果，请先提交右侧关键词。</div>
