@@ -857,11 +857,13 @@ export function BrandGrowthWorkspace() {
   const previewUrls = mediaPreview?.galleryUrls?.filter(Boolean).length ? mediaPreview.galleryUrls.filter(Boolean) : mediaPreview ? [mediaPreview.url] : [];
   const previewIndex = mediaPreview ? Math.min(Math.max(mediaPreview.activeIndex ?? 0, 0), Math.max(previewUrls.length - 1, 0)) : 0;
   const previewUrl = previewUrls[previewIndex] || mediaPreview?.url || "";
+  const previewType = mediaPreview?.type ?? "IMAGE";
   const previewTitle = mediaPreview
     ? previewUrls.length > 1
       ? `${mediaPreview.title} (${previewIndex + 1}/${previewUrls.length})`
       : mediaPreview.title
     : "";
+  const previewDownloadUrl = mediaPreview?.downloadUrl || previewUrl;
   const [loadedScopes, setLoadedScopes] = useState<Record<BrandGrowthLoadScope, boolean>>({
     library: false,
     collection: false,
@@ -3122,12 +3124,21 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
                 </button>
               </div>
             ) : null}
-            <img src={previewUrl} alt={previewTitle} className="media-preview-image" />
+            {previewType === "VIDEO" ? (
+              <video controls preload="metadata" className="xhs-material-lightbox-video" src={previewUrl} />
+            ) : (
+              <img src={previewUrl} alt={previewTitle} className="media-preview-image" />
+            )}
             <div className="media-preview-footer">
               <span>{previewTitle}</span>
-              <a href={previewUrl} target="_blank" rel="noreferrer" className="note-data-link">
-                新窗口打开
-              </a>
+              <div className="strategy-inline-actions">
+                <a href={previewDownloadUrl} download={mediaPreview.downloadName || undefined} className="secondary-button">
+                  下载
+                </a>
+                <a href={previewUrl} target="_blank" rel="noreferrer" className="note-data-link">
+                  新窗口打开
+                </a>
+              </div>
             </div>
           </div>
         </div>

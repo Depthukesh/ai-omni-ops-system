@@ -415,6 +415,30 @@
 - 访问边界
   - 小红书素材、营销方案、营销日历和飞书媒体代理等按 `brandId` 访问的接口，当前已统一校验当前登录用户是否属于该品牌
 
+### 4.2A 抖音 `/douyin`
+
+- 营销策划方案 / 热点找选题 / 选题库
+  - 上游读取：`Brand`、`Product`、`PlatformAccount`、`CompetitorAccount`、`BusinessAsset`
+  - 生成结果：`Task`、`BusinessAsset`
+- 素材库 / 数据采集联动
+  - 采集主表：`BusinessAsset`
+  - 当前抖音采集结果、素材库沉淀和视频缓存状态统一通过 `BusinessAsset.metadataJson` 承载结构化字段
+  - 视频源地址会先从第三方采集结果中提取，再异步转存到 OSS，对前端返回短时签名读地址；缓存有效期默认为 7 天，过期后由定时任务删除 OSS 文件并把缓存状态改为 `EXPIRED`
+- 原创文案 / 二创文案 / AI 生视频（故事板） / AI 生视频 / 数字人 / 广告预审 / 复刻短视频
+  - 任务：`Task`
+  - 成品 HTML / 图片 / 视频：`MediaAsset`
+  - 当前抖音作品工作区主记录继续复用 `MediaAsset.metadataJson`，不新增独立业务表
+  - `DOUYIN_VIDEO_NOTE`、`DOUYIN_DIRECT_VIDEO`、`DOUYIN_REMIX_SHORT_VIDEO` 当前都通过 `MediaAsset.metadataJson` 保存结构化工作区状态
+  - `DOUYIN_REMIX_SHORT_VIDEO` 当前已拆成独立板块，不再挂在旧 `REMIX` 分支；创建后先执行 15 秒分段复刻分析，再执行逐段生视频与 `ffmpeg concat` 拼接成片
+  - `DOUYIN_REMIX_SHORT_VIDEO` 关键字段包括 `workflowStage`、`sourceMaterialId`、`sourceMaterialUrl`、`sourceVideoUrl`、`sourceDurationSec`、`segmentDurationSec`、`injectBrandProfile`、`analysisModel`、`storyboardImageModelSelection`、`remixSegments`、`composeStatus`、`composeError`、`mergedVideoUrl`
+  - `remixSegments[]` 当前承载单段工作区内容：`segmentLabel`、`startSec`、`endSec`、`analysisReport`、`roleCardText`、`storyboardScript`、`roleImageUrl`、`storyboardImageUrl`、`consistencyCheck`、`videoPrompt`、`videoUrl`
+- 输入约束
+  - 复刻短视频创建弹窗当前优先从抖音素材库选择带 `videoUrl` 的素材，前端传 `sourceMaterialId`
+  - 若未选择素材库项，允许上传短视频文件兜底；不再要求手动填写素材视频链接
+- 访问边界
+  - 抖音工作台全部 `brandId` 级接口当前按 `BrandMember / ownerUserId` 统一校验品牌归属
+  - 复刻短视频板块权限独立挂在 `douyin.remixShortVideo`
+
 ### 4.2B 公众号 `/wechat`
 
 - 公众号配置与工作流主数据

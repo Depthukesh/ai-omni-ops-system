@@ -643,8 +643,11 @@ function ProtectedVideoPanel(props: {
 
 function ProtectedVideoLink(props: {
   sourceUrl?: string;
+  title?: string;
+  onPreviewMedia?: ValueAction<MediaPreviewState>;
 }) {
   const media = useProtectedMediaAsset(props.sourceUrl);
+  const onPreviewMedia = props.onPreviewMedia;
 
   if (!props.sourceUrl) {
     return <span>-</span>;
@@ -656,6 +659,27 @@ function ProtectedVideoLink(props: {
 
   if (!media.objectUrl) {
     return <span className="note-data-link">{media.isLoading ? "视频加载中..." : "视频暂不可用"}</span>;
+  }
+
+  if (onPreviewMedia) {
+    return (
+      <a
+        href={media.objectUrl}
+        className="note-data-link"
+        onClick={(event) => {
+          event.preventDefault();
+          void onPreviewMedia({
+            url: media.objectUrl!,
+            title: props.title || "视频预览",
+            type: "VIDEO",
+            downloadUrl: media.objectUrl!,
+            downloadName: media.fileName || undefined,
+          });
+        }}
+      >
+        打开视频
+      </a>
+    );
   }
 
   return (
@@ -1232,6 +1256,7 @@ function DouyinWorkPreviewCard(props: {
   formatDateTime: OptionalDateFormatter;
   formatCount: OptionalNumberFormatter;
   formatMetric: OptionalNumberFormatter;
+  onPreviewMedia: ValueAction<MediaPreviewState>;
 }) {
   const item = props.item;
   const hashtagText = item.hashtags?.length ? item.hashtags.join(" / ") : "无";
@@ -1367,7 +1392,18 @@ function DouyinWorkPreviewCard(props: {
         {item.videoUrl ? (
           <div className="collection-sync-item collection-sync-item--full">
             <span>视频地址</span>
-            <a href={item.videoUrl} target="_blank" rel="noreferrer" className="note-data-link">
+            <a
+              href={item.videoUrl}
+              className="note-data-link"
+              onClick={(event) => {
+                event.preventDefault();
+                void props.onPreviewMedia({
+                  url: item.videoUrl!,
+                  title: item.title || item.workId || "抖音视频预览",
+                  type: "VIDEO",
+                });
+              }}
+            >
               打开视频
             </a>
           </div>
@@ -1762,6 +1798,7 @@ function DouyinBrandWorksTable(props: {
   items: DouyinCollectedWorkRecord[];
   formatDateTime: OptionalDateFormatter;
   formatCount: OptionalNumberFormatter;
+  onPreviewMedia: ValueAction<MediaPreviewState>;
 }) {
   return (
     <ScrollableTableShell>
@@ -1803,7 +1840,18 @@ function DouyinBrandWorksTable(props: {
               <td>{(item.awemeType ?? item.workType) || "-"}</td>
               <td>
                 {item.videoUrl ? (
-                  <a href={item.videoUrl} target="_blank" rel="noreferrer" className="note-data-link">
+                  <a
+                    href={item.videoUrl}
+                    className="note-data-link"
+                    onClick={(event) => {
+                      event.preventDefault();
+                      void props.onPreviewMedia({
+                        url: item.videoUrl!,
+                        title: item.title || item.workId || "抖音视频预览",
+                        type: "VIDEO",
+                      });
+                    }}
+                  >
                     打开
                   </a>
                 ) : "-"}
@@ -1823,6 +1871,7 @@ function DouyinMaterialReadyWorksTable(props: {
   onAddToMaterialLibrary: ValueAction<DouyinCollectedWorkRecord>;
   formatDateTime: OptionalDateFormatter;
   formatCount: OptionalNumberFormatter;
+  onPreviewMedia: ValueAction<MediaPreviewState>;
   showBillboardColumns?: boolean;
 }) {
   const showBillboardColumns = props.showBillboardColumns ?? true;
@@ -1877,7 +1926,18 @@ function DouyinMaterialReadyWorksTable(props: {
               </td>
               <td>
                 {item.videoUrl ? (
-                  <a href={item.videoUrl} target="_blank" rel="noreferrer" className="note-data-link">
+                  <a
+                    href={item.videoUrl}
+                    className="note-data-link"
+                    onClick={(event) => {
+                      event.preventDefault();
+                      void props.onPreviewMedia({
+                        url: item.videoUrl!,
+                        title: item.title || item.workId || "抖音视频预览",
+                        type: "VIDEO",
+                      });
+                    }}
+                  >
                     打开
                   </a>
                 ) : "-"}
@@ -2169,7 +2229,11 @@ function XhsNoteCard(props: {
         <div className="xhs-note-card__media-block xhs-note-card__media-block--compact">
           <span className="xhs-note-card__media-label">视频</span>
           <div className="xhs-note-card__video-link">
-            <ProtectedVideoLink sourceUrl={props.item.videoUrl} />
+            <ProtectedVideoLink
+              sourceUrl={props.item.videoUrl}
+              title={props.item.title || props.item.noteId || "视频预览"}
+              onPreviewMedia={props.onPreviewMedia}
+            />
           </div>
         </div>
       </aside>
@@ -3096,6 +3160,7 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                     items={douyinPreviewItems as DouyinCollectedWorkRecord[]}
                     formatDateTime={props.formatDateTime}
                     formatCount={props.formatCount}
+                    onPreviewMedia={props.onPreviewMedia}
                   />
                 ) : (
                   <div className="note-empty-state">当前还没有采集到品牌作品信息，请先同步品牌账号信息后再提交。</div>
@@ -3126,6 +3191,7 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                     onAddToMaterialLibrary={props.onAddDouyinBenchmarkWorkToMaterial}
                     formatDateTime={props.formatDateTime}
                     formatCount={props.formatCount}
+                    onPreviewMedia={props.onPreviewMedia}
                     showBillboardColumns={false}
                   />
                 ) : (
@@ -3157,6 +3223,7 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                     onAddToMaterialLibrary={props.onAddDouyinBenchmarkWorkToMaterial}
                     formatDateTime={props.formatDateTime}
                     formatCount={props.formatCount}
+                    onPreviewMedia={props.onPreviewMedia}
                   />
                 ) : (
                   <div className="note-empty-state">当前还没有采集到低粉爆款榜结果，请先选择垂类分类并提交。</div>
@@ -3187,6 +3254,7 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                     onAddToMaterialLibrary={props.onAddDouyinBenchmarkWorkToMaterial}
                     formatDateTime={props.formatDateTime}
                     formatCount={props.formatCount}
+                    onPreviewMedia={props.onPreviewMedia}
                   />
                 ) : (
                   <div className="note-empty-state">当前还没有采集到高完播率榜结果，请先选择垂类分类并提交。</div>
@@ -3217,6 +3285,7 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                     onAddToMaterialLibrary={props.onAddDouyinBenchmarkWorkToMaterial}
                     formatDateTime={props.formatDateTime}
                     formatCount={props.formatCount}
+                    onPreviewMedia={props.onPreviewMedia}
                   />
                 ) : (
                   <div className="note-empty-state">当前还没有采集到高点赞率榜结果，请先选择垂类分类并提交。</div>

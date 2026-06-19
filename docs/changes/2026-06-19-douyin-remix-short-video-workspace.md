@@ -33,7 +33,7 @@
 - `apps/web/src/app/(dashboard)/douyin/remix-short-video-workspace.tsx`
   - 新增独立工作区组件
   - 创建弹窗字段包括：
-    - 素材库短视频链接
+    - 抖音素材库视频下拉
     - 是否植入品牌资料
     - 产品资料
     - 是否植入营销策划方案
@@ -42,6 +42,7 @@
     - 选择视频大模型
     - 选择生图大模型
     - 用户要求
+  - 当前不再暴露“自定义视频模型名”，统一使用选定 Provider 的默认模型链路
   - 任务详情区按每 15 秒一段显示多个板块，每段展示六类复刻产物，并在第二阶段显示分段视频和完整视频
 - `apps/web/src/services/works.ts`
   - 新增复刻短视频工作记录类型、分段记录类型和两个接口：
@@ -58,7 +59,7 @@
 - `apps/server/src/modules/works/works.service.ts`
   - 新增独立 `VideoWorkKind`：`DOUYIN_REMIX_SHORT_VIDEO`
   - 第一阶段新增独立生成入口：
-    - 解析用户上传短视频或素材库链接
+    - 解析抖音素材库中的视频素材，或用户上传短视频
     - 可选植入品牌资料、产品资料、营销策划方案
     - 调用复刻分析技能，按每 15 秒切段返回结构化 JSON
     - 按段生成角色图和分镜图
@@ -104,6 +105,7 @@
 - 第一阶段使用结构化 JSON 承接，是为了让每个 15 秒板块都能稳定拿到六类结果，而不是依赖自由文本再二次拆解。
 - 第二阶段先逐段生成、再拼接完整视频，是因为用户需要同时拿到单段结果和完整成片。
 - 继续沿用 `metadataJson` 持久化复刻分段，是为了与现有视频工作流的作品中心存储方式保持一致，不额外引入新表。
+- 创建阶段优先改成读取抖音素材库视频素材，是为了让输入口径与数据采集 / 素材库沉淀保持一致，避免用户手工复制视频链接。
 
 ## 5. 影响范围
 
@@ -122,6 +124,7 @@
   - `douyin-remix-short-video-compose`
 - 影响数据：
   - `MediaAsset.metadataJson` 新增复刻短视频相关字段，如：
+    - `sourceMaterialId`
     - `sourceVideoUrl`
     - `sourceDurationSec`
     - `segmentDurationSec`

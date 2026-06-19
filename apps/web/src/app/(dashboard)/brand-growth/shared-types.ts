@@ -19,6 +19,9 @@ export type FeishuAppConfigForm = {
 export type MediaPreviewState = {
   url: string;
   title: string;
+  type?: "IMAGE" | "VIDEO";
+  downloadUrl?: string;
+  downloadName?: string;
   galleryUrls?: string[];
   activeIndex?: number;
 };
