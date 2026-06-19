@@ -27,7 +27,7 @@ import type {
   FeishuBindingRecord,
 } from "../../../services/brand-growth";
 import type { DailyHotspotItem, DailyHotspotPlatformRecord } from "../../../services/daily-hotspots";
-import { requestBlobByUrl } from "../../../services/http";
+import { API_BASE_URL, requestBlobByUrl } from "../../../services/http";
 
 export type XiaohongshuCollectionCardKey =
   | "brandAccount"
@@ -351,6 +351,14 @@ function useProtectedMediaAsset(sourceUrl?: string) {
       return;
     }
 
+    if (!isProtectedMediaSource(sourceUrl)) {
+      setObjectUrl(sourceUrl);
+      setFileName(buildMediaFileNameFromUrl(sourceUrl));
+      setIsLoading(false);
+      setErrorMessage("");
+      return;
+    }
+
     let active = true;
     let currentObjectUrl = "";
     setIsLoading(true);
@@ -395,6 +403,30 @@ function useProtectedMediaAsset(sourceUrl?: string) {
   };
 }
 
+function isProtectedMediaSource(sourceUrl?: string) {
+  if (!sourceUrl) {
+    return false;
+  }
+  const normalized = sourceUrl.trim().toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+  return normalized.startsWith("/")
+    || normalized.startsWith(API_BASE_URL.toLowerCase())
+    || normalized.includes("/api/collectors/")
+    || normalized.includes("/api/brand-growth/");
+}
+
+function buildMediaFileNameFromUrl(sourceUrl: string) {
+  try {
+    const resolved = new URL(sourceUrl, "https://local.invalid");
+    const segment = resolved.pathname.split("/").filter(Boolean).pop();
+    return segment || "asset";
+  } catch {
+    return "asset";
+  }
+}
+
 function useProtectedMediaGallery(sourceUrls: string[]) {
   const [items, setItems] = useState<Array<{
     sourceUrl: string;
@@ -422,7 +454,24 @@ function useProtectedMediaGallery(sourceUrls: string[]) {
       })),
     );
 
-    void Promise.allSettled(sourceUrls.map((sourceUrl) => requestBlobByUrl(sourceUrl)))
+    void Promise.allSettled(
+      sourceUrls.map(async (sourceUrl) => {
+        if (!isProtectedMediaSource(sourceUrl)) {
+          return {
+            objectUrl: sourceUrl,
+            fileName: buildMediaFileNameFromUrl(sourceUrl),
+            shouldRevoke: false,
+          };
+        }
+        const response = await requestBlobByUrl(sourceUrl);
+        const objectUrl = URL.createObjectURL(response.blob);
+        return {
+          objectUrl,
+          fileName: response.fileName,
+          shouldRevoke: true,
+        };
+      }),
+    )
       .then((results) => {
         if (!active) {
           return;
@@ -431,11 +480,12 @@ function useProtectedMediaGallery(sourceUrls: string[]) {
           results.map((result, index) => {
             const sourceUrl = sourceUrls[index] || "";
             if (result.status === "fulfilled") {
-              const objectUrl = URL.createObjectURL(result.value.blob);
-              createdObjectUrls.push(objectUrl);
+              if (result.value.shouldRevoke) {
+                createdObjectUrls.push(result.value.objectUrl);
+              }
               return {
                 sourceUrl,
-                objectUrl,
+                objectUrl: result.value.objectUrl,
                 fileName: result.value.fileName,
                 isLoading: false,
                 errorMessage: "",
@@ -2031,6 +2081,102 @@ function XhsAccountTable(props: {
   );
 }
 
+function XhsNoteMetricChip(props: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="xhs-note-metric-chip">
+      <span>{props.label}</span>
+      <strong>{props.value}</strong>
+    </div>
+  );
+}
+
+function XhsNoteCard(props: {
+  item: XhsCollectedNoteRecord;
+  formatDateTime: OptionalDateFormatter;
+  formatCount: OptionalNumberFormatter;
+  formatMetric?: OptionalNumberFormatter;
+  onPreviewMedia: ValueAction<MediaPreviewState>;
+  materialAction?: ReactNode;
+  linkUrl?: string;
+  showRatioMetrics?: boolean;
+}) {
+  const linkUrl = props.linkUrl || props.item.noteUrl || props.item.sourceUrl;
+  const metrics = [
+    { label: "点赞", value: props.formatCount(props.item.likeCount) },
+    { label: "收藏", value: props.formatCount(props.item.collectCount) },
+    { label: "分享", value: props.formatCount(props.item.shareCount) },
+    { label: "评论", value: props.formatCount(props.item.commentCount) },
+  ];
+  if (props.showRatioMetrics && props.formatMetric) {
+    metrics.push(
+      { label: "赞藏率", value: props.formatMetric(props.item.likeCollectRatio) },
+      { label: "赞评率", value: props.formatMetric(props.item.likeCommentRatio) },
+      { label: "分享率", value: props.formatMetric(props.item.shareRatio) },
+    );
+  }
+
+  return (
+    <article className="xhs-note-card">
+      <div className="xhs-note-card__content">
+        <div className="xhs-note-card__header">
+          <div className="xhs-note-card__title-block">
+            <div className="xhs-note-card__chips">
+              <span className="xhs-note-chip xhs-note-chip--strong">笔记 ID {props.item.noteId || "-"}</span>
+              <span className="xhs-note-chip">{props.item.noteType || "未标注类型"}</span>
+              <span className="xhs-note-chip">{props.item.nickname || "未提供作者"}</span>
+              {props.item.externalUserId ? <span className="xhs-note-chip">用户 {props.item.externalUserId}</span> : null}
+              {props.item.createdAtText ? <span className="xhs-note-chip">发布 {props.item.createdAtText}</span> : null}
+            </div>
+            <h4 className="xhs-note-card__title">{props.item.title || "未提供标题"}</h4>
+            <div className="xhs-note-card__description">
+              <ExpandableTextCell value={props.item.description} emptyText="暂无正文内容" compactRows={2} />
+            </div>
+          </div>
+          <div className="xhs-note-card__actions">
+            {props.materialAction}
+            {linkUrl ? (
+              <a href={linkUrl} target="_blank" rel="noreferrer" className="note-data-link">
+                查看作品
+              </a>
+            ) : null}
+            <span className="xhs-note-card__collected-at">
+              采集于 {props.formatDateTime(props.item.collectedAt)}
+            </span>
+          </div>
+        </div>
+        <div className="xhs-note-metric-grid">
+          {metrics.map((metric) => (
+            <XhsNoteMetricChip key={`${props.item.id}-${metric.label}`} label={metric.label} value={metric.value} />
+          ))}
+        </div>
+      </div>
+      <aside className="xhs-note-card__media">
+        <div className="xhs-note-card__media-block">
+          <span className="xhs-note-card__media-label">图片</span>
+          {props.item.imageList?.length ? (
+            <ProtectedImageGallery
+              sourceUrls={props.item.imageList}
+              title={props.item.title || props.item.noteId}
+              onPreviewMedia={props.onPreviewMedia}
+            />
+          ) : (
+            <div className="note-empty-media">暂无图片</div>
+          )}
+        </div>
+        <div className="xhs-note-card__media-block xhs-note-card__media-block--compact">
+          <span className="xhs-note-card__media-label">视频</span>
+          <div className="xhs-note-card__video-link">
+            <ProtectedVideoLink sourceUrl={props.item.videoUrl} />
+          </div>
+        </div>
+      </aside>
+    </article>
+  );
+}
+
 function XhsNotesTable(props: {
   items: XhsCollectedNoteRecord[];
   formatDateTime: OptionalDateFormatter;
@@ -2038,70 +2184,17 @@ function XhsNotesTable(props: {
   onPreviewMedia: ValueAction<MediaPreviewState>;
 }) {
   return (
-    <ScrollableTableShell>
-      <table className="soft-table douyin-data-table">
-        <thead>
-          <tr>
-            <th>笔记 ID</th>
-            <th>标题</th>
-            <th>笔记类型</th>
-            <th>昵称</th>
-            <th>用户 ID</th>
-            <th>正文摘要</th>
-            <th>发布时间</th>
-            <th>点赞</th>
-            <th>收藏</th>
-            <th>分享</th>
-            <th>评论</th>
-            <th>图片</th>
-            <th>视频</th>
-            <th>作品链接</th>
-            <th>采集时间</th>
-          </tr>
-        </thead>
-        <tbody>
-          {props.items.map((item) => (
-            <tr key={item.id}>
-              <td><CopyableCell value={item.noteId} /></td>
-              <td className="table-cell-wide">
-                <ExpandableTextCell value={item.title} emptyText="未提供标题" compactRows={2} />
-              </td>
-              <td>{item.noteType || "-"}</td>
-              <td>{item.nickname || "-"}</td>
-              <td><CopyableCell value={item.externalUserId} /></td>
-              <td className="table-cell-wide">
-                <ExpandableTextCell value={item.description} emptyText="暂无正文内容" compactRows={2} />
-              </td>
-              <td>{item.createdAtText || "-"}</td>
-              <td>{props.formatCount(item.likeCount)}</td>
-              <td>{props.formatCount(item.collectCount)}</td>
-              <td>{props.formatCount(item.shareCount)}</td>
-              <td>{props.formatCount(item.commentCount)}</td>
-              <td>
-                {item.imageList?.length ? (
-                  <ProtectedImageGallery
-                    sourceUrls={item.imageList}
-                    title={item.title || item.noteId}
-                    onPreviewMedia={props.onPreviewMedia}
-                  />
-                ) : "-"}
-              </td>
-              <td>
-                <ProtectedVideoLink sourceUrl={item.videoUrl} />
-              </td>
-              <td>
-                {item.noteUrl ? (
-                  <a href={item.noteUrl} target="_blank" rel="noreferrer" className="note-data-link">
-                    查看作品
-                  </a>
-                ) : "-"}
-              </td>
-              <td>{props.formatDateTime(item.collectedAt)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </ScrollableTableShell>
+    <div className="xhs-note-card-list">
+      {props.items.map((item) => (
+        <XhsNoteCard
+          key={item.id}
+          item={item}
+          formatDateTime={props.formatDateTime}
+          formatCount={props.formatCount}
+          onPreviewMedia={props.onPreviewMedia}
+        />
+      ))}
+    </div>
   );
 }
 
@@ -2115,87 +2208,34 @@ function XhsBenchmarkNotesTable(props: {
   onPreviewMedia: ValueAction<MediaPreviewState>;
 }) {
   return (
-    <ScrollableTableShell>
-      <table className="soft-table douyin-data-table">
-        <thead>
-          <tr>
-            <th>素材库</th>
-            <th>笔记 ID</th>
-            <th>标题</th>
-            <th>笔记类型</th>
-            <th>作者</th>
-            <th>正文摘要</th>
-            <th>点赞</th>
-            <th>收藏</th>
-            <th>评论</th>
-            <th>分享</th>
-            <th>赞藏率</th>
-            <th>赞评率</th>
-            <th>分享率</th>
-            <th>图片</th>
-            <th>视频</th>
-            <th>作品链接</th>
-            <th>采集时间</th>
-          </tr>
-        </thead>
-        <tbody>
-          {props.items.map((item) => (
-            <tr key={item.id}>
-              <td>
-                <button
-                  type="button"
-                  className="note-inline-button"
-                  onClick={() => void props.onAddToMaterialLibrary(item.id)}
-                  disabled={props.addingMaterialAssetId === item.id || Boolean(item.isInMaterialLibrary)}
-                >
-                  {item.isInMaterialLibrary
-                    ? "已加入"
-                    : props.addingMaterialAssetId === item.id
-                      ? "加入中..."
-                      : "加入素材库"}
-                </button>
-              </td>
-              <td><CopyableCell value={item.noteId} /></td>
-              <td className="table-cell-wide">
-                <ExpandableTextCell value={item.title} emptyText="未提供标题" compactRows={2} />
-              </td>
-              <td>{item.noteType || "-"}</td>
-              <td>{item.nickname || "-"}</td>
-              <td className="table-cell-wide">
-                <ExpandableTextCell value={item.description} emptyText="暂无正文内容" compactRows={2} />
-              </td>
-              <td>{props.formatCount(item.likeCount)}</td>
-              <td>{props.formatCount(item.collectCount)}</td>
-              <td>{props.formatCount(item.commentCount)}</td>
-              <td>{props.formatCount(item.shareCount)}</td>
-              <td>{props.formatMetric(item.likeCollectRatio)}</td>
-              <td>{props.formatMetric(item.likeCommentRatio)}</td>
-              <td>{props.formatMetric(item.shareRatio)}</td>
-              <td>
-                {item.imageList?.length ? (
-                  <ProtectedImageGallery
-                    sourceUrls={item.imageList}
-                    title={item.title || item.noteId}
-                    onPreviewMedia={props.onPreviewMedia}
-                  />
-                ) : "-"}
-              </td>
-              <td>
-                <ProtectedVideoLink sourceUrl={item.videoUrl} />
-              </td>
-              <td>
-                {item.sourceUrl || item.noteUrl ? (
-                  <a href={item.sourceUrl || item.noteUrl} target="_blank" rel="noreferrer" className="note-data-link">
-                    查看作品
-                  </a>
-                ) : "-"}
-              </td>
-              <td>{props.formatDateTime(item.collectedAt)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </ScrollableTableShell>
+    <div className="xhs-note-card-list">
+      {props.items.map((item) => (
+        <XhsNoteCard
+          key={item.id}
+          item={item}
+          formatDateTime={props.formatDateTime}
+          formatCount={props.formatCount}
+          formatMetric={props.formatMetric}
+          onPreviewMedia={props.onPreviewMedia}
+          showRatioMetrics
+          linkUrl={item.sourceUrl || item.noteUrl}
+          materialAction={(
+            <button
+              type="button"
+              className="note-inline-button"
+              onClick={() => void props.onAddToMaterialLibrary(item.id)}
+              disabled={props.addingMaterialAssetId === item.id || Boolean(item.isInMaterialLibrary)}
+            >
+              {item.isInMaterialLibrary
+                ? "已加入素材库"
+                : props.addingMaterialAssetId === item.id
+                  ? "加入中..."
+                  : "加入素材库"}
+            </button>
+          )}
+        />
+      ))}
+    </div>
   );
 }
 

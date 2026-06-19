@@ -1180,7 +1180,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       nickname: this.readMetaString(meta, "nickname")
         || this.readMetaString(meta, "authorName")
         || undefined,
-      imageList: cachedImages.length ? cachedImages : sourceImages,
+      imageList: this.resolveCollectedXhsImages(cachedImages, sourceImages),
       externalUserId: this.readMetaString(meta, "externalUserId") || undefined,
       noteUrl: this.readMetaString(meta, "noteUrl") || asset.fileUrl,
       description: asset.description,
@@ -1209,6 +1209,16 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       sourceRecordId: this.readMetaString(meta, "sourceRecordId") || undefined,
       rawFields: this.asMeta(meta.rawFields),
     };
+  }
+
+  private resolveCollectedXhsImages(cachedImages: string[], sourceImages: string[]) {
+    if (!sourceImages.length) {
+      return cachedImages;
+    }
+    if (cachedImages.length === sourceImages.length) {
+      return cachedImages;
+    }
+    return sourceImages;
   }
 
   private mapDouyinCollectedAccount(
