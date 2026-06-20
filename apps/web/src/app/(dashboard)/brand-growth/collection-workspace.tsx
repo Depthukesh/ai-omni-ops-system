@@ -98,6 +98,33 @@ type KeywordRecommendationEntry = {
   keyword: string;
 };
 
+const DOUYIN_SEARCH_SORT_OPTIONS = [
+  { value: "0", label: "综合排序" },
+  { value: "1", label: "最多点赞" },
+  { value: "2", label: "最新发布" },
+] as const;
+
+const DOUYIN_SEARCH_PUBLISH_TIME_OPTIONS = [
+  { value: "0", label: "不限" },
+  { value: "1", label: "最近一天" },
+  { value: "7", label: "最近一周" },
+  { value: "180", label: "最近半年" },
+] as const;
+
+const DOUYIN_SEARCH_DURATION_OPTIONS = [
+  { value: "0", label: "不限" },
+  { value: "0-1", label: "1 分钟以内" },
+  { value: "1-5", label: "1-5 分钟" },
+  { value: "5-10000", label: "5 分钟以上" },
+] as const;
+
+const DOUYIN_SEARCH_CONTENT_TYPE_OPTIONS = [
+  { value: "0", label: "不限" },
+  { value: "1", label: "视频" },
+  { value: "2", label: "图片" },
+  { value: "3", label: "文章" },
+] as const;
+
 const douyinFieldPreviewMap: Record<DouyinCollectionCardKey, DouyinFieldPreviewRow[]> = {
   brandAccount: [
     { field: "sourceAccountId", label: "账号抓取主键", source: "获取指定用户的信息", path: "data.user.sec_uid", required: "必需", patch: "否" },
@@ -293,6 +320,10 @@ export interface BrandGrowthCollectionWorkspaceProps {
     competitorAccountEntries: XhsAccountBindingEntry[];
     benchmarkAwemeIds: string;
     searchKeyword: string;
+    searchSortType: string;
+    searchPublishTime: string;
+    searchFilterDuration: string;
+    searchContentType: string;
     keywordRecommendationEntries: KeywordRecommendationEntry[];
     lowFanExplosiveWorks: {
       primaryTagId: string;
@@ -315,6 +346,10 @@ export interface BrandGrowthCollectionWorkspaceProps {
     competitorAccountEntries: XhsAccountBindingEntry[];
     benchmarkAwemeIds: string;
     searchKeyword: string;
+    searchSortType: string;
+    searchPublishTime: string;
+    searchFilterDuration: string;
+    searchContentType: string;
     keywordRecommendationEntries: KeywordRecommendationEntry[];
     lowFanExplosiveWorks: {
       primaryTagId: string;
@@ -1747,6 +1782,125 @@ function DouyinSubmitPanel(props: {
           placeholder={props.placeholder}
         />
       </label>
+    </article>
+  );
+}
+
+function DouyinSearchSubmitPanel(props: {
+  title: string;
+  value: string;
+  placeholder: string;
+  isSubmitting: boolean;
+  sortType: string;
+  publishTime: string;
+  filterDuration: string;
+  contentType: string;
+  onChange: ValueAction<string>;
+  onChangeFilters: ValueAction<{
+    sortType: string;
+    publishTime: string;
+    filterDuration: string;
+    contentType: string;
+  }>;
+  onSubmit: AsyncAction;
+}) {
+  return (
+    <article className="light-data-panel" style={{ marginBottom: 16 }}>
+      <div className="collection-result-head">
+        <div>
+          <h3>{props.title}</h3>
+          <p>支持排序方式、发布时间、视频时长和内容类型筛选，帮助更快锁定目标搜索结果。</p>
+        </div>
+        <button type="button" className="primary-button" onClick={() => void props.onSubmit()} disabled={props.isSubmitting}>
+          {props.isSubmitting ? "提交中..." : "提交"}
+        </button>
+      </div>
+      <label className="field">
+        <textarea
+          rows={4}
+          value={props.value}
+          onChange={(event) => props.onChange(event.target.value)}
+          placeholder={props.placeholder}
+        />
+      </label>
+      <div className="form-grid two-column" style={{ marginTop: 16 }}>
+        <label className="field">
+          <span>排序方式</span>
+          <select
+            value={props.sortType}
+            onChange={(event) =>
+              props.onChangeFilters({
+                sortType: event.target.value,
+                publishTime: props.publishTime,
+                filterDuration: props.filterDuration,
+                contentType: props.contentType,
+              })}
+          >
+            {DOUYIN_SEARCH_SORT_OPTIONS.map((item) => (
+              <option key={`douyin-search-sort-${item.value}`} value={item.value}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="field">
+          <span>发布时间</span>
+          <select
+            value={props.publishTime}
+            onChange={(event) =>
+              props.onChangeFilters({
+                sortType: props.sortType,
+                publishTime: event.target.value,
+                filterDuration: props.filterDuration,
+                contentType: props.contentType,
+              })}
+          >
+            {DOUYIN_SEARCH_PUBLISH_TIME_OPTIONS.map((item) => (
+              <option key={`douyin-search-publish-${item.value}`} value={item.value}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="field">
+          <span>视频时长</span>
+          <select
+            value={props.filterDuration}
+            onChange={(event) =>
+              props.onChangeFilters({
+                sortType: props.sortType,
+                publishTime: props.publishTime,
+                filterDuration: event.target.value,
+                contentType: props.contentType,
+              })}
+          >
+            {DOUYIN_SEARCH_DURATION_OPTIONS.map((item) => (
+              <option key={`douyin-search-duration-${item.value}`} value={item.value}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="field">
+          <span>内容类型</span>
+          <select
+            value={props.contentType}
+            onChange={(event) =>
+              props.onChangeFilters({
+                sortType: props.sortType,
+                publishTime: props.publishTime,
+                filterDuration: props.filterDuration,
+                contentType: event.target.value,
+              })}
+          >
+            {DOUYIN_SEARCH_CONTENT_TYPE_OPTIONS.map((item) => (
+              <option key={`douyin-search-content-type-${item.value}`} value={item.value}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
     </article>
   );
 }
@@ -3600,10 +3754,22 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
           ) : null}
           {props.activeDouyinCollectionCard === "searchWorks" ? (
             <>
-              <DouyinSubmitPanel
+              <DouyinSearchSubmitPanel
                 title="搜索关键词"
                 value={props.douyinSyncForm.searchKeyword}
                 onChange={(value) => props.setDouyinSyncForm((current) => ({ ...current, searchKeyword: value }))}
+                sortType={props.douyinSyncForm.searchSortType}
+                publishTime={props.douyinSyncForm.searchPublishTime}
+                filterDuration={props.douyinSyncForm.searchFilterDuration}
+                contentType={props.douyinSyncForm.searchContentType}
+                onChangeFilters={(filters) =>
+                  props.setDouyinSyncForm((current) => ({
+                    ...current,
+                    searchSortType: filters.sortType,
+                    searchPublishTime: filters.publishTime,
+                    searchFilterDuration: filters.filterDuration,
+                    searchContentType: filters.contentType,
+                  }))}
                 placeholder="请输入抖音搜索关键词，例如：生日蛋糕、探店咖啡、烘焙教程"
                 isSubmitting={props.isHydrating || props.isSyncingDouyinWorkspace}
                 onSubmit={props.onSyncDouyinWorkspace}

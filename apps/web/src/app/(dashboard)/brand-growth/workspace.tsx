@@ -573,6 +573,10 @@ type DouyinSyncForm = {
   competitorAccountEntries: XhsAccountBindingEntry[];
   benchmarkAwemeIds: string;
   searchKeyword: string;
+  searchSortType: string;
+  searchPublishTime: string;
+  searchFilterDuration: string;
+  searchContentType: string;
   keywordRecommendationEntries: Array<{
     id: string;
     keyword: string;
@@ -618,6 +622,10 @@ function createEmptyDouyinSyncForm(): DouyinSyncForm {
     competitorAccountEntries: [],
     benchmarkAwemeIds: "",
     searchKeyword: "",
+    searchSortType: "0",
+    searchPublishTime: "0",
+    searchFilterDuration: "0",
+    searchContentType: "0",
     keywordRecommendationEntries: [],
     lowFanExplosiveWorks: {
       primaryTagId: "",
@@ -2272,6 +2280,10 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
           return;
         }
         payload.searchKeyword = searchKeyword;
+        payload.searchSortType = douyinSyncForm.searchSortType;
+        payload.searchPublishTime = douyinSyncForm.searchPublishTime;
+        payload.searchFilterDuration = douyinSyncForm.searchFilterDuration;
+        payload.searchContentType = douyinSyncForm.searchContentType;
       }
       if (activeDouyinCollectionCard === "brandWorks" && !payload.brandAccountLinks?.length) {
         setErrorMessage("请先在品牌账号信息里添加至少一个品牌抖音账号后再提交。");

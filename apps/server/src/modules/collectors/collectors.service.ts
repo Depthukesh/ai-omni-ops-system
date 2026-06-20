@@ -79,6 +79,10 @@ type DouyinSyncInput = {
   competitorAccountEntries?: XhsSyncAccountEntry[];
   benchmarkAwemeIds?: string[];
   searchKeyword?: string;
+  searchSortType?: string;
+  searchPublishTime?: string;
+  searchFilterDuration?: string;
+  searchContentType?: string;
   contentTagSelection?: DouyinContentTagSelection;
   cityCode?: number;
 };
@@ -580,7 +584,12 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       .filter((item): item is PromiseRejectedResult => item.status === "rejected")
       .map((item) => (item.reason instanceof Error ? item.reason.message : "对标作品采集失败"));
     const searchWorkRows = shouldSyncSearchWorks
-      ? await this.collectAndStoreDouyinSearchWorks(brandId, input.searchKeyword)
+      ? await this.collectAndStoreDouyinSearchWorks(brandId, input.searchKeyword, {
+          sortType: input.searchSortType,
+          publishTime: input.searchPublishTime,
+          filterDuration: input.searchFilterDuration,
+          contentType: input.searchContentType,
+        })
       : [];
     const keywordRecommendationRows = shouldSyncKeywordRecommendations
       ? await this.collectAndStoreDouyinKeywordRecommendations(brandId, input.searchKeyword)
@@ -3787,24 +3796,39 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     return this.mapDouyinCollectedWork(asset, "DOUYIN_BENCHMARK_WORK");
   }
 
+  private normalizeDouyinSearchSelectValue(value: string | undefined, allowedValues: string[], fallback: string) {
+    const normalized = String(value || "").trim();
+    return allowedValues.includes(normalized) ? normalized : fallback;
+  }
+
   private async collectAndStoreDouyinSearchWorks(
     brandId: string,
     keyword?: string,
+    options?: {
+      sortType?: string;
+      publishTime?: string;
+      filterDuration?: string;
+      contentType?: string;
+    },
   ): Promise<DouyinCollectedWorkRecord[]> {
     const normalizedKeyword = String(keyword || "").trim();
     if (!normalizedKeyword) {
       throw new BadRequestException("请输入关键词后再提交抖音搜索。");
     }
+    const sortType = this.normalizeDouyinSearchSelectValue(options?.sortType, ["0", "1", "2"], "0");
+    const publishTime = this.normalizeDouyinSearchSelectValue(options?.publishTime, ["0", "1", "7", "180"], "0");
+    const filterDuration = this.normalizeDouyinSearchSelectValue(options?.filterDuration, ["0", "0-1", "1-5", "5-10000"], "0");
+    const contentType = this.normalizeDouyinSearchSelectValue(options?.contentType, ["0", "1", "2", "3"], "0");
 
     const raw = await this.fetchTikHubPost(
       "/api/v1/douyin/search/fetch_general_search_v1",
       {
         keyword: normalizedKeyword,
         cursor: 0,
-        sort_type: "0",
-        publish_time: "0",
-        filter_duration: "0",
-        content_type: "1",
+        sort_type: sortType,
+        publish_time: publishTime,
+        filter_duration: filterDuration,
+        content_type: contentType,
         search_id: "",
       },
       brandId,
@@ -3866,6 +3890,12 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
         collectedAt,
         rawFields: {
           keyword: normalizedKeyword,
+          searchFilters: {
+            sortType,
+            publishTime,
+            filterDuration,
+            contentType,
+          },
           item,
         },
       });

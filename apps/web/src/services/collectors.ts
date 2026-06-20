@@ -252,6 +252,10 @@ export type DouyinSyncPayload = {
   competitorAccountEntries?: XhsSyncAccountEntry[];
   benchmarkAwemeIds?: string[];
   searchKeyword?: string;
+  searchSortType?: string;
+  searchPublishTime?: string;
+  searchFilterDuration?: string;
+  searchContentType?: string;
   contentTagSelection?: {
     primaryTagId?: number;
     secondaryTagId?: number;

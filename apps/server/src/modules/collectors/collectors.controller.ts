@@ -184,6 +184,10 @@ export class DouyinCollectorsController {
       competitorAccountEntries?: Array<{ locator: string; accountRole?: "BRAND" | "STAFF" | "TALENT" }>;
       benchmarkAwemeIds?: string[];
       searchKeyword?: string;
+      searchSortType?: string;
+      searchPublishTime?: string;
+      searchFilterDuration?: string;
+      searchContentType?: string;
       contentTagSelection?: {
         primaryTagId?: number;
         secondaryTagId?: number;
