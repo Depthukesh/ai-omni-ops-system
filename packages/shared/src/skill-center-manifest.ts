@@ -24,8 +24,8 @@ export const SKILL_CENTER_TREE: SkillCenterPrimaryConfig[] = [
     label: "品牌增长策略",
     sections: [
       {
-        id: "growth-report",
-        label: "品牌增长报告",
+        id: "opportunity-insight",
+        label: "机会洞察",
         items: [
           {
             id: "opportunity-insight-brand-account",
@@ -55,6 +55,12 @@ export const SKILL_CENTER_TREE: SkillCenterPrimaryConfig[] = [
             skillSlug: "opportunity-insight-final-report",
             promptScene: "机会洞察-机会洞察总报告",
           },
+        ],
+      },
+      {
+        id: "growth-report",
+        label: "品牌增长报告",
+        items: [
           {
             id: "growth-report-main",
             label: "品牌增长报告-生成品牌增长报告",

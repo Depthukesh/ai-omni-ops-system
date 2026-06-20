@@ -727,6 +727,7 @@ type OpportunityInsightAccountModelResult = {
   summary: string;
   reportMarkdown: string;
   modelName: string;
+  reportFormat?: "markdown" | "html";
 };
 
 type DouyinHotTopicCandidatesModelResult = {
@@ -6634,8 +6635,7 @@ export class ReportsService {
         onAttemptUpdate: params.onAttemptUpdate,
       },
     );
-    const htmlBody = this.renderMarkdownToHtml(modelResult.reportMarkdown);
-    const htmlDocument = this.buildVisualReportDocument(modelResult.title, htmlBody);
+    const { htmlBody, htmlDocument } = this.buildOpportunityInsightHtmlResult(modelResult.title, modelResult.reportMarkdown);
     return {
       ...modelResult,
       htmlBody,
@@ -6706,8 +6706,7 @@ export class ReportsService {
         ],
       },
     );
-    const htmlBody = this.renderMarkdownToHtml(modelResult.reportMarkdown);
-    const htmlDocument = this.buildVisualReportDocument(modelResult.title, htmlBody);
+    const { htmlBody, htmlDocument } = this.buildOpportunityInsightHtmlResult(modelResult.title, modelResult.reportMarkdown);
     return {
       ...modelResult,
       htmlBody,
@@ -6752,8 +6751,7 @@ export class ReportsService {
         ],
       },
     );
-    const htmlBody = this.renderMarkdownToHtml(modelResult.reportMarkdown);
-    const htmlDocument = this.buildVisualReportDocument(modelResult.title, htmlBody);
+    const { htmlBody, htmlDocument } = this.buildOpportunityInsightHtmlResult(modelResult.title, modelResult.reportMarkdown);
     return {
       ...modelResult,
       htmlBody,
@@ -8939,6 +8937,22 @@ ${normalizedMarkdown}`;
     }
 
     const fallbackTitle = `${brandName}${stepLabel}报告`;
+    if (this.isLikelyHtmlContent(normalizedMarkdown)) {
+      const readableLength = this.countReadableTextLength(normalizedMarkdown);
+      if (readableLength < 1600) {
+        throw new ServiceUnavailableException(`${stepLabel}解析失败：HTML 正文长度不足，疑似被截断`);
+      }
+      const htmlTitle = this.extractHtmlTitle(normalizedMarkdown) || fallbackTitle;
+      const htmlSummary = this.extractHtmlSummary(normalizedMarkdown) || `${htmlTitle}已生成。`;
+      return {
+        title: htmlTitle,
+        summary: htmlSummary,
+        reportMarkdown: normalizedMarkdown,
+        modelName,
+        reportFormat: "html",
+      };
+    }
+
     const reportMarkdown = normalizedMarkdown.startsWith("# ")
       ? normalizedMarkdown
       : `# ${fallbackTitle}\n\n${normalizedMarkdown}`;
@@ -8952,6 +8966,7 @@ ${normalizedMarkdown}`;
       summary: this.extractMarkdownSummary(reportMarkdown) || `${fallbackTitle}已生成。`,
       reportMarkdown,
       modelName,
+      reportFormat: "markdown",
     };
   }
 
@@ -12380,11 +12395,98 @@ ${normalizedMarkdown}`;
       '  <meta charset="utf-8" />',
       '  <meta name="viewport" content="width=device-width, initial-scale=1" />',
       `  <title>${this.escapeHtml(title)}</title>`,
-      '  <style>html,body{margin:0;padding:0;background:#f5f7fb;font-family:"PingFang SC","Microsoft YaHei",sans-serif;}*{box-sizing:border-box;}</style>',
+      [
+        "  <style>",
+        '    :root{color-scheme:light;font-family:"PingFang SC","Microsoft YaHei","Helvetica Neue",Arial,sans-serif;}',
+        '    *{box-sizing:border-box;}',
+        "    html,body{margin:0;padding:0;background:#eef3f8;color:#0f172a;}",
+        "    body{min-height:100vh;}",
+        "    .generated-report-shell{max-width:1120px;margin:0 auto;padding:32px 20px 48px;}",
+        "    .generated-report-hero{padding:28px 30px;border-radius:28px;background:linear-gradient(135deg,#1d4ed8 0%,#2563eb 52%,#60a5fa 100%);color:#fff;box-shadow:0 24px 70px rgba(37,99,235,0.24);}",
+        "    .generated-report-eyebrow{display:inline-flex;align-items:center;padding:7px 14px;border-radius:999px;background:rgba(255,255,255,0.16);font-size:12px;font-weight:700;letter-spacing:0.04em;}",
+        "    .generated-report-hero h1{margin:18px 0 10px;font-size:40px;line-height:1.18;color:#fff;}",
+        "    .generated-report-hero p{margin:0;max-width:840px;font-size:15px;line-height:1.85;color:rgba(255,255,255,0.92);}",
+        "    .generated-report-surface{margin-top:22px;padding:26px 28px;border-radius:24px;background:#ffffff;border:1px solid #dbe4f0;box-shadow:0 12px 32px rgba(15,23,42,0.08);}",
+        "    .generated-report-markdown{display:flex;flex-direction:column;gap:0;}",
+        "    .generated-report-markdown > *:first-child{margin-top:0 !important;}",
+        "    .generated-report-markdown h1,.generated-report-markdown h2,.generated-report-markdown h3,.generated-report-markdown h4,.generated-report-markdown h5,.generated-report-markdown h6{margin:24px 0 12px;color:#0f172a;line-height:1.35;}",
+        "    .generated-report-markdown h1{font-size:32px;}",
+        "    .generated-report-markdown h2{font-size:24px;padding-top:18px;border-top:1px solid #e2e8f0;}",
+        "    .generated-report-markdown h3{font-size:19px;}",
+        "    .generated-report-markdown h4{font-size:17px;}",
+        "    .generated-report-markdown p{margin:0 0 14px;font-size:15px;line-height:1.95;color:#334155;}",
+        "    .generated-report-markdown ul,.generated-report-markdown ol{margin:0 0 16px;padding-left:24px;color:#334155;}",
+        "    .generated-report-markdown li{margin-bottom:10px;font-size:15px;line-height:1.9;}",
+        "    .generated-report-markdown strong{color:#0f172a;font-weight:700;}",
+        "    .generated-report-markdown em{color:#1d4ed8;font-style:normal;font-weight:600;}",
+        "    .generated-report-markdown blockquote{margin:8px 0 18px;padding:16px 18px;border-left:4px solid #60a5fa;border-radius:16px;background:#eff6ff;color:#1e3a8a;}",
+        "    .generated-report-markdown code{padding:2px 8px;border-radius:999px;background:#eff6ff;color:#1d4ed8;font-size:13px;}",
+        "    .generated-report-markdown hr{margin:22px 0;border:none;border-top:1px solid #dbe4f0;}",
+        "    .generated-report-markdown table{width:100%;border-collapse:collapse;margin:0 0 18px;background:#fff;border:1px solid #dbe4f0;border-radius:18px;overflow:hidden;}",
+        "    .generated-report-markdown th,.generated-report-markdown td{padding:12px 14px;border-bottom:1px solid #e2e8f0;text-align:left;font-size:14px;line-height:1.7;color:#334155;vertical-align:top;}",
+        "    .generated-report-markdown th{background:#f8fafc;color:#0f172a;font-weight:700;}",
+        "    .generated-report-markdown tr:last-child td{border-bottom:none;}",
+        "    .generated-report-markdown a{color:#2563eb;text-decoration:none;}",
+        "    @media (max-width: 768px){.generated-report-shell{padding:18px 12px 28px;}.generated-report-hero{padding:22px 18px;border-radius:22px;}.generated-report-hero h1{font-size:30px;}.generated-report-surface{padding:18px 16px;border-radius:18px;}}",
+        "  </style>",
+      ].join(""),
       "</head>",
-      `<body>${htmlBody}</body>`,
+      `<body><div class="generated-report-shell"><section class="generated-report-hero"><div class="generated-report-eyebrow">AI HTML REPORT</div><h1>${this.escapeHtml(title)}</h1><p>以下内容为本次机会洞察工作流生成的 HTML 报告，可直接预览、归档与继续复盘。</p></section><section class="generated-report-surface">${htmlBody}</section></div></body>`,
       "</html>",
     ].join("");
+  }
+
+  private buildOpportunityInsightHtmlResult(title: string, reportContent: string) {
+    if (this.isLikelyHtmlContent(reportContent)) {
+      const htmlDocument = this.ensureHtmlDocument(title, reportContent);
+      const bodyMatch = htmlDocument.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+      return {
+        htmlBody: bodyMatch?.[1]?.trim() || reportContent,
+        htmlDocument,
+      };
+    }
+
+    const htmlBody = this.renderMarkdownToHtml(reportContent);
+    return {
+      htmlBody,
+      htmlDocument: this.buildVisualReportDocument(title, htmlBody),
+    };
+  }
+
+  private ensureHtmlDocument(title: string, htmlContent: string) {
+    const trimmed = htmlContent.trim();
+    if (/<html[\s>]/i.test(trimmed)) {
+      return trimmed;
+    }
+    return this.buildVisualReportDocument(title, trimmed);
+  }
+
+  private isLikelyHtmlContent(content: string) {
+    const trimmed = content.trim();
+    if (!trimmed.startsWith("<")) {
+      return false;
+    }
+    return /<(?:!doctype|html|body|main|section|article|div|header|h1|h2|h3|p|ul|ol|table)\b/i.test(trimmed);
+  }
+
+  private extractHtmlTitle(html: string) {
+    const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+    if (titleMatch?.[1]) {
+      return this.decodeHtmlEntities(this.stripHtmlTags(titleMatch[1])).trim();
+    }
+    const headingMatch = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+    if (headingMatch?.[1]) {
+      return this.decodeHtmlEntities(this.stripHtmlTags(headingMatch[1])).trim();
+    }
+    return "";
+  }
+
+  private extractHtmlSummary(html: string) {
+    const paragraphMatch = html.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
+    if (!paragraphMatch?.[1]) {
+      return "";
+    }
+    return this.truncateText(this.decodeHtmlEntities(this.stripHtmlTags(paragraphMatch[1])), 120);
   }
 
   private isPlaceholderProxyBaseUrl(value: string) {
@@ -12530,6 +12632,7 @@ ${normalizedMarkdown}`;
 
   private countReadableTextLength(markdown: string) {
     return markdown
+      .replace(/<[^>]+>/g, "")
       .replace(/^#{1,6}\s+/gm, "")
       .replace(/^\s*[-*+]\s+/gm, "")
       .replace(/[`>#*_~\[\]\(\)|]/g, "")
@@ -13152,7 +13255,7 @@ ${normalizedMarkdown}`;
   private stripMarkdownCodeFence(content: string) {
     return content
       .trim()
-      .replace(/^```(?:json|html)?\s*/i, "")
+      .replace(/^```(?:json|html|markdown)?\s*/i, "")
       .replace(/\s*```$/i, "")
       .trim();
   }
@@ -13160,53 +13263,81 @@ ${normalizedMarkdown}`;
   private renderMarkdownToHtml(markdown: string) {
     const lines = markdown.split(/\r?\n/);
     const html: string[] = [];
-    let inList = false;
+    let listMode: "ul" | "ol" | null = null;
+
+    const closeList = () => {
+      if (listMode) {
+        html.push(`</${listMode}>`);
+        listMode = null;
+      }
+    };
 
     for (const rawLine of lines) {
       const line = rawLine.trim();
       if (!line) {
-        if (inList) {
-          html.push("</ul>");
-          inList = false;
-        }
+        closeList();
         continue;
       }
 
-      if (line.startsWith("- ")) {
-        if (!inList) {
+      const unorderedMatch = line.match(/^[-*+]\s+(.+)$/);
+      if (unorderedMatch?.[1]) {
+        if (listMode !== "ul") {
+          closeList();
           html.push("<ul>");
-          inList = true;
+          listMode = "ul";
         }
-        html.push(`<li>${this.escapeHtml(line.slice(2))}</li>`);
+        html.push(`<li>${this.renderInlineMarkdown(unorderedMatch[1])}</li>`);
         continue;
       }
 
-      if (inList) {
-        html.push("</ul>");
-        inList = false;
+      const orderedMatch = line.match(/^\d+\.\s+(.+)$/);
+      if (orderedMatch?.[1]) {
+        if (listMode !== "ol") {
+          closeList();
+          html.push("<ol>");
+          listMode = "ol";
+        }
+        html.push(`<li>${this.renderInlineMarkdown(orderedMatch[1])}</li>`);
+        continue;
       }
+
+      closeList();
 
       if (line.startsWith("### ")) {
-        html.push(`<h3>${this.escapeHtml(line.slice(4))}</h3>`);
+        html.push(`<h3>${this.renderInlineMarkdown(line.slice(4))}</h3>`);
         continue;
       }
       if (line.startsWith("## ")) {
-        html.push(`<h2>${this.escapeHtml(line.slice(3))}</h2>`);
+        html.push(`<h2>${this.renderInlineMarkdown(line.slice(3))}</h2>`);
         continue;
       }
       if (line.startsWith("# ")) {
-        html.push(`<h1>${this.escapeHtml(line.slice(2))}</h1>`);
+        html.push(`<h1>${this.renderInlineMarkdown(line.slice(2))}</h1>`);
+        continue;
+      }
+      if (line.startsWith("> ")) {
+        html.push(`<blockquote><p>${this.renderInlineMarkdown(line.slice(2))}</p></blockquote>`);
+        continue;
+      }
+      if (/^---+$/.test(line) || /^\*\*\*+$/.test(line)) {
+        html.push("<hr />");
         continue;
       }
 
-      html.push(`<p>${this.escapeHtml(line)}</p>`);
+      html.push(`<p>${this.renderInlineMarkdown(line)}</p>`);
     }
 
-    if (inList) {
-      html.push("</ul>");
-    }
+    closeList();
 
     return `<section class="generated-report-markdown">${html.join("")}</section>`;
+  }
+
+  private renderInlineMarkdown(content: string) {
+    const escaped = this.escapeHtml(content);
+    return escaped
+      .replace(/`([^`]+)`/g, "<code>$1</code>")
+      .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+      .replace(/\*([^*]+)\*/g, "<em>$1</em>");
   }
 
   private truncateText(value?: string, maxLength = 300) {
@@ -13223,6 +13354,20 @@ ${normalizedMarkdown}`;
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;")
       .replace(/'/g, "&#39;");
+  }
+
+  private stripHtmlTags(value: string) {
+    return value.replace(/<[^>]+>/g, " ");
+  }
+
+  private decodeHtmlEntities(value: string) {
+    return value
+      .replace(/&nbsp;/g, " ")
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'");
   }
 
   private asRecord(value: unknown) {

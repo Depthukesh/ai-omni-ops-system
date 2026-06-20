@@ -1586,6 +1586,7 @@ export class SkillsPromptsService implements OnModuleInit {
     await this.backfillLegacyVideoNoteDefaults();
     await this.backfillLegacySkillInputSchemas();
     await this.backfillBuiltInSkillInputSchemas();
+    await this.syncOpportunityInsightSkillMetadata();
     await this.backfillLegacySkillPromptBindings();
     await this.refreshSkillPromptBindingCache();
     return true;
@@ -1670,6 +1671,32 @@ export class SkillsPromptsService implements OnModuleInit {
           "updatedAt" = CURRENT_TIMESTAMP
         WHERE "id" = ${row.id}
           AND "inputSchemaJson" IS NULL
+      `;
+    }
+  }
+
+  private async syncOpportunityInsightSkillMetadata() {
+    const targetSlugs = new Set([
+      "opportunity-insight-brand-account-analysis",
+      "opportunity-insight-competitor-account-analysis",
+      "opportunity-insight-comment-analysis",
+      "opportunity-insight-final-report",
+    ]);
+    const seeds = database.skillConfigs.filter((item) => targetSlugs.has(item.slug));
+
+    for (const skill of seeds) {
+      await this.prismaService.$executeRaw`
+        UPDATE "SkillConfig"
+        SET
+          "name" = ${skill.name},
+          "category" = ${skill.category},
+          "provider" = ${skill.provider},
+          "defaultModel" = ${skill.defaultModel},
+          "pointsCost" = ${skill.pointsCost},
+          "description" = ${skill.description},
+          "updatedAt" = CURRENT_TIMESTAMP
+        WHERE "id" = ${skill.id}
+           OR "slug" = ${skill.slug}
       `;
     }
   }

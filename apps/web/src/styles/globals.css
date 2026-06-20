@@ -3164,6 +3164,16 @@ button {
   align-items: stretch;
 }
 
+.opportunity-insight-card-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.opportunity-insight-report-stack {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+}
+
 .report-editor-pane {
   display: flex;
   flex-direction: column;
@@ -3417,6 +3427,10 @@ button {
 
 @media (max-width: 1080px) {
   .report-editor-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .opportunity-insight-card-grid {
     grid-template-columns: 1fr;
   }
 

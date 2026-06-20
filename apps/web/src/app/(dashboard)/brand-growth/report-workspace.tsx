@@ -171,7 +171,7 @@ export function BrandGrowthReportWorkspace(props: BrandGrowthReportWorkspaceProp
               </div>
             </div>
 
-            <div className="card-grid">
+            <div className="card-grid opportunity-insight-card-grid">
               <article className="metric-card">
                 <span>品牌账号分析</span>
                 <strong>{brandAccountAnalysis ? "已完成" : "待生成"}</strong>
@@ -228,7 +228,7 @@ export function BrandGrowthReportWorkspace(props: BrandGrowthReportWorkspaceProp
               </p>
             </div>
 
-            <div className="report-editor-grid">
+            <div className="opportunity-insight-report-stack">
               <article className="report-editor-pane">
                 <span>品牌账号分析</span>
                 {brandAccountAnalysis ? (
@@ -247,7 +247,9 @@ export function BrandGrowthReportWorkspace(props: BrandGrowthReportWorkspaceProp
                   <div className="empty-state">品牌账号分析结果会在第 1 步完成后展示在这里。</div>
                 )}
               </article>
+            </div>
 
+            <div className="opportunity-insight-report-stack">
               <article className="report-editor-pane">
                 <span>竞品账号分析</span>
                 {competitorAccountAnalysis ? (
@@ -268,7 +270,7 @@ export function BrandGrowthReportWorkspace(props: BrandGrowthReportWorkspaceProp
               </article>
             </div>
 
-            <div className="report-editor-grid">
+            <div className="opportunity-insight-report-stack">
               <article className="report-editor-pane">
                 <span>评论洞察分析</span>
                 {commentInsightAnalysis ? (
@@ -287,7 +289,9 @@ export function BrandGrowthReportWorkspace(props: BrandGrowthReportWorkspaceProp
                   <div className="empty-state">评论洞察分析会在第 2 步完成后展示在这里。</div>
                 )}
               </article>
+            </div>
 
+            <div className="opportunity-insight-report-stack">
               <article className="report-editor-pane">
                 <span>机会洞察总报告</span>
                 {finalOpportunityReport ? (
