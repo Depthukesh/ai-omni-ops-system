@@ -1588,6 +1588,7 @@ export class SkillsPromptsService implements OnModuleInit {
     await this.backfillBuiltInSkillInputSchemas();
     await this.syncGlobalGpt54Defaults();
     await this.syncOpportunityInsightSkillMetadata();
+    await this.syncOpportunityInsightPromptContents();
     await this.backfillLegacySkillPromptBindings();
     await this.refreshSkillPromptBindingCache();
     return true;
@@ -1716,6 +1717,34 @@ export class SkillsPromptsService implements OnModuleInit {
           "updatedAt" = CURRENT_TIMESTAMP
         WHERE "id" = ${skill.id}
            OR "slug" = ${skill.slug}
+      `;
+    }
+  }
+
+  private async syncOpportunityInsightPromptContents() {
+    const targetPromptIds = new Set([
+      "prompt_opportunity_insight_brand_account",
+      "prompt_opportunity_insight_competitor_account",
+      "prompt_opportunity_insight_comment",
+      "prompt_opportunity_insight_final_report",
+    ]);
+    const seeds = database.promptTemplates.filter((item) => targetPromptIds.has(item.id));
+
+    for (const prompt of seeds) {
+      const nextContent = this.readPromptContent(prompt.id, prompt.content);
+      await this.prismaService.$executeRaw`
+        UPDATE "PromptTemplate"
+        SET
+          "name" = ${prompt.name},
+          "scene" = ${prompt.scene},
+          "version" = ${prompt.version},
+          "status" = ${prompt.status},
+          "modelName" = ${prompt.modelName},
+          "temperature" = ${prompt.temperature},
+          "maxTokens" = ${prompt.maxTokens},
+          "content" = ${nextContent},
+          "updatedAt" = CURRENT_TIMESTAMP
+        WHERE "id" = ${prompt.id}
       `;
     }
   }

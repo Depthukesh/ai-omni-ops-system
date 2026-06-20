@@ -3,6 +3,7 @@ import { type BrandPermissionAction, type BrandPermissionKey } from "../../../..
 import { AuthService } from "../auth/auth.service";
 import {
   ReportsService,
+  type GenerateOpportunityInsightPayload,
   type GenerateDouyinOriginalCopyPayload,
   type GenerateDouyinRemixCopyPayload,
   type UpdateDouyinOriginalCopyPayload,
@@ -65,24 +66,36 @@ export class ReportsController {
   }
 
   @Post("brands/:brandId/opportunity-insight/step-one/generate")
-  async generateOpportunityInsightStepOne(@Param("brandId") brandId: string, @Headers() headers: Record<string, string | string[] | undefined>) {
+  async generateOpportunityInsightStepOne(
+    @Param("brandId") brandId: string,
+    @Body() payload: GenerateOpportunityInsightPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
     await this.authService.assertBrandPermission(brandId, "brandGrowth.report.opportunityInsight", "edit", auth);
-    return this.reportsService.generateOpportunityInsightStepOne(brandId);
+    return this.reportsService.generateOpportunityInsightStepOne(brandId, payload);
   }
 
   @Post("brands/:brandId/opportunity-insight/step-two/generate")
-  async generateOpportunityInsightStepTwo(@Param("brandId") brandId: string, @Headers() headers: Record<string, string | string[] | undefined>) {
+  async generateOpportunityInsightStepTwo(
+    @Param("brandId") brandId: string,
+    @Body() payload: GenerateOpportunityInsightPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
     await this.authService.assertBrandPermission(brandId, "brandGrowth.report.opportunityInsight", "edit", auth);
-    return this.reportsService.generateOpportunityInsightStepTwo(brandId);
+    return this.reportsService.generateOpportunityInsightStepTwo(brandId, payload);
   }
 
   @Post("brands/:brandId/opportunity-insight/step-three/generate")
-  async generateOpportunityInsightStepThree(@Param("brandId") brandId: string, @Headers() headers: Record<string, string | string[] | undefined>) {
+  async generateOpportunityInsightStepThree(
+    @Param("brandId") brandId: string,
+    @Body() payload: GenerateOpportunityInsightPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
     await this.authService.assertBrandPermission(brandId, "brandGrowth.report.opportunityInsight", "edit", auth);
-    return this.reportsService.generateOpportunityInsightStepThree(brandId);
+    return this.reportsService.generateOpportunityInsightStepThree(brandId, payload);
   }
 
   @Get("brands/:brandId/assets/:fileName")

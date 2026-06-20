@@ -4,6 +4,7 @@ import type {
   AsyncAction,
   BrandGrowthReportPageKey,
   OptionalDateFormatter,
+  ValueAction,
 } from "./shared-types";
 import type {
   AnnualMarketingPlanRow,
@@ -38,6 +39,16 @@ export interface BrandGrowthReportWorkspaceProps {
   isAnnualMarketingPlanTaskActive: boolean;
   onGenerateReport: AsyncAction;
   onGenerateOpportunityInsight: AsyncAction;
+  onRetryOpportunityInsightStepOne: AsyncAction;
+  onRetryOpportunityInsightStepTwo: AsyncAction;
+  onRetryOpportunityInsightStepThree: AsyncAction;
+  opportunityInsightStepOneInput: string;
+  opportunityInsightStepTwoInput: string;
+  opportunityInsightStepThreeInput: string;
+  onOpportunityInsightStepOneInputChange: ValueAction<string>;
+  onOpportunityInsightStepTwoInputChange: ValueAction<string>;
+  onOpportunityInsightStepThreeInputChange: ValueAction<string>;
+  hasCurrentPageEditPermission: boolean;
   formatDateTime: OptionalDateFormatter;
 }
 
@@ -122,6 +133,9 @@ export function BrandGrowthReportWorkspace(props: BrandGrowthReportWorkspaceProp
     const finalOpportunityReport = props.opportunityInsightWorkspace.finalOpportunityReport;
     const awaitingConfirmationStep = props.opportunityInsightWorkspace.awaitingConfirmationStep ?? 1;
     const hasStepOneReports = Boolean(brandAccountAnalysis && competitorAccountAnalysis);
+    const canRunStepOne = !props.isGeneratingOpportunityInsight && !props.isHydrating && !props.isOpportunityInsightTaskActive && props.hasCurrentPageEditPermission;
+    const canRunStepTwo = canRunStepOne && hasStepOneReports;
+    const canRunStepThree = canRunStepOne && Boolean(commentInsightAnalysis);
     const opportunityPrimaryActionLabel = props.isOpportunityInsightTaskActive
       ? "生成中..."
       : awaitingConfirmationStep === 2
@@ -226,6 +240,69 @@ export function BrandGrowthReportWorkspace(props: BrandGrowthReportWorkspaceProp
                       ? "当前第 1 步已完成，可先人工确认品牌账号分析与竞品账号分析，再继续后续评论洞察分析。"
                       : "点击右上角“立刻机会洞察”后，将先生成品牌账号分析和竞品账号分析两份 HTML 报告。"}
               </p>
+            </div>
+
+            <div className="report-editor-grid">
+              <article className="report-editor-pane">
+                <span>第 1 步补充要求</span>
+                <textarea
+                  className="report-markdown-textarea"
+                  value={props.opportunityInsightStepOneInput}
+                  onChange={(event) => void props.onOpportunityInsightStepOneInputChange(event.target.value)}
+                  placeholder="可补充品牌背景、重点关注的平台/账号、必须回答的问题，随后开始或重试第 1 步。"
+                />
+                <div className="report-editor-actions" style={{ justifyContent: "flex-end", marginTop: 12 }}>
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() => void props.onRetryOpportunityInsightStepOne()}
+                    disabled={!canRunStepOne}
+                  >
+                    {brandAccountAnalysis || competitorAccountAnalysis ? "重试第 1 步" : "开始第 1 步"}
+                  </button>
+                </div>
+              </article>
+              <article className="report-editor-pane">
+                <span>第 2 步补充要求</span>
+                <textarea
+                  className="report-markdown-textarea"
+                  value={props.opportunityInsightStepTwoInput}
+                  onChange={(event) => void props.onOpportunityInsightStepTwoInputChange(event.target.value)}
+                  placeholder="可补充希望重点分析的评论主题、痛点、情绪或关键词，随后开始或重试第 2 步。"
+                />
+                <div className="report-editor-actions" style={{ justifyContent: "flex-end", marginTop: 12 }}>
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() => void props.onRetryOpportunityInsightStepTwo()}
+                    disabled={!canRunStepTwo}
+                  >
+                    {commentInsightAnalysis ? "重试第 2 步" : "开始第 2 步"}
+                  </button>
+                </div>
+              </article>
+            </div>
+
+            <div className="opportunity-insight-report-stack">
+              <article className="report-editor-pane">
+                <span>第 3 步补充要求</span>
+                <textarea
+                  className="report-markdown-textarea"
+                  value={props.opportunityInsightStepThreeInput}
+                  onChange={(event) => void props.onOpportunityInsightStepThreeInputChange(event.target.value)}
+                  placeholder="可补充总报告希望强调的机会判断、市场切入口、产品组合拳或最终输出偏好，随后开始或重试第 3 步。"
+                />
+                <div className="report-editor-actions" style={{ justifyContent: "flex-end", marginTop: 12 }}>
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() => void props.onRetryOpportunityInsightStepThree()}
+                    disabled={!canRunStepThree}
+                  >
+                    {finalOpportunityReport ? "重试第 3 步" : "开始第 3 步"}
+                  </button>
+                </div>
+              </article>
             </div>
 
             <div className="opportunity-insight-report-stack">

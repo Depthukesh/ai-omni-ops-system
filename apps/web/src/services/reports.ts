@@ -98,6 +98,10 @@ export type OpportunityInsightWorkspace = {
   awaitingConfirmationStep?: 1 | 2 | 3;
 };
 
+export type GenerateOpportunityInsightPayload = {
+  supplementInput?: string;
+};
+
 export type VisualGrowthReportRecord = {
   id: string;
   title: string;
@@ -560,33 +564,33 @@ export async function getOpportunityInsightWorkspace(brandId?: string, options?:
   );
 }
 
-export async function generateOpportunityInsightStepOne(brandId?: string) {
+export async function generateOpportunityInsightStepOne(brandId?: string, payload: GenerateOpportunityInsightPayload = {}) {
   const resolvedBrandId = resolveBrandId(brandId);
   clearReportWorkspaceCacheByBrand(resolvedBrandId);
   return jsonRequest<OpportunityInsightWorkspace>(
     `/reports/brands/${resolvedBrandId}/opportunity-insight/step-one/generate`,
     "POST",
-    {},
+    payload,
   );
 }
 
-export async function generateOpportunityInsightStepTwo(brandId?: string) {
+export async function generateOpportunityInsightStepTwo(brandId?: string, payload: GenerateOpportunityInsightPayload = {}) {
   const resolvedBrandId = resolveBrandId(brandId);
   clearReportWorkspaceCacheByBrand(resolvedBrandId);
   return jsonRequest<OpportunityInsightWorkspace>(
     `/reports/brands/${resolvedBrandId}/opportunity-insight/step-two/generate`,
     "POST",
-    {},
+    payload,
   );
 }
 
-export async function generateOpportunityInsightStepThree(brandId?: string) {
+export async function generateOpportunityInsightStepThree(brandId?: string, payload: GenerateOpportunityInsightPayload = {}) {
   const resolvedBrandId = resolveBrandId(brandId);
   clearReportWorkspaceCacheByBrand(resolvedBrandId);
   return jsonRequest<OpportunityInsightWorkspace>(
     `/reports/brands/${resolvedBrandId}/opportunity-insight/step-three/generate`,
     "POST",
-    {},
+    payload,
   );
 }
 

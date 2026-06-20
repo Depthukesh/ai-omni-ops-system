@@ -926,6 +926,9 @@ export function BrandGrowthWorkspace() {
   const [notice, setNotice] = useState<string>("");
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [reportMarkdownDraft, setReportMarkdownDraft] = useState("");
+  const [opportunityInsightStepOneInput, setOpportunityInsightStepOneInput] = useState("");
+  const [opportunityInsightStepTwoInput, setOpportunityInsightStepTwoInput] = useState("");
+  const [opportunityInsightStepThreeInput, setOpportunityInsightStepThreeInput] = useState("");
   const [dataSource, setDataSource] = useState<"api" | "error" | "loading">("loading");
   const [removedProductIds, setRemovedProductIds] = useState<string[]>([]);
   const [mediaPreview, setMediaPreview] = useState<MediaPreviewState | null>(null);
@@ -1728,7 +1731,12 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     }
   }
 
-  async function handleGenerateOpportunityInsight() {
+  function buildOpportunityInsightPayload(supplementInput: string) {
+    const normalized = supplementInput.trim();
+    return normalized ? { supplementInput: normalized } : {};
+  }
+
+  async function runOpportunityInsightStep(step: 1 | 2 | 3) {
     if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.report.opportunityInsight"]?.edit) {
       setErrorMessage("当前账号没有生成机会洞察的编辑权限。");
       return;
@@ -1738,17 +1746,16 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     clearMessages();
 
     try {
-      const awaitingStep = opportunityInsightWorkspace.awaitingConfirmationStep;
-      const nextWorkspace = awaitingStep === 2
-        ? await generateOpportunityInsightStepTwo(archive.brand.id)
-        : awaitingStep === 3 || opportunityInsightWorkspace.finalOpportunityReport
-          ? await generateOpportunityInsightStepThree(archive.brand.id)
-          : await generateOpportunityInsightStepOne(archive.brand.id);
+      const nextWorkspace = step === 2
+        ? await generateOpportunityInsightStepTwo(archive.brand.id, buildOpportunityInsightPayload(opportunityInsightStepTwoInput))
+        : step === 3
+          ? await generateOpportunityInsightStepThree(archive.brand.id, buildOpportunityInsightPayload(opportunityInsightStepThreeInput))
+          : await generateOpportunityInsightStepOne(archive.brand.id, buildOpportunityInsightPayload(opportunityInsightStepOneInput));
       setOpportunityInsightWorkspace(nextWorkspace);
       setNotice(
-        awaitingStep === 2
+        step === 2
           ? "已提交机会洞察第 2 步任务，正在后台生成评论洞察分析。"
-          : awaitingStep === 3 || opportunityInsightWorkspace.finalOpportunityReport
+          : step === 3
             ? "已提交机会洞察第 3 步任务，正在后台生成机会洞察总报告。"
             : "已提交机会洞察第 1 步任务，正在后台生成品牌账号分析和竞品账号分析。",
       );
@@ -1760,25 +1767,27 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     }
   }
 
+  async function handleGenerateOpportunityInsight() {
+    const awaitingStep = opportunityInsightWorkspace.awaitingConfirmationStep;
+    await runOpportunityInsightStep(
+      awaitingStep === 2
+        ? 2
+        : awaitingStep === 3 || opportunityInsightWorkspace.finalOpportunityReport
+          ? 3
+          : 1,
+    );
+  }
+
   async function handleRetryOpportunityInsightStepOne() {
-    if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.report.opportunityInsight"]?.edit) {
-      setErrorMessage("当前账号没有生成机会洞察的编辑权限。");
-      return;
-    }
+    await runOpportunityInsightStep(1);
+  }
 
-    setIsGeneratingOpportunityInsight(true);
-    clearMessages();
+  async function handleRetryOpportunityInsightStepTwo() {
+    await runOpportunityInsightStep(2);
+  }
 
-    try {
-      const nextWorkspace = await generateOpportunityInsightStepOne(archive.brand.id);
-      setOpportunityInsightWorkspace(nextWorkspace);
-      setNotice("已重新提交机会洞察第 1 步任务，正在后台生成品牌账号分析和竞品账号分析。");
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "生成失败";
-      setErrorMessage(`生成失败：${message}`);
-    } finally {
-      setIsGeneratingOpportunityInsight(false);
-    }
+  async function handleRetryOpportunityInsightStepThree() {
+    await runOpportunityInsightStep(3);
   }
 
   function getOpportunityInsightPrimaryActionLabel() {
@@ -3276,6 +3285,16 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
         isAnnualMarketingPlanTaskActive={isAnnualMarketingPlanTaskActive}
         onGenerateReport={handleGenerateReport}
         onGenerateOpportunityInsight={handleGenerateOpportunityInsight}
+        onRetryOpportunityInsightStepOne={handleRetryOpportunityInsightStepOne}
+        onRetryOpportunityInsightStepTwo={handleRetryOpportunityInsightStepTwo}
+        onRetryOpportunityInsightStepThree={handleRetryOpportunityInsightStepThree}
+        opportunityInsightStepOneInput={opportunityInsightStepOneInput}
+        opportunityInsightStepTwoInput={opportunityInsightStepTwoInput}
+        opportunityInsightStepThreeInput={opportunityInsightStepThreeInput}
+        onOpportunityInsightStepOneInputChange={setOpportunityInsightStepOneInput}
+        onOpportunityInsightStepTwoInputChange={setOpportunityInsightStepTwoInput}
+        onOpportunityInsightStepThreeInputChange={setOpportunityInsightStepThreeInput}
+        hasCurrentPageEditPermission={hasCurrentPageEditPermission}
         formatDateTime={formatDateTime}
       />
     );
@@ -3307,7 +3326,13 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     }
 
     if (activePage === "opportunityInsight") {
-      const showRetryStepOneButton = opportunityInsightWorkspace.awaitingConfirmationStep === 2
+      const opportunityAwaitingStep = opportunityInsightWorkspace.awaitingConfirmationStep ?? 1;
+      const showRetryStepOneButton =
+        (Boolean(opportunityInsightWorkspace.brandAccountAnalysis && opportunityInsightWorkspace.competitorAccountAnalysis)
+          || opportunityAwaitingStep >= 2)
+        && !isOpportunityInsightTaskActive;
+      const showRetryStepTwoButton =
+        Boolean(opportunityInsightWorkspace.commentInsightAnalysis || opportunityInsightWorkspace.finalOpportunityReport)
         && !isOpportunityInsightTaskActive;
       return (
         <div className="strategy-inline-actions">
@@ -3319,6 +3344,16 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
               disabled={isGeneratingOpportunityInsight || isHydrating || isOpportunityInsightTaskActive || !hasCurrentPageEditPermission}
             >
               {isGeneratingOpportunityInsight ? "提交中..." : "重试第 1 步"}
+            </button>
+          ) : null}
+          {showRetryStepTwoButton ? (
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() => void handleRetryOpportunityInsightStepTwo()}
+              disabled={isGeneratingOpportunityInsight || isHydrating || isOpportunityInsightTaskActive || !hasCurrentPageEditPermission}
+            >
+              {isGeneratingOpportunityInsight ? "提交中..." : "重试第 2 步"}
             </button>
           ) : null}
           <button

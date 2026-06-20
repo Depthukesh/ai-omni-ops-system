@@ -836,6 +836,10 @@ export type UpdateDouyinTopicLibraryPayload = {
   items: DouyinTopicLibraryItem[];
 };
 
+export type GenerateOpportunityInsightPayload = {
+  supplementInput?: string;
+};
+
 export type GenerateDouyinOriginalCopyPayload = {
   calendarItemId?: string;
   topicId?: string;
@@ -1114,14 +1118,14 @@ export class ReportsService {
     return this.buildOpportunityInsightWorkspace(reports, latestTask);
   }
 
-  async generateOpportunityInsightStepOne(brandId: string) {
+  async generateOpportunityInsightStepOne(brandId: string, payload: GenerateOpportunityInsightPayload = {}) {
     const workspace = await this.getOpportunityInsightWorkspace(brandId);
     const runningTask = workspace.latestTask;
     if (runningTask && (runningTask.taskStatus === "QUEUED" || runningTask.taskStatus === "RUNNING")) {
       return workspace;
     }
 
-    const task = await this.createOpportunityInsightStepOneTask(brandId);
+    const task = await this.createOpportunityInsightStepOneTask(brandId, payload);
     setTimeout(() => {
       void this.runOpportunityInsightStepOneTask(brandId, task.id);
     }, 0);
@@ -1132,7 +1136,7 @@ export class ReportsService {
     };
   }
 
-  async generateOpportunityInsightStepTwo(brandId: string) {
+  async generateOpportunityInsightStepTwo(brandId: string, payload: GenerateOpportunityInsightPayload = {}) {
     const workspace = await this.getOpportunityInsightWorkspace(brandId);
     const runningTask = workspace.latestTask;
     if (runningTask && (runningTask.taskStatus === "QUEUED" || runningTask.taskStatus === "RUNNING")) {
@@ -1141,11 +1145,7 @@ export class ReportsService {
     if (!workspace.brandAccountAnalysis || !workspace.competitorAccountAnalysis) {
       throw new ServiceUnavailableException("请先完成机会洞察第 1 步，并确认品牌账号分析与竞品账号分析后再继续。");
     }
-    if (workspace.commentInsightAnalysis) {
-      return workspace;
-    }
-
-    const task = await this.createOpportunityInsightStepTwoTask(brandId);
+    const task = await this.createOpportunityInsightStepTwoTask(brandId, payload);
     setTimeout(() => {
       void this.runOpportunityInsightStepTwoTask(brandId, task.id);
     }, 0);
@@ -1156,7 +1156,7 @@ export class ReportsService {
     };
   }
 
-  async generateOpportunityInsightStepThree(brandId: string) {
+  async generateOpportunityInsightStepThree(brandId: string, payload: GenerateOpportunityInsightPayload = {}) {
     const workspace = await this.getOpportunityInsightWorkspace(brandId);
     const runningTask = workspace.latestTask;
     if (runningTask && (runningTask.taskStatus === "QUEUED" || runningTask.taskStatus === "RUNNING")) {
@@ -1169,7 +1169,7 @@ export class ReportsService {
       throw new ServiceUnavailableException("请先完成机会洞察第 2 步评论洞察分析后，再生成机会洞察总报告。");
     }
 
-    const task = await this.createOpportunityInsightStepThreeTask(brandId);
+    const task = await this.createOpportunityInsightStepThreeTask(brandId, payload);
     setTimeout(() => {
       void this.runOpportunityInsightStepThreeTask(brandId, task.id);
     }, 0);
@@ -3295,7 +3295,7 @@ export class ReportsService {
     return this.mapVisualGrowthReportTask(task);
   }
 
-  private async createOpportunityInsightStepOneTask(brandId: string) {
+  private async createOpportunityInsightStepOneTask(brandId: string, payload: GenerateOpportunityInsightPayload = {}) {
     const now = new Date().toISOString();
     const archive = await this.brandsService.getArchive(brandId);
     const xiaohongshuWorkspace = await this.collectorsService.getXiaohongshuWorkspace(brandId);
@@ -3316,6 +3316,7 @@ export class ReportsService {
       || brandSettings.preferredModelName
       || competitorSettings.preferredModelName
       || "kimi-k2.6";
+    const supplementInput = this.normalizeOpportunityInsightSupplementInput(payload.supplementInput);
     const inputMeta = {
       step: 1,
       brandAccountCount: xiaohongshuWorkspace.brandAccounts.length + douyinWorkspace.brandAccounts.length,
@@ -3325,6 +3326,7 @@ export class ReportsService {
       douyinBrandWorkCount: douyinWorkspace.brandWorks.length,
       douyinCompetitorWorkCount: douyinWorkspace.competitorWorks.length,
       productCount: archive.products.length,
+      supplementInput,
     };
 
     if (await this.prismaService.canUseDatabase()) {
@@ -3374,7 +3376,7 @@ export class ReportsService {
     return this.mapOpportunityInsightTask(task);
   }
 
-  private async createOpportunityInsightStepTwoTask(brandId: string) {
+  private async createOpportunityInsightStepTwoTask(brandId: string, payload: GenerateOpportunityInsightPayload = {}) {
     const now = new Date().toISOString();
     const archive = await this.brandsService.getArchive(brandId);
     const douyinWorkspace = await this.collectorsService.getDouyinWorkspace(brandId);
@@ -3384,11 +3386,13 @@ export class ReportsService {
       "prompt_opportunity_insight_comment",
     );
     const modelName = this.parseDelimitedModels(settings.modelName)[0] || settings.preferredModelName || "gpt-5.4";
+    const supplementInput = this.normalizeOpportunityInsightSupplementInput(payload.supplementInput);
     const inputMeta = {
       step: 2,
       stepKey: "commentInsightAnalysis",
       commentCount: douyinWorkspace.commentData.length,
       productCount: archive.products.length,
+      supplementInput,
     };
 
     if (await this.prismaService.canUseDatabase()) {
@@ -3438,7 +3442,7 @@ export class ReportsService {
     return this.mapOpportunityInsightTask(task);
   }
 
-  private async createOpportunityInsightStepThreeTask(brandId: string) {
+  private async createOpportunityInsightStepThreeTask(brandId: string, payload: GenerateOpportunityInsightPayload = {}) {
     const now = new Date().toISOString();
     const archive = await this.brandsService.getArchive(brandId);
     const workspace = await this.getOpportunityInsightWorkspace(brandId);
@@ -3448,6 +3452,7 @@ export class ReportsService {
       "prompt_opportunity_insight_final_report",
     );
     const modelName = this.parseDelimitedModels(settings.modelName)[0] || settings.preferredModelName || "gpt-5.4";
+    const supplementInput = this.normalizeOpportunityInsightSupplementInput(payload.supplementInput);
     const inputMeta = {
       step: 3,
       stepKey: "finalOpportunityReport",
@@ -3457,6 +3462,7 @@ export class ReportsService {
         workspace.competitorAccountAnalysis?.id,
         workspace.commentInsightAnalysis?.id,
       ].filter((item): item is string => Boolean(item)),
+      supplementInput,
     };
 
     if (await this.prismaService.canUseDatabase()) {
@@ -3996,6 +4002,8 @@ export class ReportsService {
     }, 20000);
 
     try {
+      const taskInputMeta = await this.findTaskInputMeta(brandId, taskId);
+      const supplementInput = this.readMetaString(taskInputMeta, "supplementInput") || undefined;
       const archive = await this.brandsService.getArchive(brandId);
       const xiaohongshuWorkspace = await this.collectorsService.getXiaohongshuWorkspace(brandId);
       const douyinWorkspace = await this.collectorsService.getDouyinWorkspace(brandId);
@@ -4008,6 +4016,7 @@ export class ReportsService {
         archive,
         xiaohongshuWorkspace,
         douyinWorkspace,
+        supplementInput,
         stepKey: "brandAccountAnalysis",
         onAttemptUpdate: async (detailText, modelName) => {
           currentPhaseStatus = this.buildOpportunityInsightPhaseStatus("BRAND_ACCOUNT_ANALYSIS", {
@@ -4026,6 +4035,7 @@ export class ReportsService {
         archive,
         xiaohongshuWorkspace,
         douyinWorkspace,
+        supplementInput,
         stepKey: "competitorAccountAnalysis",
         onAttemptUpdate: async (detailText, modelName) => {
           currentPhaseStatus = this.buildOpportunityInsightPhaseStatus("COMPETITOR_ACCOUNT_ANALYSIS", {
@@ -4093,6 +4103,8 @@ export class ReportsService {
     }, 20000);
 
     try {
+      const taskInputMeta = await this.findTaskInputMeta(brandId, taskId);
+      const supplementInput = this.readMetaString(taskInputMeta, "supplementInput") || undefined;
       const archive = await this.brandsService.getArchive(brandId);
       const douyinWorkspace = await this.collectorsService.getDouyinWorkspace(brandId);
       const report = await this.buildOpportunityInsightCommentReport({
@@ -4100,6 +4112,7 @@ export class ReportsService {
         archive,
         douyinWorkspace,
         generatedAt: startedAt,
+        supplementInput,
         onAttemptUpdate: async (detailText, modelName) => {
           currentStatus = {
             ...currentStatus,
@@ -4182,6 +4195,8 @@ export class ReportsService {
     }, 20000);
 
     try {
+      const taskInputMeta = await this.findTaskInputMeta(brandId, taskId);
+      const supplementInput = this.readMetaString(taskInputMeta, "supplementInput") || undefined;
       const archive = await this.brandsService.getArchive(brandId);
       const workspace = await this.getOpportunityInsightWorkspace(brandId);
       if (!workspace.brandAccountAnalysis || !workspace.competitorAccountAnalysis || !workspace.commentInsightAnalysis) {
@@ -4192,6 +4207,7 @@ export class ReportsService {
         archive,
         workspace,
         generatedAt: startedAt,
+        supplementInput,
         onAttemptUpdate: async (detailText, modelName) => {
           currentStatus = {
             ...currentStatus,
@@ -6378,6 +6394,15 @@ export class ReportsService {
     return this.asMeta(task?.inputJson);
   }
 
+  private normalizeOpportunityInsightSupplementInput(value?: string) {
+    const normalized = typeof value === "string" ? value.trim() : "";
+    return normalized ? this.truncateText(normalized, 2000) : undefined;
+  }
+
+  private readOpportunityInsightUserRequirement(inputPayload: Record<string, unknown>) {
+    return this.readRecordString(this.readNestedRecord(inputPayload, ["inputScope", "userRequirement"]), "text") || "";
+  }
+
   private async buildReport(params: {
     brandId: string;
     archive: Awaited<ReturnType<BrandsService["getArchive"]>>;
@@ -6607,6 +6632,7 @@ export class ReportsService {
     xiaohongshuWorkspace: Awaited<ReturnType<CollectorsService["getXiaohongshuWorkspace"]>>;
     douyinWorkspace: Awaited<ReturnType<CollectorsService["getDouyinWorkspace"]>>;
     generatedAt: string;
+    supplementInput?: string;
     stepKey: "brandAccountAnalysis" | "competitorAccountAnalysis";
     onAttemptUpdate?: (detailText: string, modelName: string) => Promise<void> | void;
   }) {
@@ -6625,6 +6651,7 @@ export class ReportsService {
       params.douyinWorkspace,
       params.generatedAt,
       params.stepKey,
+      params.supplementInput,
     );
     const modelResult = await this.generateOpportunityInsightMarkdownByModel(
       settings.promptContent,
@@ -6648,6 +6675,7 @@ export class ReportsService {
     archive: Awaited<ReturnType<BrandsService["getArchive"]>>;
     douyinWorkspace: Awaited<ReturnType<CollectorsService["getDouyinWorkspace"]>>;
     generatedAt: string;
+    supplementInput?: string;
     onAttemptUpdate?: (detailText: string, modelName: string) => Promise<void> | void;
   }) {
     const settings = await this.loadOpportunityInsightNarrativeGenerationSettings(
@@ -6659,6 +6687,7 @@ export class ReportsService {
       params.archive,
       params.douyinWorkspace,
       params.generatedAt,
+      params.supplementInput,
     );
     const knowledgeContext = await this.buildOpportunityInsightCommentKnowledgeContext(
       params.brandId,
@@ -6719,6 +6748,7 @@ export class ReportsService {
     archive: Awaited<ReturnType<BrandsService["getArchive"]>>;
     workspace: OpportunityInsightWorkspace;
     generatedAt: string;
+    supplementInput?: string;
     onAttemptUpdate?: (detailText: string, modelName: string) => Promise<void> | void;
   }) {
     const settings = await this.loadOpportunityInsightNarrativeGenerationSettings(
@@ -6730,6 +6760,7 @@ export class ReportsService {
       params.archive,
       params.workspace,
       params.generatedAt,
+      params.supplementInput,
     );
     const knowledgeContext = await this.buildOpportunityInsightFinalKnowledgeContext(
       params.brandId,
@@ -8005,6 +8036,7 @@ export class ReportsService {
   ): Promise<OpportunityInsightAccountModelResult> {
     const providers = await this.loadOpportunityInsightAccountProviderConfigs(settings);
     const preferredModelName = settings.preferredModelName || this.parseDelimitedModels(settings.modelName)[0] || "";
+    const userRequirement = this.readOpportunityInsightUserRequirement(inputPayload);
     const systemPrompt = [
       skillPrompt,
       "",
@@ -8014,6 +8046,7 @@ export class ReportsService {
       "必须引用输入中的账号、作品、笔记、互动数据或品牌资料作为依据，不得无依据编造案例。",
       "如果某个平台或账号样本不足，明确写出“待补充/待验证”，不要伪造数据。",
       "正文必须足够详尽，按中文阅读习惯不少于 2000 字。",
+      userRequirement ? `如果输入中提供了“用户补充要求”，必须优先满足：${userRequirement}` : "",
     ].join("\n");
     const userPrompt = ["以下是输入数据：", "", JSON.stringify(inputPayload, null, 2)].join("\n");
 
@@ -8082,6 +8115,7 @@ export class ReportsService {
   ): Promise<OpportunityInsightAccountModelResult> {
     const providers = await this.loadOpportunityInsightNarrativeProviderConfigs(settings);
     const preferredModelName = settings.preferredModelName || this.parseDelimitedModels(settings.modelName)[0] || "";
+    const userRequirement = this.readOpportunityInsightUserRequirement(inputPayload);
     const systemPrompt = [
       skillPrompt,
       "",
@@ -8090,6 +8124,7 @@ export class ReportsService {
       "所有关键结论都要引用输入资料、前序报告、评论样本或知识库补充内容，不得无依据编造。",
       "如果某类资料缺失，请明确写出“待补充/待验证”，但不要中断生成。",
       "正文必须足够详尽，按中文阅读习惯不少于 2000 字。",
+      userRequirement ? `如果输入中提供了“用户补充要求”，必须优先满足：${userRequirement}` : "",
       ...(options?.runtimeRequirements || []),
     ].join("\n");
     const userPrompt = [
@@ -9282,6 +9317,7 @@ ${normalizedMarkdown}`;
     douyinWorkspace: Awaited<ReturnType<CollectorsService["getDouyinWorkspace"]>>,
     generatedAt: string,
     stepKey: "brandAccountAnalysis" | "competitorAccountAnalysis",
+    supplementInput?: string,
   ) {
     const isBrand = stepKey === "brandAccountAnalysis";
     const xhsAccounts = isBrand ? xiaohongshuWorkspace.brandAccounts : xiaohongshuWorkspace.competitorAccounts;
@@ -9300,6 +9336,7 @@ ${normalizedMarkdown}`;
           stepLabel: isBrand ? "品牌账号分析" : "竞品账号分析",
           platforms: ["小红书", "抖音"],
         },
+        userRequirement: supplementInput ? { text: supplementInput } : undefined,
         brandArchive: {
           background: archive.brand,
           products: archive.products.slice(0, 12).map((item) => ({
@@ -9381,6 +9418,7 @@ ${normalizedMarkdown}`;
     archive: Awaited<ReturnType<BrandsService["getArchive"]>>,
     douyinWorkspace: Awaited<ReturnType<CollectorsService["getDouyinWorkspace"]>>,
     generatedAt: string,
+    supplementInput?: string,
   ) {
     return {
       task: "输出《评论洞察分析》",
@@ -9391,6 +9429,7 @@ ${normalizedMarkdown}`;
           stepLabel: "评论洞察分析",
           sourcePriority: ["抖音评论数据", "企业知识库评论资料"],
         },
+        userRequirement: supplementInput ? { text: supplementInput } : undefined,
         brandArchive: {
           background: archive.brand,
           products: archive.products.slice(0, 12).map((item) => ({
@@ -9433,6 +9472,7 @@ ${normalizedMarkdown}`;
     archive: Awaited<ReturnType<BrandsService["getArchive"]>>,
     workspace: OpportunityInsightWorkspace,
     generatedAt: string,
+    supplementInput?: string,
   ) {
     return {
       task: "输出《机会洞察总报告》",
@@ -9443,6 +9483,7 @@ ${normalizedMarkdown}`;
           stepLabel: "机会洞察总报告",
           sourceSteps: ["品牌账号分析", "竞品账号分析", "评论洞察分析"],
         },
+        userRequirement: supplementInput ? { text: supplementInput } : undefined,
         brandArchive: {
           background: archive.brand,
           products: archive.products.slice(0, 12).map((item) => ({
