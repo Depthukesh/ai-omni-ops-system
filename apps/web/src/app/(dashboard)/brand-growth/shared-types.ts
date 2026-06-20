@@ -35,6 +35,7 @@ export type BrandGrowthLibraryPageKey =
 
 export type BrandGrowthReportPageKey =
   | "growthReport"
+  | "opportunityInsight"
   | "visualGrowthReport"
   | "annualMarketingPlan"
   | "xiaohongshuMarketingCalendar";

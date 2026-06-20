@@ -50,6 +50,54 @@ export type GrowthReportWorkspace = {
   latestTask?: GrowthReportTaskRecord;
 };
 
+export type OpportunityInsightStepKey =
+  | "brandAccountAnalysis"
+  | "competitorAccountAnalysis"
+  | "commentInsightAnalysis"
+  | "finalOpportunityReport";
+
+export type OpportunityInsightReportRecord = {
+  id: string;
+  title: string;
+  summary: string;
+  generatedAt: string;
+  taskId?: string;
+  mediaId?: string;
+  modelName?: string;
+  htmlBody: string;
+  htmlDocument: string;
+  stepKey: OpportunityInsightStepKey;
+};
+
+export type OpportunityInsightTaskRecord = {
+  id: string;
+  taskType: string;
+  taskTitle: string;
+  taskStatus: "PENDING" | "QUEUED" | "RUNNING" | "SUCCESS" | "FAILED" | "CANCELLED";
+  modelName: string;
+  pointsCost: number;
+  createdAt: string;
+  updatedAt: string;
+  startedAt?: string;
+  finishedAt?: string;
+  errorMessage?: string;
+  phase?: string;
+  phaseText?: string;
+  phaseIndex?: number;
+  phaseTotal?: number;
+  stepKey?: OpportunityInsightStepKey;
+};
+
+export type OpportunityInsightWorkspace = {
+  brandAccountAnalysis?: OpportunityInsightReportRecord;
+  competitorAccountAnalysis?: OpportunityInsightReportRecord;
+  commentInsightAnalysis?: OpportunityInsightReportRecord;
+  finalOpportunityReport?: OpportunityInsightReportRecord;
+  history: OpportunityInsightReportRecord[];
+  latestTask?: OpportunityInsightTaskRecord;
+  awaitingConfirmationStep?: 1 | 2 | 3;
+};
+
 export type VisualGrowthReportRecord = {
   id: string;
   title: string;
@@ -433,6 +481,16 @@ export const visualGrowthReportSeed: VisualGrowthReportWorkspace = {
   history: [],
 };
 
+export const opportunityInsightSeed: OpportunityInsightWorkspace = {
+  brandAccountAnalysis: undefined,
+  competitorAccountAnalysis: undefined,
+  commentInsightAnalysis: undefined,
+  finalOpportunityReport: undefined,
+  history: [],
+  latestTask: undefined,
+  awaitingConfirmationStep: 1,
+};
+
 export const annualMarketingPlanSeed: AnnualMarketingPlanWorkspace = {
   latest: undefined,
   history: [],
@@ -491,6 +549,45 @@ export async function generateGrowthReport(brandId?: string) {
   const resolvedBrandId = resolveBrandId(brandId);
   clearReportWorkspaceCacheByBrand(resolvedBrandId);
   return jsonRequest<GrowthReportWorkspace>(`/reports/brands/${resolvedBrandId}/growth-report/generate`, "POST", {});
+}
+
+export async function getOpportunityInsightWorkspace(brandId?: string, options?: { force?: boolean }) {
+  const resolvedBrandId = resolveBrandId(brandId);
+  return getCachedReportWorkspace<OpportunityInsightWorkspace>(
+    buildReportWorkspaceCacheKey("opportunity-insight", resolvedBrandId),
+    () => request<OpportunityInsightWorkspace>(`/reports/brands/${resolvedBrandId}/opportunity-insight`),
+    options,
+  );
+}
+
+export async function generateOpportunityInsightStepOne(brandId?: string) {
+  const resolvedBrandId = resolveBrandId(brandId);
+  clearReportWorkspaceCacheByBrand(resolvedBrandId);
+  return jsonRequest<OpportunityInsightWorkspace>(
+    `/reports/brands/${resolvedBrandId}/opportunity-insight/step-one/generate`,
+    "POST",
+    {},
+  );
+}
+
+export async function generateOpportunityInsightStepTwo(brandId?: string) {
+  const resolvedBrandId = resolveBrandId(brandId);
+  clearReportWorkspaceCacheByBrand(resolvedBrandId);
+  return jsonRequest<OpportunityInsightWorkspace>(
+    `/reports/brands/${resolvedBrandId}/opportunity-insight/step-two/generate`,
+    "POST",
+    {},
+  );
+}
+
+export async function generateOpportunityInsightStepThree(brandId?: string) {
+  const resolvedBrandId = resolveBrandId(brandId);
+  clearReportWorkspaceCacheByBrand(resolvedBrandId);
+  return jsonRequest<OpportunityInsightWorkspace>(
+    `/reports/brands/${resolvedBrandId}/opportunity-insight/step-three/generate`,
+    "POST",
+    {},
+  );
 }
 
 export async function updateGrowthReport(reportId: string, reportMarkdown: string, title?: string, brandId?: string) {

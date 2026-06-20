@@ -57,6 +57,34 @@ export class ReportsController {
     return this.reportsService.generateGrowthReport(brandId);
   }
 
+  @Get("brands/:brandId/opportunity-insight")
+  async getOpportunityInsightWorkspace(@Param("brandId") brandId: string, @Headers() headers: Record<string, string | string[] | undefined>) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.opportunityInsight", "view", auth);
+    return this.reportsService.getOpportunityInsightWorkspace(brandId);
+  }
+
+  @Post("brands/:brandId/opportunity-insight/step-one/generate")
+  async generateOpportunityInsightStepOne(@Param("brandId") brandId: string, @Headers() headers: Record<string, string | string[] | undefined>) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.opportunityInsight", "edit", auth);
+    return this.reportsService.generateOpportunityInsightStepOne(brandId);
+  }
+
+  @Post("brands/:brandId/opportunity-insight/step-two/generate")
+  async generateOpportunityInsightStepTwo(@Param("brandId") brandId: string, @Headers() headers: Record<string, string | string[] | undefined>) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.opportunityInsight", "edit", auth);
+    return this.reportsService.generateOpportunityInsightStepTwo(brandId);
+  }
+
+  @Post("brands/:brandId/opportunity-insight/step-three/generate")
+  async generateOpportunityInsightStepThree(@Param("brandId") brandId: string, @Headers() headers: Record<string, string | string[] | undefined>) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.opportunityInsight", "edit", auth);
+    return this.reportsService.generateOpportunityInsightStepThree(brandId);
+  }
+
   @Get("brands/:brandId/assets/:fileName")
   async getReportAsset(
     @Param("brandId") brandId: string,

@@ -102,16 +102,22 @@ import {
 import {
   generateAnnualMarketingPlan,
   generateGrowthReport,
+  generateOpportunityInsightStepOne,
+  generateOpportunityInsightStepThree,
+  generateOpportunityInsightStepTwo,
   generateVisualGrowthReport,
   getAnnualMarketingPlanWorkspace,
   getGrowthReportWorkspace,
+  getOpportunityInsightWorkspace,
   getXiaohongshuMarketingCalendarWorkspace,
   getXiaohongshuMarketingPlanWorkspace,
   getVisualGrowthReportWorkspace,
   generateXiaohongshuMarketingCalendar,
+  opportunityInsightSeed,
   updateGrowthReport,
   type AnnualMarketingPlanWorkspace,
   type GrowthReportWorkspace,
+  type OpportunityInsightWorkspace,
   type XiaohongshuMarketingCalendarItem,
   type XiaohongshuMarketingCalendarWorkspace,
   type XiaohongshuMarketingPlanWorkspace,
@@ -141,6 +147,7 @@ type StrategyPageKey =
   | "xiaohongshuCollection"
   | "douyinCollection"
   | "dailyHotspot"
+  | "opportunityInsight"
   | "growthReport"
   | "visualGrowthReport"
   | "annualMarketingPlan"
@@ -211,6 +218,7 @@ const strategySections: Array<{
     key: "report",
     label: "品牌增长报告",
     pages: [
+      { key: "opportunityInsight", label: "机会洞察", description: "先输出品牌/竞品账号分析，再逐步进入评论洞察与机会洞察总报告。" },
       { key: "growthReport", label: "生成品牌增长报告", description: "根据品牌资料与收集数据生成分析报告。" },
       { key: "visualGrowthReport", label: "品牌增长可视化报告", description: "输出图表化的品牌增长可视化结果。" },
       { key: "annualMarketingPlan", label: "半年营销规划", description: "形成未来半年节奏、战役安排与重点营销规划。" },
@@ -232,6 +240,7 @@ const strategyPagePermissionMap: Record<StrategyPageKey, BrandPermissionKey> = {
   xiaohongshuCollection: "brandGrowth.collection.xiaohongshuCollection",
   douyinCollection: "brandGrowth.collection.douyinCollection",
   dailyHotspot: "brandGrowth.collection.dailyHotspot",
+  opportunityInsight: "brandGrowth.report.opportunityInsight",
   growthReport: "brandGrowth.report.growthReport",
   visualGrowthReport: "brandGrowth.report.visualGrowthReport",
   annualMarketingPlan: "brandGrowth.report.halfYearMarketingPlan",
@@ -327,6 +336,13 @@ function createEmptyVisualGrowthReportWorkspace(): VisualGrowthReportWorkspace {
     latest: undefined,
     history: [],
     latestTask: undefined,
+  };
+}
+
+function createEmptyOpportunityInsightWorkspace(): OpportunityInsightWorkspace {
+  return {
+    ...opportunityInsightSeed,
+    history: [],
   };
 }
 
@@ -517,6 +533,7 @@ type ReportScopeSnapshot = {
   expiresAt: number;
   collectionWorkspace: XhsCollectionWorkspace;
   reportWorkspace: GrowthReportWorkspace;
+  opportunityInsightWorkspace: OpportunityInsightWorkspace;
   visualReportWorkspace: VisualGrowthReportWorkspace;
   annualMarketingPlanWorkspace: AnnualMarketingPlanWorkspace;
   xiaohongshuMarketingPlanWorkspace: XiaohongshuMarketingPlanWorkspace;
@@ -850,6 +867,7 @@ export function BrandGrowthWorkspace() {
   const [douyinCollectionWorkspace, setDouyinCollectionWorkspace] = useState<DouyinCollectionWorkspace>(createEmptyDouyinCollectionWorkspace);
   const [dailyHotspotWorkspace, setDailyHotspotWorkspace] = useState<DailyHotspotWorkspace>(createEmptyDailyHotspotWorkspace);
   const [reportWorkspace, setReportWorkspace] = useState<GrowthReportWorkspace>(createEmptyGrowthReportWorkspace);
+  const [opportunityInsightWorkspace, setOpportunityInsightWorkspace] = useState<OpportunityInsightWorkspace>(createEmptyOpportunityInsightWorkspace);
   const [visualReportWorkspace, setVisualReportWorkspace] = useState<VisualGrowthReportWorkspace>(createEmptyVisualGrowthReportWorkspace);
   const [annualMarketingPlanWorkspace, setAnnualMarketingPlanWorkspace] = useState<AnnualMarketingPlanWorkspace>(createEmptyAnnualMarketingPlanWorkspace);
   const [xiaohongshuMarketingPlanWorkspace, setXiaohongshuMarketingPlanWorkspace] =
@@ -892,6 +910,7 @@ export function BrandGrowthWorkspace() {
   const [isLoadingMoreDouyinComments, setIsLoadingMoreDouyinComments] = useState(false);
   const [isSyncingDailyHotspots, setIsSyncingDailyHotspots] = useState(false);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+  const [isGeneratingOpportunityInsight, setIsGeneratingOpportunityInsight] = useState(false);
   const [isSavingReport, setIsSavingReport] = useState(false);
   const [isGeneratingVisualReport, setIsGeneratingVisualReport] = useState(false);
   const [isGeneratingAnnualMarketingPlan, setIsGeneratingAnnualMarketingPlan] = useState(false);
@@ -1143,14 +1162,17 @@ export function BrandGrowthWorkspace() {
   const latestMarketingPlan = xiaohongshuMarketingPlanWorkspace.latest;
   const latestCalendar = marketingCalendarWorkspace.latest;
   const latestGrowthTask = reportWorkspace.latestTask;
+  const latestOpportunityTask = opportunityInsightWorkspace.latestTask;
   const latestVisualTask = visualReportWorkspace.latestTask;
   const latestAnnualMarketingTask = annualMarketingPlanWorkspace.latestTask;
   const latestCalendarTask = marketingCalendarWorkspace.latestTask;
   const isGrowthReportTaskActive = latestGrowthTask?.taskStatus === "QUEUED" || latestGrowthTask?.taskStatus === "RUNNING";
+  const isOpportunityInsightTaskActive = latestOpportunityTask?.taskStatus === "QUEUED" || latestOpportunityTask?.taskStatus === "RUNNING";
   const isVisualReportTaskActive = latestVisualTask?.taskStatus === "QUEUED" || latestVisualTask?.taskStatus === "RUNNING";
   const isAnnualMarketingPlanTaskActive =
     latestAnnualMarketingTask?.taskStatus === "QUEUED" || latestAnnualMarketingTask?.taskStatus === "RUNNING";
   const isMarketingCalendarTaskActive = latestCalendarTask?.taskStatus === "QUEUED" || latestCalendarTask?.taskStatus === "RUNNING";
+  const isOpportunityInsightPageActive = activePage === "opportunityInsight";
   const isGrowthReportPageActive = activePage === "growthReport";
   const isVisualGrowthReportPageActive = activePage === "visualGrowthReport";
   const isAnnualMarketingPlanPageActive = activePage === "annualMarketingPlan";
@@ -1210,6 +1232,7 @@ export function BrandGrowthWorkspace() {
 
     setCollectionWorkspace(cachedSnapshot.collectionWorkspace);
     setReportWorkspace(cachedSnapshot.reportWorkspace);
+    setOpportunityInsightWorkspace(cachedSnapshot.opportunityInsightWorkspace);
     setVisualReportWorkspace(cachedSnapshot.visualReportWorkspace);
     setAnnualMarketingPlanWorkspace(cachedSnapshot.annualMarketingPlanWorkspace);
     setXiaohongshuMarketingPlanWorkspace(cachedSnapshot.xiaohongshuMarketingPlanWorkspace);
@@ -1293,6 +1316,18 @@ export function BrandGrowthWorkspace() {
   }, [reportWorkspace.latest?.id, reportWorkspace.latest?.reportMarkdown]);
 
   useEffect(() => {
+    if (!isOpportunityInsightTaskActive || !isOpportunityInsightPageActive) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      void refreshOpportunityInsightWorkspace(true);
+    }, 4000);
+
+    return () => window.clearTimeout(timer);
+  }, [isOpportunityInsightPageActive, isOpportunityInsightTaskActive, latestOpportunityTask?.updatedAt]);
+
+  useEffect(() => {
     if (!isGrowthReportTaskActive || !isGrowthReportPageActive) {
       return;
     }
@@ -1355,6 +1390,7 @@ export function BrandGrowthWorkspace() {
     writeReportScopeSnapshot(activeBrandId, {
       collectionWorkspace,
       reportWorkspace,
+      opportunityInsightWorkspace,
       visualReportWorkspace,
       annualMarketingPlanWorkspace,
       xiaohongshuMarketingPlanWorkspace,
@@ -1366,6 +1402,7 @@ export function BrandGrowthWorkspace() {
     collectionWorkspace,
     loadedScopes.report,
     marketingCalendarWorkspace,
+    opportunityInsightWorkspace,
     reportWorkspace,
     visualReportWorkspace,
     xiaohongshuMarketingPlanWorkspace,
@@ -1478,6 +1515,7 @@ export function BrandGrowthWorkspace() {
         const [
           collectionResult,
           reportResult,
+          opportunityInsightResult,
           visualReportResult,
           annualMarketingPlanResult,
           xiaohongshuMarketingPlanResult,
@@ -1485,6 +1523,7 @@ export function BrandGrowthWorkspace() {
         ] = await Promise.allSettled([
           getXiaohongshuCollectionWorkspace(resolvedActiveBrandId),
           getGrowthReportWorkspace(resolvedActiveBrandId),
+          getOpportunityInsightWorkspace(resolvedActiveBrandId),
           getVisualGrowthReportWorkspace(resolvedActiveBrandId),
           getAnnualMarketingPlanWorkspace(resolvedActiveBrandId),
           getXiaohongshuMarketingPlanWorkspace(resolvedActiveBrandId),
@@ -1501,6 +1540,12 @@ export function BrandGrowthWorkspace() {
           setReportWorkspace(reportResult.value);
         } else {
           partialFailures.push("品牌增长报告");
+        }
+
+        if (opportunityInsightResult.status === "fulfilled") {
+          setOpportunityInsightWorkspace(opportunityInsightResult.value);
+        } else {
+          partialFailures.push("机会洞察");
         }
 
         if (visualReportResult.status === "fulfilled") {
@@ -1560,6 +1605,21 @@ export function BrandGrowthWorkspace() {
       if (!silent) {
         const message = error instanceof Error ? error.message : "刷新失败";
         setErrorMessage(`刷新可视化报告失败：${message}`);
+      }
+    }
+  }
+
+  async function refreshOpportunityInsightWorkspace(silent = false) {
+    try {
+      const nextWorkspace = await getOpportunityInsightWorkspace(archive.brand.id, { force: true });
+      setOpportunityInsightWorkspace(nextWorkspace);
+      if (nextWorkspace.latestTask?.taskStatus === "FAILED" && nextWorkspace.latestTask.errorMessage) {
+        setErrorMessage(`生成失败：${nextWorkspace.latestTask.errorMessage}`);
+      }
+    } catch (error) {
+      if (!silent) {
+        const message = error instanceof Error ? error.message : "刷新失败";
+        setErrorMessage(`刷新机会洞察失败：${message}`);
       }
     }
   }
@@ -1666,6 +1726,54 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     } finally {
       setIsGeneratingReport(false);
     }
+  }
+
+  async function handleGenerateOpportunityInsight() {
+    if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.report.opportunityInsight"]?.edit) {
+      setErrorMessage("当前账号没有生成机会洞察的编辑权限。");
+      return;
+    }
+
+    setIsGeneratingOpportunityInsight(true);
+    clearMessages();
+
+    try {
+      const awaitingStep = opportunityInsightWorkspace.awaitingConfirmationStep;
+      const nextWorkspace = awaitingStep === 2
+        ? await generateOpportunityInsightStepTwo(archive.brand.id)
+        : awaitingStep === 3 || opportunityInsightWorkspace.finalOpportunityReport
+          ? await generateOpportunityInsightStepThree(archive.brand.id)
+          : await generateOpportunityInsightStepOne(archive.brand.id);
+      setOpportunityInsightWorkspace(nextWorkspace);
+      setNotice(
+        awaitingStep === 2
+          ? "已提交机会洞察第 2 步任务，正在后台生成评论洞察分析。"
+          : awaitingStep === 3 || opportunityInsightWorkspace.finalOpportunityReport
+            ? "已提交机会洞察第 3 步任务，正在后台生成机会洞察总报告。"
+            : "已提交机会洞察第 1 步任务，正在后台生成品牌账号分析和竞品账号分析。",
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "生成失败";
+      setErrorMessage(`生成失败：${message}`);
+    } finally {
+      setIsGeneratingOpportunityInsight(false);
+    }
+  }
+
+  function getOpportunityInsightPrimaryActionLabel() {
+    if (isOpportunityInsightTaskActive) {
+      return "生成中...";
+    }
+    if (opportunityInsightWorkspace.awaitingConfirmationStep === 2) {
+      return "开始第 2 步";
+    }
+    if (opportunityInsightWorkspace.awaitingConfirmationStep === 3) {
+      return "开始第 3 步";
+    }
+    if (opportunityInsightWorkspace.finalOpportunityReport) {
+      return "重新生成总报告";
+    }
+    return "立刻机会洞察";
   }
 
   async function handleSaveReport() {
@@ -3109,13 +3217,23 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
       latestVisualReport?.htmlBody || "",
     );
     const growthTaskStatusText = getReportTaskStatusText(latestGrowthTask?.taskStatus);
+    const opportunityTaskStatusText = getReportTaskStatusText(latestOpportunityTask?.taskStatus);
     const visualTaskStatusText = getReportTaskStatusText(latestVisualTask?.taskStatus);
     const annualTaskStatusText = getReportTaskStatusText(latestAnnualMarketingTask?.taskStatus);
 
     return (
       <BrandGrowthReportWorkspace
-        activePage={activePage === "growthReport" ? "growthReport" : activePage === "visualGrowthReport" ? "visualGrowthReport" : "annualMarketingPlan"}
+        activePage={
+          activePage === "opportunityInsight"
+            ? "opportunityInsight"
+            : activePage === "growthReport"
+              ? "growthReport"
+              : activePage === "visualGrowthReport"
+                ? "visualGrowthReport"
+                : "annualMarketingPlan"
+        }
         reportWorkspace={reportWorkspace}
+        opportunityInsightWorkspace={opportunityInsightWorkspace}
         visualReportWorkspace={visualReportWorkspace}
         annualMarketingPlanWorkspace={annualMarketingPlanWorkspace}
         reportMarkdownDraft={reportMarkdownDraft}
@@ -3123,16 +3241,20 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
         previewHtml={previewHtml}
         previewDocument={previewDocument}
         growthTaskStatusText={growthTaskStatusText}
+        opportunityTaskStatusText={opportunityTaskStatusText}
         visualTaskStatusText={visualTaskStatusText}
         annualTaskStatusText={annualTaskStatusText}
         previewRows={latestPlan?.items ?? []}
         isHydrating={isHydrating}
         isGeneratingReport={isGeneratingReport}
+        isGeneratingOpportunityInsight={isGeneratingOpportunityInsight}
         isGeneratingVisualReport={isGeneratingVisualReport}
         isGrowthReportTaskActive={isGrowthReportTaskActive}
+        isOpportunityInsightTaskActive={isOpportunityInsightTaskActive}
         isVisualReportTaskActive={isVisualReportTaskActive}
         isAnnualMarketingPlanTaskActive={isAnnualMarketingPlanTaskActive}
         onGenerateReport={handleGenerateReport}
+        onGenerateOpportunityInsight={handleGenerateOpportunityInsight}
         formatDateTime={formatDateTime}
       />
     );
@@ -3161,6 +3283,19 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
 
     if (activeSection === "collection") {
       return null;
+    }
+
+    if (activePage === "opportunityInsight") {
+      return (
+        <button
+          type="button"
+          className="primary-button"
+          onClick={() => void handleGenerateOpportunityInsight()}
+          disabled={isGeneratingOpportunityInsight || isHydrating || isOpportunityInsightTaskActive || !hasCurrentPageEditPermission}
+        >
+          {isGeneratingOpportunityInsight ? "提交中..." : getOpportunityInsightPrimaryActionLabel()}
+        </button>
+      );
     }
 
     if (activePage === "growthReport") {

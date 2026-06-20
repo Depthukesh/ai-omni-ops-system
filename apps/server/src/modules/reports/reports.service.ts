@@ -16,6 +16,12 @@ import { SkillsPromptsService } from "../admin/skills-prompts.service";
 import { ThirdPartyPlatformsService } from "../third-party-platforms/third-party-platforms.service";
 import { PrismaService } from "../../prisma/prisma.service";
 const GROWTH_REPORT_TASK_TIMEOUT_MS = 15 * 60 * 1000;
+const OPPORTUNITY_INSIGHT_TASK_TIMEOUT_MS = 20 * 60 * 1000;
+const OPPORTUNITY_INSIGHT_TASK_TYPES = [
+  "OPPORTUNITY_INSIGHT_STEP_ONE",
+  "OPPORTUNITY_INSIGHT_STEP_TWO",
+  "OPPORTUNITY_INSIGHT_STEP_THREE",
+] as const;
 const VISUAL_REPORT_TASK_TIMEOUT_MS = 10 * 60 * 1000;
 const ANNUAL_MARKETING_PLAN_TASK_TIMEOUT_MS = 15 * 60 * 1000;
 const XIAOHONGSHU_MARKETING_PLAN_TASK_TIMEOUT_MS = 60 * 60 * 1000;
@@ -174,6 +180,24 @@ type VisualGrowthReportAssetMeta = {
   summary: string;
   htmlBody: string;
   htmlDocument: string;
+};
+
+type OpportunityInsightStepKey =
+  | "brandAccountAnalysis"
+  | "competitorAccountAnalysis"
+  | "commentInsightAnalysis"
+  | "finalOpportunityReport";
+
+type OpportunityInsightAssetMeta = {
+  kind: "OPPORTUNITY_INSIGHT_REPORT";
+  stepKey: OpportunityInsightStepKey;
+  generatedAt: string;
+  taskId?: string;
+  mediaId?: string;
+  summary: string;
+  htmlBody: string;
+  htmlDocument: string;
+  modelName?: string;
 };
 
 type AnnualMarketingPlanRow = {
@@ -396,6 +420,19 @@ export type VisualGrowthReportRecord = {
   htmlDocument: string;
 };
 
+export type OpportunityInsightReportRecord = {
+  id: string;
+  title: string;
+  summary: string;
+  generatedAt: string;
+  taskId?: string;
+  mediaId?: string;
+  modelName?: string;
+  htmlBody: string;
+  htmlDocument: string;
+  stepKey: OpportunityInsightStepKey;
+};
+
 export type AnnualMarketingPlanRecord = {
   id: string;
   title: string;
@@ -538,6 +575,9 @@ export type VisualGrowthReportTaskRecord = {
 };
 
 export type GrowthReportTaskRecord = VisualGrowthReportTaskRecord;
+export type OpportunityInsightTaskRecord = VisualGrowthReportTaskRecord & {
+  stepKey?: OpportunityInsightStepKey;
+};
 export type AnnualMarketingPlanTaskRecord = VisualGrowthReportTaskRecord;
 export type XiaohongshuMarketingPlanTaskRecord = VisualGrowthReportTaskRecord;
 export type DouyinMarketingPlanTaskRecord = VisualGrowthReportTaskRecord;
@@ -682,6 +722,13 @@ type DouyinMarketingPlanModelResult = {
   modelName: string;
 };
 
+type OpportunityInsightAccountModelResult = {
+  title: string;
+  summary: string;
+  reportMarkdown: string;
+  modelName: string;
+};
+
 type DouyinHotTopicCandidatesModelResult = {
   title: string;
   summary: string;
@@ -757,6 +804,7 @@ type DouyinHotTopicCandidatesPhase = "PREPARING" | "GENERATING" | "PERSISTING" |
 type DouyinOriginalCopyPhase = "PREPARING" | "GENERATING" | "PERSISTING" | "DONE";
 type DouyinRemixCopyPhase = "PREPARING" | "EXTRACTING" | "ANALYZING" | "GENERATING" | "PERSISTING" | "DONE";
 type XiaohongshuMarketingCalendarPhase = "PREPARING" | "GENERATING" | "PERSISTING" | "DONE";
+type OpportunityInsightStepOnePhase = "PREPARING" | "BRAND_ACCOUNT_ANALYSIS" | "COMPETITOR_ACCOUNT_ANALYSIS" | "PERSISTING" | "DONE";
 
 export type UpdateGrowthReportPayload = {
   title?: string;
@@ -824,6 +872,16 @@ export type VisualGrowthReportWorkspace = {
   latest?: VisualGrowthReportRecord;
   history: VisualGrowthReportRecord[];
   latestTask?: VisualGrowthReportTaskRecord;
+};
+
+export type OpportunityInsightWorkspace = {
+  brandAccountAnalysis?: OpportunityInsightReportRecord;
+  competitorAccountAnalysis?: OpportunityInsightReportRecord;
+  commentInsightAnalysis?: OpportunityInsightReportRecord;
+  finalOpportunityReport?: OpportunityInsightReportRecord;
+  history: OpportunityInsightReportRecord[];
+  latestTask?: OpportunityInsightTaskRecord;
+  awaitingConfirmationStep?: 1 | 2 | 3;
 };
 
 export type AnnualMarketingPlanWorkspace = {
@@ -993,6 +1051,128 @@ export class ReportsService {
     setTimeout(() => {
       void this.runGrowthReportTask(brandId, task.id);
     }, 0);
+    return {
+      ...workspace,
+      latestTask: task,
+    };
+  }
+
+  async getOpportunityInsightWorkspace(brandId: string): Promise<OpportunityInsightWorkspace> {
+    const collectWorkspace = (assets: AssetRecord[]) =>
+      assets
+        .map((item) => this.mapOpportunityInsightAsset(item))
+        .filter((item): item is OpportunityInsightReportRecord => Boolean(item))
+        .sort((left, right) => right.generatedAt.localeCompare(left.generatedAt));
+
+    if (await this.prismaService.canUseDatabase()) {
+      await this.ensureBrandExistsInDatabase(brandId);
+      const assets = await this.prismaService.businessAsset.findMany({
+        where: {
+          brandId,
+          category: AssetCategory.GENERATED_REPORT,
+        },
+        orderBy: { createdAt: "desc" },
+      });
+      const reports = collectWorkspace(
+        assets.map((item) => ({
+          id: item.id,
+          brandId: item.brandId,
+          category: "GENERATED_REPORT",
+          title: item.title,
+          description: item.description ?? "",
+          sourceName: "系统生成",
+          fileUrl: item.fileUrl ?? undefined,
+          metadataJson: this.asMeta(item.metadataJson),
+        })),
+      );
+      const latestTaskRow = await this.prismaService.task.findFirst({
+        where: {
+          brandId,
+          taskType: {
+            in: [...OPPORTUNITY_INSIGHT_TASK_TYPES],
+          },
+        },
+        orderBy: { createdAt: "desc" },
+      });
+      const latestTask = latestTaskRow
+        ? await this.normalizeLatestOpportunityInsightTask(brandId, this.mapOpportunityInsightTask(latestTaskRow))
+        : undefined;
+      return this.buildOpportunityInsightWorkspace(reports, latestTask);
+    }
+
+    this.ensureBrandExistsInMock(brandId);
+    const reports = collectWorkspace(
+      database.assets.filter((item) => item.brandId === brandId && item.category === "GENERATED_REPORT"),
+    );
+    const latestTaskRow = [...database.tasks]
+      .filter((item) => item.brandId === brandId && OPPORTUNITY_INSIGHT_TASK_TYPES.includes(item.taskType as typeof OPPORTUNITY_INSIGHT_TASK_TYPES[number]))
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+    const latestTask = latestTaskRow
+      ? await this.normalizeLatestOpportunityInsightTask(brandId, this.mapOpportunityInsightTask(latestTaskRow))
+      : undefined;
+    return this.buildOpportunityInsightWorkspace(reports, latestTask);
+  }
+
+  async generateOpportunityInsightStepOne(brandId: string) {
+    const workspace = await this.getOpportunityInsightWorkspace(brandId);
+    const runningTask = workspace.latestTask;
+    if (runningTask && (runningTask.taskStatus === "QUEUED" || runningTask.taskStatus === "RUNNING")) {
+      return workspace;
+    }
+
+    const task = await this.createOpportunityInsightStepOneTask(brandId);
+    setTimeout(() => {
+      void this.runOpportunityInsightStepOneTask(brandId, task.id);
+    }, 0);
+
+    return {
+      ...workspace,
+      latestTask: task,
+    };
+  }
+
+  async generateOpportunityInsightStepTwo(brandId: string) {
+    const workspace = await this.getOpportunityInsightWorkspace(brandId);
+    const runningTask = workspace.latestTask;
+    if (runningTask && (runningTask.taskStatus === "QUEUED" || runningTask.taskStatus === "RUNNING")) {
+      return workspace;
+    }
+    if (!workspace.brandAccountAnalysis || !workspace.competitorAccountAnalysis) {
+      throw new ServiceUnavailableException("请先完成机会洞察第 1 步，并确认品牌账号分析与竞品账号分析后再继续。");
+    }
+    if (workspace.commentInsightAnalysis) {
+      return workspace;
+    }
+
+    const task = await this.createOpportunityInsightStepTwoTask(brandId);
+    setTimeout(() => {
+      void this.runOpportunityInsightStepTwoTask(brandId, task.id);
+    }, 0);
+
+    return {
+      ...workspace,
+      latestTask: task,
+    };
+  }
+
+  async generateOpportunityInsightStepThree(brandId: string) {
+    const workspace = await this.getOpportunityInsightWorkspace(brandId);
+    const runningTask = workspace.latestTask;
+    if (runningTask && (runningTask.taskStatus === "QUEUED" || runningTask.taskStatus === "RUNNING")) {
+      return workspace;
+    }
+    if (!workspace.brandAccountAnalysis || !workspace.competitorAccountAnalysis) {
+      throw new ServiceUnavailableException("请先完成机会洞察第 1 步，并确认品牌账号分析与竞品账号分析后再继续。");
+    }
+    if (!workspace.commentInsightAnalysis) {
+      throw new ServiceUnavailableException("请先完成机会洞察第 2 步评论洞察分析后，再生成机会洞察总报告。");
+    }
+
+    const task = await this.createOpportunityInsightStepThreeTask(brandId);
+    setTimeout(() => {
+      void this.runOpportunityInsightStepThreeTask(brandId, task.id);
+    }, 0);
+
     return {
       ...workspace,
       latestTask: task,
@@ -2703,6 +2883,45 @@ export class ReportsService {
     };
   }
 
+  private async normalizeLatestOpportunityInsightTask(
+    brandId: string,
+    task: OpportunityInsightTaskRecord,
+  ): Promise<OpportunityInsightTaskRecord> {
+    if (task.taskStatus !== "QUEUED" && task.taskStatus !== "RUNNING") {
+      return task;
+    }
+
+    const referenceTime = task.updatedAt || task.startedAt || task.createdAt;
+    const referenceMs = Date.parse(referenceTime);
+    if (!Number.isFinite(referenceMs)) {
+      return task;
+    }
+    if (Date.now() - referenceMs <= OPPORTUNITY_INSIGHT_TASK_TIMEOUT_MS) {
+      return task;
+    }
+
+    const finishedAt = new Date().toISOString();
+    const errorMessage = task.taskType === "OPPORTUNITY_INSIGHT_STEP_THREE"
+      ? "机会洞察第 3 步生成超时，任务已自动结束，请重新点击生成总报告。"
+      : task.taskType === "OPPORTUNITY_INSIGHT_STEP_TWO"
+        ? "机会洞察第 2 步生成超时，任务已自动结束，请重新点击开始第 2 步。"
+        : "机会洞察第 1 步生成超时，任务已自动结束，请重新点击立刻机会洞察。";
+    await this.updateOpportunityInsightTaskStatus(brandId, task.id, {
+      taskStatus: "FAILED",
+      startedAt: task.startedAt,
+      finishedAt,
+      errorMessage,
+    });
+
+    return {
+      ...task,
+      taskStatus: "FAILED",
+      finishedAt,
+      updatedAt: finishedAt,
+      errorMessage,
+    };
+  }
+
   private async normalizeLatestAnnualMarketingPlanTask(
     brandId: string,
     task: AnnualMarketingPlanTaskRecord,
@@ -3073,6 +3292,217 @@ export class ReportsService {
     };
     database.tasks.unshift(task);
     return this.mapVisualGrowthReportTask(task);
+  }
+
+  private async createOpportunityInsightStepOneTask(brandId: string) {
+    const now = new Date().toISOString();
+    const archive = await this.brandsService.getArchive(brandId);
+    const xiaohongshuWorkspace = await this.collectorsService.getXiaohongshuWorkspace(brandId);
+    const douyinWorkspace = await this.collectorsService.getDouyinWorkspace(brandId);
+    const brandSettings = await this.loadOpportunityInsightAccountGenerationSettings(
+      brandId,
+      "opportunity-insight-brand-account-analysis",
+      "prompt_opportunity_insight_brand_account",
+    );
+    const competitorSettings = await this.loadOpportunityInsightAccountGenerationSettings(
+      brandId,
+      "opportunity-insight-competitor-account-analysis",
+      "prompt_opportunity_insight_competitor_account",
+    );
+    const modelName =
+      this.parseDelimitedModels(brandSettings.modelName)[0]
+      || this.parseDelimitedModels(competitorSettings.modelName)[0]
+      || brandSettings.preferredModelName
+      || competitorSettings.preferredModelName
+      || "kimi-k2.6";
+    const inputMeta = {
+      step: 1,
+      brandAccountCount: xiaohongshuWorkspace.brandAccounts.length + douyinWorkspace.brandAccounts.length,
+      competitorAccountCount: xiaohongshuWorkspace.competitorAccounts.length + douyinWorkspace.competitorAccounts.length,
+      brandNoteCount: xiaohongshuWorkspace.brandNotes.length,
+      benchmarkNoteCount: xiaohongshuWorkspace.benchmarkNotes.length,
+      douyinBrandWorkCount: douyinWorkspace.brandWorks.length,
+      douyinCompetitorWorkCount: douyinWorkspace.competitorWorks.length,
+      productCount: archive.products.length,
+    };
+
+    if (await this.prismaService.canUseDatabase()) {
+      const brand = await this.prismaService.brand.findUnique({
+        where: { id: brandId },
+        select: { id: true, ownerUserId: true, brandName: true },
+      });
+      if (!brand) {
+        throw new NotFoundException("品牌不存在");
+      }
+
+      const task = await this.prismaService.task.create({
+        data: {
+          userId: brand.ownerUserId,
+          brandId,
+          taskType: "OPPORTUNITY_INSIGHT_STEP_ONE",
+          taskTitle: `生成机会洞察第1步：${brand.brandName}`,
+          taskStatus: TaskStatus.QUEUED,
+          modelName,
+          pointsCost: 520,
+          inputJson: inputMeta as Prisma.InputJsonValue,
+        },
+      });
+
+      return this.mapOpportunityInsightTask(task);
+    }
+
+    const brand = database.brands.find((item) => item.id === brandId);
+    if (!brand) {
+      throw new NotFoundException("品牌不存在");
+    }
+
+    const task = {
+      id: createId("tsk"),
+      userId: brand.ownerUserId,
+      brandId,
+      taskType: "OPPORTUNITY_INSIGHT_STEP_ONE",
+      taskTitle: `生成机会洞察第1步：${brand.brandName}`,
+      taskStatus: "QUEUED" as const,
+      modelName,
+      pointsCost: 520,
+      inputJson: inputMeta,
+      createdAt: now,
+      updatedAt: now,
+    };
+    database.tasks.unshift(task);
+    return this.mapOpportunityInsightTask(task);
+  }
+
+  private async createOpportunityInsightStepTwoTask(brandId: string) {
+    const now = new Date().toISOString();
+    const archive = await this.brandsService.getArchive(brandId);
+    const douyinWorkspace = await this.collectorsService.getDouyinWorkspace(brandId);
+    const settings = await this.loadOpportunityInsightNarrativeGenerationSettings(
+      brandId,
+      "opportunity-insight-comment-analysis",
+      "prompt_opportunity_insight_comment",
+    );
+    const modelName = this.parseDelimitedModels(settings.modelName)[0] || settings.preferredModelName || "gpt-5.5";
+    const inputMeta = {
+      step: 2,
+      stepKey: "commentInsightAnalysis",
+      commentCount: douyinWorkspace.commentData.length,
+      productCount: archive.products.length,
+    };
+
+    if (await this.prismaService.canUseDatabase()) {
+      const brand = await this.prismaService.brand.findUnique({
+        where: { id: brandId },
+        select: { id: true, ownerUserId: true, brandName: true },
+      });
+      if (!brand) {
+        throw new NotFoundException("品牌不存在");
+      }
+
+      const task = await this.prismaService.task.create({
+        data: {
+          userId: brand.ownerUserId,
+          brandId,
+          taskType: "OPPORTUNITY_INSIGHT_STEP_TWO",
+          taskTitle: `生成机会洞察第2步：${brand.brandName}`,
+          taskStatus: TaskStatus.QUEUED,
+          modelName,
+          pointsCost: 360,
+          inputJson: inputMeta as Prisma.InputJsonValue,
+        },
+      });
+
+      return this.mapOpportunityInsightTask(task);
+    }
+
+    const brand = database.brands.find((item) => item.id === brandId);
+    if (!brand) {
+      throw new NotFoundException("品牌不存在");
+    }
+
+    const task = {
+      id: createId("tsk"),
+      userId: brand.ownerUserId,
+      brandId,
+      taskType: "OPPORTUNITY_INSIGHT_STEP_TWO",
+      taskTitle: `生成机会洞察第2步：${brand.brandName}`,
+      taskStatus: "QUEUED" as const,
+      modelName,
+      pointsCost: 360,
+      inputJson: inputMeta,
+      createdAt: now,
+      updatedAt: now,
+    };
+    database.tasks.unshift(task);
+    return this.mapOpportunityInsightTask(task);
+  }
+
+  private async createOpportunityInsightStepThreeTask(brandId: string) {
+    const now = new Date().toISOString();
+    const archive = await this.brandsService.getArchive(brandId);
+    const workspace = await this.getOpportunityInsightWorkspace(brandId);
+    const settings = await this.loadOpportunityInsightNarrativeGenerationSettings(
+      brandId,
+      "opportunity-insight-final-report",
+      "prompt_opportunity_insight_final_report",
+    );
+    const modelName = this.parseDelimitedModels(settings.modelName)[0] || settings.preferredModelName || "gpt-5.5";
+    const inputMeta = {
+      step: 3,
+      stepKey: "finalOpportunityReport",
+      productCount: archive.products.length,
+      sourceReportIds: [
+        workspace.brandAccountAnalysis?.id,
+        workspace.competitorAccountAnalysis?.id,
+        workspace.commentInsightAnalysis?.id,
+      ].filter((item): item is string => Boolean(item)),
+    };
+
+    if (await this.prismaService.canUseDatabase()) {
+      const brand = await this.prismaService.brand.findUnique({
+        where: { id: brandId },
+        select: { id: true, ownerUserId: true, brandName: true },
+      });
+      if (!brand) {
+        throw new NotFoundException("品牌不存在");
+      }
+
+      const task = await this.prismaService.task.create({
+        data: {
+          userId: brand.ownerUserId,
+          brandId,
+          taskType: "OPPORTUNITY_INSIGHT_STEP_THREE",
+          taskTitle: `生成机会洞察第3步：${brand.brandName}`,
+          taskStatus: TaskStatus.QUEUED,
+          modelName,
+          pointsCost: 420,
+          inputJson: inputMeta as Prisma.InputJsonValue,
+        },
+      });
+
+      return this.mapOpportunityInsightTask(task);
+    }
+
+    const brand = database.brands.find((item) => item.id === brandId);
+    if (!brand) {
+      throw new NotFoundException("品牌不存在");
+    }
+
+    const task = {
+      id: createId("tsk"),
+      userId: brand.ownerUserId,
+      brandId,
+      taskType: "OPPORTUNITY_INSIGHT_STEP_THREE",
+      taskTitle: `生成机会洞察第3步：${brand.brandName}`,
+      taskStatus: "QUEUED" as const,
+      modelName,
+      pointsCost: 420,
+      inputJson: inputMeta,
+      createdAt: now,
+      updatedAt: now,
+    };
+    database.tasks.unshift(task);
+    return this.mapOpportunityInsightTask(task);
   }
 
   private async createAnnualMarketingPlanTask(brandId: string, sourceReport: GrowthReportRecord) {
@@ -3544,6 +3974,278 @@ export class ReportsService {
         startedAt,
         finishedAt: new Date().toISOString(),
         errorMessage: message,
+      });
+    }
+  }
+
+  private async runOpportunityInsightStepOneTask(brandId: string, taskId: string) {
+    const startedAt = new Date().toISOString();
+    let currentPhaseStatus = this.buildOpportunityInsightPhaseStatus("PREPARING");
+    const applyRunningStatus = async () => {
+      await this.updateOpportunityInsightTaskStatus(brandId, taskId, {
+        taskStatus: "RUNNING",
+        startedAt,
+        errorMessage: "",
+        outputJson: { ...currentPhaseStatus },
+      });
+    };
+    await applyRunningStatus();
+    const heartbeat = setInterval(() => {
+      void applyRunningStatus();
+    }, 20000);
+
+    try {
+      const archive = await this.brandsService.getArchive(brandId);
+      const xiaohongshuWorkspace = await this.collectorsService.getXiaohongshuWorkspace(brandId);
+      const douyinWorkspace = await this.collectorsService.getDouyinWorkspace(brandId);
+
+      currentPhaseStatus = this.buildOpportunityInsightPhaseStatus("BRAND_ACCOUNT_ANALYSIS");
+      await applyRunningStatus();
+      const brandAccountAnalysis = await this.buildOpportunityInsightAccountReport({
+        brandId,
+        generatedAt: startedAt,
+        archive,
+        xiaohongshuWorkspace,
+        douyinWorkspace,
+        stepKey: "brandAccountAnalysis",
+        onAttemptUpdate: async (detailText, modelName) => {
+          currentPhaseStatus = this.buildOpportunityInsightPhaseStatus("BRAND_ACCOUNT_ANALYSIS", {
+            detailText,
+            modelName,
+          });
+          await applyRunningStatus();
+        },
+      });
+
+      currentPhaseStatus = this.buildOpportunityInsightPhaseStatus("COMPETITOR_ACCOUNT_ANALYSIS");
+      await applyRunningStatus();
+      const competitorAccountAnalysis = await this.buildOpportunityInsightAccountReport({
+        brandId,
+        generatedAt: startedAt,
+        archive,
+        xiaohongshuWorkspace,
+        douyinWorkspace,
+        stepKey: "competitorAccountAnalysis",
+        onAttemptUpdate: async (detailText, modelName) => {
+          currentPhaseStatus = this.buildOpportunityInsightPhaseStatus("COMPETITOR_ACCOUNT_ANALYSIS", {
+            detailText,
+            modelName,
+          });
+          await applyRunningStatus();
+        },
+      });
+
+      currentPhaseStatus = this.buildOpportunityInsightPhaseStatus("PERSISTING");
+      await applyRunningStatus();
+      clearInterval(heartbeat);
+      const persistedIds = await Promise.all([
+        this.persistOpportunityInsightResult(brandId, taskId, "brandAccountAnalysis", brandAccountAnalysis, startedAt),
+        this.persistOpportunityInsightResult(brandId, taskId, "competitorAccountAnalysis", competitorAccountAnalysis, startedAt),
+      ]);
+      await this.updateOpportunityInsightTaskStatus(brandId, taskId, {
+        taskStatus: "SUCCESS",
+        startedAt,
+        finishedAt: new Date().toISOString(),
+        errorMessage: "",
+        outputJson: {
+          ...this.buildOpportunityInsightPhaseStatus("DONE", {
+            modelName: competitorAccountAnalysis.modelName || brandAccountAnalysis.modelName,
+          }),
+          generatedReportIds: persistedIds,
+          generatedSteps: ["brandAccountAnalysis", "competitorAccountAnalysis"],
+          brandAccountAnalysisTitle: brandAccountAnalysis.title,
+          competitorAccountAnalysisTitle: competitorAccountAnalysis.title,
+        },
+      });
+    } catch (error) {
+      clearInterval(heartbeat);
+      const message = error instanceof Error ? error.message : "机会洞察第1步生成失败";
+      await this.updateOpportunityInsightTaskStatus(brandId, taskId, {
+        taskStatus: "FAILED",
+        startedAt,
+        finishedAt: new Date().toISOString(),
+        errorMessage: message,
+      });
+    }
+  }
+
+  private async runOpportunityInsightStepTwoTask(brandId: string, taskId: string) {
+    const startedAt = new Date().toISOString();
+    let currentStatus: Record<string, unknown> = {
+      phase: "COMMENT_INSIGHT_ANALYSIS",
+      phaseText: "正在生成评论洞察分析",
+      phaseIndex: 1,
+      phaseTotal: 2,
+      stepKey: "commentInsightAnalysis",
+    };
+    const applyRunningStatus = async () => {
+      await this.updateOpportunityInsightTaskStatus(brandId, taskId, {
+        taskStatus: "RUNNING",
+        startedAt,
+        errorMessage: "",
+        outputJson: { ...currentStatus },
+      });
+    };
+    await applyRunningStatus();
+    const heartbeat = setInterval(() => {
+      void applyRunningStatus();
+    }, 20000);
+
+    try {
+      const archive = await this.brandsService.getArchive(brandId);
+      const douyinWorkspace = await this.collectorsService.getDouyinWorkspace(brandId);
+      const report = await this.buildOpportunityInsightCommentReport({
+        brandId,
+        archive,
+        douyinWorkspace,
+        generatedAt: startedAt,
+        onAttemptUpdate: async (detailText, modelName) => {
+          currentStatus = {
+            ...currentStatus,
+            phaseText: "正在生成评论洞察分析",
+            modelName,
+            detailText,
+          };
+          await applyRunningStatus();
+        },
+      });
+
+      currentStatus = {
+        phase: "PERSISTING",
+        phaseText: "正在保存评论洞察分析结果",
+        phaseIndex: 2,
+        phaseTotal: 2,
+        stepKey: "commentInsightAnalysis",
+      };
+      await applyRunningStatus();
+      clearInterval(heartbeat);
+      const reportId = await this.persistOpportunityInsightResult(
+        brandId,
+        taskId,
+        "commentInsightAnalysis",
+        report,
+        startedAt,
+      );
+      await this.updateOpportunityInsightTaskStatus(brandId, taskId, {
+        taskStatus: "SUCCESS",
+        startedAt,
+        finishedAt: new Date().toISOString(),
+        errorMessage: "",
+        outputJson: {
+          phase: "DONE",
+          phaseText: "评论洞察分析已生成完成",
+          phaseIndex: 2,
+          phaseTotal: 2,
+          generatedReportIds: [reportId],
+          generatedSteps: ["commentInsightAnalysis"],
+          stepKey: "commentInsightAnalysis",
+          modelName: report.modelName,
+        },
+      });
+    } catch (error) {
+      clearInterval(heartbeat);
+      const message = error instanceof Error ? error.message : "机会洞察第2步生成失败";
+      await this.updateOpportunityInsightTaskStatus(brandId, taskId, {
+        taskStatus: "FAILED",
+        startedAt,
+        finishedAt: new Date().toISOString(),
+        errorMessage: message,
+        outputJson: {
+          ...currentStatus,
+          errorMessage: message,
+        },
+      });
+    }
+  }
+
+  private async runOpportunityInsightStepThreeTask(brandId: string, taskId: string) {
+    const startedAt = new Date().toISOString();
+    let currentStatus: Record<string, unknown> = {
+      phase: "FINAL_OPPORTUNITY_REPORT",
+      phaseText: "正在生成机会洞察总报告",
+      phaseIndex: 1,
+      phaseTotal: 2,
+      stepKey: "finalOpportunityReport",
+    };
+    const applyRunningStatus = async () => {
+      await this.updateOpportunityInsightTaskStatus(brandId, taskId, {
+        taskStatus: "RUNNING",
+        startedAt,
+        errorMessage: "",
+        outputJson: { ...currentStatus },
+      });
+    };
+    await applyRunningStatus();
+    const heartbeat = setInterval(() => {
+      void applyRunningStatus();
+    }, 20000);
+
+    try {
+      const archive = await this.brandsService.getArchive(brandId);
+      const workspace = await this.getOpportunityInsightWorkspace(brandId);
+      if (!workspace.brandAccountAnalysis || !workspace.competitorAccountAnalysis || !workspace.commentInsightAnalysis) {
+        throw new ServiceUnavailableException("机会洞察总报告生成失败：缺少前序分析结果。");
+      }
+      const report = await this.buildOpportunityInsightFinalReport({
+        brandId,
+        archive,
+        workspace,
+        generatedAt: startedAt,
+        onAttemptUpdate: async (detailText, modelName) => {
+          currentStatus = {
+            ...currentStatus,
+            phaseText: "正在生成机会洞察总报告",
+            modelName,
+            detailText,
+          };
+          await applyRunningStatus();
+        },
+      });
+
+      currentStatus = {
+        phase: "PERSISTING",
+        phaseText: "正在保存机会洞察总报告",
+        phaseIndex: 2,
+        phaseTotal: 2,
+        stepKey: "finalOpportunityReport",
+      };
+      await applyRunningStatus();
+      clearInterval(heartbeat);
+      const reportId = await this.persistOpportunityInsightResult(
+        brandId,
+        taskId,
+        "finalOpportunityReport",
+        report,
+        startedAt,
+      );
+      await this.updateOpportunityInsightTaskStatus(brandId, taskId, {
+        taskStatus: "SUCCESS",
+        startedAt,
+        finishedAt: new Date().toISOString(),
+        errorMessage: "",
+        outputJson: {
+          phase: "DONE",
+          phaseText: "机会洞察总报告已生成完成",
+          phaseIndex: 2,
+          phaseTotal: 2,
+          generatedReportIds: [reportId],
+          generatedSteps: ["finalOpportunityReport"],
+          stepKey: "finalOpportunityReport",
+          modelName: report.modelName,
+        },
+      });
+    } catch (error) {
+      clearInterval(heartbeat);
+      const message = error instanceof Error ? error.message : "机会洞察第3步生成失败";
+      await this.updateOpportunityInsightTaskStatus(brandId, taskId, {
+        taskStatus: "FAILED",
+        startedAt,
+        finishedAt: new Date().toISOString(),
+        errorMessage: message,
+        outputJson: {
+          ...currentStatus,
+          errorMessage: message,
+        },
       });
     }
   }
@@ -4410,6 +5112,170 @@ export class ReportsService {
     if (patch.outputJson) {
       task.outputJson = patch.outputJson;
     }
+  }
+
+  private async updateOpportunityInsightTaskStatus(
+    brandId: string,
+    taskId: string,
+    patch: {
+      taskStatus: OpportunityInsightTaskRecord["taskStatus"];
+      startedAt?: string;
+      finishedAt?: string;
+      errorMessage?: string;
+      outputJson?: Record<string, unknown>;
+    },
+  ) {
+    if (await this.prismaService.canUseDatabase()) {
+      await this.ensureBrandExistsInDatabase(brandId);
+      await this.prismaService.task.update({
+        where: { id: taskId },
+        data: {
+          taskStatus: patch.taskStatus as TaskStatus,
+          startedAt: patch.startedAt ? new Date(patch.startedAt) : undefined,
+          finishedAt: patch.finishedAt ? new Date(patch.finishedAt) : undefined,
+          errorMessage: patch.errorMessage !== undefined ? patch.errorMessage || null : undefined,
+          outputJson: patch.outputJson ? patch.outputJson as Prisma.InputJsonValue : undefined,
+        },
+      });
+      return;
+    }
+
+    const task = database.tasks.find((item) => item.id === taskId && item.brandId === brandId);
+    if (!task) {
+      return;
+    }
+
+    task.taskStatus = patch.taskStatus;
+    task.updatedAt = new Date().toISOString();
+    if (patch.startedAt !== undefined) {
+      task.startedAt = patch.startedAt;
+    }
+    if (patch.finishedAt !== undefined) {
+      task.finishedAt = patch.finishedAt;
+    }
+    if (patch.errorMessage !== undefined) {
+      task.errorMessage = patch.errorMessage || undefined;
+    }
+    if (patch.outputJson) {
+      task.outputJson = patch.outputJson;
+    }
+  }
+
+  private async persistOpportunityInsightResult(
+    brandId: string,
+    taskId: string,
+    stepKey: OpportunityInsightStepKey,
+    report: OpportunityInsightAccountModelResult & { htmlBody: string; htmlDocument: string },
+    generatedAt: string,
+  ) {
+    const fileName = this.buildOpportunityInsightFileName(taskId, stepKey);
+    const titleMap: Record<OpportunityInsightStepKey, string> = {
+      brandAccountAnalysis: "品牌账号分析",
+      competitorAccountAnalysis: "竞品账号分析",
+      commentInsightAnalysis: "评论洞察分析",
+      finalOpportunityReport: "机会洞察总报告",
+    };
+
+    if (await this.prismaService.canUseDatabase()) {
+      const brand = await this.prismaService.brand.findUnique({
+        where: { id: brandId },
+        select: { ownerUserId: true },
+      });
+      if (!brand) {
+        throw new NotFoundException("品牌不存在");
+      }
+
+      const storageKey = this.buildReportAssetStorageKey(brandId, fileName);
+      const sourceUrl = this.buildReportAssetUrl(brandId, fileName);
+      await this.persistReportHtml(storageKey, report.htmlDocument);
+      const media = await this.prismaService.mediaAsset.create({
+        data: {
+          userId: brand.ownerUserId,
+          brandId,
+          taskId,
+          title: report.title,
+          mediaType: MediaType.HTML,
+          storageKey,
+          sourceUrl,
+          mimeType: "text/html",
+          metadataJson: {
+            kind: "OPPORTUNITY_INSIGHT_REPORT",
+            generatedAt,
+            summary: report.summary,
+            stepKey,
+          } as Prisma.InputJsonValue,
+        },
+      });
+      const asset = await this.prismaService.businessAsset.create({
+        data: {
+          brandId,
+          category: AssetCategory.GENERATED_REPORT,
+          title: report.title,
+          description: report.summary,
+          fileUrl: media.sourceUrl,
+          metadataJson: {
+            kind: "OPPORTUNITY_INSIGHT_REPORT",
+            generatedAt,
+            taskId,
+            mediaId: media.id,
+            stepKey,
+            summary: report.summary,
+            htmlBody: report.htmlBody,
+            htmlDocument: report.htmlDocument,
+            modelName: report.modelName,
+            stepLabel: titleMap[stepKey],
+          } as Prisma.InputJsonValue,
+        },
+      });
+      return asset.id;
+    }
+
+    const brand = database.brands.find((item) => item.id === brandId);
+    if (!brand) {
+      throw new NotFoundException("品牌不存在");
+    }
+
+    const mediaId = createId("med");
+    const storageKey = this.buildReportAssetStorageKey(brandId, fileName);
+    const sourceUrl = this.buildReportAssetUrl(brandId, fileName);
+    await this.persistReportHtml(storageKey, report.htmlDocument);
+    database.media.unshift({
+      id: mediaId,
+      userId: brand.ownerUserId,
+      brandId,
+      taskId,
+      title: report.title,
+      mediaType: "HTML",
+      sourceUrl,
+      storageKey,
+      mimeType: "text/html",
+      createdAt: generatedAt,
+      updatedAt: generatedAt,
+    });
+
+    const assetId = createId("ast");
+    database.assets.unshift({
+      id: assetId,
+      brandId,
+      category: "GENERATED_REPORT",
+      title: report.title,
+      description: report.summary,
+      sourceName: "系统生成",
+      fileUrl: sourceUrl,
+      metadataJson: {
+        kind: "OPPORTUNITY_INSIGHT_REPORT",
+        generatedAt,
+        taskId,
+        mediaId,
+        stepKey,
+        summary: report.summary,
+        htmlBody: report.htmlBody,
+        htmlDocument: report.htmlDocument,
+        modelName: report.modelName,
+        stepLabel: titleMap[stepKey],
+      },
+    });
+    return assetId;
   }
 
   private async persistXiaohongshuMarketingPlanResult(
@@ -5734,6 +6600,167 @@ export class ReportsService {
     };
   }
 
+  private async buildOpportunityInsightAccountReport(params: {
+    brandId: string;
+    archive: Awaited<ReturnType<BrandsService["getArchive"]>>;
+    xiaohongshuWorkspace: Awaited<ReturnType<CollectorsService["getXiaohongshuWorkspace"]>>;
+    douyinWorkspace: Awaited<ReturnType<CollectorsService["getDouyinWorkspace"]>>;
+    generatedAt: string;
+    stepKey: "brandAccountAnalysis" | "competitorAccountAnalysis";
+    onAttemptUpdate?: (detailText: string, modelName: string) => Promise<void> | void;
+  }) {
+    const settings = await this.loadOpportunityInsightAccountGenerationSettings(
+      params.brandId,
+      params.stepKey === "brandAccountAnalysis"
+        ? "opportunity-insight-brand-account-analysis"
+        : "opportunity-insight-competitor-account-analysis",
+      params.stepKey === "brandAccountAnalysis"
+        ? "prompt_opportunity_insight_brand_account"
+        : "prompt_opportunity_insight_competitor_account",
+    );
+    const inputPayload = this.buildOpportunityInsightStepOneInput(
+      params.archive,
+      params.xiaohongshuWorkspace,
+      params.douyinWorkspace,
+      params.generatedAt,
+      params.stepKey,
+    );
+    const modelResult = await this.generateOpportunityInsightMarkdownByModel(
+      settings.promptContent,
+      inputPayload,
+      settings,
+      params.stepKey === "brandAccountAnalysis" ? "品牌账号分析" : "竞品账号分析",
+      {
+        onAttemptUpdate: params.onAttemptUpdate,
+      },
+    );
+    const htmlBody = this.renderMarkdownToHtml(modelResult.reportMarkdown);
+    const htmlDocument = this.buildVisualReportDocument(modelResult.title, htmlBody);
+    return {
+      ...modelResult,
+      htmlBody,
+      htmlDocument,
+    };
+  }
+
+  private async buildOpportunityInsightCommentReport(params: {
+    brandId: string;
+    archive: Awaited<ReturnType<BrandsService["getArchive"]>>;
+    douyinWorkspace: Awaited<ReturnType<CollectorsService["getDouyinWorkspace"]>>;
+    generatedAt: string;
+    onAttemptUpdate?: (detailText: string, modelName: string) => Promise<void> | void;
+  }) {
+    const settings = await this.loadOpportunityInsightNarrativeGenerationSettings(
+      params.brandId,
+      "opportunity-insight-comment-analysis",
+      "prompt_opportunity_insight_comment",
+    );
+    const inputPayload = this.buildOpportunityInsightStepTwoInput(
+      params.archive,
+      params.douyinWorkspace,
+      params.generatedAt,
+    );
+    const knowledgeContext = await this.buildOpportunityInsightCommentKnowledgeContext(
+      params.brandId,
+      settings,
+      inputPayload,
+    );
+    if (!params.douyinWorkspace.commentData.length && !knowledgeContext.trim()) {
+      const brandName = params.archive.brand.brandName || "当前品牌";
+      const reminderMarkdown = [
+        `# ${brandName}评论洞察分析`,
+        "",
+        "## 当前资料状态",
+        "",
+        "需要在搜集数据-抖音-评论数据，采集评论数据；或在品牌资料库-企业知识库上传用户评论数据。",
+        "",
+        "## 当前结论",
+        "",
+        "- 当前抖音评论数据为空。",
+        "- 企业知识库中也未召回到可用的评论相关内容。",
+        "- 本次不报错中断，先返回提醒，等待补充资料后再重新生成评论洞察分析。",
+      ].join("\n");
+      const htmlBody = this.renderMarkdownToHtml(reminderMarkdown);
+      return {
+        title: `${brandName}评论洞察分析`,
+        summary: "当前缺少评论数据，请先采集抖音评论或补充企业知识库中的评论资料。",
+        reportMarkdown: reminderMarkdown,
+        modelName: "NO_DATA_FALLBACK",
+        htmlBody,
+        htmlDocument: this.buildVisualReportDocument(`${brandName}评论洞察分析`, htmlBody),
+      };
+    }
+
+    const modelResult = await this.generateOpportunityInsightNarrativeMarkdownByModel(
+      settings.promptContent,
+      inputPayload,
+      settings,
+      "评论洞察分析",
+      {
+        knowledgeContext,
+        onAttemptUpdate: params.onAttemptUpdate,
+        runtimeRequirements: [
+          "报告必须重点提炼用户痛点、真实需求、购买障碍、使用场景、情绪倾向与高频原话。",
+          "优先引用评论原文、评论互动、回复数和用户表达中的典型案例。",
+          "如果评论样本偏少，必须明确标注样本不足，不得虚构评论。",
+        ],
+      },
+    );
+    const htmlBody = this.renderMarkdownToHtml(modelResult.reportMarkdown);
+    const htmlDocument = this.buildVisualReportDocument(modelResult.title, htmlBody);
+    return {
+      ...modelResult,
+      htmlBody,
+      htmlDocument,
+    };
+  }
+
+  private async buildOpportunityInsightFinalReport(params: {
+    brandId: string;
+    archive: Awaited<ReturnType<BrandsService["getArchive"]>>;
+    workspace: OpportunityInsightWorkspace;
+    generatedAt: string;
+    onAttemptUpdate?: (detailText: string, modelName: string) => Promise<void> | void;
+  }) {
+    const settings = await this.loadOpportunityInsightNarrativeGenerationSettings(
+      params.brandId,
+      "opportunity-insight-final-report",
+      "prompt_opportunity_insight_final_report",
+    );
+    const inputPayload = this.buildOpportunityInsightStepThreeInput(
+      params.archive,
+      params.workspace,
+      params.generatedAt,
+    );
+    const knowledgeContext = await this.buildOpportunityInsightFinalKnowledgeContext(
+      params.brandId,
+      settings,
+      inputPayload,
+    );
+    const modelResult = await this.generateOpportunityInsightNarrativeMarkdownByModel(
+      settings.promptContent,
+      inputPayload,
+      settings,
+      "机会洞察总报告",
+      {
+        knowledgeContext,
+        onAttemptUpdate: params.onAttemptUpdate,
+        runtimeRequirements: [
+          "报告必须围绕目标用户痛点及需求、品牌产品的差异化解法、典型使用场景、机会在哪里、如何用产品组合拳切入市场展开。",
+          "所有关键判断必须有前序报告、评论样本、作品/笔记数据或品牌资料作为依据。",
+          "必须给出品牌如何从接触、接受到离不开的典型场景演进。",
+        ],
+      },
+    );
+    const htmlBody = this.renderMarkdownToHtml(modelResult.reportMarkdown);
+    const htmlDocument = this.buildVisualReportDocument(modelResult.title, htmlBody);
+    return {
+      ...modelResult,
+      htmlBody,
+      htmlDocument,
+    };
+  }
+
   private async buildDouyinHotTopicCandidates(params: {
     brandId: string;
     archive: Awaited<ReturnType<BrandsService["getArchive"]>>;
@@ -6076,6 +7103,34 @@ export class ReportsService {
     );
   }
 
+  private async buildOpportunityInsightCommentKnowledgeContext(
+    brandId: string,
+    settings: ModelGenerationSettings,
+    inputPayload: Record<string, unknown>,
+  ) {
+    return this.buildExecutionKnowledgeContext(
+      brandId,
+      settings.knowledgeScope,
+      this.buildOpportunityInsightCommentKnowledgeQuery(inputPayload),
+      "以下是系统从企业知识库召回的评论/用户反馈补充上下文，请一并作为评论洞察分析依据：",
+      "机会洞察-评论洞察分析",
+    );
+  }
+
+  private async buildOpportunityInsightFinalKnowledgeContext(
+    brandId: string,
+    settings: ModelGenerationSettings,
+    inputPayload: Record<string, unknown>,
+  ) {
+    return this.buildExecutionKnowledgeContext(
+      brandId,
+      settings.knowledgeScope,
+      this.buildOpportunityInsightFinalKnowledgeQuery(inputPayload),
+      "以下是系统从企业知识库召回的补充上下文，请一并作为机会洞察总报告依据：",
+      "机会洞察-总报告",
+    );
+  }
+
   private async buildXiaohongshuMarketingPlanKnowledgeContext(
     settings: ModelGenerationSettings,
     inputPayload: Record<string, unknown>,
@@ -6362,6 +7417,40 @@ export class ReportsService {
     ]
       .filter((item) => item.trim())
       .join("；");
+  }
+
+  private buildOpportunityInsightCommentKnowledgeQuery(inputPayload: Record<string, unknown>) {
+    const brandArchive = this.readNestedRecord(inputPayload, ["inputScope", "brandArchive"]);
+    const brandBackground = this.readNestedRecord(brandArchive, ["background"]);
+    const products = Array.isArray(brandArchive?.products) ? brandArchive.products : [];
+    const brandName = this.readFirstAvailableText(brandBackground, ["brandName", "name", "companyName"]);
+    const productNames = products
+      .map((item) => this.readFirstAvailableText(this.asRecord(item), ["productName", "name"]))
+      .filter((item): item is string => Boolean(item))
+      .slice(0, 5);
+    return [
+      "机会洞察-评论洞察分析",
+      brandName ? `品牌：${brandName}` : "",
+      productNames.length ? `产品：${productNames.join("、")}` : "",
+      "请召回企业知识库中与用户评论、用户反馈、差评、好评、售后、痛点、需求、使用场景、复购、抱怨相关的内容",
+    ].filter((item) => item.trim()).join("；");
+  }
+
+  private buildOpportunityInsightFinalKnowledgeQuery(inputPayload: Record<string, unknown>) {
+    const brandArchive = this.readNestedRecord(inputPayload, ["inputScope", "brandArchive"]);
+    const brandBackground = this.readNestedRecord(brandArchive, ["background"]);
+    const products = Array.isArray(brandArchive?.products) ? brandArchive.products : [];
+    const brandName = this.readFirstAvailableText(brandBackground, ["brandName", "name", "companyName"]);
+    const productNames = products
+      .map((item) => this.readFirstAvailableText(this.asRecord(item), ["productName", "name"]))
+      .filter((item): item is string => Boolean(item))
+      .slice(0, 5);
+    return [
+      "机会洞察-总报告",
+      brandName ? `品牌：${brandName}` : "",
+      productNames.length ? `产品：${productNames.join("、")}` : "",
+      "请召回企业知识库中与用户需求、品牌差异化、产品卖点、典型场景、市场机会、竞品案例、消费者心智相关的内容",
+    ].filter((item) => item.trim()).join("；");
   }
 
   private buildAnnualMarketingPlanKnowledgeQuery(inputPayload: Record<string, unknown>) {
@@ -6907,6 +7996,163 @@ export class ReportsService {
     );
   }
 
+  private async generateOpportunityInsightMarkdownByModel(
+    skillPrompt: string,
+    inputPayload: Record<string, unknown>,
+    settings: ModelGenerationSettings,
+    taskLabel: string,
+    options?: {
+      onAttemptUpdate?: (detailText: string, modelName: string) => Promise<void> | void;
+    },
+  ): Promise<OpportunityInsightAccountModelResult> {
+    const providers = await this.loadOpportunityInsightAccountProviderConfigs(settings);
+    const preferredModelName = settings.preferredModelName || this.parseDelimitedModels(settings.modelName)[0] || "";
+    const systemPrompt = [
+      skillPrompt,
+      "",
+      `请输出一份完整的《${taskLabel}》Markdown 报告。`,
+      "只输出 Markdown 正文，不要输出 JSON、代码块、执行说明或额外解释。",
+      "报告必须围绕账号定位、人群画像、内容结构、爆款特征、转化信号、可复制打法、风险问题和下一步建议展开。",
+      "必须引用输入中的账号、作品、笔记、互动数据或品牌资料作为依据，不得无依据编造案例。",
+      "如果某个平台或账号样本不足，明确写出“待补充/待验证”，不要伪造数据。",
+      "正文必须足够详尽，按中文阅读习惯不少于 2000 字。",
+    ].join("\n");
+    const userPrompt = ["以下是输入数据：", "", JSON.stringify(inputPayload, null, 2)].join("\n");
+
+    let lastError = "";
+    const attemptTrail: string[] = [];
+    for (const provider of providers) {
+      for (const baseUrl of provider.baseUrls) {
+        for (const apiKey of provider.apiKeys.slice(0, 2)) {
+          for (const modelName of provider.models) {
+            const attemptLabel = this.buildReportAttemptLabel(provider.provider, modelName, baseUrl);
+            try {
+              await options?.onAttemptUpdate?.(`${provider.provider} / ${modelName}`, modelName);
+              const response = await this.requestModelCompletion(
+                baseUrl,
+                provider.completionPath,
+                apiKey,
+                this.buildXiaohongshuMarketingProviderPayload(provider, modelName, systemPrompt, userPrompt),
+                this.resolveModelAttemptTimeoutMs(provider.requestTimeoutMs, TEXT_MODEL_ATTEMPT_TIMEOUT_MS),
+              );
+              if (!response.ok) {
+                const responseText = this.truncateText(await response.text(), 240);
+                const responseDetail = responseText ? ` ${responseText}` : "";
+                lastError = `${provider.provider}/${modelName} 请求失败: ${response.status}${responseDetail}`;
+                attemptTrail.push(`${attemptLabel} -> HTTP ${response.status}${responseText ? ` ${responseText}` : ""}`);
+                continue;
+              }
+              const payload = await response.json() as { choices?: Array<{ finish_reason?: string; message?: { content?: string; reasoning_content?: string } }>; };
+              const message = payload.choices?.[0]?.message;
+              const content = message?.content?.trim() || message?.reasoning_content?.trim();
+              if (!content) {
+                lastError = `${provider.provider}/${modelName} 返回为空`;
+                attemptTrail.push(`${attemptLabel} -> 返回为空`);
+                continue;
+              }
+              const finishReason = String(payload.choices?.[0]?.finish_reason ?? "").trim().toLowerCase();
+              if (finishReason === "length") {
+                lastError = `${provider.provider}/${modelName} 输出被截断`;
+                attemptTrail.push(`${attemptLabel} -> 输出被截断`);
+                continue;
+              }
+              return this.normalizeOpportunityInsightMarkdownModelResult(content, inputPayload, modelName, taskLabel);
+            } catch (error) {
+              lastError = error instanceof Error ? `${provider.provider}/${modelName} 调用失败: ${error.message}` : `${provider.provider}/${modelName} 调用失败`;
+              attemptTrail.push(`${attemptLabel} -> ${error instanceof Error ? error.message : "调用失败"}`);
+            }
+          }
+        }
+      }
+    }
+
+    throw new ServiceUnavailableException(
+      this.buildReportAttemptFailureMessage(`${taskLabel}生成`, preferredModelName, lastError, attemptTrail, "未获取到有效响应"),
+    );
+  }
+
+  private async generateOpportunityInsightNarrativeMarkdownByModel(
+    skillPrompt: string,
+    inputPayload: Record<string, unknown>,
+    settings: ModelGenerationSettings,
+    taskLabel: string,
+    options?: {
+      knowledgeContext?: string;
+      runtimeRequirements?: string[];
+      onAttemptUpdate?: (detailText: string, modelName: string) => Promise<void> | void;
+    },
+  ): Promise<OpportunityInsightAccountModelResult> {
+    const providers = await this.loadOpportunityInsightNarrativeProviderConfigs(settings);
+    const preferredModelName = settings.preferredModelName || this.parseDelimitedModels(settings.modelName)[0] || "";
+    const systemPrompt = [
+      skillPrompt,
+      "",
+      `请输出一份完整的《${taskLabel}》Markdown 报告。`,
+      "只输出 Markdown 正文，不要输出 JSON、代码块、执行说明或额外解释。",
+      "所有关键结论都要引用输入资料、前序报告、评论样本或知识库补充内容，不得无依据编造。",
+      "如果某类资料缺失，请明确写出“待补充/待验证”，但不要中断生成。",
+      "正文必须足够详尽，按中文阅读习惯不少于 2000 字。",
+      ...(options?.runtimeRequirements || []),
+    ].join("\n");
+    const userPrompt = [
+      "以下是输入数据：",
+      "",
+      JSON.stringify(inputPayload, null, 2),
+      options?.knowledgeContext || "",
+    ].filter(Boolean).join("\n");
+
+    let lastError = "";
+    const attemptTrail: string[] = [];
+    for (const provider of providers) {
+      for (const baseUrl of provider.baseUrls.slice(0, 2)) {
+        for (const apiKey of provider.apiKeys.slice(0, 2)) {
+          for (const modelName of provider.models) {
+            const attemptLabel = this.buildReportAttemptLabel(provider.provider, modelName, baseUrl);
+            try {
+              await options?.onAttemptUpdate?.(`${provider.provider} / ${modelName}`, modelName);
+              const response = await this.requestModelCompletion(
+                baseUrl,
+                provider.completionPath,
+                apiKey,
+                this.buildXiaohongshuMarketingProviderPayload(provider, modelName, systemPrompt, userPrompt),
+                this.resolveModelAttemptTimeoutMs(provider.requestTimeoutMs, TEXT_MODEL_ATTEMPT_TIMEOUT_MS),
+              );
+              if (!response.ok) {
+                const responseText = this.truncateText(await response.text(), 240);
+                const responseDetail = responseText ? ` ${responseText}` : "";
+                lastError = `${provider.provider}/${modelName} 请求失败: ${response.status}${responseDetail}`;
+                attemptTrail.push(`${attemptLabel} -> HTTP ${response.status}${responseText ? ` ${responseText}` : ""}`);
+                continue;
+              }
+              const payload = await response.json() as { choices?: Array<{ finish_reason?: string; message?: { content?: string; reasoning_content?: string } }>; };
+              const message = payload.choices?.[0]?.message;
+              const content = message?.content?.trim() || message?.reasoning_content?.trim();
+              if (!content) {
+                lastError = `${provider.provider}/${modelName} 返回为空`;
+                attemptTrail.push(`${attemptLabel} -> 返回为空`);
+                continue;
+              }
+              const finishReason = String(payload.choices?.[0]?.finish_reason ?? "").trim().toLowerCase();
+              if (finishReason === "length") {
+                lastError = `${provider.provider}/${modelName} 输出被截断`;
+                attemptTrail.push(`${attemptLabel} -> 输出被截断`);
+                continue;
+              }
+              return this.normalizeOpportunityInsightMarkdownModelResult(content, inputPayload, modelName, taskLabel);
+            } catch (error) {
+              lastError = error instanceof Error ? `${provider.provider}/${modelName} 调用失败: ${error.message}` : `${provider.provider}/${modelName} 调用失败`;
+              attemptTrail.push(`${attemptLabel} -> ${error instanceof Error ? error.message : "调用失败"}`);
+            }
+          }
+        }
+      }
+    }
+
+    throw new ServiceUnavailableException(
+      this.buildReportAttemptFailureMessage(`${taskLabel}生成`, preferredModelName, lastError, attemptTrail, "未获取到有效响应"),
+    );
+  }
+
   private async generateDouyinHotTopicCandidatesByModel(
     skillPrompt: string,
     inputPayload: Record<string, unknown>,
@@ -7203,6 +8449,37 @@ export class ReportsService {
       phaseText: extra?.detailText ? `${basePhaseTextMap[phase]}（当前尝试：${extra.detailText}）` : basePhaseTextMap[phase],
       phaseIndex: phaseIndexMap[phase],
       phaseTotal: 4,
+      ...(extra?.modelName ? { modelName: extra.modelName } : {}),
+    };
+  }
+
+  private buildOpportunityInsightPhaseStatus(
+    phase: OpportunityInsightStepOnePhase,
+    extra?: {
+      modelName?: string;
+      detailText?: string;
+    },
+  ) {
+    const basePhaseTextMap: Record<OpportunityInsightStepOnePhase, string> = {
+      PREPARING: "正在准备品牌资料与平台账号样本",
+      BRAND_ACCOUNT_ANALYSIS: "正在生成品牌账号分析",
+      COMPETITOR_ACCOUNT_ANALYSIS: "正在生成竞品账号分析",
+      PERSISTING: "正在保存机会洞察第1步结果",
+      DONE: "机会洞察第1步已生成完成",
+    };
+    const phaseIndexMap: Record<OpportunityInsightStepOnePhase, number> = {
+      PREPARING: 1,
+      BRAND_ACCOUNT_ANALYSIS: 2,
+      COMPETITOR_ACCOUNT_ANALYSIS: 3,
+      PERSISTING: 4,
+      DONE: 5,
+    };
+
+    return {
+      phase,
+      phaseText: extra?.detailText ? `${basePhaseTextMap[phase]}（当前尝试：${extra.detailText}）` : basePhaseTextMap[phase],
+      phaseIndex: phaseIndexMap[phase],
+      phaseTotal: 5,
       ...(extra?.modelName ? { modelName: extra.modelName } : {}),
     };
   }
@@ -7633,6 +8910,51 @@ ${normalizedMarkdown}`;
     };
   }
 
+  private normalizeOpportunityInsightMarkdownModelResult(
+    content: string,
+    inputPayload: Record<string, unknown>,
+    modelName: string,
+    taskLabel: string,
+  ): OpportunityInsightAccountModelResult {
+    const analysisScope = this.readNestedRecord(inputPayload, ["inputScope", "analysisScope"]);
+    const brandArchive = this.readNestedRecord(inputPayload, ["inputScope", "brandArchive"]);
+    const brandBackground = this.readNestedRecord(brandArchive, ["background"]);
+    const brandName = this.readRecordString(brandBackground, "brandName") || "品牌";
+    const stepKey = this.readRecordString(analysisScope, "stepKey");
+    const stepLabel = this.readRecordString(analysisScope, "stepLabel")
+      || (stepKey === "competitorAccountAnalysis"
+        ? "竞品账号分析"
+        : stepKey === "commentInsightAnalysis"
+          ? "评论洞察分析"
+          : stepKey === "finalOpportunityReport"
+            ? "机会洞察总报告"
+            : taskLabel || "品牌账号分析");
+    const normalizedMarkdown = this.stripMarkdownCodeFence(content).trim();
+
+    if (!normalizedMarkdown) {
+      throw new ServiceUnavailableException(`${stepLabel}解析失败：模型未返回有效 Markdown`);
+    }
+    if (this.containsXiaohongshuWorkflowArtifacts(normalizedMarkdown)) {
+      throw new ServiceUnavailableException(`${stepLabel}解析失败：模型输出了过程性内容，而不是最终正文`);
+    }
+
+    const fallbackTitle = `${brandName}${stepLabel}报告`;
+    const reportMarkdown = normalizedMarkdown.startsWith("# ")
+      ? normalizedMarkdown
+      : `# ${fallbackTitle}\n\n${normalizedMarkdown}`;
+    const readableLength = this.countReadableTextLength(reportMarkdown);
+    if (readableLength < 1600) {
+      throw new ServiceUnavailableException(`${stepLabel}解析失败：正文长度不足，疑似被截断`);
+    }
+
+    return {
+      title: this.extractMarkdownTitle(reportMarkdown) || fallbackTitle,
+      summary: this.extractMarkdownSummary(reportMarkdown) || `${fallbackTitle}已生成。`,
+      reportMarkdown,
+      modelName,
+    };
+  }
+
   private normalizeDouyinMarketingPlanMarkdown(content: string) {
     let normalizedMarkdown = this.stripMarkdownCodeFence(content).trim();
     if (!normalizedMarkdown) {
@@ -7936,6 +9258,227 @@ ${normalizedMarkdown}`;
         },
       },
       outputTarget: "品牌增长报告",
+    };
+  }
+
+  private buildOpportunityInsightStepOneInput(
+    archive: Awaited<ReturnType<BrandsService["getArchive"]>>,
+    xiaohongshuWorkspace: Awaited<ReturnType<CollectorsService["getXiaohongshuWorkspace"]>>,
+    douyinWorkspace: Awaited<ReturnType<CollectorsService["getDouyinWorkspace"]>>,
+    generatedAt: string,
+    stepKey: "brandAccountAnalysis" | "competitorAccountAnalysis",
+  ) {
+    const isBrand = stepKey === "brandAccountAnalysis";
+    const xhsAccounts = isBrand ? xiaohongshuWorkspace.brandAccounts : xiaohongshuWorkspace.competitorAccounts;
+    const xhsNotes = isBrand ? xiaohongshuWorkspace.brandNotes : xiaohongshuWorkspace.benchmarkNotes;
+    const douyinAccounts = isBrand ? douyinWorkspace.brandAccounts : douyinWorkspace.competitorAccounts;
+    const douyinWorks = isBrand
+      ? douyinWorkspace.brandWorks
+      : [...douyinWorkspace.competitorWorks, ...douyinWorkspace.benchmarkWorks];
+
+    return {
+      task: isBrand ? "输出《品牌账号分析》" : "输出《竞品账号分析》",
+      generatedAt,
+      inputScope: {
+        analysisScope: {
+          stepKey,
+          stepLabel: isBrand ? "品牌账号分析" : "竞品账号分析",
+          platforms: ["小红书", "抖音"],
+        },
+        brandArchive: {
+          background: archive.brand,
+          products: archive.products.slice(0, 12).map((item) => ({
+            productName: item.productName,
+            productType: item.productType,
+            price: item.price,
+            productPositioning: item.productPositioning,
+            targetAudience: item.targetAudience,
+            painPoint: item.painPoint,
+            usageScenario: item.usageScenario,
+            differentiators: item.differentiators,
+            marketPosition: item.marketPosition,
+            detailDescription: this.truncateText(item.detailDescription, 240),
+          })),
+          survey: archive.survey
+            .filter((item) => item.value?.trim())
+            .slice(0, 18)
+            .map((item) => ({
+              label: item.label,
+              value: this.truncateText(item.value, 360),
+            })),
+          businessAssets: archive.businessAssets.slice(0, 10).map((item) => ({
+            title: item.title,
+            description: this.truncateText(item.description, 220),
+            sourceName: item.sourceName,
+          })),
+        },
+        xiaohongshuData: {
+          accountCount: xhsAccounts.length,
+          noteCount: xhsNotes.length,
+          accounts: xhsAccounts.slice(0, 20).map((item) => ({
+            accountName: item.accountName,
+            sourceAccountLink: item.sourceAccountLink,
+            fanCount: item.fanCount,
+            postedCount: item.postedCount,
+            likedCount: item.likedCount,
+            description: this.truncateText(item.description, 280),
+          })),
+          notes: xhsNotes.slice(0, 25).map((item) => ({
+            title: item.title,
+            noteType: item.noteType,
+            nickname: item.nickname,
+            noteUrl: item.noteUrl,
+            likeCount: item.likeCount,
+            commentCount: item.commentCount,
+            collectCount: item.collectCount,
+            shareCount: item.shareCount,
+            description: this.truncateText(item.description, 320),
+          })),
+        },
+        douyinData: {
+          accountCount: douyinAccounts.length,
+          workCount: douyinWorks.length,
+          accounts: douyinAccounts.slice(0, 20).map((item) => ({
+            accountName: item.accountName,
+            accountLink: item.accountLink,
+            followerCount: this.readRecordNumber(this.asRecord(item as unknown), "followerCount"),
+            totalFavorited: this.readRecordNumber(this.asRecord(item as unknown), "totalFavorited"),
+            description: this.truncateText(this.readRecordString(this.asRecord(item as unknown), "description"), 280),
+          })),
+          works: douyinWorks.slice(0, 25).map((item) => ({
+            title: item.title,
+            workUrl: item.workUrl,
+            authorNickname: item.authorName,
+            likeCount: item.likeCount,
+            commentCount: item.commentCount,
+            shareCount: item.shareCount,
+            collectCount: item.collectCount,
+            publishTime: item.publishTimeText,
+            description: this.truncateText(item.description, 320),
+          })),
+        },
+      },
+      outputTarget: isBrand ? "品牌账号分析报告" : "竞品账号分析报告",
+    };
+  }
+
+  private buildOpportunityInsightStepTwoInput(
+    archive: Awaited<ReturnType<BrandsService["getArchive"]>>,
+    douyinWorkspace: Awaited<ReturnType<CollectorsService["getDouyinWorkspace"]>>,
+    generatedAt: string,
+  ) {
+    return {
+      task: "输出《评论洞察分析》",
+      generatedAt,
+      inputScope: {
+        analysisScope: {
+          stepKey: "commentInsightAnalysis",
+          stepLabel: "评论洞察分析",
+          sourcePriority: ["抖音评论数据", "企业知识库评论资料"],
+        },
+        brandArchive: {
+          background: archive.brand,
+          products: archive.products.slice(0, 12).map((item) => ({
+            productName: item.productName,
+            productType: item.productType,
+            price: item.price,
+            targetAudience: item.targetAudience,
+            painPoint: item.painPoint,
+            usageScenario: item.usageScenario,
+            differentiators: item.differentiators,
+            detailDescription: this.truncateText(item.detailDescription, 240),
+          })),
+          survey: archive.survey
+            .filter((item) => item.value?.trim())
+            .slice(0, 12)
+            .map((item) => ({
+              label: item.label,
+              value: this.truncateText(item.value, 320),
+            })),
+        },
+        douyinCommentData: {
+          commentCount: douyinWorkspace.commentData.length,
+          comments: douyinWorkspace.commentData.slice(0, 80).map((item) => ({
+            sourceWorkId: item.sourceWorkId,
+            sourceWorkUrl: item.sourceWorkUrl,
+            commentId: item.commentId,
+            commentText: this.truncateText(item.commentText, 220),
+            commentTime: item.commentTime,
+            commentUserName: item.commentUserName,
+            likeCount: item.likeCount,
+            replyCount: item.replyCount,
+          })),
+        },
+      },
+      outputTarget: "评论洞察分析报告",
+    };
+  }
+
+  private buildOpportunityInsightStepThreeInput(
+    archive: Awaited<ReturnType<BrandsService["getArchive"]>>,
+    workspace: OpportunityInsightWorkspace,
+    generatedAt: string,
+  ) {
+    return {
+      task: "输出《机会洞察总报告》",
+      generatedAt,
+      inputScope: {
+        analysisScope: {
+          stepKey: "finalOpportunityReport",
+          stepLabel: "机会洞察总报告",
+          sourceSteps: ["品牌账号分析", "竞品账号分析", "评论洞察分析"],
+        },
+        brandArchive: {
+          background: archive.brand,
+          products: archive.products.slice(0, 12).map((item) => ({
+            productName: item.productName,
+            productType: item.productType,
+            price: item.price,
+            targetAudience: item.targetAudience,
+            painPoint: item.painPoint,
+            usageScenario: item.usageScenario,
+            differentiators: item.differentiators,
+            marketPosition: item.marketPosition,
+            detailDescription: this.truncateText(item.detailDescription, 240),
+          })),
+          survey: archive.survey
+            .filter((item) => item.value?.trim())
+            .slice(0, 16)
+            .map((item) => ({
+              label: item.label,
+              value: this.truncateText(item.value, 360),
+            })),
+          businessAssets: archive.businessAssets.slice(0, 10).map((item) => ({
+            title: item.title,
+            description: this.truncateText(item.description, 220),
+            sourceName: item.sourceName,
+          })),
+        },
+        priorReports: {
+          brandAccountAnalysis: workspace.brandAccountAnalysis
+            ? {
+                title: workspace.brandAccountAnalysis.title,
+                summary: workspace.brandAccountAnalysis.summary,
+                htmlDocument: this.truncateText(workspace.brandAccountAnalysis.htmlDocument, 12000),
+              }
+            : undefined,
+          competitorAccountAnalysis: workspace.competitorAccountAnalysis
+            ? {
+                title: workspace.competitorAccountAnalysis.title,
+                summary: workspace.competitorAccountAnalysis.summary,
+                htmlDocument: this.truncateText(workspace.competitorAccountAnalysis.htmlDocument, 12000),
+              }
+            : undefined,
+          commentInsightAnalysis: workspace.commentInsightAnalysis
+            ? {
+                title: workspace.commentInsightAnalysis.title,
+                summary: workspace.commentInsightAnalysis.summary,
+                htmlDocument: this.truncateText(workspace.commentInsightAnalysis.htmlDocument, 12000),
+              }
+            : undefined,
+        },
+      },
+      outputTarget: "机会洞察总报告",
     };
   }
 
@@ -9507,6 +11050,74 @@ ${normalizedMarkdown}`;
     ].join("\n");
   }
 
+  private async loadOpportunityInsightAccountGenerationSettings(
+    brandId: string | undefined,
+    skillSlug: "opportunity-insight-brand-account-analysis" | "opportunity-insight-competitor-account-analysis",
+    promptId: "prompt_opportunity_insight_brand_account" | "prompt_opportunity_insight_competitor_account",
+  ): Promise<ModelGenerationSettings> {
+    const skill = await this.skillsPromptsService.getActiveSkillBySlug(skillSlug);
+    const prompt = await this.skillsPromptsService.getActivePromptById(promptId);
+    const preferredSelections = [skill?.defaultModel || "", prompt?.modelName || "", "kimi-k2.6"];
+    const provider = await this.resolvePreferredProvider(skill?.provider, "text-domestic-kimi", [
+      "text-domestic-kimi",
+      "text-domestic-deepseek",
+      "text-domestic-doubao",
+    ], preferredSelections);
+    const preferredModelNames = this.mergeModelPreferenceOrder(
+      skill?.defaultModel || "",
+      prompt?.modelName || "",
+      "kimi-k2.6, deepseek-v4-pro, deepseek-v4-flash, doubao-seed-2-0-pro-260215",
+    );
+    const preferredModelName = preferredModelNames[0] || skill?.defaultModel || prompt?.modelName || provider?.defaultModel || "kimi-k2.6";
+    return {
+      baseUrl: provider?.baseUrl || "",
+      modelName: preferredModelNames.join(", "),
+      temperature: prompt?.temperature ?? 0.4,
+      maxTokens: prompt?.maxTokens ?? 12000,
+      promptContent: prompt?.content || "",
+      preferredModelName,
+      brandId,
+      preferredProviderIds: this.extractPreferredProviderIds(...preferredSelections),
+    };
+  }
+
+  private async loadOpportunityInsightNarrativeGenerationSettings(
+    brandId: string | undefined,
+    skillSlug: "opportunity-insight-comment-analysis" | "opportunity-insight-final-report",
+    promptId: "prompt_opportunity_insight_comment" | "prompt_opportunity_insight_final_report",
+  ): Promise<ModelGenerationSettings> {
+    const skill = await this.skillsPromptsService.getActiveSkillBySlug(skillSlug);
+    const prompt = await this.skillsPromptsService.getActivePromptById(promptId);
+    const preferredSelections = [skill?.defaultModel || "", prompt?.modelName || "", "gpt-5.5"];
+    const provider = await this.resolvePreferredProvider(skill?.provider, "text-global", [
+      "text-global",
+      "text-domestic-kimi",
+      "text-domestic-deepseek",
+    ], preferredSelections);
+    const preferredModelNames = this.mergeModelPreferenceOrder(
+      skill?.defaultModel || "",
+      prompt?.modelName || "",
+      "gpt-5.5, kimi-k2.6, deepseek-v4-pro, deepseek-v4-flash",
+    );
+    const preferredModelName = preferredModelNames[0] || skill?.defaultModel || prompt?.modelName || provider?.defaultModel || "gpt-5.5";
+    return {
+      baseUrl: provider?.baseUrl || "",
+      modelName: preferredModelNames.join(", "),
+      temperature: prompt?.temperature ?? 0.5,
+      maxTokens: prompt?.maxTokens ?? 12000,
+      promptContent: prompt?.content || "",
+      preferredModelName,
+      brandId,
+      preferredProviderIds: this.extractPreferredProviderIds(...preferredSelections),
+      knowledgeScope: {
+        moduleTargetId: BRAND_GROWTH_KNOWLEDGE_TARGET_ID,
+        skillPackageKey: "opportunity-insight",
+        skillSlug,
+        legacyPromptId: promptId,
+      },
+    };
+  }
+
   private loadVisualReportSkillPrompt(settings: ModelGenerationSettings) {
     const skillPrompt = this.loadArticleVisualDesignerSkillMarkdown();
     const businessRequirements = settings.promptContent?.trim();
@@ -10019,6 +11630,195 @@ ${normalizedMarkdown}`;
     };
   }
 
+  private async loadOpportunityInsightAccountProviderConfigs(settings: ModelGenerationSettings): Promise<XiaohongshuMarketingProviderConfig[]> {
+    const preferredModels = ["kimi-k2.6", "deepseek-v4-pro", "deepseek-v4-flash", "doubao-seed-2-0-pro-260215"];
+    const requestedModels = this.orderModels(
+      this.parseDelimitedModels(settings.modelName).filter((item) => preferredModels.includes(item)),
+      preferredModels,
+    );
+    const effectiveRequestedModels = requestedModels.length ? requestedModels : preferredModels;
+
+    const [deepseekProvider, kimiProvider, doubaoProvider] = await Promise.all([
+      this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-deepseek"),
+      this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-kimi"),
+      this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-doubao"),
+    ]);
+    const [deepseekApiKeys, kimiApiKeys, doubaoApiKeys] = await Promise.all([
+      this.resolveBrandAwareApiKeys(settings.brandId, deepseekProvider),
+      this.resolveBrandAwareApiKeys(settings.brandId, kimiProvider),
+      this.resolveBrandAwareApiKeys(settings.brandId, doubaoProvider),
+    ]);
+    const deepseekModels = deepseekProvider
+      ? this.pickProviderModels(deepseekProvider.modelWhitelist, effectiveRequestedModels, ["deepseek-v4-pro", "deepseek-v4-flash"])
+      : [];
+    const kimiModels = kimiProvider
+      ? this.pickProviderModels(kimiProvider.modelWhitelist, effectiveRequestedModels, ["kimi-k2.6"])
+      : [];
+    const arkModels = doubaoProvider
+      ? this.pickProviderModels(doubaoProvider.modelWhitelist, effectiveRequestedModels, ["doubao-seed-2-0-pro-260215"])
+      : [];
+
+    const providers: XiaohongshuMarketingProviderConfig[] = [];
+    if (kimiProvider && kimiModels.length && kimiApiKeys.length) {
+      providers.push({
+        provider: "KIMI",
+        providerId: kimiProvider.id,
+        providerName: kimiProvider.name,
+        baseUrls: this.apiProvidersService.getBaseUrls(kimiProvider),
+        completionPath: this.apiProvidersService.getStringExtra(kimiProvider, "completionPath") || "/chat/completions",
+        apiKeys: kimiApiKeys.slice(0, 2),
+        models: kimiModels,
+        temperature: 1,
+        temperatureOverride: 1,
+        maxTokens: Math.min(settings.maxTokens || 12000, 12000),
+        requestTimeoutMs: 240000,
+        tokenLimitField: "max_completion_tokens",
+      });
+    }
+    if (deepseekProvider && deepseekModels.length && deepseekApiKeys.length) {
+      providers.push({
+        provider: "DEEPSEEK",
+        providerId: deepseekProvider.id,
+        providerName: deepseekProvider.name,
+        baseUrls: this.apiProvidersService.getBaseUrls(deepseekProvider),
+        completionPath: this.apiProvidersService.getStringExtra(deepseekProvider, "completionPath") || "/chat/completions",
+        apiKeys: deepseekApiKeys.slice(0, 2),
+        models: deepseekModels,
+        temperature: Math.min(settings.temperature || 0.4, 0.4),
+        maxTokens: Math.min(settings.maxTokens || 9000, 9000),
+        requestTimeoutMs: 180000,
+        payloadExtras: {
+          response_format: { type: "text" },
+          thinking: { type: "disabled" },
+        },
+      });
+    }
+    if (doubaoProvider && arkModels.length && doubaoApiKeys.length) {
+      providers.push({
+        provider: "ARK",
+        providerId: doubaoProvider.id,
+        providerName: doubaoProvider.name,
+        baseUrls: this.apiProvidersService.getBaseUrls(doubaoProvider),
+        completionPath: this.apiProvidersService.getStringExtra(doubaoProvider, "completionPath") || "/chat/completions",
+        apiKeys: doubaoApiKeys.slice(0, 1),
+        models: arkModels.slice(0, 1),
+        temperature: Math.min(settings.temperature || 0.5, 0.5),
+        maxTokens: Math.min(settings.maxTokens || 9000, 9000),
+        requestTimeoutMs: 180000,
+        payloadExtras: {
+          response_format: { type: "text" },
+        },
+      });
+    }
+    if (!providers.length) {
+      throw new ServiceUnavailableException("机会洞察账号分析模型配置读取失败");
+    }
+    return this.reorderReportProvidersByPrimaryModel(
+      this.applyReportProviderSelectionRule(providers, settings),
+      settings.preferredModelName || effectiveRequestedModels[0] || "",
+    );
+  }
+
+  private async loadOpportunityInsightNarrativeProviderConfigs(settings: ModelGenerationSettings): Promise<XiaohongshuMarketingProviderConfig[]> {
+    const preferredModels = ["gpt-5.5", "kimi-k2.6", "deepseek-v4-pro", "deepseek-v4-flash"];
+    const requestedModels = this.orderModels(
+      this.parseDelimitedModels(settings.modelName).filter((item) => preferredModels.includes(item)),
+      preferredModels,
+    );
+    const effectiveRequestedModels = requestedModels.length ? requestedModels : preferredModels;
+
+    const [thirdPartyProvider, kimiProvider, deepseekProvider] = await Promise.all([
+      this.resolveRuntimeProviderByBaseUrl("text-global", settings.baseUrl, settings.preferredProviderIds, settings.preferredModelName),
+      this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-kimi"),
+      this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-deepseek"),
+    ]);
+    const [thirdPartyApiKeys, kimiApiKeys, deepseekApiKeys] = await Promise.all([
+      this.resolveBrandAwareApiKeys(settings.brandId, thirdPartyProvider),
+      this.resolveBrandAwareApiKeys(settings.brandId, kimiProvider),
+      this.resolveBrandAwareApiKeys(settings.brandId, deepseekProvider),
+    ]);
+
+    const thirdPartyModels = thirdPartyProvider
+      ? this.pickProviderModels(thirdPartyProvider.modelWhitelist, effectiveRequestedModels, ["gpt-5.5"])
+      : [];
+    const kimiModels = kimiProvider
+      ? this.pickProviderModels(kimiProvider.modelWhitelist, effectiveRequestedModels, ["kimi-k2.6"])
+      : [];
+    const deepseekModels = deepseekProvider
+      ? this.pickProviderModels(deepseekProvider.modelWhitelist, effectiveRequestedModels, ["deepseek-v4-pro", "deepseek-v4-flash"])
+      : [];
+
+    const providers: XiaohongshuMarketingProviderConfig[] = [];
+    if (thirdPartyProvider && thirdPartyModels.length && thirdPartyApiKeys.length) {
+      const configuredBaseUrls = this.apiProvidersService.getBaseUrls(thirdPartyProvider);
+      const prioritizedBaseUrls = settings.baseUrl
+        ? [settings.baseUrl, ...configuredBaseUrls.filter((item) => item !== settings.baseUrl)]
+        : configuredBaseUrls;
+      const usableBaseUrls = [
+        ...prioritizedBaseUrls.filter((item) => !this.isPlaceholderProxyBaseUrl(item)),
+        ...prioritizedBaseUrls.filter((item) => this.isPlaceholderProxyBaseUrl(item)),
+      ];
+      if (usableBaseUrls.length) {
+        providers.push({
+          provider: "THIRD_PARTY",
+          providerId: thirdPartyProvider.id,
+          providerName: thirdPartyProvider.name,
+          baseUrls: usableBaseUrls,
+          completionPath: this.apiProvidersService.getStringExtra(thirdPartyProvider, "completionPath") || "/v1/chat/completions",
+          apiKeys: thirdPartyApiKeys.slice(0, 4),
+          models: thirdPartyModels,
+          temperature: settings.temperature,
+          maxTokens: Math.min(settings.maxTokens || 12000, 12000),
+          requestTimeoutMs: 180000,
+          payloadExtras: {
+            response_format: { type: "text" },
+          },
+        });
+      }
+    }
+    if (kimiProvider && kimiModels.length && kimiApiKeys.length) {
+      providers.push({
+        provider: "KIMI",
+        providerId: kimiProvider.id,
+        providerName: kimiProvider.name,
+        baseUrls: this.apiProvidersService.getBaseUrls(kimiProvider),
+        completionPath: this.apiProvidersService.getStringExtra(kimiProvider, "completionPath") || "/chat/completions",
+        apiKeys: kimiApiKeys.slice(0, 2),
+        models: kimiModels,
+        temperature: 1,
+        temperatureOverride: 1,
+        maxTokens: Math.min(settings.maxTokens || 12000, 12000),
+        requestTimeoutMs: 240000,
+        tokenLimitField: "max_completion_tokens",
+      });
+    }
+    if (deepseekProvider && deepseekModels.length && deepseekApiKeys.length) {
+      providers.push({
+        provider: "DEEPSEEK",
+        providerId: deepseekProvider.id,
+        providerName: deepseekProvider.name,
+        baseUrls: this.apiProvidersService.getBaseUrls(deepseekProvider),
+        completionPath: this.apiProvidersService.getStringExtra(deepseekProvider, "completionPath") || "/chat/completions",
+        apiKeys: deepseekApiKeys.slice(0, 2),
+        models: deepseekModels,
+        temperature: Math.min(settings.temperature || 0.4, 0.4),
+        maxTokens: Math.min(settings.maxTokens || 12000, 12000),
+        requestTimeoutMs: 180000,
+        payloadExtras: {
+          response_format: { type: "text" },
+          thinking: { type: "disabled" },
+        },
+      });
+    }
+    if (!providers.length) {
+      throw new ServiceUnavailableException("机会洞察长文模型配置读取失败");
+    }
+    return this.reorderReportProvidersByPrimaryModel(
+      this.applyReportProviderSelectionRule(providers, settings),
+      settings.preferredModelName || effectiveRequestedModels[0] || "",
+    );
+  }
+
   private async loadAnnualMarketingProviderConfigs(settings: ModelGenerationSettings): Promise<AnnualMarketingProviderConfig[]> {
     const thirdPartyProvider = await this.resolveRuntimeProviderByBaseUrl(
       "text-global",
@@ -10477,6 +12277,10 @@ ${normalizedMarkdown}`;
     return `douyin-marketing-plan-${taskId}.html`;
   }
 
+  private buildOpportunityInsightFileName(taskId: string, stepKey: OpportunityInsightStepKey) {
+    return `opportunity-insight-${stepKey}-${taskId}.html`;
+  }
+
   private extractFileNameFromStorageKey(storageKey: string) {
     const normalized = storageKey.split("?")[0]?.split("#")[0] ?? "";
     const parts = normalized.split("/");
@@ -10722,6 +12526,15 @@ ${normalizedMarkdown}`;
       return false;
     }
     return true;
+  }
+
+  private countReadableTextLength(markdown: string) {
+    return markdown
+      .replace(/^#{1,6}\s+/gm, "")
+      .replace(/^\s*[-*+]\s+/gm, "")
+      .replace(/[`>#*_~\[\]\(\)|]/g, "")
+      .replace(/\s+/g, "")
+      .length;
   }
 
   private isUsableDouyinMarketingPlanRecord(record: DouyinMarketingPlanRecord) {
@@ -11488,6 +13301,26 @@ ${normalizedMarkdown}`;
     };
   }
 
+  private mapOpportunityInsightAsset(asset: AssetRecord): OpportunityInsightReportRecord | undefined {
+    const meta = this.asMeta(asset.metadataJson);
+    if (meta.kind !== "OPPORTUNITY_INSIGHT_REPORT") {
+      return undefined;
+    }
+
+    return {
+      id: asset.id,
+      title: asset.title,
+      summary: this.readMetaString(meta, "summary") || asset.description,
+      generatedAt: this.readMetaString(meta, "generatedAt"),
+      taskId: this.readMetaString(meta, "taskId") || undefined,
+      mediaId: this.readMetaString(meta, "mediaId") || undefined,
+      modelName: this.readMetaString(meta, "modelName") || undefined,
+      htmlBody: this.readMetaString(meta, "htmlBody"),
+      htmlDocument: this.readMetaString(meta, "htmlDocument"),
+      stepKey: (this.readMetaString(meta, "stepKey") || "brandAccountAnalysis") as OpportunityInsightStepKey,
+    };
+  }
+
   private mapAnnualMarketingPlanAsset(asset: AssetRecord): AnnualMarketingPlanRecord | undefined {
     const meta = this.asMeta(asset.metadataJson);
     if (!HALF_YEAR_MARKETING_PLAN_ASSET_KINDS.includes(meta.kind as (typeof HALF_YEAR_MARKETING_PLAN_ASSET_KINDS)[number])) {
@@ -11711,6 +13544,78 @@ ${normalizedMarkdown}`;
       phaseText: this.readMetaString(outputMeta, "phaseText") || undefined,
       phaseIndex: this.asNumber(outputMeta.phaseIndex) || undefined,
       phaseTotal: this.asNumber(outputMeta.phaseTotal) || undefined,
+    };
+  }
+
+  private mapOpportunityInsightTask(task: {
+    id: string;
+    taskType: string;
+    taskTitle?: string | null;
+    taskStatus: TaskStatus | OpportunityInsightTaskRecord["taskStatus"];
+    modelName?: string | null;
+    pointsCost: number;
+    createdAt: Date | string;
+    updatedAt: Date | string;
+    startedAt?: Date | string | null;
+    finishedAt?: Date | string | null;
+    errorMessage?: string | null;
+    inputJson?: unknown;
+    outputJson?: unknown;
+  }): OpportunityInsightTaskRecord {
+    const inputMeta = this.asMeta(task.inputJson);
+    const outputMeta = this.asMeta(task.outputJson);
+    const toIsoString = (value?: Date | string | null) => {
+      if (!value) {
+        return undefined;
+      }
+      return typeof value === "string" ? value : value.toISOString();
+    };
+
+    return {
+      id: task.id,
+      taskType: task.taskType,
+      taskTitle: task.taskTitle || "",
+      taskStatus: task.taskStatus,
+      modelName: task.modelName || "",
+      pointsCost: task.pointsCost,
+      createdAt: toIsoString(task.createdAt) || new Date().toISOString(),
+      updatedAt: toIsoString(task.updatedAt) || new Date().toISOString(),
+      startedAt: toIsoString(task.startedAt),
+      finishedAt: toIsoString(task.finishedAt),
+      errorMessage: task.errorMessage || undefined,
+      phase: this.readMetaString(outputMeta, "phase") || undefined,
+      phaseText: this.readMetaString(outputMeta, "phaseText") || undefined,
+      phaseIndex: this.asNumber(outputMeta.phaseIndex) || undefined,
+      phaseTotal: this.asNumber(outputMeta.phaseTotal) || undefined,
+      stepKey: (this.readMetaString(outputMeta, "stepKey") || this.readMetaString(inputMeta, "stepKey") || undefined) as OpportunityInsightStepKey | undefined,
+    };
+  }
+
+  private buildOpportunityInsightWorkspace(
+    reports: OpportunityInsightReportRecord[],
+    latestTask?: OpportunityInsightTaskRecord,
+  ): OpportunityInsightWorkspace {
+    const brandAccountAnalysis = reports.find((item) => item.stepKey === "brandAccountAnalysis");
+    const competitorAccountAnalysis = reports.find((item) => item.stepKey === "competitorAccountAnalysis");
+    const commentInsightAnalysis = reports.find((item) => item.stepKey === "commentInsightAnalysis");
+    const finalOpportunityReport = reports.find((item) => item.stepKey === "finalOpportunityReport");
+    const awaitingConfirmationStep: OpportunityInsightWorkspace["awaitingConfirmationStep"] =
+      !brandAccountAnalysis || !competitorAccountAnalysis
+        ? 1
+        : !commentInsightAnalysis
+          ? 2
+          : !finalOpportunityReport
+            ? 3
+            : undefined;
+
+    return {
+      brandAccountAnalysis,
+      competitorAccountAnalysis,
+      commentInsightAnalysis,
+      finalOpportunityReport,
+      history: reports,
+      latestTask,
+      awaitingConfirmationStep,
     };
   }
 

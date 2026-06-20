@@ -28,6 +28,34 @@ export const SKILL_CENTER_TREE: SkillCenterPrimaryConfig[] = [
         label: "品牌增长报告",
         items: [
           {
+            id: "opportunity-insight-brand-account",
+            label: "机会洞察-品牌账号分析",
+            description: "对应机会洞察第 1 步，分析小红书与抖音品牌账号内容结构、账号定位与增长信号。",
+            skillSlug: "opportunity-insight-brand-account-analysis",
+            promptScene: "机会洞察-品牌账号分析",
+          },
+          {
+            id: "opportunity-insight-competitor-account",
+            label: "机会洞察-竞品账号分析",
+            description: "对应机会洞察第 1 步，分析小红书与抖音竞品账号打法、内容节奏与差异化策略。",
+            skillSlug: "opportunity-insight-competitor-account-analysis",
+            promptScene: "机会洞察-竞品账号分析",
+          },
+          {
+            id: "opportunity-insight-comment",
+            label: "机会洞察-评论洞察分析",
+            description: "对应机会洞察第 2 步，提炼评论中的用户痛点、需求与负反馈信号。",
+            skillSlug: "opportunity-insight-comment-analysis",
+            promptScene: "机会洞察-评论洞察分析",
+          },
+          {
+            id: "opportunity-insight-final",
+            label: "机会洞察-机会洞察总报告",
+            description: "对应机会洞察第 3 步，整合品牌资料与前序分析结果输出机会洞察总报告。",
+            skillSlug: "opportunity-insight-final-report",
+            promptScene: "机会洞察-机会洞察总报告",
+          },
+          {
             id: "growth-report-main",
             label: "品牌增长报告-生成品牌增长报告",
             description: "用于生成品牌全域增长分析报告。",

@@ -204,6 +204,38 @@ const SKILL_PROMPT_BINDINGS: Record<string, SkillPromptBindingRule> = {
     promptIds: ["prompt_annual_marketing_plan", "prompt_annual_plan"],
     promptScenes: ["半年营销规划生成", "全年营销规划生成"],
   },
+  skill_opportunity_insight_brand_account: {
+    promptIds: ["prompt_opportunity_insight_brand_account"],
+    promptScenes: ["机会洞察-品牌账号分析"],
+  },
+  "opportunity-insight-brand-account-analysis": {
+    promptIds: ["prompt_opportunity_insight_brand_account"],
+    promptScenes: ["机会洞察-品牌账号分析"],
+  },
+  skill_opportunity_insight_competitor_account: {
+    promptIds: ["prompt_opportunity_insight_competitor_account"],
+    promptScenes: ["机会洞察-竞品账号分析"],
+  },
+  "opportunity-insight-competitor-account-analysis": {
+    promptIds: ["prompt_opportunity_insight_competitor_account"],
+    promptScenes: ["机会洞察-竞品账号分析"],
+  },
+  skill_opportunity_insight_comment: {
+    promptIds: ["prompt_opportunity_insight_comment"],
+    promptScenes: ["机会洞察-评论洞察分析"],
+  },
+  "opportunity-insight-comment-analysis": {
+    promptIds: ["prompt_opportunity_insight_comment"],
+    promptScenes: ["机会洞察-评论洞察分析"],
+  },
+  skill_opportunity_insight_final_report: {
+    promptIds: ["prompt_opportunity_insight_final_report"],
+    promptScenes: ["机会洞察-机会洞察总报告"],
+  },
+  "opportunity-insight-final-report": {
+    promptIds: ["prompt_opportunity_insight_final_report"],
+    promptScenes: ["机会洞察-机会洞察总报告"],
+  },
   skill_xhs_plan: {
     promptIds: ["prompt_xhs_plan"],
     promptScenes: ["小红书营销规划"],
