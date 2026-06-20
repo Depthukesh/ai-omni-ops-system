@@ -1211,7 +1211,7 @@ const wechatArticleDraftMockStore: WechatArticleDraftRecord[] = [
     articlePromptScene: "公众号创作文章",
     articleProvider: "Right Codes 文生文",
     articleRuntimeKey: "text-global",
-    articleModelName: "provider_runtime_text_global::gpt-5.5",
+    articleModelName: "provider_runtime_text_global::gpt-5.4",
     imageTasks: [
       {
         id: "wechat_image_task_demo_001",
@@ -3043,8 +3043,8 @@ export class WorksService {
 
   private async listDesignTextModelOptions(brandId: string): Promise<DesignModelOptionRecord[]> {
     const preference: SkillModelPreference = {
-      preferredModelName: "gpt-5.5",
-      configuredModels: ["gpt-5.5", "deepseek-v4-pro", "deepseek-v4-flash", "doubao-seed-2-0-pro-260215", "doubao-seed-2-0-mini-260215", "kimi-k2.6"],
+      preferredModelName: "gpt-5.4",
+      configuredModels: ["gpt-5.4", "deepseek-v4-pro", "deepseek-v4-flash", "doubao-seed-2-0-pro-260215", "doubao-seed-2-0-mini-260215", "kimi-k2.6"],
       preferredProviderIds: [],
     };
     const providers = await this.loadOriginalCopyProviders(brandId, preference);
@@ -3247,14 +3247,14 @@ export class WorksService {
     const basePreference = await this.loadSkillModelPreference(
       params.skillSlug,
       params.promptId,
-      ["gpt-5.5", "deepseek-v4-pro", "deepseek-v4-flash", "doubao-seed-2-0-pro-260215", "doubao-seed-2-0-mini-260215", "kimi-k2.6"],
+      ["gpt-5.4", "deepseek-v4-pro", "deepseek-v4-flash", "doubao-seed-2-0-pro-260215", "doubao-seed-2-0-mini-260215", "kimi-k2.6"],
     );
     const preference: SkillModelPreference = {
-      preferredModelName: params.preferredModelName || basePreference.preferredModelName || "gpt-5.5",
+      preferredModelName: params.preferredModelName || basePreference.preferredModelName || "gpt-5.4",
       configuredModels: this.mergeModelPreferenceOrder(
         params.preferredModelName || "",
         ...basePreference.configuredModels,
-        "gpt-5.5",
+        "gpt-5.4",
         "deepseek-v4-pro",
         "deepseek-v4-flash",
         "doubao-seed-2-0-pro-260215",
@@ -7481,7 +7481,7 @@ export class WorksService {
       taskType: "XHS_VIDEO_NOTE",
       taskTitle: `重新生成故事板：${meta.title}`,
       requestedVideoProvider: meta.requestedVideoProvider,
-      modelName: meta.storyboardPromptModel || "gpt-5.5",
+      modelName: meta.storyboardPromptModel || "gpt-5.4",
     });
     const nextMeta: VideoWorkAssetMeta = {
       ...meta,
@@ -7519,7 +7519,7 @@ export class WorksService {
       taskType: "DOUYIN_VIDEO_NOTE",
       taskTitle: `重新生成故事板：${meta.title}`,
       requestedVideoProvider: meta.requestedVideoProvider,
-      modelName: meta.storyboardPromptModel || "gpt-5.5",
+      modelName: meta.storyboardPromptModel || "gpt-5.4",
     });
     const nextMeta: VideoWorkAssetMeta = {
       ...meta,
@@ -8997,7 +8997,7 @@ export class WorksService {
     taskType: string;
     modelName?: string;
   }) {
-    const modelName = params.modelName || "gpt-5.5";
+    const modelName = params.modelName || "gpt-5.4";
     if (await this.prismaService.canUseDatabase()) {
       return this.prismaService.task.create({
         data: {
@@ -11714,7 +11714,7 @@ export class WorksService {
     const preference = await this.loadSkillModelPreference(
       "wechat-article-composer",
       "prompt_wechat_article_compose",
-      ["provider_runtime_text_global::gpt-5.5", "deepseek-v4-pro"],
+      ["provider_runtime_text_global::gpt-5.4", "deepseek-v4-pro"],
     );
     const candidates = [
       ...(await this.apiProvidersService.listActiveProvidersByRuntimeKey("text-global")),
@@ -11725,7 +11725,7 @@ export class WorksService {
     return {
       provider: provider?.name || "Right Codes 文生文",
       runtimeKey: provider ? this.apiProvidersService.getRuntimeKey(provider) || "text-global" : "text-global",
-      modelName: preference.preferredModelName || "provider_runtime_text_global::gpt-5.5",
+      modelName: preference.preferredModelName || "provider_runtime_text_global::gpt-5.4",
     };
   }
 
@@ -15368,7 +15368,7 @@ export class WorksService {
       brandId,
       workKind: context.workKind,
       promptId: skillProfile.storyboardPromptId,
-      fallbackModels: ["gpt-5.5", "deepseek-v4-pro"],
+      fallbackModels: ["gpt-5.4", "deepseek-v4-pro"],
       fallbackPrompt: "根据剧本、产品图和要求生成故事板提示词。",
       stageLabel: skillProfile.skillLabel === "小红书视频笔记" ? "小红书视频笔记故事板" : `${skillProfile.skillLabel}故事板`,
       systemInstruction: [

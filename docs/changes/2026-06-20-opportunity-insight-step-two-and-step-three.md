@@ -23,7 +23,7 @@
   - `buildOpportunityInsightFinalReport(...)`
 - 新增 step2 / step3 输入构造、知识库 query 与知识上下文构造，继续复用现有 `buildExecutionKnowledgeContext(...)` 机制。
 - 新增 `loadOpportunityInsightNarrativeProviderConfigs(...)`，将模型尝试顺序落实为：
-  - `gpt-5.5`
+  - `gpt-5.4`
   - `kimi-k2.6`
   - `deepseek-v4-pro`
   - `deepseek-v4-flash`

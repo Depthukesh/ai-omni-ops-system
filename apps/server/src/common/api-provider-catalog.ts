@@ -26,6 +26,8 @@ export type ApiProviderSeedRecord = {
 };
 
 const CATALOG_UPDATED_AT = "2026-05-11T10:30:00.000Z";
+const RIGHT_CODES_CODEX_BASE_URL = "https://www.right.codes/codex";
+const RIGHT_CODES_CODEX_DOC_ROOT = "https://docs.right.codes/docs/rc_extension/curl.html";
 const RIGHT_CODES_DRAW_BASE_URL = "https://www.right.codes/draw";
 const RIGHT_CODES_DRAW_DOC_ROOT = "https://docs.right.codes/docs/rc_extension/draw/";
 export const APIZ_API_BASE_URL = "https://api.xskill.ai";
@@ -569,12 +571,11 @@ export const SYSTEM_API_PROVIDER_SEEDS: ApiProviderSeedRecord[] = [
     name: "Right Codes · 文生文（可带图）",
     providerType: "OPENAI",
     status: "ACTIVE",
-    baseUrl: RIGHT_CODES_DRAW_BASE_URL,
-    tutorialUrl: RIGHT_CODES_DRAW_DOC_ROOT,
+    baseUrl: RIGHT_CODES_CODEX_BASE_URL,
+    tutorialUrl: RIGHT_CODES_CODEX_DOC_ROOT,
     modelWhitelist: [
       "gpt-5.3-codex",
       "gpt-5.4",
-      "gpt-5.5",
       "claude-opus-4-6",
       "claude-opus-4-7",
       "claude-sonnet-4-6",
@@ -582,7 +583,7 @@ export const SYSTEM_API_PROVIDER_SEEDS: ApiProviderSeedRecord[] = [
       "gemini-3-flash-preview",
     ],
     apiKey: "",
-    defaultModel: "gpt-5.5",
+    defaultModel: "gpt-5.4",
     organization: "",
     project: "",
     timeoutMs: 180000,
@@ -591,9 +592,9 @@ export const SYSTEM_API_PROVIDER_SEEDS: ApiProviderSeedRecord[] = [
     extraParams: {
       runtimeKey: "text-global",
       runtimeTags: ["text-global", "works-runtime", "reports-runtime"],
-      baseUrls: [RIGHT_CODES_DRAW_BASE_URL],
+      baseUrls: [RIGHT_CODES_CODEX_BASE_URL],
       completionPath: "/v1/chat/completions",
-      sourceFolder: "Right Codes 文生文/带图问答",
+      sourceFolder: "Right Codes Codex 文生文/带图问答",
     },
     remark: "Right Codes 平台支持文生文与带图问答；当前平台级 API Key 需由品牌 Owner 在个人中心单独配置，技能里若选择同名模型，会继续按 Provider 作用域区分。",
   }),

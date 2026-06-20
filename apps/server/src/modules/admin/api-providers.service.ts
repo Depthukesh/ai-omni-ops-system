@@ -436,6 +436,7 @@ export class ApiProvidersService {
     );
 
     await this.bootstrapSystemProviders();
+    await this.migrateTextGlobalRightCodesCodexDefaults();
   }
 
   private async findById(id: string) {
@@ -489,6 +490,51 @@ export class ApiProvidersService {
       }
       await this.insertProviderSeed(provider);
     }
+  }
+
+  private async migrateTextGlobalRightCodesCodexDefaults() {
+    const provider = await this.findById("provider_runtime_text_global_right_codes");
+    if (!provider) {
+      return;
+    }
+
+    const nextModelWhitelist = Array.from(
+      new Set(
+        provider.modelWhitelist
+          .map((item) => item === "gpt-5.5" ? "gpt-5.4" : item)
+          .filter(Boolean),
+      ),
+    );
+    const nextDefaultModel = provider.defaultModel === "gpt-5.5" ? "gpt-5.4" : provider.defaultModel;
+    const nextBaseUrl = provider.baseUrl === "https://www.right.codes/draw"
+      ? "https://www.right.codes/codex"
+      : provider.baseUrl;
+    const nextTutorialUrl = provider.tutorialUrl === "https://docs.right.codes/docs/rc_extension/draw/"
+      ? "https://docs.right.codes/docs/rc_extension/curl.html"
+      : provider.tutorialUrl;
+
+    const nextExtraParams = {
+      ...this.normalizeObjectMap(provider.extraParams),
+      baseUrls: this.getBaseUrls(provider)
+        .map((item) => item === "https://www.right.codes/draw" ? "https://www.right.codes/codex" : item),
+      completionPath: this.getStringExtra(provider, "completionPath") || "/v1/chat/completions",
+      runtimeTags: this.getRuntimeTags(provider).length
+        ? this.getRuntimeTags(provider)
+        : ["text-global", "works-runtime", "reports-runtime"],
+      sourceFolder: "Right Codes Codex 文生文/带图问答",
+    };
+
+    await this.prismaService.$executeRaw`
+      UPDATE "ApiProviderConfig"
+      SET
+        "baseUrl" = ${nextBaseUrl},
+        "tutorialUrl" = ${nextTutorialUrl},
+        "modelWhitelistJson" = ${JSON.stringify(nextModelWhitelist)}::jsonb,
+        "defaultModel" = ${nextDefaultModel},
+        "extraParamsJson" = ${JSON.stringify(nextExtraParams)}::jsonb,
+        "updatedAt" = CURRENT_TIMESTAMP
+      WHERE "id" = ${provider.id}
+    `;
   }
 
   private async syncSystemProviderSeed(current: ApiProviderRecord, seed: ApiProviderRecord) {

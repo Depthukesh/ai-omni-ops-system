@@ -3383,7 +3383,7 @@ export class ReportsService {
       "opportunity-insight-comment-analysis",
       "prompt_opportunity_insight_comment",
     );
-    const modelName = this.parseDelimitedModels(settings.modelName)[0] || settings.preferredModelName || "gpt-5.5";
+    const modelName = this.parseDelimitedModels(settings.modelName)[0] || settings.preferredModelName || "gpt-5.4";
     const inputMeta = {
       step: 2,
       stepKey: "commentInsightAnalysis",
@@ -3447,7 +3447,7 @@ export class ReportsService {
       "opportunity-insight-final-report",
       "prompt_opportunity_insight_final_report",
     );
-    const modelName = this.parseDelimitedModels(settings.modelName)[0] || settings.preferredModelName || "gpt-5.5";
+    const modelName = this.parseDelimitedModels(settings.modelName)[0] || settings.preferredModelName || "gpt-5.4";
     const inputMeta = {
       step: 3,
       stepKey: "finalOpportunityReport",
@@ -3512,7 +3512,7 @@ export class ReportsService {
     const modelName =
       (await this.loadAnnualMarketingProviderConfigs(settings))[0]?.models[0]
       || settings.preferredModelName
-      || "gpt-5.5";
+      || "gpt-5.4";
 
     if (await this.prismaService.canUseDatabase()) {
       const brand = await this.prismaService.brand.findUnique({
@@ -3577,7 +3577,7 @@ export class ReportsService {
     const modelName =
       (await this.loadXiaohongshuMarketingProviderConfigs(settings))[0]?.models[0]
       || settings.preferredModelName
-      || "gpt-5.5";
+      || "gpt-5.4";
 
     if (await this.prismaService.canUseDatabase()) {
       const brand = await this.prismaService.brand.findUnique({
@@ -4262,7 +4262,7 @@ export class ReportsService {
     const modelName =
       (await this.loadXiaohongshuMarketingCalendarProviderConfigs(settings))[0]?.models[0]
       || settings.preferredModelName
-      || "gpt-5.5";
+      || "gpt-5.4";
 
     if (await this.prismaService.canUseDatabase()) {
       const brand = await this.prismaService.brand.findUnique({
@@ -10523,7 +10523,7 @@ ${normalizedMarkdown}`;
     const models = this.pickProviderModels(
       provider.modelWhitelist,
       requestedModels,
-      ["gpt-5.4-nano", "claude-sonnet-4-6", "gemini-3.1-pro-preview", "gpt-5.5"],
+      ["gpt-5.4-nano", "claude-sonnet-4-6", "gemini-3.1-pro-preview", "gpt-5.4"],
     );
     const configuredBaseUrls = this.apiProvidersService.getBaseUrls(provider);
     const prioritizedBaseUrls = settings.baseUrl
@@ -10658,7 +10658,7 @@ ${normalizedMarkdown}`;
       const models = this.pickProviderModels(
         thirdPartyProvider.modelWhitelist,
         requestedModels,
-        ["gpt-5.5", "gpt-5.4-nano", "claude-sonnet-4-6", "gemini-3.1-pro-preview"],
+        ["gpt-5.4", "gpt-5.4-nano", "claude-sonnet-4-6", "gemini-3.1-pro-preview"],
       );
       if (models.length && thirdPartyApiKeys.length) {
         const configuredBaseUrls = this.apiProvidersService.getBaseUrls(thirdPartyProvider);
@@ -11103,7 +11103,7 @@ ${normalizedMarkdown}`;
   ): Promise<ModelGenerationSettings> {
     const skill = await this.skillsPromptsService.getActiveSkillBySlug(skillSlug);
     const prompt = await this.skillsPromptsService.getActivePromptById(promptId);
-    const preferredSelections = [skill?.defaultModel || "", prompt?.modelName || "", "gpt-5.5"];
+    const preferredSelections = [skill?.defaultModel || "", prompt?.modelName || "", "gpt-5.4"];
     const provider = await this.resolvePreferredProvider(skill?.provider, "text-global", [
       "text-global",
       "text-domestic-kimi",
@@ -11112,9 +11112,9 @@ ${normalizedMarkdown}`;
     const preferredModelNames = this.mergeModelPreferenceOrder(
       skill?.defaultModel || "",
       prompt?.modelName || "",
-      "gpt-5.5, kimi-k2.6, deepseek-v4-pro, deepseek-v4-flash",
+      "gpt-5.4, kimi-k2.6, deepseek-v4-pro, deepseek-v4-flash",
     );
-    const preferredModelName = preferredModelNames[0] || skill?.defaultModel || prompt?.modelName || provider?.defaultModel || "gpt-5.5";
+    const preferredModelName = preferredModelNames[0] || skill?.defaultModel || prompt?.modelName || provider?.defaultModel || "gpt-5.4";
     return {
       baseUrl: provider?.baseUrl || "",
       modelName: preferredModelNames.join(", "),
@@ -11363,7 +11363,7 @@ ${normalizedMarkdown}`;
     const modelName = this.resolveCompatibleModelNames(
       provider?.modelWhitelist,
       preferredModelNames.join(", "),
-      ["deepseek-v4-pro", "deepseek-v4-flash", "kimi-k2.6", "GLM-5.1", "doubao-seed-2-0-pro-260215", "gpt-5.5"],
+      ["deepseek-v4-pro", "deepseek-v4-flash", "kimi-k2.6", "GLM-5.1", "doubao-seed-2-0-pro-260215", "gpt-5.4"],
       provider?.defaultModel || "deepseek-v4-pro",
     );
     return {
@@ -11435,7 +11435,7 @@ ${normalizedMarkdown}`;
     const modelName = this.resolveCompatibleModelNames(
       provider?.modelWhitelist,
       preferredModelNames.join(", "),
-      ["deepseek-v4-pro", "doubao-seed-2-0-pro-260215", "kimi-k2.6", "gpt-5.5", "claude-sonnet-4-6"],
+      ["deepseek-v4-pro", "doubao-seed-2-0-pro-260215", "kimi-k2.6", "gpt-5.4", "claude-sonnet-4-6"],
       provider?.defaultModel || "deepseek-v4-pro",
     );
     return {
@@ -11464,7 +11464,7 @@ ${normalizedMarkdown}`;
     const preferredModelNames = this.mergeModelPreferenceOrder(
       skill?.defaultModel || "",
       prompt?.modelName || "",
-      "deepseek-v4-pro, doubao-seed-2-0-pro-260215, kimi-k2.6, gpt-5.5, claude-sonnet-4-6",
+      "deepseek-v4-pro, doubao-seed-2-0-pro-260215, kimi-k2.6, gpt-5.4, claude-sonnet-4-6",
     );
     const preferredModelName = preferredModelNames[0] || skill?.defaultModel || prompt?.modelName || provider?.defaultModel || "deepseek-v4-pro";
     return {
@@ -11498,7 +11498,7 @@ ${normalizedMarkdown}`;
     const preferredModelNames = this.mergeModelPreferenceOrder(
       skill?.defaultModel || "",
       prompt?.modelName || "",
-      "deepseek-v4-pro, deepseek-v4-flash, doubao-seed-2-0-pro-260215, kimi-k2.6, gpt-5.5, claude-sonnet-4-6",
+      "deepseek-v4-pro, deepseek-v4-flash, doubao-seed-2-0-pro-260215, kimi-k2.6, gpt-5.4, claude-sonnet-4-6",
     );
     const preferredModelName = preferredModelNames[0] || skill?.defaultModel || prompt?.modelName || provider?.defaultModel || "deepseek-v4-pro";
     return {
@@ -11532,7 +11532,7 @@ ${normalizedMarkdown}`;
     const preferredModelNames = this.mergeModelPreferenceOrder(
       skill?.defaultModel || "",
       prompt?.modelName || "",
-      "deepseek-v4-pro, deepseek-v4-flash, doubao-seed-2-0-pro-260215, kimi-k2.6, gpt-5.5, claude-sonnet-4-6",
+      "deepseek-v4-pro, deepseek-v4-flash, doubao-seed-2-0-pro-260215, kimi-k2.6, gpt-5.4, claude-sonnet-4-6",
     );
     const preferredModelName = preferredModelNames[0] || skill?.defaultModel || prompt?.modelName || provider?.defaultModel || "deepseek-v4-pro";
     return {
@@ -11570,7 +11570,7 @@ ${normalizedMarkdown}`;
     const preferredModelNames = this.mergeModelPreferenceOrder(
       skill?.defaultModel || "",
       prompt?.modelName || "",
-      "deepseek-v4-pro, deepseek-v4-flash, doubao-seed-2-0-pro-260215, kimi-k2.6, gpt-5.5, claude-sonnet-4-6",
+      "deepseek-v4-pro, deepseek-v4-flash, doubao-seed-2-0-pro-260215, kimi-k2.6, gpt-5.4, claude-sonnet-4-6",
     );
     const preferredModelName = preferredModelNames[0] || skill?.defaultModel || prompt?.modelName || provider?.defaultModel || "deepseek-v4-pro";
     return {
@@ -11602,7 +11602,7 @@ ${normalizedMarkdown}`;
     const preferredModelNames = this.mergeModelPreferenceOrder(
       skill?.defaultModel || "",
       prompt?.modelName || "",
-      "deepseek-v4-pro, deepseek-v4-flash, doubao-seed-2-0-pro-260215, kimi-k2.6, gpt-5.5, claude-sonnet-4-6",
+      "deepseek-v4-pro, deepseek-v4-flash, doubao-seed-2-0-pro-260215, kimi-k2.6, gpt-5.4, claude-sonnet-4-6",
     );
     const preferredModelName = preferredModelNames[0] || skill?.defaultModel || prompt?.modelName || provider?.defaultModel || "deepseek-v4-pro";
     return {
@@ -11735,7 +11735,7 @@ ${normalizedMarkdown}`;
   }
 
   private async loadOpportunityInsightNarrativeProviderConfigs(settings: ModelGenerationSettings): Promise<XiaohongshuMarketingProviderConfig[]> {
-    const preferredModels = ["gpt-5.5", "kimi-k2.6", "deepseek-v4-pro", "deepseek-v4-flash"];
+    const preferredModels = ["gpt-5.4", "kimi-k2.6", "deepseek-v4-pro", "deepseek-v4-flash"];
     const requestedModels = this.orderModels(
       this.parseDelimitedModels(settings.modelName).filter((item) => preferredModels.includes(item)),
       preferredModels,
@@ -11754,7 +11754,7 @@ ${normalizedMarkdown}`;
     ]);
 
     const thirdPartyModels = thirdPartyProvider
-      ? this.pickProviderModels(thirdPartyProvider.modelWhitelist, effectiveRequestedModels, ["gpt-5.5"])
+      ? this.pickProviderModels(thirdPartyProvider.modelWhitelist, effectiveRequestedModels, ["gpt-5.4"])
       : [];
     const kimiModels = kimiProvider
       ? this.pickProviderModels(kimiProvider.modelWhitelist, effectiveRequestedModels, ["kimi-k2.6"])
@@ -11843,7 +11843,7 @@ ${normalizedMarkdown}`;
     );
     const requestedModels = this.orderModels(
       this.parseDelimitedModels(settings.modelName),
-      ["gpt-5.5", "claude-sonnet-4-6"],
+      ["gpt-5.4", "claude-sonnet-4-6"],
     );
 
     const [deepseekProvider, doubaoProvider] = await Promise.all([
@@ -11859,7 +11859,7 @@ ${normalizedMarkdown}`;
       ? this.pickProviderModels(
           thirdPartyProvider.modelWhitelist,
           requestedModels,
-          ["gpt-5.5", "claude-sonnet-4-6"],
+          ["gpt-5.4", "claude-sonnet-4-6"],
         ).filter((item) => !item.toLowerCase().includes("doubao"))
       : [];
     const deepseekModels = deepseekProvider

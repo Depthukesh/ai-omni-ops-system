@@ -1586,6 +1586,7 @@ export class SkillsPromptsService implements OnModuleInit {
     await this.backfillLegacyVideoNoteDefaults();
     await this.backfillLegacySkillInputSchemas();
     await this.backfillBuiltInSkillInputSchemas();
+    await this.syncGlobalGpt54Defaults();
     await this.syncOpportunityInsightSkillMetadata();
     await this.backfillLegacySkillPromptBindings();
     await this.refreshSkillPromptBindingCache();
@@ -1673,6 +1674,24 @@ export class SkillsPromptsService implements OnModuleInit {
           AND "inputSchemaJson" IS NULL
       `;
     }
+  }
+
+  private async syncGlobalGpt54Defaults() {
+    await this.prismaService.$executeRawUnsafe(`
+      UPDATE "SkillConfig"
+      SET
+        "defaultModel" = REPLACE("defaultModel", 'gpt-5.5', 'gpt-5.4'),
+        "updatedAt" = CURRENT_TIMESTAMP
+      WHERE POSITION('gpt-5.5' IN "defaultModel") > 0
+    `);
+
+    await this.prismaService.$executeRawUnsafe(`
+      UPDATE "PromptTemplate"
+      SET
+        "modelName" = REPLACE("modelName", 'gpt-5.5', 'gpt-5.4'),
+        "updatedAt" = CURRENT_TIMESTAMP
+      WHERE POSITION('gpt-5.5' IN "modelName") > 0
+    `);
   }
 
   private async syncOpportunityInsightSkillMetadata() {

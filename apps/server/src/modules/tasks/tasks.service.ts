@@ -84,7 +84,7 @@ export class TasksService {
           taskType: payload.taskType,
           taskTitle: payload.taskTitle,
           taskStatus: TaskStatus.QUEUED,
-          modelName: payload.modelName ?? "gpt-5.5",
+          modelName: payload.modelName ?? "gpt-5.4",
           pointsCost: payload.pointsCost ?? 0,
         },
       });
@@ -116,7 +116,7 @@ export class TasksService {
       taskType: payload.taskType,
       taskTitle: payload.taskTitle,
       taskStatus: "QUEUED" as const,
-      modelName: payload.modelName ?? "gpt-5.5",
+      modelName: payload.modelName ?? "gpt-5.4",
       pointsCost: payload.pointsCost ?? 0,
       createdAt: now,
       updatedAt: now,

@@ -101,9 +101,9 @@
 
 - 平台与运行时种子
   - `ApiProviderConfig` 新增 `Right Codes · 文生文（可带图）`
-    - 基础地址：`https://www.right.codes/draw`
+    - 基础地址：`https://www.right.codes/codex`
     - 对应接口：`/v1/chat/completions`
-    - 模型白名单：`gpt-5.3-codex`、`gpt-5.4`、`gpt-5.5`、`claude-opus-4-6`、`claude-opus-4-7`、`claude-sonnet-4-6`、`gemini-3.1-pro-preview`、`gemini-3-flash-preview`
+    - 模型白名单：`gpt-5.3-codex`、`gpt-5.4`、`claude-opus-4-6`、`claude-opus-4-7`、`claude-sonnet-4-6`、`gemini-3.1-pro-preview`、`gemini-3-flash-preview`
   - `ApiProviderConfig` 新增 `Right Codes · 文生图/图生图`
     - 基础地址：`https://www.right.codes/draw`
     - 对应接口：`/v1/images/generations`
