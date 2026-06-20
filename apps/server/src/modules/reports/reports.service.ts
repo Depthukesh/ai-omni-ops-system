@@ -6396,11 +6396,14 @@ export class ReportsService {
 
   private normalizeOpportunityInsightSupplementInput(value?: string) {
     const normalized = typeof value === "string" ? value.trim() : "";
-    return normalized ? this.truncateText(normalized, 2000) : undefined;
+    return normalized ? this.truncateText(normalized, 60000) : undefined;
   }
 
   private readOpportunityInsightUserRequirement(inputPayload: Record<string, unknown>) {
-    return this.readRecordString(this.readNestedRecord(inputPayload, ["inputScope", "userRequirement"]), "text") || "";
+    return this.truncateText(
+      this.readRecordString(this.readNestedRecord(inputPayload, ["inputScope", "userRequirement"]), "text") || "",
+      1200,
+    );
   }
 
   private async buildReport(params: {
@@ -6694,7 +6697,11 @@ export class ReportsService {
       settings,
       inputPayload,
     );
-    if (!params.douyinWorkspace.commentData.length && !knowledgeContext.trim()) {
+    const effectiveCommentCount = this.readRecordNumber(
+      this.readNestedRecord(inputPayload, ["inputScope", "douyinCommentData"]),
+      "commentCount",
+    ) || 0;
+    if (!effectiveCommentCount && !knowledgeContext.trim()) {
       const brandName = params.archive.brand.brandName || "当前品牌";
       const reminderMarkdown = [
         `# ${brandName}评论洞察分析`,
@@ -9420,6 +9427,35 @@ ${normalizedMarkdown}`;
     generatedAt: string,
     supplementInput?: string,
   ) {
+    const manualSupplementComments = this.extractOpportunityInsightSupplementComments(supplementInput);
+    const mergedComments = [
+      ...douyinWorkspace.commentData.map((item) => ({
+        source: "douyinWorkspace",
+        sourceWorkId: item.sourceWorkId,
+        sourceWorkUrl: item.sourceWorkUrl,
+        commentId: item.commentId,
+        commentText: this.truncateText(item.commentText, 220),
+        commentTime: item.commentTime,
+        commentUserName: item.commentUserName,
+        likeCount: item.likeCount,
+        replyCount: item.replyCount,
+      })),
+      ...manualSupplementComments.map((item, index) => ({
+        source: "manualSupplement",
+        sourceWorkId: item.sourceWorkId || "",
+        sourceWorkUrl: item.sourceWorkUrl || "",
+        commentId: item.commentId || `manual-supplement-${index + 1}`,
+        commentText: this.truncateText(item.commentText, 220),
+        commentTime: item.commentTime,
+        commentUserName: item.commentUserName,
+        likeCount: item.likeCount,
+        replyCount: item.replyCount,
+        productTitle: item.productTitle,
+        ratingText: item.ratingText,
+        orderId: item.orderId,
+      })),
+    ].slice(0, 120);
+    const totalCommentCount = douyinWorkspace.commentData.length + manualSupplementComments.length;
     return {
       task: "输出《评论洞察分析》",
       generatedAt,
@@ -9451,21 +9487,109 @@ ${normalizedMarkdown}`;
             })),
         },
         douyinCommentData: {
-          commentCount: douyinWorkspace.commentData.length,
-          comments: douyinWorkspace.commentData.slice(0, 80).map((item) => ({
-            sourceWorkId: item.sourceWorkId,
-            sourceWorkUrl: item.sourceWorkUrl,
-            commentId: item.commentId,
-            commentText: this.truncateText(item.commentText, 220),
-            commentTime: item.commentTime,
-            commentUserName: item.commentUserName,
-            likeCount: item.likeCount,
-            replyCount: item.replyCount,
-          })),
+          commentCount: totalCommentCount,
+          platformCommentCount: douyinWorkspace.commentData.length,
+          manualSupplementCommentCount: manualSupplementComments.length,
+          comments: mergedComments,
+          manualSupplementSummary: manualSupplementComments.length
+            ? {
+                rawTextLength: supplementInput?.length || 0,
+                parsedCommentCount: manualSupplementComments.length,
+                rawTextPreview: this.truncateText(supplementInput || "", 2000),
+              }
+            : undefined,
         },
       },
       outputTarget: "评论洞察分析报告",
     };
+  }
+
+  private extractOpportunityInsightSupplementComments(supplementInput?: string) {
+    const normalized = typeof supplementInput === "string" ? supplementInput.replace(/\r/g, "").trim() : "";
+    if (!normalized) {
+      return [] as Array<{
+        commentText: string;
+        commentTime?: string;
+        commentUserName?: string;
+        likeCount?: number;
+        replyCount?: number;
+        productTitle?: string;
+        ratingText?: string;
+        orderId?: string;
+        sourceWorkId?: string;
+        sourceWorkUrl?: string;
+        commentId?: string;
+      }>;
+    }
+
+    const blocks = normalized
+      .split(/\n\s*\n+/)
+      .map((item) => item.trim())
+      .filter((item) => item.length >= 20 && this.looksLikeOpportunityInsightCommentBlock(item));
+
+    return blocks.slice(0, 240).map((block, index) => {
+      const commentText =
+        this.readOpportunityInsightSupplementField(block, ["用户评论", "评论内容", "评价内容", "评价详情"])
+        || this.truncateText(block.replace(/\s+/g, " ").trim(), 220);
+      return {
+        commentId: `manual-${index + 1}`,
+        commentText,
+        commentTime: this.readOpportunityInsightSupplementField(block, ["评论时间", "下单时间", "时间"]) || undefined,
+        commentUserName: this.readOpportunityInsightSupplementField(block, ["买家昵称", "用户昵称", "用户名称", "用户"]) || undefined,
+        likeCount: this.readOpportunityInsightSupplementNumber(block, ["被点赞数", "点赞数", "点赞/互动"]),
+        replyCount: this.readOpportunityInsightSupplementNumber(block, ["回复数", "互动数", "回复/互动"]),
+        productTitle: this.readOpportunityInsightSupplementField(block, ["商品标题", "商品名称", "商品"]) || undefined,
+        ratingText: this.readOpportunityInsightSupplementField(block, ["用户评价分", "评分", "评价分"]) || undefined,
+        orderId: this.readOpportunityInsightSupplementField(block, ["订单编号", "订单号"]) || undefined,
+        sourceWorkId: undefined,
+        sourceWorkUrl: undefined,
+      };
+    }).filter((item) => item.commentText.trim());
+  }
+
+  private looksLikeOpportunityInsightCommentBlock(block: string) {
+    const markers = [
+      "用户评论",
+      "评论内容",
+      "评价内容",
+      "用户评价分",
+      "商品标题",
+      "商品名称",
+      "订单编号",
+      "订单号",
+      "被点赞数",
+      "回复数",
+      "买家昵称",
+      "用户昵称",
+    ];
+    const matchedMarkerCount = markers.filter((marker) => block.includes(marker)).length;
+    return matchedMarkerCount >= 2;
+  }
+
+  private readOpportunityInsightSupplementField(block: string, labels: string[]) {
+    for (const label of labels) {
+      const escapedLabel = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const pattern = new RegExp(`${escapedLabel}[：:]\\s*([\\s\\S]*?)(?=\\n\\S+[：:]|$)`, "i");
+      const match = pattern.exec(block);
+      const value = match?.[1]?.replace(/\s+/g, " ").trim();
+      if (value) {
+        return value;
+      }
+    }
+    return "";
+  }
+
+  private readOpportunityInsightSupplementNumber(block: string, labels: string[]) {
+    const rawValue = this.readOpportunityInsightSupplementField(block, labels);
+    if (!rawValue) {
+      return undefined;
+    }
+    const match = rawValue.match(/-?\d+(?:\.\d+)?/);
+    if (!match) {
+      return undefined;
+    }
+    const value = Number(match[0]);
+    return Number.isFinite(value) ? value : undefined;
   }
 
   private buildOpportunityInsightStepThreeInput(
