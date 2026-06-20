@@ -2323,6 +2323,7 @@ function DouyinBrandWorksTable(props: {
         <thead>
           <tr>
             <th>作品 ID</th>
+            <th>作者昵称</th>
             <th>作品描述/文案</th>
             <th>发布时间</th>
             <th>媒体类型</th>
@@ -2342,6 +2343,9 @@ function DouyinBrandWorksTable(props: {
           {props.items.map((item) => (
             <tr key={item.id}>
               <td><CopyableCell value={item.workId} /></td>
+              <td className="table-cell-wide">
+                <ExpandableTextCell value={item.authorName} emptyText="-" compactRows={2} />
+              </td>
               <td className="table-cell-wide">
                 <ExpandableTextCell value={item.description || item.title} emptyText="暂无作品描述" compactRows={2} />
               </td>

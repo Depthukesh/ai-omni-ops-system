@@ -790,7 +790,35 @@ function mergeXhsAccountEntries(
   incomingEntries: XhsAccountBindingEntry[],
   target: "brand" | "competitor",
 ) {
-  return incomingEntries.reduce((result, item) => upsertXhsAccountEntries(result, item, target), [...currentEntries]);
+  return incomingEntries.reduce((result, item) => {
+    const normalizedLocator = normalizeXhsAccountEntryLocator(item.locator);
+    if (!normalizedLocator) {
+      return result;
+    }
+    const matchedIndex = result.findIndex((entry) => normalizeXhsAccountEntryLocator(entry.locator) === normalizedLocator);
+    if (matchedIndex < 0) {
+      return upsertXhsAccountEntries(result, item, target);
+    }
+    return result.map((entry, index) => {
+      if (index !== matchedIndex) {
+        return entry;
+      }
+      const incomingRole = item.accountRole ? normalizeXhsAccountRole(item.accountRole) : undefined;
+      const currentRole = entry.accountRole ? normalizeXhsAccountRole(entry.accountRole) : undefined;
+      const shouldKeepCurrentRole =
+        target === "brand"
+        && (currentRole === "STAFF" || currentRole === "TALENT")
+        && incomingRole === "BRAND";
+      return {
+        ...entry,
+        ...item,
+        accountRole:
+          shouldKeepCurrentRole
+            ? currentRole
+            : incomingRole ?? currentRole,
+      };
+    });
+  }, [...currentEntries]);
 }
 
 function areXhsAccountEntriesEqual(left: XhsAccountBindingEntry[], right: XhsAccountBindingEntry[]) {
