@@ -200,6 +200,21 @@ export type DouyinKeywordRecommendationRecord = {
   wordsSource?: string;
   position?: number;
 };
+export type DouyinCommentRecord = {
+  id: string;
+  kind: "DOUYIN_COMMENT";
+  sourceWorkId: string;
+  sourceWorkUrl: string;
+  sourceSecUserId: string;
+  commentId: string;
+  commentText: string;
+  commentTime?: string;
+  commentUserName?: string;
+  commentUserSecUserId: string;
+  likeCount?: number;
+  replyCount?: number;
+  collectedAt: string;
+};
 export type DouyinCityHotspotRecord = {
   id: string;
   kind: "DOUYIN_CITY_HOTSPOT";
@@ -225,6 +240,7 @@ export type DouyinCollectionWorkspace = {
   benchmarkWorks: DouyinCollectedWorkRecord[];
   searchWorks: DouyinCollectedWorkRecord[];
   keywordRecommendations: DouyinKeywordRecommendationRecord[];
+  commentData: DouyinCommentRecord[];
   lowFanExplosiveWorks: DouyinCollectedWorkRecord[];
   highCompletionRateWorks: DouyinCollectedWorkRecord[];
   highLikeRateWorks: DouyinCollectedWorkRecord[];
@@ -242,6 +258,7 @@ export type DouyinSyncPayload = {
     | "benchmarkWorks"
     | "searchWorks"
     | "keywordRecommendations"
+    | "commentData"
     | "lowFanExplosiveWorks"
     | "highCompletionRateWorks"
     | "highLikeRateWorks"
@@ -256,6 +273,7 @@ export type DouyinSyncPayload = {
   searchPublishTime?: string;
   searchFilterDuration?: string;
   searchContentType?: string;
+  commentSourceUrls?: string[];
   contentTagSelection?: {
     primaryTagId?: number;
     secondaryTagId?: number;
@@ -436,6 +454,7 @@ export const douyinCollectionSeed: DouyinCollectionWorkspace = {
   ],
   searchWorks: [],
   keywordRecommendations: [],
+  commentData: [],
   lowFanExplosiveWorks: [],
   highCompletionRateWorks: [],
   highLikeRateWorks: [],
@@ -459,6 +478,7 @@ export async function syncDouyinCollectionWorkspace(payload: DouyinSyncPayload =
       benchmarkWorks: number;
       searchWorks: number;
       keywordRecommendations: number;
+      commentData: number;
       lowFanExplosiveWorks: number;
       highCompletionRateWorks: number;
       highLikeRateWorks: number;

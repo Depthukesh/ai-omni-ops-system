@@ -174,6 +174,7 @@ export class DouyinCollectorsController {
         | "benchmarkWorks"
         | "searchWorks"
         | "keywordRecommendations"
+        | "commentData"
         | "lowFanExplosiveWorks"
         | "highCompletionRateWorks"
         | "highLikeRateWorks"
@@ -188,6 +189,7 @@ export class DouyinCollectorsController {
       searchPublishTime?: string;
       searchFilterDuration?: string;
       searchContentType?: string;
+      commentSourceUrls?: string[];
       contentTagSelection?: {
         primaryTagId?: number;
         secondaryTagId?: number;

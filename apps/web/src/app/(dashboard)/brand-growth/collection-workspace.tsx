@@ -14,6 +14,7 @@ import type {
   DouyinCollectedAccountRecord,
   DouyinCityHotspotRecord,
   DouyinCityOption,
+  DouyinCommentRecord,
   DouyinContentTagOption,
   DouyinCollectionWorkspace,
   DouyinKeywordRecommendationRecord,
@@ -61,6 +62,7 @@ export type DouyinCollectionCardKey =
   | "competitorWorks"
   | "benchmarkWorks"
   | "searchWorks"
+  | "commentData"
   | "keywordRecommendations"
   | "lowFanExplosiveWorks"
   | "highCompletionRateWorks"
@@ -77,6 +79,7 @@ export const douyinCollectionCards: Array<{
   { key: "competitorWorks", label: "竞品作品信息及数据" },
   { key: "benchmarkWorks", label: "对标作品信息及数据" },
   { key: "searchWorks", label: "搜索关键词" },
+  { key: "commentData", label: "评论数据" },
   { key: "keywordRecommendations", label: "关键词推荐" },
   { key: "lowFanExplosiveWorks", label: "获取低粉爆款榜" },
   { key: "highCompletionRateWorks", label: "获取高完播率榜" },
@@ -212,6 +215,17 @@ const douyinFieldPreviewMap: Record<DouyinCollectionCardKey, DouyinFieldPreviewR
     { field: "shareCount", label: "分享数", source: "获取综合搜索 V1", path: "data[].aweme_info.statistics.share_count", required: "可选", patch: "否" },
     { field: "collectCount", label: "收藏数", source: "获取综合搜索 V1", path: "data[].aweme_info.statistics.collect_count", required: "可选", patch: "否" },
   ],
+  commentData: [
+    { field: "sourceWorkId", label: "源作品 ID", source: "获取单个视频评论数据", path: "request.aweme_id", required: "必需", patch: "否" },
+    { field: "sourceSecUserId", label: "源作品作者 sec_user_id", source: "输入作品链接", path: "url.query.sec_user_id / url.path.user", required: "必需", patch: "否" },
+    { field: "commentId", label: "评论 ID", source: "获取单个视频评论数据", path: "data.comments[].cid", required: "必需", patch: "否" },
+    { field: "commentText", label: "评论内容", source: "获取单个视频评论数据", path: "data.comments[].text", required: "可选", patch: "否" },
+    { field: "commentTime", label: "评论时间", source: "获取单个视频评论数据", path: "data.comments[].create_time", required: "可选", patch: "否" },
+    { field: "commentUserName", label: "评论用户昵称", source: "获取单个视频评论数据", path: "data.comments[].user.nickname", required: "可选", patch: "否" },
+    { field: "commentUserSecUserId", label: "评论用户 sec_user_id", source: "获取单个视频评论数据", path: "data.comments[].user.sec_uid", required: "必需", patch: "否" },
+    { field: "likeCount", label: "评论点赞数", source: "获取单个视频评论数据", path: "data.comments[].digg_count", required: "可选", patch: "否" },
+    { field: "replyCount", label: "评论回复数", source: "获取单个视频评论数据", path: "data.comments[].reply_comment_total", required: "可选", patch: "否" },
+  ],
   keywordRecommendations: [
     { field: "searchKeyword", label: "搜索关键词", source: "获取搜索关键词推荐", path: "data.sug_list[].content", required: "必需", patch: "否" },
     { field: "recommendedKeyword", label: "推荐关键词", source: "获取搜索关键词推荐", path: "data.sug_list[].content / data.sug_list[].word_record.words_content", required: "必需", patch: "否" },
@@ -324,6 +338,7 @@ export interface BrandGrowthCollectionWorkspaceProps {
     searchPublishTime: string;
     searchFilterDuration: string;
     searchContentType: string;
+    commentSourceUrls: string;
     keywordRecommendationEntries: KeywordRecommendationEntry[];
     lowFanExplosiveWorks: {
       primaryTagId: string;
@@ -350,6 +365,7 @@ export interface BrandGrowthCollectionWorkspaceProps {
     searchPublishTime: string;
     searchFilterDuration: string;
     searchContentType: string;
+    commentSourceUrls: string;
     keywordRecommendationEntries: KeywordRecommendationEntry[];
     lowFanExplosiveWorks: {
       primaryTagId: string;
@@ -393,6 +409,7 @@ export interface BrandGrowthCollectionWorkspaceProps {
   sortedDouyinCompetitorWorks: DouyinCollectedWorkRecord[];
   sortedDouyinBenchmarkWorks: DouyinCollectedWorkRecord[];
   sortedDouyinSearchWorks: DouyinCollectedWorkRecord[];
+  sortedDouyinCommentData: DouyinCommentRecord[];
   sortedDouyinKeywordRecommendations: DouyinKeywordRecommendationRecord[];
   sortedDouyinLowFanExplosiveWorks: DouyinCollectedWorkRecord[];
   sortedDouyinHighCompletionRateWorks: DouyinCollectedWorkRecord[];
@@ -2442,6 +2459,61 @@ function DouyinMaterialReadyWorksTable(props: {
   );
 }
 
+function DouyinCommentTable(props: {
+  items: DouyinCommentRecord[];
+  formatDateTime: OptionalDateFormatter;
+  formatCount: OptionalNumberFormatter;
+}) {
+  return (
+    <ScrollableTableShell>
+      <table className="soft-table douyin-data-table">
+        <thead>
+          <tr>
+            <th>源作品 ID</th>
+            <th>作品链接</th>
+            <th>源作品 sec_user_id</th>
+            <th>评论 ID</th>
+            <th>评论内容</th>
+            <th>评论时间</th>
+            <th>评论用户昵称</th>
+            <th>评论用户 sec_user_id</th>
+            <th>评论点赞数</th>
+            <th>评论回复数</th>
+            <th>采集时间</th>
+          </tr>
+        </thead>
+        <tbody>
+          {props.items.map((item) => (
+            <tr key={item.id}>
+              <td><CopyableCell value={item.sourceWorkId} /></td>
+              <td>
+                {item.sourceWorkUrl ? (
+                  <a href={item.sourceWorkUrl} target="_blank" rel="noreferrer" className="note-data-link">
+                    打开作品
+                  </a>
+                ) : "-"}
+              </td>
+              <td><CopyableCell value={item.sourceSecUserId} /></td>
+              <td><CopyableCell value={item.commentId} /></td>
+              <td className="table-cell-wide">
+                <ExpandableTextCell value={item.commentText} emptyText="暂无评论内容" compactRows={3} />
+              </td>
+              <td>{item.commentTime || "-"}</td>
+              <td className="table-cell-wide">
+                <ExpandableTextCell value={item.commentUserName} emptyText="-" compactRows={2} />
+              </td>
+              <td><CopyableCell value={item.commentUserSecUserId} /></td>
+              <td>{props.formatCount(item.likeCount)}</td>
+              <td>{props.formatCount(item.replyCount)}</td>
+              <td>{props.formatDateTime(item.collectedAt)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </ScrollableTableShell>
+  );
+}
+
 function DouyinCityHotspotTable(props: {
   items: DouyinCityHotspotRecord[];
   formatDateTime: OptionalDateFormatter;
@@ -2794,6 +2866,7 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
     props.sortedDouyinCompetitorWorks.length +
     props.sortedDouyinBenchmarkWorks.length +
     props.sortedDouyinSearchWorks.length +
+    props.sortedDouyinCommentData.length +
     props.sortedDouyinKeywordRecommendations.length +
     props.sortedDouyinLowFanExplosiveWorks.length +
     props.sortedDouyinHighCompletionRateWorks.length +
@@ -2816,11 +2889,11 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
             ? props.sortedDouyinBenchmarkWorks
             : props.activeDouyinCollectionCard === "searchWorks"
               ? props.sortedDouyinSearchWorks
-            : props.activeDouyinCollectionCard === "lowFanExplosiveWorks"
-              ? props.sortedDouyinLowFanExplosiveWorks
-              : props.activeDouyinCollectionCard === "highCompletionRateWorks"
-                ? props.sortedDouyinHighCompletionRateWorks
-                : props.sortedDouyinHighLikeRateWorks;
+              : props.activeDouyinCollectionCard === "lowFanExplosiveWorks"
+                ? props.sortedDouyinLowFanExplosiveWorks
+                : props.activeDouyinCollectionCard === "highCompletionRateWorks"
+                  ? props.sortedDouyinHighCompletionRateWorks
+                  : props.sortedDouyinHighLikeRateWorks;
   if (props.activePage === "dailyHotspot") {
     return (
       <article className="workspace-panel strategy-page-card hotspot-page-card">
@@ -3812,6 +3885,35 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                   />
                 ) : (
                   <div className="note-empty-state">当前还没有搜索结果，请先输入关键词并提交。</div>
+                )}
+              </article>
+            </>
+          ) : null}
+          {props.activeDouyinCollectionCard === "commentData" ? (
+            <>
+              <DouyinSubmitPanel
+                title="评论数据"
+                value={props.douyinSyncForm.commentSourceUrls}
+                onChange={(value) => props.setDouyinSyncForm((current) => ({ ...current, commentSourceUrls: value }))}
+                placeholder="每行一个抖音作品链接，链接中必须带 sec_user_id"
+                isSubmitting={props.isHydrating || props.isSyncingDouyinWorkspace}
+                onSubmit={props.onSyncDouyinWorkspace}
+              />
+              <article className="light-data-panel">
+                <div className="collection-result-head">
+                  <div>
+                    <h3>评论数据</h3>
+                    <p>调用 TikHub 单个视频评论接口，按列表展示评论核心参数，并强制保留源作品与评论用户的 sec_user_id。</p>
+                  </div>
+                </div>
+                {props.sortedDouyinCommentData.length ? (
+                  <DouyinCommentTable
+                    items={props.sortedDouyinCommentData}
+                    formatDateTime={props.formatDateTime}
+                    formatCount={props.formatCount}
+                  />
+                ) : (
+                  <div className="note-empty-state">当前还没有评论数据结果，请先输入带 sec_user_id 的抖音作品链接并提交。</div>
                 )}
               </article>
             </>

@@ -28,6 +28,7 @@ type DouyinWorkKind =
   | "DOUYIN_HIGH_COMPLETION_RATE_WORK"
   | "DOUYIN_HIGH_LIKE_RATE_WORK";
 type DouyinKeywordRecommendationKind = "DOUYIN_KEYWORD_RECOMMENDATION";
+type DouyinCommentKind = "DOUYIN_COMMENT";
 type DouyinCityHotspotKind = "DOUYIN_CITY_HOTSPOT";
 type CollectorNoteKind =
   | "XHS_BRAND_NOTE"
@@ -39,6 +40,7 @@ type CollectorAssetKind =
   | CollectorNoteKind
   | DouyinWorkKind
   | DouyinKeywordRecommendationKind
+  | DouyinCommentKind
   | CollectorTargetKind
   | DouyinCityHotspotKind;
 type CollectorSyncStatus = "IDLE" | "RUNNING" | "SUCCESS" | "FAILED";
@@ -49,6 +51,7 @@ type DouyinBillboardScopeKey =
   | "highLikeRateWorks";
 type DouyinSearchScopeKey = "searchWorks";
 type DouyinKeywordRecommendationScopeKey = "keywordRecommendations";
+type DouyinCommentScopeKey = "commentData";
 type DouyinCityHotspotScopeKey = "cityHotspots";
 export type XhsAccountRole = "BRAND" | "STAFF" | "TALENT";
 type XhsSyncAccountEntry = {
@@ -71,6 +74,7 @@ type DouyinSyncInput = {
     | "benchmarkWorks"
     | DouyinSearchScopeKey
     | DouyinKeywordRecommendationScopeKey
+    | DouyinCommentScopeKey
     | DouyinBillboardScopeKey
     | DouyinCityHotspotScopeKey;
   brandAccountLinks?: string[];
@@ -83,6 +87,7 @@ type DouyinSyncInput = {
   searchPublishTime?: string;
   searchFilterDuration?: string;
   searchContentType?: string;
+  commentSourceUrls?: string[];
   contentTagSelection?: DouyinContentTagSelection;
   cityCode?: number;
 };
@@ -344,6 +349,22 @@ export type DouyinKeywordRecommendationRecord = {
   position?: number;
 };
 
+export type DouyinCommentRecord = {
+  id: string;
+  kind: DouyinCommentKind;
+  sourceWorkId: string;
+  sourceWorkUrl: string;
+  sourceSecUserId: string;
+  commentId: string;
+  commentText: string;
+  commentTime?: string;
+  commentUserName?: string;
+  commentUserSecUserId: string;
+  likeCount?: number;
+  replyCount?: number;
+  collectedAt: string;
+};
+
 export type DouyinCollectionWorkspace = {
   brandAccounts: DouyinCollectedAccountRecord[];
   competitorAccounts: DouyinCollectedAccountRecord[];
@@ -352,6 +373,7 @@ export type DouyinCollectionWorkspace = {
   benchmarkWorks: DouyinCollectedWorkRecord[];
   searchWorks: DouyinCollectedWorkRecord[];
   keywordRecommendations: DouyinKeywordRecommendationRecord[];
+  commentData: DouyinCommentRecord[];
   lowFanExplosiveWorks: DouyinCollectedWorkRecord[];
   highCompletionRateWorks: DouyinCollectedWorkRecord[];
   highLikeRateWorks: DouyinCollectedWorkRecord[];
@@ -533,6 +555,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     const shouldSyncBenchmarkWorks = !scope || scope === "benchmarkWorks";
     const shouldSyncSearchWorks = scope === "searchWorks";
     const shouldSyncKeywordRecommendations = scope === "keywordRecommendations";
+    const shouldSyncCommentData = scope === "commentData";
     const shouldSyncLowFanExplosiveWorks = scope === "lowFanExplosiveWorks";
     const shouldSyncHighCompletionRateWorks = scope === "highCompletionRateWorks";
     const shouldSyncHighLikeRateWorks = scope === "highLikeRateWorks";
@@ -594,6 +617,20 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     const keywordRecommendationRows = shouldSyncKeywordRecommendations
       ? await this.collectAndStoreDouyinKeywordRecommendations(brandId, input.searchKeyword)
       : [];
+    const manualCommentResults = shouldSyncCommentData
+      ? await Promise.allSettled(
+          (input.commentSourceUrls ?? [])
+            .map((item) => String(item || "").trim())
+            .filter(Boolean)
+            .map((sourceUrl) => this.collectAndStoreSingleDouyinCommentData(brandId, sourceUrl)),
+        )
+      : [];
+    const commentRows = manualCommentResults
+      .filter((item): item is PromiseFulfilledResult<DouyinCommentRecord[]> => item.status === "fulfilled")
+      .flatMap((item) => item.value);
+    const commentFailures = manualCommentResults
+      .filter((item): item is PromiseRejectedResult => item.status === "rejected")
+      .map((item) => (item.reason instanceof Error ? item.reason.message : "评论数据采集失败"));
     const lowFanExplosiveRows = shouldSyncLowFanExplosiveWorks
       ? await this.collectAndStoreDouyinBillboardWorks(brandId, {
           kind: "DOUYIN_LOW_FAN_EXPLOSIVE_WORK",
@@ -643,6 +680,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
         + benchmarkWorkCount
         + searchWorkRows.length
         + keywordRecommendationRows.length
+        + commentRows.length
         + lowFanExplosiveRows.length
         + highCompletionRateRows.length
         + highLikeRateRows.length
@@ -655,12 +693,13 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
         benchmarkWorks: benchmarkWorkCount,
         searchWorks: searchWorkRows.length,
         keywordRecommendations: keywordRecommendationRows.length,
+        commentData: commentRows.length,
         lowFanExplosiveWorks: lowFanExplosiveRows.length,
         highCompletionRateWorks: highCompletionRateRows.length,
         highLikeRateWorks: highLikeRateRows.length,
         cityHotspots: cityHotspotRows.length,
       },
-      warnings: [...benchmarkFailures, ...billboardWarnings],
+      warnings: [...benchmarkFailures, ...commentFailures, ...billboardWarnings],
       workspace: await this.getDouyinWorkspace(brandId),
     };
   }
@@ -1189,6 +1228,9 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     const keywordRecommendations = assets
       .filter((item) => item.metadataJson?.kind === "DOUYIN_KEYWORD_RECOMMENDATION")
       .map((item) => this.mapDouyinKeywordRecommendation(item));
+    const commentData = assets
+      .filter((item) => item.metadataJson?.kind === "DOUYIN_COMMENT")
+      .map((item) => this.mapDouyinComment(item));
     const lowFanExplosiveWorks = assets
       .filter((item) => item.metadataJson?.kind === "DOUYIN_LOW_FAN_EXPLOSIVE_WORK")
       .map((item) => this.mapDouyinCollectedWork(item, "DOUYIN_LOW_FAN_EXPLOSIVE_WORK"));
@@ -1211,6 +1253,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       benchmarkWorks,
       searchWorks,
       keywordRecommendations,
+      commentData,
       lowFanExplosiveWorks,
       highCompletionRateWorks,
       highLikeRateWorks,
@@ -1396,6 +1439,25 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       queryId: this.readMetaString(meta, "queryId") || undefined,
       wordsSource: this.readMetaString(meta, "wordsSource") || undefined,
       position: this.readMetaNumber(meta, "position"),
+    };
+  }
+
+  private mapDouyinComment(asset: AssetRecord): DouyinCommentRecord {
+    const meta = this.asMeta(asset.metadataJson);
+    return {
+      id: asset.id,
+      kind: "DOUYIN_COMMENT",
+      sourceWorkId: this.readMetaString(meta, "sourceWorkId"),
+      sourceWorkUrl: this.readMetaString(meta, "sourceWorkUrl") || asset.fileUrl || "",
+      sourceSecUserId: this.readMetaString(meta, "sourceSecUserId"),
+      commentId: this.readMetaString(meta, "commentId"),
+      commentText: this.readMetaString(meta, "commentText") || asset.title,
+      commentTime: this.readMetaString(meta, "commentTime") || undefined,
+      commentUserName: this.readMetaString(meta, "commentUserName") || undefined,
+      commentUserSecUserId: this.readMetaString(meta, "commentUserSecUserId"),
+      likeCount: this.readMetaNumber(meta, "likeCount"),
+      replyCount: this.readMetaNumber(meta, "replyCount"),
+      collectedAt: this.readMetaString(meta, "collectedAt") || new Date().toISOString(),
     };
   }
 
@@ -3978,6 +4040,90 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     return rows;
   }
 
+  private async collectAndStoreSingleDouyinCommentData(
+    brandId: string,
+    sourceUrl: string,
+  ): Promise<DouyinCommentRecord[]> {
+    const normalizedSourceUrl = String(sourceUrl || "").trim();
+    if (!normalizedSourceUrl) {
+      throw new BadRequestException("评论数据链接不能为空");
+    }
+    const sourceWorkId = this.normalizeDouyinAwemeId(normalizedSourceUrl);
+    if (!sourceWorkId) {
+      throw new BadRequestException(`评论数据链接缺少 aweme_id：${normalizedSourceUrl}`);
+    }
+    const sourceSecUserId = this.extractDouyinSecUserId(normalizedSourceUrl);
+    if (!sourceSecUserId) {
+      throw new BadRequestException(`评论数据链接缺少 sec_user_id：${normalizedSourceUrl}`);
+    }
+
+    const raw = await this.fetchTikHub(
+      "/api/v1/douyin/app/v3/fetch_video_comments",
+      {
+        aweme_id: sourceWorkId,
+        cursor: "0",
+        count: "20",
+      },
+      brandId,
+    );
+    const items = this.extractDouyinCommentItems(raw).slice(0, 20);
+    const rows: DouyinCommentRecord[] = [];
+    const sourceWorkUrl = this.normalizeDouyinShareUrl(normalizedSourceUrl) || this.normalizeDouyinNoteUrl(sourceWorkId, "短视频");
+    const collectedAt = new Date().toISOString();
+
+    for (const item of items) {
+      const commentId = this.pickString(item, ["cid", "comment_id", "commentId"]);
+      if (!commentId) {
+        continue;
+      }
+      const user = this.asMeta(item.user);
+      const commentUserSecUserId =
+        this.pickString(user, ["sec_uid", "sec_user_id", "secUid"])
+        || this.pickString(item, ["sec_uid", "sec_user_id", "secUid"]);
+      if (!commentUserSecUserId) {
+        continue;
+      }
+      const commentText = this.pickString(item, ["text", "comment_text", "content"]) || "";
+      const metadata = {
+        kind: "DOUYIN_COMMENT" as const,
+        sourceAccountId: `${sourceWorkId}:${commentId}`,
+        sourceWorkId,
+        sourceWorkUrl,
+        sourceSecUserId,
+        commentId,
+        commentText,
+        commentTime: this.formatUnixTimestampText(this.pickNumber(item, ["create_time"])) || undefined,
+        commentUserName:
+          this.pickString(user, ["nickname", "nick_name", "user_name"])
+          || this.pickString(item, ["nickname", "nick_name"])
+          || undefined,
+        commentUserSecUserId,
+        likeCount: this.pickNumber(item, ["digg_count", "like_count", "likeCount"]),
+        replyCount: this.pickNumber(item, ["reply_comment_total", "reply_count", "replyCount"]),
+        collectedAt,
+        rawFields: {
+          item,
+        },
+      };
+      const asset = await this.upsertCollectorAsset({
+        brandId,
+        kind: "DOUYIN_COMMENT",
+        matchValue: `${sourceWorkId}:${commentId}`,
+        title: commentText || `抖音评论 ${commentId}`,
+        description: `评论用户 sec_user_id：${commentUserSecUserId}`,
+        fileUrl: sourceWorkUrl,
+        metadata,
+      });
+      rows.push(this.mapDouyinComment(asset));
+    }
+
+    if (!rows.length) {
+      throw new BadRequestException(`评论接口未返回包含 sec_user_id 的评论数据：${normalizedSourceUrl}`);
+    }
+
+    return rows;
+  }
+
   private async collectAndStoreBenchmarkNote(brandId: string, sourceUrl: string): Promise<XhsCollectedNoteRecord> {
     const collectedAt = new Date().toISOString();
     const noteQuery = this.resolveXhsNoteQuery(sourceUrl);
@@ -5823,6 +5969,23 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
           this.pickString(item, ["content"])
           || this.pickString(this.asMeta(item.word_record), ["words_content"]),
         ));
+  }
+
+  private extractDouyinCommentItems(raw: unknown): Record<string, unknown>[] {
+    const payload = this.asMeta(raw);
+    const data = this.asMeta(payload.data);
+    const list = Array.isArray(data.comments)
+      ? data.comments
+      : Array.isArray(data.comment_list)
+        ? data.comment_list
+        : Array.isArray(payload.comments)
+          ? payload.comments
+          : Array.isArray(payload.comment_list)
+            ? payload.comment_list
+            : [];
+    return list
+      .map((item) => this.asMeta(item))
+      .filter((item) => Boolean(this.pickString(item, ["cid", "comment_id", "commentId"])));
   }
 
   private extractDouyinStatisticsMap(raw: unknown) {

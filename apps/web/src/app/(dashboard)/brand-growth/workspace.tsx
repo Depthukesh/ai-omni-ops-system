@@ -45,6 +45,7 @@ import {
   addBenchmarkNoteToMaterialLibrary,
   getDouyinCollectionWorkspace,
   getXiaohongshuCollectionWorkspace,
+  type DouyinCommentRecord,
   removeDouyinKeywordRecommendation,
   removeDouyinBenchmarkWorkFromMaterialLibrary,
   syncDouyinCollectionWorkspace,
@@ -293,6 +294,7 @@ function createEmptyDouyinCollectionWorkspace(): DouyinCollectionWorkspace {
     benchmarkWorks: [],
     searchWorks: [],
     keywordRecommendations: [],
+    commentData: [],
     lowFanExplosiveWorks: [],
     highCompletionRateWorks: [],
     highLikeRateWorks: [],
@@ -577,6 +579,7 @@ type DouyinSyncForm = {
   searchPublishTime: string;
   searchFilterDuration: string;
   searchContentType: string;
+  commentSourceUrls: string;
   keywordRecommendationEntries: Array<{
     id: string;
     keyword: string;
@@ -626,6 +629,7 @@ function createEmptyDouyinSyncForm(): DouyinSyncForm {
     searchPublishTime: "0",
     searchFilterDuration: "0",
     searchContentType: "0",
+    commentSourceUrls: "",
     keywordRecommendationEntries: [],
     lowFanExplosiveWorks: {
       primaryTagId: "",
@@ -1001,6 +1005,10 @@ export function BrandGrowthWorkspace() {
   const sortedDouyinSearchWorks = useMemo(
     () => sortByCollectedAtDesc(douyinCollectionWorkspace.searchWorks),
     [douyinCollectionWorkspace.searchWorks],
+  );
+  const sortedDouyinCommentData = useMemo(
+    () => sortByCollectedAtDesc(douyinCollectionWorkspace.commentData as DouyinCommentRecord[]),
+    [douyinCollectionWorkspace.commentData],
   );
   const sortedDouyinKeywordRecommendations = useMemo(
     () => sortByCollectedAtDesc(douyinCollectionWorkspace.keywordRecommendations),
@@ -2285,6 +2293,15 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
         payload.searchFilterDuration = douyinSyncForm.searchFilterDuration;
         payload.searchContentType = douyinSyncForm.searchContentType;
       }
+      if (activeDouyinCollectionCard === "commentData") {
+        const commentSourceUrls = parseDouyinSyncLines(douyinSyncForm.commentSourceUrls);
+        if (!commentSourceUrls.length) {
+          setErrorMessage("请输入至少一个带 sec_user_id 的抖音作品链接后再提交。");
+          setIsSyncingDouyinWorkspace(false);
+          return;
+        }
+        payload.commentSourceUrls = commentSourceUrls;
+      }
       if (activeDouyinCollectionCard === "brandWorks" && !payload.brandAccountLinks?.length) {
         setErrorMessage("请先在品牌账号信息里添加至少一个品牌抖音账号后再提交。");
         setIsSyncingDouyinWorkspace(false);
@@ -2326,7 +2343,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
       setDouyinCollectionWorkspace(response.workspace);
       const summary =
         `抖音同步完成：品牌账号 ${response.breakdown.brandAccounts} 条，竞品账号 ${response.breakdown.competitorAccounts} 条，` +
-        `品牌作品 ${response.breakdown.brandWorks} 条，竞品作品 ${response.breakdown.competitorWorks} 条，对标作品 ${response.breakdown.benchmarkWorks} 条，搜索关键词 ${response.breakdown.searchWorks} 条，关键词推荐 ${response.breakdown.keywordRecommendations} 条，` +
+        `品牌作品 ${response.breakdown.brandWorks} 条，竞品作品 ${response.breakdown.competitorWorks} 条，对标作品 ${response.breakdown.benchmarkWorks} 条，搜索关键词 ${response.breakdown.searchWorks} 条，评论数据 ${response.breakdown.commentData} 条，关键词推荐 ${response.breakdown.keywordRecommendations} 条，` +
         `低粉爆款榜 ${response.breakdown.lowFanExplosiveWorks} 条，高完播率榜 ${response.breakdown.highCompletionRateWorks} 条，` +
         `高点赞率榜 ${response.breakdown.highLikeRateWorks} 条，同城热点榜 ${response.breakdown.cityHotspots} 条。`;
       const warningText = response.warnings?.filter(Boolean).join("；");
@@ -2925,6 +2942,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
         sortedDouyinCompetitorWorks={sortedDouyinCompetitorWorks}
         sortedDouyinBenchmarkWorks={sortedDouyinBenchmarkWorks}
         sortedDouyinSearchWorks={sortedDouyinSearchWorks}
+        sortedDouyinCommentData={sortedDouyinCommentData}
         sortedDouyinKeywordRecommendations={sortedDouyinKeywordRecommendations}
         sortedDouyinLowFanExplosiveWorks={sortedDouyinLowFanExplosiveWorks}
         sortedDouyinHighCompletionRateWorks={sortedDouyinHighCompletionRateWorks}
