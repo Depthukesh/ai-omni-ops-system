@@ -857,9 +857,28 @@ export class UserSkillsService {
       ON "BrandSkillResetLog" ("brandId", "baseSkillId", "createdAt" DESC)
     `);
 
+    await this.syncGlobalGpt54BrandOverrides();
     await this.migrateLegacyUserSkillOverridesToBrandLayer();
     await this.backfillLegacyImageGenerationBrandOverrides();
     await this.backfillLegacyVideoNoteBrandOverrides();
+  }
+
+  private async syncGlobalGpt54BrandOverrides() {
+    await this.prismaService.$executeRawUnsafe(`
+      UPDATE "BrandSkillProfile"
+      SET
+        "defaultModel" = REPLACE("defaultModel", 'gpt-5.5', 'gpt-5.4'),
+        "updatedAt" = CURRENT_TIMESTAMP
+      WHERE POSITION('gpt-5.5' IN COALESCE("defaultModel", '')) > 0
+    `);
+
+    await this.prismaService.$executeRawUnsafe(`
+      UPDATE "BrandPromptOverride"
+      SET
+        "modelName" = REPLACE("modelName", 'gpt-5.5', 'gpt-5.4'),
+        "updatedAt" = CURRENT_TIMESTAMP
+      WHERE POSITION('gpt-5.5' IN COALESCE("modelName", '')) > 0
+    `);
   }
 
   private async migrateLegacyUserSkillOverridesToBrandLayer() {

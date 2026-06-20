@@ -10905,6 +10905,12 @@ ${normalizedMarkdown}`;
     return merged;
   }
 
+  private resolveFallbackPreferredProviderIds(preferredSelections: string[], preferredModelNames: string[]) {
+    return preferredModelNames.length > 1
+      ? []
+      : this.extractPreferredProviderIds(...preferredSelections);
+  }
+
   private extractPreferredProviderIds(...values: string[]) {
     const preferredProviderIds: string[] = [];
     for (const value of values) {
@@ -11092,7 +11098,7 @@ ${normalizedMarkdown}`;
       promptContent: prompt?.content || "",
       preferredModelName,
       brandId,
-      preferredProviderIds: this.extractPreferredProviderIds(...preferredSelections),
+      preferredProviderIds: this.resolveFallbackPreferredProviderIds(preferredSelections, preferredModelNames),
     };
   }
 
@@ -11123,7 +11129,7 @@ ${normalizedMarkdown}`;
       promptContent: prompt?.content || "",
       preferredModelName,
       brandId,
-      preferredProviderIds: this.extractPreferredProviderIds(...preferredSelections),
+      preferredProviderIds: this.resolveFallbackPreferredProviderIds(preferredSelections, preferredModelNames),
       knowledgeScope: {
         moduleTargetId: BRAND_GROWTH_KNOWLEDGE_TARGET_ID,
         skillPackageKey: "opportunity-insight",

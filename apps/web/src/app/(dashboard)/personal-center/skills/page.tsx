@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿"use client";
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿"use client";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -508,7 +508,7 @@ export default function PersonalCenterSkillsPage() {
               <div>
                 <strong>{selectedLeaf.leafLabel}</strong>
                 <p className="personal-meta">
-                  {selectedLeaf.primaryLabel} · {selectedLeaf.sectionLabel} · {selectedSkill.baseSkill.slug}
+                  {selectedLeaf.primaryLabel} · {selectedLeaf.sectionLabel}
                 </p>
               </div>
               <span className={`archive-pill ${skillStatusClassMap[selectedSkill.baseSkill.status]}`}>
