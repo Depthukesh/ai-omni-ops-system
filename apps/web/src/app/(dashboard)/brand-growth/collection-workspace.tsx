@@ -3736,8 +3736,6 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                 {douyinPreviewItems.length ? (
                   <DouyinBrandWorksTable
                     items={douyinPreviewItems as DouyinCollectedWorkRecord[]}
-                    addingMaterialAssetId={props.addingMaterialAssetId}
-                    onAddToMaterialLibrary={props.onAddDouyinBenchmarkWorkToMaterial}
                     formatDateTime={props.formatDateTime}
                     formatCount={props.formatCount}
                     onPreviewMedia={props.onPreviewMedia}
@@ -3821,6 +3819,8 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                 {douyinPreviewItems.length ? (
                   <DouyinBrandWorksTable
                     items={douyinPreviewItems as DouyinCollectedWorkRecord[]}
+                    addingMaterialAssetId={props.addingMaterialAssetId}
+                    onAddToMaterialLibrary={props.onAddDouyinBenchmarkWorkToMaterial}
                     formatDateTime={props.formatDateTime}
                     formatCount={props.formatCount}
                     onPreviewMedia={props.onPreviewMedia}
