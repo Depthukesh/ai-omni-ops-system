@@ -88,6 +88,12 @@ const LEGACY_IMAGE_GENERATION_DEFAULT_MODEL = "provider_runtime_image_generation
 const RIGHT_CODES_IMAGE_GENERATION_DEFAULT_MODEL = "provider_runtime_image_generation_right_codes::gpt-image-2";
 const LEGACY_VIDEO_NOTE_DEFAULT_MODEL = "seedance";
 const VOLCENGINE_VIDEO_NOTE_DEFAULT_MODEL = "doubao-seedance-2-0-260128";
+const OPPORTUNITY_INSIGHT_PROMPT_IDS = new Set([
+  "prompt_opportunity_insight_brand_account",
+  "prompt_opportunity_insight_competitor_account",
+  "prompt_opportunity_insight_comment",
+  "prompt_opportunity_insight_final_report",
+]);
 
 type MockBrandSkillProfileRecord = {
   id: string;
@@ -592,7 +598,13 @@ export class UserSkillsService {
       }
       for (let index = mockBrandPromptOverrides.length - 1; index >= 0; index -= 1) {
         const item = mockBrandPromptOverrides[index];
-        if (item.brandId === context.brandId && item.baseSkillId === skillId) {
+        if (
+          item.brandId === context.brandId
+          && (
+            item.baseSkillId === skillId
+            || promptIds.includes(item.basePromptId)
+          )
+        ) {
           mockBrandPromptOverrides.splice(index, 1);
         }
       }
@@ -674,23 +686,19 @@ export class UserSkillsService {
         if (!basePrompt) {
           return undefined;
         }
-        const override = promptOverrides.find((item) =>
-          item.basePromptId === promptId && (
-            item.baseSkillId === baseSkill.id
-            || isLegacyUnscopedSkillId(item.baseSkillId)
-          ),
-        );
+        const override = pickEffectivePromptOverride(promptOverrides, promptId, baseSkill.id);
+        const effectiveOverride = shouldIgnorePromptOverride(override, promptId) ? undefined : override;
         const effectivePrompt: PromptTemplateRecord = {
           ...basePrompt,
-          content: resolvePromptFallbackContent(promptId, override?.content ?? basePrompt.content),
-          modelName: this.normalizeImageGenerationModelValue(override?.modelName ?? basePrompt.modelName) || "",
-          temperature: override?.temperature ?? basePrompt.temperature,
-          maxTokens: override?.maxTokens ?? basePrompt.maxTokens,
-          updatedAt: normalizeDate(override?.updatedAt ?? basePrompt.updatedAt),
+          content: resolvePromptFallbackContent(promptId, effectiveOverride?.content ?? basePrompt.content),
+          modelName: this.normalizeImageGenerationModelValue(effectiveOverride?.modelName ?? basePrompt.modelName) || "",
+          temperature: effectiveOverride?.temperature ?? basePrompt.temperature,
+          maxTokens: effectiveOverride?.maxTokens ?? basePrompt.maxTokens,
+          updatedAt: normalizeDate(effectiveOverride?.updatedAt ?? basePrompt.updatedAt),
         };
         return {
           id: promptId,
-          isCustomized: hasPromptOverride(override),
+          isCustomized: hasPromptOverride(effectiveOverride),
           basePrompt,
           effectivePrompt,
         } satisfies UserSkillPromptRecord;
@@ -1209,5 +1217,29 @@ function hasPromptOverride(override?: BrandPromptOverrideRow) {
       || override.modelName !== undefined
       || override.temperature !== undefined
       || override.maxTokens !== undefined,
+  );
+}
+
+function pickEffectivePromptOverride(
+  promptOverrides: BrandPromptOverrideRow[],
+  promptId: string,
+  baseSkillId: string,
+) {
+  const scopedOverride = promptOverrides.find((item) => item.basePromptId === promptId && item.baseSkillId === baseSkillId);
+  if (scopedOverride) {
+    return scopedOverride;
+  }
+  return promptOverrides.find((item) =>
+    item.basePromptId === promptId
+    && isLegacyUnscopedSkillId(item.baseSkillId)
+    && !shouldIgnorePromptOverride(item, promptId),
+  );
+}
+
+function shouldIgnorePromptOverride(override: BrandPromptOverrideRow | undefined, promptId: string) {
+  return Boolean(
+    override
+    && OPPORTUNITY_INSIGHT_PROMPT_IDS.has(promptId)
+    && isLegacyUnscopedSkillId(override.baseSkillId),
   );
 }

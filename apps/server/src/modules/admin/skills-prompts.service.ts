@@ -53,6 +53,13 @@ type SkillPromptBindingRow = {
   promptName?: string;
 };
 
+const SOURCE_PINNED_PROMPT_IDS = new Set([
+  "prompt_opportunity_insight_brand_account",
+  "prompt_opportunity_insight_competitor_account",
+  "prompt_opportunity_insight_comment",
+  "prompt_opportunity_insight_final_report",
+]);
+
 export type UpdateSkillConfigPayload = {
   status?: SkillConfigRecord["status"];
   provider?: string;
@@ -1303,7 +1310,7 @@ export class SkillsPromptsService implements OnModuleInit {
       }
       const row = await this.findPromptByIdFromDatabase(id);
       if (row) {
-        return this.hydratePromptTemplateRecord(this.normalizePromptTemplateRow(row));
+        return this.hydratePromptTemplateRecord(this.hydrateSourcePinnedPrompt(this.normalizePromptTemplateRow(row)));
       }
     }
     const prompt = database.promptTemplates.find((item) => item.id === id);
@@ -1333,7 +1340,7 @@ export class SkillsPromptsService implements OnModuleInit {
       `;
       const row = rows[0];
       if (row) {
-        return this.hydratePromptTemplateRecord(this.normalizePromptTemplateRow(row));
+        return this.hydratePromptTemplateRecord(this.hydrateSourcePinnedPrompt(this.normalizePromptTemplateRow(row)));
       }
     }
 
@@ -1416,7 +1423,7 @@ export class SkillsPromptsService implements OnModuleInit {
         FROM "PromptTemplate"
         ORDER BY "updatedAt" DESC
       `;
-      return rows.map((item) => this.normalizePromptTemplateRow(item));
+      return rows.map((item) => this.hydrateSourcePinnedPrompt(this.normalizePromptTemplateRow(item)));
     }
     return database.promptTemplates.map((item) => this.hydratePromptTemplateRecord(this.hydrateLocalPromptTemplateSeed(item)));
   }
@@ -2172,7 +2179,7 @@ export class SkillsPromptsService implements OnModuleInit {
       await this.ensureRegistryTablesReady();
       const byScene = await this.findPromptBySceneFromDatabase(promptScene);
       if (byScene) {
-        return this.hydratePromptTemplateRecord(this.normalizePromptTemplateRow(byScene));
+        return this.hydratePromptTemplateRecord(this.hydrateSourcePinnedPrompt(this.normalizePromptTemplateRow(byScene)));
       }
     }
     const prompt = database.promptTemplates.find((item) => item.scene === promptScene);
@@ -2241,11 +2248,18 @@ export class SkillsPromptsService implements OnModuleInit {
     };
   }
 
-  private hydrateLocalPromptTemplateSeed(prompt: PromptTemplateRecord): PromptTemplateRecord {
+  private hydrateSourcePinnedPrompt(prompt: PromptTemplateRecord): PromptTemplateRecord {
+    if (!SOURCE_PINNED_PROMPT_IDS.has(prompt.id)) {
+      return prompt;
+    }
     return {
       ...prompt,
       content: this.readPromptContent(prompt.id, prompt.content),
     };
+  }
+
+  private hydrateLocalPromptTemplateSeed(prompt: PromptTemplateRecord): PromptTemplateRecord {
+    return this.hydrateSourcePinnedPrompt(prompt);
   }
 
   private normalizeSkillPromptBindingRow(row: SkillPromptBindingRow): SkillPromptBindingRecord {

@@ -10735,7 +10735,7 @@ ${normalizedMarkdown}`;
     }
 
     return this.reorderReportProvidersByPrimaryModel(
-      this.applyReportProviderSelectionRule(providers, settings),
+      providers,
       settings.preferredModelName || requestedModels[0] || "",
     );
   }
