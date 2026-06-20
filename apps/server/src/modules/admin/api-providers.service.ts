@@ -543,7 +543,8 @@ export class ApiProvidersService {
     const nextStatus = current.status || seed.status;
     const nextBaseUrl = this.resolveSystemSeedBaseUrl(current.baseUrl, seed.baseUrl);
     const nextTutorialUrl = current.tutorialUrl || seed.tutorialUrl || "";
-    const nextModelWhitelist = current.modelWhitelist.length ? current.modelWhitelist : seed.modelWhitelist;
+    const nextModelWhitelist = this.mergeSystemSeedStringArray(current.modelWhitelist, seed.modelWhitelist);
+    const nextApiKey = current.apiKey || seed.apiKey || "";
     const nextDefaultModel = current.defaultModel || seed.defaultModel;
     const nextTimeoutMs = current.timeoutMs || seed.timeoutMs;
     const nextStreamEnabled = current.streamEnabled;
@@ -566,6 +567,7 @@ export class ApiProvidersService {
       && current.baseUrl === nextBaseUrl
       && current.tutorialUrl === nextTutorialUrl
       && currentModelWhitelistJson === nextModelWhitelistJson
+      && current.apiKey === nextApiKey
       && current.defaultModel === nextDefaultModel
       && current.timeoutMs === nextTimeoutMs
       && current.streamEnabled === nextStreamEnabled
@@ -584,6 +586,7 @@ export class ApiProvidersService {
         "baseUrl" = ${nextBaseUrl},
         "tutorialUrl" = ${nextTutorialUrl},
         "modelWhitelistJson" = ${nextModelWhitelistJson}::jsonb,
+        "apiKey" = ${nextApiKey},
         "defaultModel" = ${nextDefaultModel},
         "timeoutMs" = ${nextTimeoutMs},
         "streamEnabled" = ${nextStreamEnabled},
@@ -599,6 +602,7 @@ export class ApiProvidersService {
     const currentExtraParams = this.normalizeObjectMap(current.extraParams);
     const seedExtraParams = this.normalizeObjectMap(seed.extraParams);
     const mergedExtraParams = {
+      ...seedExtraParams,
       ...currentExtraParams,
       runtimeKey: seedExtraParams.runtimeKey ?? currentExtraParams.runtimeKey,
       runtimeTags: seedExtraParams.runtimeTags ?? currentExtraParams.runtimeTags,
@@ -608,6 +612,9 @@ export class ApiProvidersService {
       recommended: seedExtraParams.recommended ?? currentExtraParams.recommended,
       baseUrls: this.resolveSystemSeedBaseUrls(currentExtraParams.baseUrls, seedExtraParams.baseUrls),
       platformBaseUrls: this.resolveSystemSeedBaseUrls(currentExtraParams.platformBaseUrls, seedExtraParams.platformBaseUrls),
+      apiKeys: this.mergeSystemSeedStringArray(currentExtraParams.apiKeys, seedExtraParams.apiKeys),
+      completionPath: currentExtraParams.completionPath ?? seedExtraParams.completionPath,
+      tokenLimitField: currentExtraParams.tokenLimitField ?? seedExtraParams.tokenLimitField,
       createPath: currentExtraParams.createPath ?? seedExtraParams.createPath,
       queryPath: currentExtraParams.queryPath ?? seedExtraParams.queryPath,
       queryMethod: currentExtraParams.queryMethod ?? seedExtraParams.queryMethod,
@@ -774,6 +781,12 @@ export class ApiProvidersService {
       return seedUrls;
     }
     return this.sameNormalizedUrlSet(currentUrls, seedUrls) ? currentUrls : seedUrls;
+  }
+
+  private mergeSystemSeedStringArray(currentValue: unknown, seedValue: unknown) {
+    const currentItems = this.normalizeStringArray(currentValue);
+    const seedItems = this.normalizeStringArray(seedValue);
+    return Array.from(new Set([...currentItems, ...seedItems]));
   }
 
   private normalizeStringArray(value: unknown) {
