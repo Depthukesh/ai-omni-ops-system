@@ -1433,22 +1433,21 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
 
   private resolveDouyinVideoPlaybackUrl(asset: AssetRecord, meta: Record<string, unknown>) {
     const status = this.readMetaString(meta, "videoCacheStatus");
-    const fallbackUrl = this.readMetaString(meta, "videoSourceUrl") || this.readMetaString(meta, "videoUrl");
     const storageKey = this.readMetaString(meta, "videoStorageKey");
     const expiresAt = this.readMetaString(meta, "videoCacheExpiresAt");
-    if (status === "EXPIRED") {
+    if (status !== "READY") {
       return undefined;
     }
     if (!storageKey || this.isIsoDateExpired(expiresAt)) {
-      return fallbackUrl || undefined;
+      return undefined;
     }
     if (!this.ossStorageService.isEnabled()) {
-      return fallbackUrl || undefined;
+      return undefined;
     }
     try {
       return this.ossStorageService.getSignedReadUrl(storageKey, 3600);
     } catch {
-      return fallbackUrl || asset.fileUrl || undefined;
+      return undefined;
     }
   }
 

@@ -2169,6 +2169,41 @@ function formatOptionalCount(value?: number) {
   return value.toLocaleString("zh-CN");
 }
 
+function DouyinVideoPreviewCell(props: {
+  item: DouyinCollectedWorkRecord;
+  onPreviewMedia: ValueAction<MediaPreviewState>;
+}) {
+  const { item } = props;
+  if (item.videoUrl) {
+    return (
+      <a
+        href={item.videoUrl}
+        className="note-data-link"
+        onClick={(event) => {
+          event.preventDefault();
+          void props.onPreviewMedia({
+            url: item.videoUrl!,
+            title: item.title || item.workId || "抖音视频预览",
+            type: "VIDEO",
+          });
+        }}
+      >
+        打开预览
+      </a>
+    );
+  }
+  if (item.videoCacheStatus === "PENDING") {
+    return <span className="note-data-link">缓存中</span>;
+  }
+  if (item.videoCacheStatus === "FAILED") {
+    return <span className="note-data-link" title={item.videoCacheLastError || undefined}>缓存失败</span>;
+  }
+  if (item.videoCacheStatus === "EXPIRED") {
+    return <span className="note-data-link">缓存已过期</span>;
+  }
+  return <span>-</span>;
+}
+
 function formatTrendSummary(trends: DouyinCityHotspotRecord["trends"]) {
   if (!trends.length) {
     return "-";
@@ -2300,24 +2335,7 @@ function DouyinBrandWorksTable(props: {
               <td>{props.formatCount(item.recommendCount)}</td>
               <td>{item.imageList?.length ? `${item.imageList.length} 张` : "-"}</td>
               <td>{(item.awemeType ?? item.workType) || "-"}</td>
-              <td>
-                {item.videoUrl ? (
-                  <a
-                    href={item.videoUrl}
-                    className="note-data-link"
-                    onClick={(event) => {
-                      event.preventDefault();
-                      void props.onPreviewMedia({
-                        url: item.videoUrl!,
-                        title: item.title || item.workId || "抖音视频预览",
-                        type: "VIDEO",
-                      });
-                    }}
-                  >
-                    打开
-                  </a>
-                ) : "-"}
-              </td>
+              <td><DouyinVideoPreviewCell item={item} onPreviewMedia={props.onPreviewMedia} /></td>
               <td>{props.formatDateTime(item.collectedAt)}</td>
             </tr>
           ))}
@@ -2335,8 +2353,12 @@ function DouyinMaterialReadyWorksTable(props: {
   formatCount: OptionalNumberFormatter;
   onPreviewMedia: ValueAction<MediaPreviewState>;
   showBillboardColumns?: boolean;
+  showWorkUrlColumn?: boolean;
+  videoColumnLabel?: string;
 }) {
   const showBillboardColumns = props.showBillboardColumns ?? true;
+  const showWorkUrlColumn = props.showWorkUrlColumn ?? false;
+  const videoColumnLabel = props.videoColumnLabel || "视频地址";
   return (
     <ScrollableTableShell>
       <table className="soft-table douyin-data-table">
@@ -2350,7 +2372,8 @@ function DouyinMaterialReadyWorksTable(props: {
             {showBillboardColumns ? <th>二级分类</th> : null}
             <th>作品时长</th>
             <th>作品封面</th>
-            <th>视频地址</th>
+            {showWorkUrlColumn ? <th>作品链接</th> : null}
+            <th>{videoColumnLabel}</th>
             <th>作品点赞数</th>
             <th>作品评论数</th>
             <th>作品分享数</th>
@@ -2386,24 +2409,16 @@ function DouyinMaterialReadyWorksTable(props: {
               <td>
                 <AvatarPreviewLink src={item.coverUrl} alt={`${item.title || item.workId}封面`} />
               </td>
-              <td>
-                {item.videoUrl ? (
-                  <a
-                    href={item.videoUrl}
-                    className="note-data-link"
-                    onClick={(event) => {
-                      event.preventDefault();
-                      void props.onPreviewMedia({
-                        url: item.videoUrl!,
-                        title: item.title || item.workId || "抖音视频预览",
-                        type: "VIDEO",
-                      });
-                    }}
-                  >
-                    打开
-                  </a>
-                ) : "-"}
-              </td>
+              {showWorkUrlColumn ? (
+                <td>
+                  {item.workUrl ? (
+                    <a href={item.workUrl} target="_blank" rel="noreferrer" className="note-data-link">
+                      打开作品
+                    </a>
+                  ) : "-"}
+                </td>
+              ) : null}
+              <td><DouyinVideoPreviewCell item={item} onPreviewMedia={props.onPreviewMedia} /></td>
               <td>{props.formatCount(item.likeCount)}</td>
               <td>{props.formatCount(item.commentCount)}</td>
               <td>{props.formatCount(item.shareCount)}</td>
@@ -3745,6 +3760,8 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                     formatCount={props.formatCount}
                     onPreviewMedia={props.onPreviewMedia}
                     showBillboardColumns={false}
+                    showWorkUrlColumn
+                    videoColumnLabel="视频预览"
                   />
                 ) : (
                   <div className="note-empty-state">当前还没有采集到对标作品信息，请先输入作品链接并提交。</div>
