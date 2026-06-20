@@ -88,6 +88,10 @@ type DouyinSyncInput = {
   searchFilterDuration?: string;
   searchContentType?: string;
   commentSourceUrls?: string[];
+  commentPageRequests?: Array<{
+    sourceUrl: string;
+    cursor?: string;
+  }>;
   contentTagSelection?: DouyinContentTagSelection;
   cityCode?: number;
 };
@@ -365,6 +369,20 @@ export type DouyinCommentRecord = {
   collectedAt: string;
 };
 
+type DouyinCommentPageState = {
+  sourceUrl: string;
+  sourceWorkId: string;
+  requestedCursor: string;
+  nextCursor: string;
+  hasMore: boolean;
+  fetchedCount: number;
+};
+
+type DouyinCommentCollectionResult = {
+  rows: DouyinCommentRecord[];
+  page: DouyinCommentPageState;
+};
+
 export type DouyinCollectionWorkspace = {
   brandAccounts: DouyinCollectedAccountRecord[];
   competitorAccounts: DouyinCollectedAccountRecord[];
@@ -617,17 +635,20 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     const keywordRecommendationRows = shouldSyncKeywordRecommendations
       ? await this.collectAndStoreDouyinKeywordRecommendations(brandId, input.searchKeyword)
       : [];
+    const commentPageRequests = shouldSyncCommentData
+      ? this.normalizeDouyinCommentPageRequests(input)
+      : [];
     const manualCommentResults = shouldSyncCommentData
       ? await Promise.allSettled(
-          (input.commentSourceUrls ?? [])
-            .map((item) => String(item || "").trim())
-            .filter(Boolean)
-            .map((sourceUrl) => this.collectAndStoreSingleDouyinCommentData(brandId, sourceUrl)),
+          commentPageRequests.map((request) => this.collectAndStoreSingleDouyinCommentData(brandId, request)),
         )
       : [];
     const commentRows = manualCommentResults
-      .filter((item): item is PromiseFulfilledResult<DouyinCommentRecord[]> => item.status === "fulfilled")
-      .flatMap((item) => item.value);
+      .filter((item): item is PromiseFulfilledResult<DouyinCommentCollectionResult> => item.status === "fulfilled")
+      .flatMap((item) => item.value.rows);
+    const commentPagination = manualCommentResults
+      .filter((item): item is PromiseFulfilledResult<DouyinCommentCollectionResult> => item.status === "fulfilled")
+      .map((item) => item.value.page);
     const commentFailures = manualCommentResults
       .filter((item): item is PromiseRejectedResult => item.status === "rejected")
       .map((item) => (item.reason instanceof Error ? item.reason.message : "评论数据采集失败"));
@@ -699,6 +720,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
         highLikeRateWorks: highLikeRateRows.length,
         cityHotspots: cityHotspotRows.length,
       },
+      commentPagination,
       warnings: [...benchmarkFailures, ...commentFailures, ...billboardWarnings],
       workspace: await this.getDouyinWorkspace(brandId),
     };
@@ -4042,9 +4064,10 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
 
   private async collectAndStoreSingleDouyinCommentData(
     brandId: string,
-    sourceUrl: string,
-  ): Promise<DouyinCommentRecord[]> {
-    const normalizedSourceUrl = String(sourceUrl || "").trim();
+    request: { sourceUrl: string; cursor?: string },
+  ): Promise<DouyinCommentCollectionResult> {
+    const normalizedSourceUrl = String(request.sourceUrl || "").trim();
+    const requestedCursor = String(request.cursor || "0").trim() || "0";
     if (!normalizedSourceUrl) {
       throw new BadRequestException("评论数据链接不能为空");
     }
@@ -4061,12 +4084,13 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       "/api/v1/douyin/app/v3/fetch_video_comments",
       {
         aweme_id: sourceWorkId,
-        cursor: "0",
+        cursor: requestedCursor,
         count: "20",
       },
       brandId,
     );
     const items = this.extractDouyinCommentItems(raw).slice(0, 20);
+    const pageState = this.extractDouyinCommentPageState(raw, requestedCursor);
     const rows: DouyinCommentRecord[] = [];
     const sourceWorkUrl = this.normalizeDouyinShareUrl(normalizedSourceUrl) || this.normalizeDouyinNoteUrl(sourceWorkId, "短视频");
     const collectedAt = new Date().toISOString();
@@ -4121,7 +4145,36 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       throw new BadRequestException(`评论接口未返回包含 sec_user_id 的评论数据：${normalizedSourceUrl}`);
     }
 
-    return rows;
+    return {
+      rows,
+      page: {
+        sourceUrl: normalizedSourceUrl,
+        sourceWorkId,
+        requestedCursor,
+        nextCursor: pageState.nextCursor,
+        hasMore: pageState.hasMore,
+        fetchedCount: rows.length,
+      },
+    };
+  }
+
+  private normalizeDouyinCommentPageRequests(input: DouyinSyncInput) {
+    const pageRequests = Array.isArray(input.commentPageRequests) ? input.commentPageRequests : [];
+    if (pageRequests.length) {
+      return pageRequests
+        .map((item) => ({
+          sourceUrl: String(item?.sourceUrl || "").trim(),
+          cursor: String(item?.cursor || "0").trim() || "0",
+        }))
+        .filter((item) => Boolean(item.sourceUrl));
+    }
+    return (input.commentSourceUrls ?? [])
+      .map((item) => String(item || "").trim())
+      .filter(Boolean)
+      .map((sourceUrl) => ({
+        sourceUrl,
+        cursor: "0",
+      }));
   }
 
   private async resolveDouyinCommentSourceSecUserId(
@@ -4142,6 +4195,27 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     } catch {
       return "";
     }
+  }
+
+  private extractDouyinCommentPageState(raw: unknown, fallbackCursor: string) {
+    const payload = this.asMeta(raw);
+    const data = this.asMeta(payload.data);
+    const nextCursor =
+      this.readMetaString(data, "cursor")
+      || this.readMetaString(data, "next_cursor")
+      || this.readMetaString(data, "max_cursor")
+      || this.readMetaString(payload, "cursor")
+      || this.readMetaString(payload, "next_cursor")
+      || this.readMetaString(payload, "max_cursor")
+      || fallbackCursor;
+    const hasMore =
+      this.pickBoolean(data, ["has_more", "hasMore"])
+      ?? this.pickBoolean(payload, ["has_more", "hasMore"])
+      ?? false;
+    return {
+      nextCursor,
+      hasMore,
+    };
   }
 
   private async collectAndStoreBenchmarkNote(brandId: string, sourceUrl: string): Promise<XhsCollectedNoteRecord> {

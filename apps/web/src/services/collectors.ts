@@ -215,6 +215,20 @@ export type DouyinCommentRecord = {
   replyCount?: number;
   collectedAt: string;
 };
+
+export type DouyinCommentPageRequest = {
+  sourceUrl: string;
+  cursor?: string;
+};
+
+export type DouyinCommentPaginationState = {
+  sourceUrl: string;
+  sourceWorkId: string;
+  requestedCursor: string;
+  nextCursor: string;
+  hasMore: boolean;
+  fetchedCount: number;
+};
 export type DouyinCityHotspotRecord = {
   id: string;
   kind: "DOUYIN_CITY_HOTSPOT";
@@ -274,6 +288,7 @@ export type DouyinSyncPayload = {
   searchFilterDuration?: string;
   searchContentType?: string;
   commentSourceUrls?: string[];
+  commentPageRequests?: DouyinCommentPageRequest[];
   contentTagSelection?: {
     primaryTagId?: number;
     secondaryTagId?: number;
@@ -484,6 +499,7 @@ export async function syncDouyinCollectionWorkspace(payload: DouyinSyncPayload =
       highLikeRateWorks: number;
       cityHotspots: number;
     };
+    commentPagination: DouyinCommentPaginationState[];
     warnings?: string[];
     workspace: DouyinCollectionWorkspace;
   }>(

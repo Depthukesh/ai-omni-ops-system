@@ -190,6 +190,10 @@ export class DouyinCollectorsController {
       searchFilterDuration?: string;
       searchContentType?: string;
       commentSourceUrls?: string[];
+      commentPageRequests?: Array<{
+        sourceUrl: string;
+        cursor?: string;
+      }>;
       contentTagSelection?: {
         primaryTagId?: number;
         secondaryTagId?: number;

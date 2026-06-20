@@ -45,6 +45,7 @@ import {
   addBenchmarkNoteToMaterialLibrary,
   getDouyinCollectionWorkspace,
   getXiaohongshuCollectionWorkspace,
+  type DouyinCommentPaginationState,
   type DouyinCommentRecord,
   removeDouyinKeywordRecommendation,
   removeDouyinBenchmarkWorkFromMaterialLibrary,
@@ -838,6 +839,7 @@ export function BrandGrowthWorkspace() {
   const [feishuAppConfigForm, setFeishuAppConfigForm] = useState(createEmptyFeishuAppConfigForm);
   const [xhsSyncForm, setXhsSyncForm] = useState<XhsSyncForm>(createEmptyXhsSyncForm);
   const [douyinSyncForm, setDouyinSyncForm] = useState<DouyinSyncForm>(createEmptyDouyinSyncForm);
+  const [douyinCommentPagination, setDouyinCommentPagination] = useState<DouyinCommentPaginationState[]>([]);
   const [brandNotesPage, setBrandNotesPage] = useState(1);
   const [brandNotesPageSize, setBrandNotesPageSize] = useState(10);
   const [hotspotPage, setHotspotPage] = useState(1);
@@ -859,6 +861,7 @@ export function BrandGrowthWorkspace() {
   const [isSyncingFeishuWorkspace, setIsSyncingFeishuWorkspace] = useState(false);
   const [isSyncingXhsWorkspace, setIsSyncingXhsWorkspace] = useState(false);
   const [isSyncingDouyinWorkspace, setIsSyncingDouyinWorkspace] = useState(false);
+  const [isLoadingMoreDouyinComments, setIsLoadingMoreDouyinComments] = useState(false);
   const [isSyncingDailyHotspots, setIsSyncingDailyHotspots] = useState(false);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [isSavingReport, setIsSavingReport] = useState(false);
@@ -1406,6 +1409,7 @@ export function BrandGrowthWorkspace() {
 
         if (douyinCollectionResult.status === "fulfilled") {
           setDouyinCollectionWorkspace(douyinCollectionResult.value);
+          setDouyinCommentPagination([]);
         } else {
           partialFailures.push("抖音采集数据");
         }
@@ -2341,6 +2345,9 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
       }
       const response = await syncDouyinCollectionWorkspace(payload, activeBrandId || archive.brand.id);
       setDouyinCollectionWorkspace(response.workspace);
+      if (activeDouyinCollectionCard === "commentData") {
+        setDouyinCommentPagination(response.commentPagination ?? []);
+      }
       const summary =
         `抖音同步完成：品牌账号 ${response.breakdown.brandAccounts} 条，竞品账号 ${response.breakdown.competitorAccounts} 条，` +
         `品牌作品 ${response.breakdown.brandWorks} 条，竞品作品 ${response.breakdown.competitorWorks} 条，对标作品 ${response.breakdown.benchmarkWorks} 条，搜索关键词 ${response.breakdown.searchWorks} 条，评论数据 ${response.breakdown.commentData} 条，关键词推荐 ${response.breakdown.keywordRecommendations} 条，` +
@@ -2353,6 +2360,49 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
       setErrorMessage(`抖音同步失败：${message}`);
     } finally {
       setIsSyncingDouyinWorkspace(false);
+    }
+  }
+
+  async function handleLoadMoreDouyinComments() {
+    if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.collection.douyinCollection"]?.edit) {
+      setErrorMessage("当前账号没有同步收集数据板块的编辑权限。");
+      return;
+    }
+
+    const pageRequests = douyinCommentPagination
+      .filter((item) => item.hasMore && item.nextCursor)
+      .map((item) => ({
+        sourceUrl: item.sourceUrl,
+        cursor: item.nextCursor,
+      }));
+
+    if (!pageRequests.length) {
+      setNotice("当前评论数据已经没有更多可加载内容。");
+      return;
+    }
+
+    setIsLoadingMoreDouyinComments(true);
+    clearMessages();
+
+    try {
+      const response = await syncDouyinCollectionWorkspace(
+        {
+          scope: "commentData",
+          commentPageRequests: pageRequests,
+        },
+        activeBrandId || archive.brand.id,
+      );
+      setDouyinCollectionWorkspace(response.workspace);
+      setDouyinCommentPagination(response.commentPagination ?? []);
+      const sourceCount = response.commentPagination.filter((item) => item.hasMore).length;
+      const summary = `评论数据已继续加载 ${response.breakdown.commentData} 条，仍可继续翻页的作品 ${sourceCount} 个。`;
+      const warningText = response.warnings?.filter(Boolean).join("；");
+      setNotice(warningText ? `${summary} 部分请求未完全成功：${warningText}` : summary);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "加载失败";
+      setErrorMessage(`评论数据加载更多失败：${message}`);
+    } finally {
+      setIsLoadingMoreDouyinComments(false);
     }
   }
 
@@ -2931,6 +2981,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
         onSyncSingleDouyinBrandAccount={handleSyncSingleDouyinBrandAccount}
         onSyncSingleDouyinCompetitorAccount={handleSyncSingleDouyinCompetitorAccount}
         onSyncSingleDouyinKeywordRecommendation={handleSyncSingleDouyinKeywordRecommendation}
+        onLoadMoreDouyinComments={handleLoadMoreDouyinComments}
         sortedBrandAccounts={sortedBrandAccounts}
         sortedCompetitorAccounts={sortedCompetitorAccounts}
         sortedBrandNotes={sortedBrandNotes}
@@ -2943,6 +2994,8 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
         sortedDouyinBenchmarkWorks={sortedDouyinBenchmarkWorks}
         sortedDouyinSearchWorks={sortedDouyinSearchWorks}
         sortedDouyinCommentData={sortedDouyinCommentData}
+        douyinCommentPagination={douyinCommentPagination}
+        isLoadingMoreDouyinComments={isLoadingMoreDouyinComments}
         sortedDouyinKeywordRecommendations={sortedDouyinKeywordRecommendations}
         sortedDouyinLowFanExplosiveWorks={sortedDouyinLowFanExplosiveWorks}
         sortedDouyinHighCompletionRateWorks={sortedDouyinHighCompletionRateWorks}

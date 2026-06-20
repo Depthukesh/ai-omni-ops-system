@@ -14,6 +14,7 @@ import type {
   DouyinCollectedAccountRecord,
   DouyinCityHotspotRecord,
   DouyinCityOption,
+  DouyinCommentPaginationState,
   DouyinCommentRecord,
   DouyinContentTagOption,
   DouyinCollectionWorkspace,
@@ -217,7 +218,6 @@ const douyinFieldPreviewMap: Record<DouyinCollectionCardKey, DouyinFieldPreviewR
   ],
   commentData: [
     { field: "sourceWorkId", label: "源作品 ID", source: "获取单个视频评论数据", path: "request.aweme_id", required: "必需", patch: "否" },
-    { field: "sourceSecUserId", label: "源作品作者 sec_user_id", source: "输入作品链接", path: "url.query.sec_user_id / url.path.user", required: "必需", patch: "否" },
     { field: "commentId", label: "评论 ID", source: "获取单个视频评论数据", path: "data.comments[].cid", required: "必需", patch: "否" },
     { field: "commentText", label: "评论内容", source: "获取单个视频评论数据", path: "data.comments[].text", required: "可选", patch: "否" },
     { field: "commentTime", label: "评论时间", source: "获取单个视频评论数据", path: "data.comments[].create_time", required: "可选", patch: "否" },
@@ -398,6 +398,7 @@ export interface BrandGrowthCollectionWorkspaceProps {
   onSyncSingleDouyinBrandAccount: ValueAction<XhsAccountBindingEntry>;
   onSyncSingleDouyinCompetitorAccount: ValueAction<XhsAccountBindingEntry>;
   onSyncSingleDouyinKeywordRecommendation: ValueAction<string>;
+  onLoadMoreDouyinComments: AsyncAction;
   sortedBrandAccounts: XhsCollectedAccountRecord[];
   sortedCompetitorAccounts: XhsCollectedAccountRecord[];
   sortedBrandNotes: XhsCollectedNoteRecord[];
@@ -410,6 +411,8 @@ export interface BrandGrowthCollectionWorkspaceProps {
   sortedDouyinBenchmarkWorks: DouyinCollectedWorkRecord[];
   sortedDouyinSearchWorks: DouyinCollectedWorkRecord[];
   sortedDouyinCommentData: DouyinCommentRecord[];
+  douyinCommentPagination: DouyinCommentPaginationState[];
+  isLoadingMoreDouyinComments: boolean;
   sortedDouyinKeywordRecommendations: DouyinKeywordRecommendationRecord[];
   sortedDouyinLowFanExplosiveWorks: DouyinCollectedWorkRecord[];
   sortedDouyinHighCompletionRateWorks: DouyinCollectedWorkRecord[];
@@ -2471,7 +2474,6 @@ function DouyinCommentTable(props: {
           <tr>
             <th>源作品 ID</th>
             <th>作品链接</th>
-            <th>源作品 sec_user_id</th>
             <th>评论 ID</th>
             <th>评论内容</th>
             <th>评论时间</th>
@@ -2493,7 +2495,6 @@ function DouyinCommentTable(props: {
                   </a>
                 ) : "-"}
               </td>
-              <td><CopyableCell value={item.sourceSecUserId} /></td>
               <td><CopyableCell value={item.commentId} /></td>
               <td className="table-cell-wide">
                 <ExpandableTextCell value={item.commentText} emptyText="暂无评论内容" compactRows={3} />
@@ -2876,6 +2877,8 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
   const feishuBindingReady = Boolean(props.feishuBinding?.wikiUrl || props.feishuBindingForm.wikiUrl.trim());
   const douyinContentTags = props.douyinWorkspace.contentTags ?? [];
   const douyinCityOptions = props.douyinWorkspace.cityOptions ?? [];
+  const douyinCommentHasMoreCount = props.douyinCommentPagination.filter((item) => item.hasMore).length;
+  const douyinCommentRequestCount = props.douyinCommentPagination.length;
   const douyinPreviewItems =
     props.activeDouyinCollectionCard === "brandAccount"
       ? props.sortedDouyinBrandAccounts
@@ -3903,7 +3906,31 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                 <div className="collection-result-head">
                   <div>
                     <h3>评论数据</h3>
-                    <p>调用 TikHub 单个视频评论接口，按列表展示评论核心参数，并强制保证输出结果里带有源作品作者与评论用户的 sec_user_id。</p>
+                    <p>调用 TikHub 单个视频评论接口，按列表展示评论核心参数，并保证输出结果里带有评论用户的 sec_user_id。</p>
+                  </div>
+                  <div className="strategy-inline-actions">
+                    <span className={`archive-pill ${props.sortedDouyinCommentData.length ? "status-ready" : "status-pending"}`}>
+                      已采集 {props.sortedDouyinCommentData.length} 条
+                    </span>
+                    <span className={`archive-pill ${douyinCommentHasMoreCount ? "status-ready" : "status-pending"}`}>
+                      可继续翻页 {douyinCommentHasMoreCount} 个作品
+                    </span>
+                    {douyinCommentRequestCount ? (
+                      <span className="archive-pill status-pending">当前游标 {douyinCommentRequestCount} 个作品</span>
+                    ) : null}
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      onClick={() => void props.onLoadMoreDouyinComments()}
+                      disabled={
+                        props.isHydrating
+                        || props.isSyncingDouyinWorkspace
+                        || props.isLoadingMoreDouyinComments
+                        || !douyinCommentHasMoreCount
+                      }
+                    >
+                      {props.isLoadingMoreDouyinComments ? "加载中..." : "加载更多"}
+                    </button>
                   </div>
                 </div>
                 {props.sortedDouyinCommentData.length ? (
