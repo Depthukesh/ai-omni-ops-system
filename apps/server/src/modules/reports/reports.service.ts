@@ -651,6 +651,7 @@ type ModelGenerationSettings = {
   preferredModelName?: string;
   brandId?: string;
   preferredProviderIds?: string[];
+  debugProviderSummary?: string;
   knowledgeScope?: {
     moduleTargetId?: string;
     skillPackageKey?: string;
@@ -8143,6 +8144,12 @@ export class ReportsService {
 
     let lastError = "";
     const attemptTrail: string[] = [];
+    if (settings.debugProviderSummary) {
+      attemptTrail.push(`[debug-provider-summary] ${settings.debugProviderSummary}`);
+    }
+    // #region debug-point C:narrative-attempt-start
+    (()=>{const fs=require("node:fs");let u="http://127.0.0.1:7777/event",s="step-two-fallback";try{const e=fs.readFileSync(".dbg/step-two-fallback.env","utf8");u=e.match(/DEBUG_SERVER_URL=(.+)/)?.[1]||u;s=e.match(/DEBUG_SESSION_ID=(.+)/)?.[1]||s}catch{}fetch(u,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:s,runId:"pre-fix",hypothesisId:"C",location:"reports.service.ts:generateOpportunityInsightNarrativeMarkdownByModel:start",msg:"[DEBUG] narrative generation starting",data:{taskLabel,preferredModelName,providerCount:providers.length,providers:providers.map((item)=>({provider:item.provider,providerId:item.providerId,baseUrlCount:item.baseUrls.length,apiKeyCount:item.apiKeys.length,models:item.models}))},ts:Date.now()})}).catch(()=>{})})();
+    // #endregion
     for (const provider of providers) {
       for (const baseUrl of provider.baseUrls.slice(0, 2)) {
         for (const apiKey of provider.apiKeys.slice(0, 2)) {
@@ -8188,6 +8195,9 @@ export class ReportsService {
       }
     }
 
+    // #region debug-point D:narrative-attempt-failed
+    (()=>{const fs=require("node:fs");let u="http://127.0.0.1:7777/event",s="step-two-fallback";try{const e=fs.readFileSync(".dbg/step-two-fallback.env","utf8");u=e.match(/DEBUG_SERVER_URL=(.+)/)?.[1]||u;s=e.match(/DEBUG_SESSION_ID=(.+)/)?.[1]||s}catch{}fetch(u,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:s,runId:"pre-fix",hypothesisId:"D",location:"reports.service.ts:generateOpportunityInsightNarrativeMarkdownByModel:failed",msg:"[DEBUG] narrative generation exhausted attempts",data:{taskLabel,preferredModelName,lastError,attemptTrail},ts:Date.now()})}).catch(()=>{})})();
+    // #endregion
     throw new ServiceUnavailableException(
       this.buildReportAttemptFailureMessage(`${taskLabel}生成`, preferredModelName, lastError, attemptTrail, "未获取到有效响应"),
     );
@@ -11286,6 +11296,9 @@ ${normalizedMarkdown}`;
       "gpt-5.4, kimi-k2.6, deepseek-v4-pro, deepseek-v4-flash",
     );
     const preferredModelName = preferredModelNames[0] || skill?.defaultModel || prompt?.modelName || provider?.defaultModel || "gpt-5.4";
+    // #region debug-point A:narrative-settings
+    (()=>{const fs=require("node:fs");let u="http://127.0.0.1:7777/event",s="step-two-fallback";try{const e=fs.readFileSync(".dbg/step-two-fallback.env","utf8");u=e.match(/DEBUG_SERVER_URL=(.+)/)?.[1]||u;s=e.match(/DEBUG_SESSION_ID=(.+)/)?.[1]||s}catch{}fetch(u,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:s,runId:"pre-fix",hypothesisId:"A",location:"reports.service.ts:loadOpportunityInsightNarrativeGenerationSettings",msg:"[DEBUG] narrative settings prepared",data:{skillSlug,promptId,preferredSelections,preferredModelNames,preferredModelName,resolvedProviderId:provider?.id||"",resolvedProviderRuntimeKey:provider?this.apiProvidersService.getRuntimeKey(provider):"",resolvedProviderBaseUrl:provider?.baseUrl||"",preferredProviderIds:this.resolveFallbackPreferredProviderIds(preferredSelections, preferredModelNames)},ts:Date.now()})}).catch(()=>{})})();
+    // #endregion
     return {
       baseUrl: provider?.baseUrl || "",
       modelName: preferredModelNames.join(", "),
@@ -11999,10 +12012,21 @@ ${normalizedMarkdown}`;
     if (!providers.length) {
       throw new ServiceUnavailableException("机会洞察长文模型配置读取失败");
     }
-    return this.reorderReportProvidersByPrimaryModel(
-      this.applyReportProviderSelectionRule(providers, settings),
+    const providersSelectedByRule = this.applyReportProviderSelectionRule(providers, settings);
+    const reorderedProviders = this.reorderReportProvidersByPrimaryModel(
+      providers,
       settings.preferredModelName || effectiveRequestedModels[0] || "",
     );
+    settings.debugProviderSummary = [
+      `requested=${effectiveRequestedModels.join("/") || "none"}`,
+      `before=${providers.map((item) => `${item.provider}[${item.models.join("/") || "none"}|k${item.apiKeys.length}|b${item.baseUrls.length}]`).join(",") || "none"}`,
+      `ruleSelected=${providersSelectedByRule.map((item) => `${item.provider}[${item.models.join("/") || "none"}|k${item.apiKeys.length}|b${item.baseUrls.length}]`).join(",") || "none"}`,
+      `actual=${reorderedProviders.map((item) => `${item.provider}[${item.models.join("/") || "none"}|k${item.apiKeys.length}|b${item.baseUrls.length}]`).join(",") || "none"}`,
+    ].join("; ");
+    // #region debug-point B:narrative-provider-configs
+    (()=>{const fs=require("node:fs");let u="http://127.0.0.1:7777/event",s="step-two-fallback";try{const e=fs.readFileSync(".dbg/step-two-fallback.env","utf8");u=e.match(/DEBUG_SERVER_URL=(.+)/)?.[1]||u;s=e.match(/DEBUG_SESSION_ID=(.+)/)?.[1]||s}catch{}fetch(u,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:s,runId:"pre-fix",hypothesisId:"B",location:"reports.service.ts:loadOpportunityInsightNarrativeProviderConfigs",msg:"[DEBUG] narrative provider configs resolved",data:{requestedModels,effectiveRequestedModels,baseUrl:settings.baseUrl||"",preferredModelName:settings.preferredModelName||"",thirdPartyProvider:{id:thirdPartyProvider?.id||"",runtimeKey:thirdPartyProvider?this.apiProvidersService.getRuntimeKey(thirdPartyProvider):"",apiKeyCount:thirdPartyApiKeys.length,modelWhitelistCount:thirdPartyProvider?.modelWhitelist.length||0,models:thirdPartyModels},kimiProvider:{id:kimiProvider?.id||"",runtimeKey:kimiProvider?this.apiProvidersService.getRuntimeKey(kimiProvider):"",apiKeyCount:kimiApiKeys.length,modelWhitelistCount:kimiProvider?.modelWhitelist.length||0,models:kimiModels},deepseekProvider:{id:deepseekProvider?.id||"",runtimeKey:deepseekProvider?this.apiProvidersService.getRuntimeKey(deepseekProvider):"",apiKeyCount:deepseekApiKeys.length,modelWhitelistCount:deepseekProvider?.modelWhitelist.length||0,models:deepseekModels},providersBeforeSelection:providers.map((item)=>({provider:item.provider,providerId:item.providerId,baseUrlCount:item.baseUrls.length,apiKeyCount:item.apiKeys.length,models:item.models})),providersSelectedByRule:providersSelectedByRule.map((item)=>({provider:item.provider,providerId:item.providerId,baseUrlCount:item.baseUrls.length,apiKeyCount:item.apiKeys.length,models:item.models})),providersAfterReorder:reorderedProviders.map((item)=>({provider:item.provider,providerId:item.providerId,baseUrlCount:item.baseUrls.length,apiKeyCount:item.apiKeys.length,models:item.models}))},ts:Date.now()})}).catch(()=>{})})();
+    // #endregion
+    return reorderedProviders;
   }
 
   private async loadAnnualMarketingProviderConfigs(settings: ModelGenerationSettings): Promise<AnnualMarketingProviderConfig[]> {
