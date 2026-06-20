@@ -20,12 +20,12 @@ export type SkillCenterPrimaryConfig = {
 
 export const SKILL_CENTER_TREE: SkillCenterPrimaryConfig[] = [
   {
-    id: "brand-growth",
-    label: "品牌增长策略",
+    id: "opportunity-insight",
+    label: "机会洞察",
     sections: [
       {
-        id: "opportunity-insight",
-        label: "机会洞察",
+        id: "opportunity-insight-skills",
+        label: "4个技能",
         items: [
           {
             id: "opportunity-insight-brand-account",
@@ -57,6 +57,12 @@ export const SKILL_CENTER_TREE: SkillCenterPrimaryConfig[] = [
           },
         ],
       },
+    ],
+  },
+  {
+    id: "brand-growth",
+    label: "品牌增长策略",
+    sections: [
       {
         id: "growth-report",
         label: "品牌增长报告",

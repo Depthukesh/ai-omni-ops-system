@@ -1760,6 +1760,27 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     }
   }
 
+  async function handleRetryOpportunityInsightStepOne() {
+    if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.report.opportunityInsight"]?.edit) {
+      setErrorMessage("当前账号没有生成机会洞察的编辑权限。");
+      return;
+    }
+
+    setIsGeneratingOpportunityInsight(true);
+    clearMessages();
+
+    try {
+      const nextWorkspace = await generateOpportunityInsightStepOne(archive.brand.id);
+      setOpportunityInsightWorkspace(nextWorkspace);
+      setNotice("已重新提交机会洞察第 1 步任务，正在后台生成品牌账号分析和竞品账号分析。");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "生成失败";
+      setErrorMessage(`生成失败：${message}`);
+    } finally {
+      setIsGeneratingOpportunityInsight(false);
+    }
+  }
+
   function getOpportunityInsightPrimaryActionLabel() {
     if (isOpportunityInsightTaskActive) {
       return "生成中...";
@@ -3286,15 +3307,29 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     }
 
     if (activePage === "opportunityInsight") {
+      const showRetryStepOneButton = opportunityInsightWorkspace.awaitingConfirmationStep === 2
+        && !isOpportunityInsightTaskActive;
       return (
-        <button
-          type="button"
-          className="primary-button"
-          onClick={() => void handleGenerateOpportunityInsight()}
-          disabled={isGeneratingOpportunityInsight || isHydrating || isOpportunityInsightTaskActive || !hasCurrentPageEditPermission}
-        >
-          {isGeneratingOpportunityInsight ? "提交中..." : getOpportunityInsightPrimaryActionLabel()}
-        </button>
+        <div className="strategy-inline-actions">
+          {showRetryStepOneButton ? (
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() => void handleRetryOpportunityInsightStepOne()}
+              disabled={isGeneratingOpportunityInsight || isHydrating || isOpportunityInsightTaskActive || !hasCurrentPageEditPermission}
+            >
+              {isGeneratingOpportunityInsight ? "提交中..." : "重试第 1 步"}
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="primary-button"
+            onClick={() => void handleGenerateOpportunityInsight()}
+            disabled={isGeneratingOpportunityInsight || isHydrating || isOpportunityInsightTaskActive || !hasCurrentPageEditPermission}
+          >
+            {isGeneratingOpportunityInsight ? "提交中..." : getOpportunityInsightPrimaryActionLabel()}
+          </button>
+        </div>
       );
     }
 
