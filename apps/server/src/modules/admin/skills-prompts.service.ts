@@ -59,6 +59,12 @@ const SOURCE_PINNED_PROMPT_IDS = new Set([
   "prompt_opportunity_insight_comment",
   "prompt_opportunity_insight_final_report",
 ]);
+const SOURCE_PINNED_PROMPT_SCENES = new Set([
+  "机会洞察-品牌账号分析",
+  "机会洞察-竞品账号分析",
+  "机会洞察-评论洞察分析",
+  "机会洞察-机会洞察总报告",
+]);
 
 export type UpdateSkillConfigPayload = {
   status?: SkillConfigRecord["status"];
@@ -1308,6 +1314,9 @@ export class SkillsPromptsService implements OnModuleInit {
       if (id === WECHAT_HTML_RENDER_PROMPT_ID) {
         await this.syncWechatHtmlRenderPromptIfNeeded();
       }
+      if (SOURCE_PINNED_PROMPT_IDS.has(id)) {
+        await this.syncOpportunityInsightPromptContents();
+      }
       const row = await this.findPromptByIdFromDatabase(id);
       if (row) {
         return this.hydratePromptTemplateRecord(this.hydrateSourcePinnedPrompt(this.normalizePromptTemplateRow(row)));
@@ -1330,6 +1339,9 @@ export class SkillsPromptsService implements OnModuleInit {
       await this.ensureRegistryTablesReady();
       if (scenes.includes(WECHAT_HTML_RENDER_SCENE)) {
         await this.syncWechatHtmlRenderPromptIfNeeded();
+      }
+      if (scenes.some((scene) => SOURCE_PINNED_PROMPT_SCENES.has(scene))) {
+        await this.syncOpportunityInsightPromptContents();
       }
       const rows = await this.prismaService.$queryRaw<PromptTemplateRow[]>`
         SELECT *
@@ -1418,6 +1430,7 @@ export class SkillsPromptsService implements OnModuleInit {
     if (await this.prismaService.canUseDatabase()) {
       await this.ensureRegistryTablesReady();
       await this.syncWechatHtmlRenderPromptIfNeeded();
+      await this.syncOpportunityInsightPromptContents();
       const rows = await this.prismaService.$queryRaw<PromptTemplateRow[]>`
         SELECT *
         FROM "PromptTemplate"
@@ -1729,13 +1742,7 @@ export class SkillsPromptsService implements OnModuleInit {
   }
 
   private async syncOpportunityInsightPromptContents() {
-    const targetPromptIds = new Set([
-      "prompt_opportunity_insight_brand_account",
-      "prompt_opportunity_insight_competitor_account",
-      "prompt_opportunity_insight_comment",
-      "prompt_opportunity_insight_final_report",
-    ]);
-    const seeds = database.promptTemplates.filter((item) => targetPromptIds.has(item.id));
+    const seeds = database.promptTemplates.filter((item) => SOURCE_PINNED_PROMPT_IDS.has(item.id));
 
     for (const prompt of seeds) {
       const nextContent = this.readPromptContent(prompt.id, prompt.content);
@@ -1752,6 +1759,16 @@ export class SkillsPromptsService implements OnModuleInit {
           "content" = ${nextContent},
           "updatedAt" = CURRENT_TIMESTAMP
         WHERE "id" = ${prompt.id}
+          AND (
+            "name" IS DISTINCT FROM ${prompt.name}
+            OR "scene" IS DISTINCT FROM ${prompt.scene}
+            OR "version" IS DISTINCT FROM ${prompt.version}
+            OR "status" IS DISTINCT FROM ${prompt.status}
+            OR "modelName" IS DISTINCT FROM ${prompt.modelName}
+            OR "temperature" IS DISTINCT FROM ${prompt.temperature}
+            OR "maxTokens" IS DISTINCT FROM ${prompt.maxTokens}
+            OR "content" IS DISTINCT FROM ${nextContent}
+          )
       `;
     }
   }

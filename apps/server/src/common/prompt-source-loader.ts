@@ -133,18 +133,23 @@ export const PROMPT_SOURCE_CANDIDATES: Record<string, string[]> = {
     "../../../提示词/brand-omni-growth-analysis/brand-omni-growth-analysis/SKILL.md",
   ],
   prompt_opportunity_insight_brand_account: [
+    "提示词/账号分析.txt",
     "../../../提示词/账号分析.txt",
     "../提示词/账号分析.txt",
   ],
   prompt_opportunity_insight_competitor_account: [
+    "提示词/竞品账号分析.txt",
     "../../../提示词/竞品账号分析.txt",
     "../提示词/竞品账号分析.txt",
   ],
   prompt_opportunity_insight_comment: [
+    "提示词/评论洞察提示词.txt",
     "../../../提示词/评论洞察提示词.txt",
     "../提示词/评论洞察提示词.txt",
   ],
   prompt_opportunity_insight_final_report: [
+    "提示词/机会洞察总报告提示词.txt",
+    "提示词/机会洞察总报告.txt",
     "../../../提示词/机会洞察总报告.txt",
     "../../../提示词/机会洞察总报告提示词.txt",
     "../提示词/机会洞察总报告.txt",
