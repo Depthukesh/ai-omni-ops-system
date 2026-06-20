@@ -50,6 +50,21 @@ type SettingsDraft = {
   enabled: boolean;
 };
 
+const BUSINESS_KNOWLEDGE_UPLOAD_ACCEPT =
+  ".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.md,.markdown,.json,.xml,.html,.htm,"
+  + ".jpg,.jpeg,.png,.webp,.gif,.bmp,.svg,.tif,.tiff,.heic,.heif,"
+  + ".mp3,.wav,.m4a,.aac,.ogg,.flac,"
+  + ".mp4,.mov,.webm,.m4v,.avi,"
+  + ".ppt,.pptx,.zip,.rar,.7z";
+
+const BUSINESS_KNOWLEDGE_UPLOAD_FORMATS = [
+  "文档：PDF、Word、Excel、CSV、TXT、Markdown、JSON、XML、HTML",
+  "图片：JPG、JPEG、PNG、WEBP、GIF、BMP、SVG、TIFF、HEIC",
+  "音频：MP3、WAV、M4A、AAC、OGG、FLAC",
+  "视频：MP4、MOV、WEBM、M4V、AVI",
+  "其他：PPT、PPTX、ZIP、RAR、7Z",
+].join("；");
+
 const BINDING_TYPE_OPTIONS: Array<{ value: SettingsDraft["bindingType"]; label: string; description: string }> = [
   { value: "MODULE", label: "模块", description: "给整个工作台或模块统一使用。" },
   { value: "SKILL_PACKAGE", label: "能力包", description: "给一组连续技能步骤统一使用。" },
@@ -655,6 +670,8 @@ export function BusinessKnowledgeWorkspace({ brandId }: Props) {
               <div>
                 <strong>添加资料</strong>
                 <p>这里只做资料添加，可一次上传多份文件；添加后系统会自动切片处理。</p>
+                <p>支持格式：{BUSINESS_KNOWLEDGE_UPLOAD_FORMATS}。</p>
+                <p>其中可提取正文的文档会自动切片；图片、音频、视频、压缩包等文件会先按文件名、类型和来源进入知识库。</p>
               </div>
             </div>
             <div className="business-kb-upload-toolbar">
@@ -662,6 +679,7 @@ export function BusinessKnowledgeWorkspace({ brandId }: Props) {
                 选择文件
                 <input
                   type="file"
+                  accept={BUSINESS_KNOWLEDGE_UPLOAD_ACCEPT}
                   multiple
                   hidden
                   onChange={(event) => {
@@ -714,7 +732,8 @@ export function BusinessKnowledgeWorkspace({ brandId }: Props) {
               ) : (
                 <div className="empty-state">
                   <strong>先选择要添加的资料</strong>
-                  <p>支持一次选择多份文件，系统会逐份上传并自动切片。</p>
+                  <p>支持一次选择多份文件，系统会逐份上传并自动切片或按元数据接入。</p>
+                  <p>{BUSINESS_KNOWLEDGE_UPLOAD_FORMATS}</p>
                 </div>
               )}
             </div>

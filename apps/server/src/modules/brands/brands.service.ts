@@ -4681,7 +4681,7 @@ export class BrandsService {
     };
   }
 
-  private inferKnowledgeFileType(...candidates: Array<string | undefined>): "PDF" | "DOCX" | "XLSX" | "MD" | "LINK" {
+  private inferKnowledgeFileType(...candidates: Array<string | undefined>): "PDF" | "DOCX" | "XLSX" | "MD" | "IMAGE" | "AUDIO" | "VIDEO" | "ARCHIVE" | "LINK" {
     for (const candidate of candidates) {
       const target = String(candidate || "").trim().toLowerCase();
       if (!target) {
@@ -4696,8 +4696,59 @@ export class BrandsService {
       if (target.endsWith(".xls") || target.endsWith(".xlsx") || target.endsWith(".csv")) {
         return "XLSX";
       }
-      if (target.endsWith(".md") || target.endsWith(".markdown") || target.endsWith(".txt")) {
+      if (
+        target.endsWith(".md")
+        || target.endsWith(".markdown")
+        || target.endsWith(".txt")
+        || target.endsWith(".json")
+        || target.endsWith(".xml")
+        || target.endsWith(".html")
+        || target.endsWith(".htm")
+      ) {
         return "MD";
+      }
+      if (
+        target.endsWith(".jpg")
+        || target.endsWith(".jpeg")
+        || target.endsWith(".png")
+        || target.endsWith(".webp")
+        || target.endsWith(".gif")
+        || target.endsWith(".bmp")
+        || target.endsWith(".svg")
+        || target.endsWith(".tif")
+        || target.endsWith(".tiff")
+        || target.endsWith(".heic")
+        || target.endsWith(".heif")
+      ) {
+        return "IMAGE";
+      }
+      if (
+        target.endsWith(".mp3")
+        || target.endsWith(".wav")
+        || target.endsWith(".m4a")
+        || target.endsWith(".aac")
+        || target.endsWith(".ogg")
+        || target.endsWith(".flac")
+      ) {
+        return "AUDIO";
+      }
+      if (
+        target.endsWith(".mp4")
+        || target.endsWith(".mov")
+        || target.endsWith(".webm")
+        || target.endsWith(".m4v")
+        || target.endsWith(".avi")
+      ) {
+        return "VIDEO";
+      }
+      if (
+        target.endsWith(".zip")
+        || target.endsWith(".rar")
+        || target.endsWith(".7z")
+        || target.endsWith(".ppt")
+        || target.endsWith(".pptx")
+      ) {
+        return "ARCHIVE";
       }
     }
     return "LINK";

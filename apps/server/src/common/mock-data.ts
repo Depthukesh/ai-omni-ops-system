@@ -213,7 +213,7 @@ export type KnowledgeBaseFileRecord = {
   id: string;
   knowledgeBaseId: string;
   fileName: string;
-  fileType: "PDF" | "DOCX" | "XLSX" | "MD" | "LINK";
+  fileType: "PDF" | "DOCX" | "XLSX" | "MD" | "IMAGE" | "AUDIO" | "VIDEO" | "ARCHIVE" | "LINK";
   sourceName: string;
   chunkCount: number;
   status: "PENDING" | "INDEXED" | "FAILED";
