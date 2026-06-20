@@ -12743,7 +12743,7 @@ ${normalizedMarkdown}`;
 
   private resolveModelAttemptTimeoutMs(configuredTimeoutMs: number | undefined, defaultTimeoutMs: number) {
     if (configuredTimeoutMs && configuredTimeoutMs > 0) {
-      return Math.min(configuredTimeoutMs, defaultTimeoutMs);
+      return configuredTimeoutMs;
     }
     return defaultTimeoutMs;
   }
