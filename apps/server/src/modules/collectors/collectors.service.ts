@@ -794,7 +794,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     const meta = this.asMeta(asset.metadataJson);
     const kind = this.readMetaString(meta, "kind");
     if (!this.isDouyinMaterialLibrarySupportedKind(kind)) {
-      throw new BadRequestException("仅支持将抖音对标作品或榜单作品加入素材库");
+      throw new BadRequestException("仅支持将抖音竞品作品、对标作品、搜索作品或榜单作品加入素材库");
     }
 
     const materialAddedAt = this.readMetaString(meta, "materialAddedAt") || new Date().toISOString();
@@ -826,7 +826,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     const meta = this.asMeta(asset.metadataJson);
     const kind = this.readMetaString(meta, "kind");
     if (!this.isDouyinMaterialLibrarySupportedKind(kind)) {
-      throw new BadRequestException("仅支持将抖音对标作品或榜单作品移出素材库");
+      throw new BadRequestException("仅支持将抖音竞品作品、对标作品、搜索作品或榜单作品移出素材库");
     }
 
     await this.updateCollectorAssetMeta(brandId, assetId, {
@@ -5837,6 +5837,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
 
   private isDouyinWorkKind(kind: string): kind is DouyinWorkKind {
     return kind === "DOUYIN_BRAND_WORK"
+      || kind === "DOUYIN_COMPETITOR_WORK"
       || kind === "DOUYIN_BENCHMARK_WORK"
       || kind === "DOUYIN_SEARCH_WORK"
       || kind === "DOUYIN_LOW_FAN_EXPLOSIVE_WORK"
@@ -5845,7 +5846,8 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
   }
 
   private isDouyinMaterialLibrarySupportedKind(kind: string): kind is Exclude<DouyinWorkKind, "DOUYIN_BRAND_WORK"> {
-    return kind === "DOUYIN_BENCHMARK_WORK"
+    return kind === "DOUYIN_COMPETITOR_WORK"
+      || kind === "DOUYIN_BENCHMARK_WORK"
       || kind === "DOUYIN_SEARCH_WORK"
       || kind === "DOUYIN_LOW_FAN_EXPLOSIVE_WORK"
       || kind === "DOUYIN_HIGH_COMPLETION_RATE_WORK"

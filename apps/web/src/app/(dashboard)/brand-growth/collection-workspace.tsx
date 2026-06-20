@@ -2313,15 +2313,19 @@ function DouyinAccountTable(props: {
 
 function DouyinBrandWorksTable(props: {
   items: DouyinCollectedWorkRecord[];
+  addingMaterialAssetId?: string;
+  onAddToMaterialLibrary?: ValueAction<DouyinCollectedWorkRecord>;
   formatDateTime: OptionalDateFormatter;
   formatCount: OptionalNumberFormatter;
   onPreviewMedia: ValueAction<MediaPreviewState>;
 }) {
+  const showMaterialLibraryColumn = Boolean(props.onAddToMaterialLibrary);
   return (
     <ScrollableTableShell>
       <table className="soft-table douyin-data-table">
         <thead>
           <tr>
+            {showMaterialLibraryColumn ? <th>素材库</th> : null}
             <th>作品 ID</th>
             <th>作者昵称</th>
             <th>作品描述/文案</th>
@@ -2342,6 +2346,16 @@ function DouyinBrandWorksTable(props: {
         <tbody>
           {props.items.map((item) => (
             <tr key={item.id}>
+              {showMaterialLibraryColumn ? (
+                <td>
+                  <MaterialLibraryCheckbox
+                    checked={Boolean(item.isInMaterialLibrary)}
+                    busy={props.addingMaterialAssetId === item.id}
+                    title={item.isInMaterialLibrary ? "取消加入素材库" : "加入素材库"}
+                    onToggle={() => props.onAddToMaterialLibrary?.(item)}
+                  />
+                </td>
+              ) : null}
               <td><CopyableCell value={item.workId} /></td>
               <td className="table-cell-wide">
                 <ExpandableTextCell value={item.authorName} emptyText="-" compactRows={2} />
@@ -3722,6 +3736,8 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                 {douyinPreviewItems.length ? (
                   <DouyinBrandWorksTable
                     items={douyinPreviewItems as DouyinCollectedWorkRecord[]}
+                    addingMaterialAssetId={props.addingMaterialAssetId}
+                    onAddToMaterialLibrary={props.onAddDouyinBenchmarkWorkToMaterial}
                     formatDateTime={props.formatDateTime}
                     formatCount={props.formatCount}
                     onPreviewMedia={props.onPreviewMedia}
