@@ -5149,19 +5149,20 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
         return;
       }
       const matchedIndex = existingIndexByKey.get(normalizedLink);
-      const resolvedRole = target === "brand" ? this.normalizeXhsAccountRole(accountRole) || "BRAND" : undefined;
+      const normalizedRole = target === "brand" ? this.normalizeXhsAccountRole(accountRole) : undefined;
+      const resolvedRole = target === "brand" ? normalizedRole || "BRAND" : undefined;
       if (typeof matchedIndex === "number") {
         const current = results[matchedIndex];
         results[matchedIndex] = {
           ...current,
           accountLink: normalizedLink,
-          accountRole: resolvedRole ?? current.accountRole,
+          accountRole: normalizedRole ? resolvedRole : current.accountRole,
         };
         return;
       }
       existingIndexByKey.set(normalizedLink, results.length);
       results.push({
-        id: `manual_douyin_${target}_${results.length + 1}`,
+        id: this.buildManualDouyinAccountId(normalizedLink, target),
         brandId: "",
         platform: "DOUYIN",
         accountName: target === "brand" ? "手动输入品牌账号" : "手动输入竞品账号",
@@ -5170,11 +5171,11 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       });
     };
 
-    for (const entry of manualEntries ?? []) {
-      upsertManualAccount(entry.locator, entry.accountRole);
-    }
     for (const rawLink of manualLinks ?? []) {
       upsertManualAccount(rawLink);
+    }
+    for (const entry of manualEntries ?? []) {
+      upsertManualAccount(entry.locator, entry.accountRole);
     }
 
     return results;
@@ -5249,6 +5250,16 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       .replace(/^_+|_+$/g, "")
       .slice(0, 60);
     return `manual_xhs_${target}_${compact || "entry"}`;
+  }
+
+  private buildManualDouyinAccountId(locator: string, target: "brand" | "competitor") {
+    const compact = locator
+      .toLowerCase()
+      .replace(/^https?:\/\/(www\.)?/i, "")
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "")
+      .slice(0, 60);
+    return `manual_douyin_${target}_${compact || "entry"}`;
   }
 
   private normalizeXhsAccountRole(value?: string): XhsAccountRole | undefined {

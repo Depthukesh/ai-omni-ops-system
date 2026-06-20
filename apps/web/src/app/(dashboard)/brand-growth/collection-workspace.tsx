@@ -2386,6 +2386,7 @@ function DouyinMaterialReadyWorksTable(props: {
           <tr>
             <th>素材库</th>
             <th>作品 ID</th>
+            <th>作者昵称</th>
             <th>作品描述</th>
             {showBillboardColumns ? <th>来源榜单</th> : null}
             {showBillboardColumns ? <th>一级分类</th> : null}
@@ -2398,7 +2399,6 @@ function DouyinMaterialReadyWorksTable(props: {
             <th>作品评论数</th>
             <th>作品分享数</th>
             <th>作品收藏数</th>
-            <th>作者昵称</th>
             <th>作者抖音号</th>
             <th>作者粉丝数</th>
             <th>作者总获赞</th>
@@ -2419,6 +2419,9 @@ function DouyinMaterialReadyWorksTable(props: {
                 />
               </td>
               <td><CopyableCell value={item.workId} /></td>
+              <td className="table-cell-wide">
+                <ExpandableTextCell value={item.authorName} emptyText="-" compactRows={2} />
+              </td>
               <td className="table-cell-wide">
                 <ExpandableTextCell value={item.description || item.title} emptyText="暂无作品描述" compactRows={2} />
               </td>
@@ -2443,9 +2446,6 @@ function DouyinMaterialReadyWorksTable(props: {
               <td>{props.formatCount(item.commentCount)}</td>
               <td>{props.formatCount(item.shareCount)}</td>
               <td>{props.formatCount(item.collectCount)}</td>
-              <td className="table-cell-wide">
-                <ExpandableTextCell value={item.authorName} emptyText="-" compactRows={2} />
-              </td>
               <td><CopyableCell value={item.authorUniqueId} /></td>
               <td>{formatOptionalCount(item.authorFollowerCount)}</td>
               <td>{formatOptionalCount(item.authorLikedCount)}</td>
