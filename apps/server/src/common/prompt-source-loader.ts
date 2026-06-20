@@ -145,8 +145,6 @@ export const PROMPT_SOURCE_CANDIDATES: Record<string, string[]> = {
     "../提示词/评论洞察提示词.txt",
   ],
   prompt_opportunity_insight_final_report: [
-    "../../../提示词/机会洞察.txt",
-    "../提示词/机会洞察.txt",
     "../../../提示词/机会洞察总报告.txt",
     "../../../提示词/机会洞察总报告提示词.txt",
     "../提示词/机会洞察总报告.txt",

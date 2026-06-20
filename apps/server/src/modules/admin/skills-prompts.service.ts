@@ -1310,7 +1310,7 @@ export class SkillsPromptsService implements OnModuleInit {
     if (!prompt) {
       return undefined;
     }
-    return this.hydratePromptTemplateRecord(prompt);
+    return this.hydratePromptTemplateRecord(this.hydrateLocalPromptTemplateSeed(prompt));
   }
 
   async getActivePromptById(id: string) {
@@ -1343,7 +1343,7 @@ export class SkillsPromptsService implements OnModuleInit {
     if (!prompt) {
       return undefined;
     }
-    return this.hydratePromptTemplateRecord(prompt);
+    return this.hydratePromptTemplateRecord(this.hydrateLocalPromptTemplateSeed(prompt));
   }
 
   resolvePromptIdsForSkill(skill: SkillConfigRecord, prompts: PromptTemplateRecord[]) {
@@ -1418,7 +1418,7 @@ export class SkillsPromptsService implements OnModuleInit {
       `;
       return rows.map((item) => this.normalizePromptTemplateRow(item));
     }
-    return database.promptTemplates.map((item) => this.hydratePromptTemplateRecord(item));
+    return database.promptTemplates.map((item) => this.hydratePromptTemplateRecord(this.hydrateLocalPromptTemplateSeed(item)));
   }
 
   private async ensureRegistryTablesReady() {
@@ -2179,7 +2179,7 @@ export class SkillsPromptsService implements OnModuleInit {
     if (!prompt) {
       throw new BadRequestException("绑定的提示词不存在");
     }
-    return this.hydratePromptTemplateRecord(prompt);
+    return this.hydratePromptTemplateRecord(this.hydrateLocalPromptTemplateSeed(prompt));
   }
 
   private getPromptSourceBundle(promptId: string, fallback: string) {
@@ -2238,6 +2238,13 @@ export class SkillsPromptsService implements OnModuleInit {
     return {
       ...prompt,
       content: prompt.content || "",
+    };
+  }
+
+  private hydrateLocalPromptTemplateSeed(prompt: PromptTemplateRecord): PromptTemplateRecord {
+    return {
+      ...prompt,
+      content: this.readPromptContent(prompt.id, prompt.content),
     };
   }
 

@@ -32,6 +32,7 @@ import {
   buildVisualReportPreviewDocument,
   renderMarkdownToHtml,
 } from "./markdown-render";
+import { OpportunityInsightStepInputModal } from "./opportunity-insight-step-input-modal";
 import type {
   BrandGrowthLibraryPageKey,
   MediaPreviewState,
@@ -153,6 +154,11 @@ type StrategyPageKey =
   | "annualMarketingPlan"
   | "xiaohongshuMarketingCalendar";
 type BrandGrowthLoadScope = "library" | "collection" | "report";
+type OpportunityInsightStep = 1 | 2 | 3;
+type OpportunityInsightStepModalState = {
+  step: OpportunityInsightStep;
+  isRetry: boolean;
+};
 const REPORT_SCOPE_SNAPSHOT_TTL_MS = 30_000;
 
 const BrandGrowthLibraryWorkspace = dynamic(
@@ -929,6 +935,7 @@ export function BrandGrowthWorkspace() {
   const [opportunityInsightStepOneInput, setOpportunityInsightStepOneInput] = useState("");
   const [opportunityInsightStepTwoInput, setOpportunityInsightStepTwoInput] = useState("");
   const [opportunityInsightStepThreeInput, setOpportunityInsightStepThreeInput] = useState("");
+  const [opportunityInsightStepModal, setOpportunityInsightStepModal] = useState<OpportunityInsightStepModalState | null>(null);
   const [dataSource, setDataSource] = useState<"api" | "error" | "loading">("loading");
   const [removedProductIds, setRemovedProductIds] = useState<string[]>([]);
   const [mediaPreview, setMediaPreview] = useState<MediaPreviewState | null>(null);
@@ -1736,10 +1743,36 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     return normalized ? { supplementInput: normalized } : {};
   }
 
-  async function runOpportunityInsightStep(step: 1 | 2 | 3) {
+  function getOpportunityInsightStepInput(step: OpportunityInsightStep) {
+    if (step === 2) {
+      return opportunityInsightStepTwoInput;
+    }
+    if (step === 3) {
+      return opportunityInsightStepThreeInput;
+    }
+    return opportunityInsightStepOneInput;
+  }
+
+  function setOpportunityInsightStepInput(step: OpportunityInsightStep, value: string) {
+    if (step === 2) {
+      setOpportunityInsightStepTwoInput(value);
+      return;
+    }
+    if (step === 3) {
+      setOpportunityInsightStepThreeInput(value);
+      return;
+    }
+    setOpportunityInsightStepOneInput(value);
+  }
+
+  function openOpportunityInsightStepModal(step: OpportunityInsightStep, isRetry: boolean) {
+    setOpportunityInsightStepModal({ step, isRetry });
+  }
+
+  async function runOpportunityInsightStep(step: OpportunityInsightStep) {
     if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.report.opportunityInsight"]?.edit) {
       setErrorMessage("当前账号没有生成机会洞察的编辑权限。");
-      return;
+      return false;
     }
 
     setIsGeneratingOpportunityInsight(true);
@@ -1747,10 +1780,10 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
 
     try {
       const nextWorkspace = step === 2
-        ? await generateOpportunityInsightStepTwo(archive.brand.id, buildOpportunityInsightPayload(opportunityInsightStepTwoInput))
+        ? await generateOpportunityInsightStepTwo(archive.brand.id, buildOpportunityInsightPayload(getOpportunityInsightStepInput(step)))
         : step === 3
-          ? await generateOpportunityInsightStepThree(archive.brand.id, buildOpportunityInsightPayload(opportunityInsightStepThreeInput))
-          : await generateOpportunityInsightStepOne(archive.brand.id, buildOpportunityInsightPayload(opportunityInsightStepOneInput));
+          ? await generateOpportunityInsightStepThree(archive.brand.id, buildOpportunityInsightPayload(getOpportunityInsightStepInput(step)))
+          : await generateOpportunityInsightStepOne(archive.brand.id, buildOpportunityInsightPayload(getOpportunityInsightStepInput(step)));
       setOpportunityInsightWorkspace(nextWorkspace);
       setNotice(
         step === 2
@@ -1759,9 +1792,11 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
             ? "已提交机会洞察第 3 步任务，正在后台生成机会洞察总报告。"
             : "已提交机会洞察第 1 步任务，正在后台生成品牌账号分析和竞品账号分析。",
       );
+      return true;
     } catch (error) {
       const message = error instanceof Error ? error.message : "生成失败";
       setErrorMessage(`生成失败：${message}`);
+      return false;
     } finally {
       setIsGeneratingOpportunityInsight(false);
     }
@@ -1769,25 +1804,41 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
 
   async function handleGenerateOpportunityInsight() {
     const awaitingStep = opportunityInsightWorkspace.awaitingConfirmationStep;
-    await runOpportunityInsightStep(
-      awaitingStep === 2
-        ? 2
-        : awaitingStep === 3 || opportunityInsightWorkspace.finalOpportunityReport
-          ? 3
-          : 1,
+    const step: OpportunityInsightStep = awaitingStep === 2
+      ? 2
+      : awaitingStep === 3 || opportunityInsightWorkspace.finalOpportunityReport
+        ? 3
+        : 1;
+    openOpportunityInsightStepModal(
+      step,
+      step === 1
+        ? Boolean(opportunityInsightWorkspace.brandAccountAnalysis || opportunityInsightWorkspace.competitorAccountAnalysis)
+        : step === 2
+          ? Boolean(opportunityInsightWorkspace.commentInsightAnalysis)
+          : Boolean(opportunityInsightWorkspace.finalOpportunityReport),
     );
   }
 
   async function handleRetryOpportunityInsightStepOne() {
-    await runOpportunityInsightStep(1);
+    openOpportunityInsightStepModal(1, Boolean(opportunityInsightWorkspace.brandAccountAnalysis || opportunityInsightWorkspace.competitorAccountAnalysis));
   }
 
   async function handleRetryOpportunityInsightStepTwo() {
-    await runOpportunityInsightStep(2);
+    openOpportunityInsightStepModal(2, Boolean(opportunityInsightWorkspace.commentInsightAnalysis));
   }
 
   async function handleRetryOpportunityInsightStepThree() {
-    await runOpportunityInsightStep(3);
+    openOpportunityInsightStepModal(3, Boolean(opportunityInsightWorkspace.finalOpportunityReport));
+  }
+
+  async function handleSubmitOpportunityInsightStepModal() {
+    if (!opportunityInsightStepModal) {
+      return;
+    }
+    const succeeded = await runOpportunityInsightStep(opportunityInsightStepModal.step);
+    if (succeeded) {
+      setOpportunityInsightStepModal(null);
+    }
   }
 
   function getOpportunityInsightPrimaryActionLabel() {
@@ -3252,51 +3303,63 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     const annualTaskStatusText = getReportTaskStatusText(latestAnnualMarketingTask?.taskStatus);
 
     return (
-      <BrandGrowthReportWorkspace
-        activePage={
-          activePage === "opportunityInsight"
-            ? "opportunityInsight"
-            : activePage === "growthReport"
-              ? "growthReport"
-              : activePage === "visualGrowthReport"
-                ? "visualGrowthReport"
-                : "annualMarketingPlan"
-        }
-        reportWorkspace={reportWorkspace}
-        opportunityInsightWorkspace={opportunityInsightWorkspace}
-        visualReportWorkspace={visualReportWorkspace}
-        annualMarketingPlanWorkspace={annualMarketingPlanWorkspace}
-        reportMarkdownDraft={reportMarkdownDraft}
-        onReportMarkdownDraftChange={setReportMarkdownDraft}
-        previewHtml={previewHtml}
-        previewDocument={previewDocument}
-        growthTaskStatusText={growthTaskStatusText}
-        opportunityTaskStatusText={opportunityTaskStatusText}
-        visualTaskStatusText={visualTaskStatusText}
-        annualTaskStatusText={annualTaskStatusText}
-        previewRows={latestPlan?.items ?? []}
-        isHydrating={isHydrating}
-        isGeneratingReport={isGeneratingReport}
-        isGeneratingOpportunityInsight={isGeneratingOpportunityInsight}
-        isGeneratingVisualReport={isGeneratingVisualReport}
-        isGrowthReportTaskActive={isGrowthReportTaskActive}
-        isOpportunityInsightTaskActive={isOpportunityInsightTaskActive}
-        isVisualReportTaskActive={isVisualReportTaskActive}
-        isAnnualMarketingPlanTaskActive={isAnnualMarketingPlanTaskActive}
-        onGenerateReport={handleGenerateReport}
-        onGenerateOpportunityInsight={handleGenerateOpportunityInsight}
-        onRetryOpportunityInsightStepOne={handleRetryOpportunityInsightStepOne}
-        onRetryOpportunityInsightStepTwo={handleRetryOpportunityInsightStepTwo}
-        onRetryOpportunityInsightStepThree={handleRetryOpportunityInsightStepThree}
-        opportunityInsightStepOneInput={opportunityInsightStepOneInput}
-        opportunityInsightStepTwoInput={opportunityInsightStepTwoInput}
-        opportunityInsightStepThreeInput={opportunityInsightStepThreeInput}
-        onOpportunityInsightStepOneInputChange={setOpportunityInsightStepOneInput}
-        onOpportunityInsightStepTwoInputChange={setOpportunityInsightStepTwoInput}
-        onOpportunityInsightStepThreeInputChange={setOpportunityInsightStepThreeInput}
-        hasCurrentPageEditPermission={hasCurrentPageEditPermission}
-        formatDateTime={formatDateTime}
-      />
+      <>
+        <BrandGrowthReportWorkspace
+          activePage={
+            activePage === "opportunityInsight"
+              ? "opportunityInsight"
+              : activePage === "growthReport"
+                ? "growthReport"
+                : activePage === "visualGrowthReport"
+                  ? "visualGrowthReport"
+                  : "annualMarketingPlan"
+          }
+          reportWorkspace={reportWorkspace}
+          opportunityInsightWorkspace={opportunityInsightWorkspace}
+          visualReportWorkspace={visualReportWorkspace}
+          annualMarketingPlanWorkspace={annualMarketingPlanWorkspace}
+          reportMarkdownDraft={reportMarkdownDraft}
+          onReportMarkdownDraftChange={setReportMarkdownDraft}
+          previewHtml={previewHtml}
+          previewDocument={previewDocument}
+          growthTaskStatusText={growthTaskStatusText}
+          opportunityTaskStatusText={opportunityTaskStatusText}
+          visualTaskStatusText={visualTaskStatusText}
+          annualTaskStatusText={annualTaskStatusText}
+          previewRows={latestPlan?.items ?? []}
+          isHydrating={isHydrating}
+          isGeneratingReport={isGeneratingReport}
+          isGeneratingOpportunityInsight={isGeneratingOpportunityInsight}
+          isGeneratingVisualReport={isGeneratingVisualReport}
+          isGrowthReportTaskActive={isGrowthReportTaskActive}
+          isOpportunityInsightTaskActive={isOpportunityInsightTaskActive}
+          isVisualReportTaskActive={isVisualReportTaskActive}
+          isAnnualMarketingPlanTaskActive={isAnnualMarketingPlanTaskActive}
+          onGenerateReport={handleGenerateReport}
+          onGenerateOpportunityInsight={handleGenerateOpportunityInsight}
+          onRetryOpportunityInsightStepOne={handleRetryOpportunityInsightStepOne}
+          onRetryOpportunityInsightStepTwo={handleRetryOpportunityInsightStepTwo}
+          onRetryOpportunityInsightStepThree={handleRetryOpportunityInsightStepThree}
+          hasCurrentPageEditPermission={hasCurrentPageEditPermission}
+          formatDateTime={formatDateTime}
+        />
+        {opportunityInsightStepModal ? (
+          <OpportunityInsightStepInputModal
+            open
+            step={opportunityInsightStepModal.step}
+            isRetry={opportunityInsightStepModal.isRetry}
+            isSubmitting={isGeneratingOpportunityInsight}
+            value={getOpportunityInsightStepInput(opportunityInsightStepModal.step)}
+            onChange={(value) => setOpportunityInsightStepInput(opportunityInsightStepModal.step, value)}
+            onClose={() => {
+              if (!isGeneratingOpportunityInsight) {
+                setOpportunityInsightStepModal(null);
+              }
+            }}
+            onSubmit={handleSubmitOpportunityInsightStepModal}
+          />
+        ) : null}
+      </>
     );
   }
 

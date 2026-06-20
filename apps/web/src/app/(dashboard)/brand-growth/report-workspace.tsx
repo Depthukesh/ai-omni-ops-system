@@ -4,7 +4,6 @@ import type {
   AsyncAction,
   BrandGrowthReportPageKey,
   OptionalDateFormatter,
-  ValueAction,
 } from "./shared-types";
 import type {
   AnnualMarketingPlanRow,
@@ -42,12 +41,6 @@ export interface BrandGrowthReportWorkspaceProps {
   onRetryOpportunityInsightStepOne: AsyncAction;
   onRetryOpportunityInsightStepTwo: AsyncAction;
   onRetryOpportunityInsightStepThree: AsyncAction;
-  opportunityInsightStepOneInput: string;
-  opportunityInsightStepTwoInput: string;
-  opportunityInsightStepThreeInput: string;
-  onOpportunityInsightStepOneInputChange: ValueAction<string>;
-  onOpportunityInsightStepTwoInputChange: ValueAction<string>;
-  onOpportunityInsightStepThreeInputChange: ValueAction<string>;
   hasCurrentPageEditPermission: boolean;
   formatDateTime: OptionalDateFormatter;
 }
@@ -244,13 +237,11 @@ export function BrandGrowthReportWorkspace(props: BrandGrowthReportWorkspaceProp
 
             <div className="report-editor-grid">
               <article className="report-editor-pane">
-                <span>第 1 步补充要求</span>
-                <textarea
-                  className="report-markdown-textarea"
-                  value={props.opportunityInsightStepOneInput}
-                  onChange={(event) => void props.onOpportunityInsightStepOneInputChange(event.target.value)}
-                  placeholder="可补充品牌背景、重点关注的平台/账号、必须回答的问题，随后开始或重试第 1 步。"
-                />
+                <span>第 1 步</span>
+                <strong>{brandAccountAnalysis || competitorAccountAnalysis ? "允许重新生成" : "等待开始"}</strong>
+                <p className="panel-subtext" style={{ margin: "8px 0 0" }}>
+                  点击按钮后会弹出补充要求输入框，再提交品牌账号分析与竞品账号分析。
+                </p>
                 <div className="report-editor-actions" style={{ justifyContent: "flex-end", marginTop: 12 }}>
                   <button
                     type="button"
@@ -263,13 +254,11 @@ export function BrandGrowthReportWorkspace(props: BrandGrowthReportWorkspaceProp
                 </div>
               </article>
               <article className="report-editor-pane">
-                <span>第 2 步补充要求</span>
-                <textarea
-                  className="report-markdown-textarea"
-                  value={props.opportunityInsightStepTwoInput}
-                  onChange={(event) => void props.onOpportunityInsightStepTwoInputChange(event.target.value)}
-                  placeholder="可补充希望重点分析的评论主题、痛点、情绪或关键词，随后开始或重试第 2 步。"
-                />
+                <span>第 2 步</span>
+                <strong>{commentInsightAnalysis ? "允许重新生成" : "等待开始"}</strong>
+                <p className="panel-subtext" style={{ margin: "8px 0 0" }}>
+                  点击按钮后会弹出补充要求输入框，再提交评论洞察分析。
+                </p>
                 <div className="report-editor-actions" style={{ justifyContent: "flex-end", marginTop: 12 }}>
                   <button
                     type="button"
@@ -285,13 +274,11 @@ export function BrandGrowthReportWorkspace(props: BrandGrowthReportWorkspaceProp
 
             <div className="opportunity-insight-report-stack">
               <article className="report-editor-pane">
-                <span>第 3 步补充要求</span>
-                <textarea
-                  className="report-markdown-textarea"
-                  value={props.opportunityInsightStepThreeInput}
-                  onChange={(event) => void props.onOpportunityInsightStepThreeInputChange(event.target.value)}
-                  placeholder="可补充总报告希望强调的机会判断、市场切入口、产品组合拳或最终输出偏好，随后开始或重试第 3 步。"
-                />
+                <span>第 3 步</span>
+                <strong>{finalOpportunityReport ? "允许重新生成" : "等待开始"}</strong>
+                <p className="panel-subtext" style={{ margin: "8px 0 0" }}>
+                  点击按钮后会弹出补充要求输入框，再提交机会洞察总报告。
+                </p>
                 <div className="report-editor-actions" style={{ justifyContent: "flex-end", marginTop: 12 }}>
                   <button
                     type="button"

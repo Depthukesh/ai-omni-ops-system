@@ -9,6 +9,7 @@ export interface NoteCreateModalShellProps {
   copy: NoteCreateModalCopy;
   isPublishing: boolean;
   createDisabled?: boolean;
+  createLabel?: string;
   children: ReactNode;
   onClose: () => void;
   onCreate: AsyncAction;
@@ -40,7 +41,7 @@ export function NoteCreateModalShell(props: NoteCreateModalShellProps) {
               onClick={() => void props.onCreate()}
               disabled={props.isPublishing || props.createDisabled}
             >
-              {props.isPublishing ? "创作中..." : "一键创作"}
+              {props.isPublishing ? "提交中..." : props.createLabel || "一键创作"}
             </button>
             <button type="button" className="secondary-button" onClick={props.onClose} disabled={props.isPublishing}>
               取消
