@@ -170,6 +170,7 @@ export class DouyinCollectorsController {
         | "brandAccount"
         | "competitorAccount"
         | "brandWorks"
+        | "competitorWorks"
         | "benchmarkWorks"
         | "searchWorks"
         | "keywordRecommendations"

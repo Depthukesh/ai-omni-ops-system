@@ -289,6 +289,7 @@ function createEmptyDouyinCollectionWorkspace(): DouyinCollectionWorkspace {
     brandAccounts: [],
     competitorAccounts: [],
     brandWorks: [],
+    competitorWorks: [],
     benchmarkWorks: [],
     searchWorks: [],
     keywordRecommendations: [],
@@ -980,6 +981,10 @@ export function BrandGrowthWorkspace() {
   const sortedDouyinBrandWorks = useMemo(
     () => sortByCollectedAtDesc(douyinCollectionWorkspace.brandWorks),
     [douyinCollectionWorkspace.brandWorks],
+  );
+  const sortedDouyinCompetitorWorks = useMemo(
+    () => sortByCollectedAtDesc(douyinCollectionWorkspace.competitorWorks),
+    [douyinCollectionWorkspace.competitorWorks],
   );
   const sortedDouyinBenchmarkWorks = useMemo(
     () => sortByCollectedAtDesc(douyinCollectionWorkspace.benchmarkWorks),
@@ -2252,7 +2257,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
         payload.brandAccountLinks = douyinSyncForm.brandAccountEntries.map((entry) => entry.locator.trim()).filter(Boolean);
         payload.brandAccountEntries = buildXhsSyncAccountEntries(douyinSyncForm.brandAccountEntries);
       }
-      if (activeDouyinCollectionCard === "competitorAccount") {
+      if (activeDouyinCollectionCard === "competitorAccount" || activeDouyinCollectionCard === "competitorWorks") {
         payload.competitorAccountLinks = douyinSyncForm.competitorAccountEntries.map((entry) => entry.locator.trim()).filter(Boolean);
         payload.competitorAccountEntries = buildXhsSyncAccountEntries(douyinSyncForm.competitorAccountEntries);
       }
@@ -2267,6 +2272,16 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
           return;
         }
         payload.searchKeyword = searchKeyword;
+      }
+      if (activeDouyinCollectionCard === "brandWorks" && !payload.brandAccountLinks?.length) {
+        setErrorMessage("请先在品牌账号信息里添加至少一个品牌抖音账号后再提交。");
+        setIsSyncingDouyinWorkspace(false);
+        return;
+      }
+      if (activeDouyinCollectionCard === "competitorWorks" && !payload.competitorAccountLinks?.length) {
+        setErrorMessage("请先在竞品账号信息里添加至少一个竞品抖音账号后再提交。");
+        setIsSyncingDouyinWorkspace(false);
+        return;
       }
       if (
         activeDouyinCollectionCard === "lowFanExplosiveWorks"
@@ -2299,7 +2314,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
       setDouyinCollectionWorkspace(response.workspace);
       const summary =
         `抖音同步完成：品牌账号 ${response.breakdown.brandAccounts} 条，竞品账号 ${response.breakdown.competitorAccounts} 条，` +
-        `品牌作品 ${response.breakdown.brandWorks} 条，对标作品 ${response.breakdown.benchmarkWorks} 条，搜索关键词 ${response.breakdown.searchWorks} 条，关键词推荐 ${response.breakdown.keywordRecommendations} 条，` +
+        `品牌作品 ${response.breakdown.brandWorks} 条，竞品作品 ${response.breakdown.competitorWorks} 条，对标作品 ${response.breakdown.benchmarkWorks} 条，搜索关键词 ${response.breakdown.searchWorks} 条，关键词推荐 ${response.breakdown.keywordRecommendations} 条，` +
         `低粉爆款榜 ${response.breakdown.lowFanExplosiveWorks} 条，高完播率榜 ${response.breakdown.highCompletionRateWorks} 条，` +
         `高点赞率榜 ${response.breakdown.highLikeRateWorks} 条，同城热点榜 ${response.breakdown.cityHotspots} 条。`;
       const warningText = response.warnings?.filter(Boolean).join("；");
@@ -2369,6 +2384,40 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     } catch (error) {
       const message = error instanceof Error ? error.message : "同步失败";
       setErrorMessage(`品牌抖音账号同步失败：${message}`);
+    } finally {
+      setIsSyncingDouyinWorkspace(false);
+    }
+  }
+
+  async function handleSyncAllDouyinCompetitorAccounts() {
+    if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.collection.douyinCollection"]?.edit) {
+      setErrorMessage("当前账号没有同步收集数据板块的编辑权限。");
+      return;
+    }
+
+    const competitorAccountLinks = douyinSyncForm.competitorAccountEntries.map((entry) => entry.locator.trim()).filter(Boolean);
+    if (!competitorAccountLinks.length) {
+      setErrorMessage("请先添加至少一个竞品抖音账号后再同步。");
+      return;
+    }
+
+    setIsSyncingDouyinWorkspace(true);
+    clearMessages();
+
+    try {
+      const response = await syncDouyinCollectionWorkspace(
+        {
+          scope: "competitorAccount",
+          competitorAccountLinks,
+          competitorAccountEntries: buildXhsSyncAccountEntries(douyinSyncForm.competitorAccountEntries),
+        },
+        activeBrandId || archive.brand.id,
+      );
+      setDouyinCollectionWorkspace(response.workspace);
+      setNotice(`竞品抖音账号同步完成，已更新 ${response.breakdown.competitorAccounts} 条结果。`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "同步失败";
+      setErrorMessage(`竞品抖音账号同步失败：${message}`);
     } finally {
       setIsSyncingDouyinWorkspace(false);
     }
@@ -2849,6 +2898,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
         onSyncSingleXhsCompetitorAccount={handleSyncSingleXhsCompetitorAccount}
         onSyncDouyinWorkspace={handleSyncDouyinWorkspace}
         onSyncAllDouyinBrandAccounts={handleSyncAllDouyinBrandAccounts}
+        onSyncAllDouyinCompetitorAccounts={handleSyncAllDouyinCompetitorAccounts}
         onSyncSingleDouyinBrandAccount={handleSyncSingleDouyinBrandAccount}
         onSyncSingleDouyinCompetitorAccount={handleSyncSingleDouyinCompetitorAccount}
         onSyncSingleDouyinKeywordRecommendation={handleSyncSingleDouyinKeywordRecommendation}
@@ -2860,6 +2910,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
         sortedDouyinBrandAccounts={sortedDouyinBrandAccounts}
         sortedDouyinCompetitorAccounts={sortedDouyinCompetitorAccounts}
         sortedDouyinBrandWorks={sortedDouyinBrandWorks}
+        sortedDouyinCompetitorWorks={sortedDouyinCompetitorWorks}
         sortedDouyinBenchmarkWorks={sortedDouyinBenchmarkWorks}
         sortedDouyinSearchWorks={sortedDouyinSearchWorks}
         sortedDouyinKeywordRecommendations={sortedDouyinKeywordRecommendations}

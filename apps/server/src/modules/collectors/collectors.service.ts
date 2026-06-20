@@ -21,6 +21,7 @@ type CollectorAccountKind =
   | "DOUYIN_COMPETITOR_ACCOUNT";
 type DouyinWorkKind =
   | "DOUYIN_BRAND_WORK"
+  | "DOUYIN_COMPETITOR_WORK"
   | "DOUYIN_BENCHMARK_WORK"
   | "DOUYIN_SEARCH_WORK"
   | "DOUYIN_LOW_FAN_EXPLOSIVE_WORK"
@@ -66,6 +67,7 @@ type DouyinSyncInput = {
     | "brandAccount"
     | "competitorAccount"
     | "brandWorks"
+    | "competitorWorks"
     | "benchmarkWorks"
     | DouyinSearchScopeKey
     | DouyinKeywordRecommendationScopeKey
@@ -342,6 +344,7 @@ export type DouyinCollectionWorkspace = {
   brandAccounts: DouyinCollectedAccountRecord[];
   competitorAccounts: DouyinCollectedAccountRecord[];
   brandWorks: DouyinCollectedWorkRecord[];
+  competitorWorks: DouyinCollectedWorkRecord[];
   benchmarkWorks: DouyinCollectedWorkRecord[];
   searchWorks: DouyinCollectedWorkRecord[];
   keywordRecommendations: DouyinKeywordRecommendationRecord[];
@@ -520,8 +523,9 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     const scope = input.scope;
     const contentTagSelection = input.contentTagSelection ?? {};
     const shouldSyncBrandAccounts = !scope || scope === "brandAccount" || scope === "brandWorks";
-    const shouldSyncCompetitorAccounts = !scope || scope === "competitorAccount";
+    const shouldSyncCompetitorAccounts = !scope || scope === "competitorAccount" || scope === "competitorWorks";
     const shouldSyncBrandWorks = !scope || scope === "brandWorks";
+    const shouldSyncCompetitorWorks = !scope || scope === "competitorWorks";
     const shouldSyncBenchmarkWorks = !scope || scope === "benchmarkWorks";
     const shouldSyncSearchWorks = scope === "searchWorks";
     const shouldSyncKeywordRecommendations = scope === "keywordRecommendations";
@@ -549,6 +553,11 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     const brandWorkRows = await Promise.all(
       shouldSyncBrandWorks
         ? brandAccounts.map((account) => this.collectAndStoreDouyinWorks(brandId, account, "DOUYIN_BRAND_WORK"))
+        : [],
+    );
+    const competitorWorkRows = await Promise.all(
+      shouldSyncCompetitorWorks
+        ? competitorAccounts.map((account) => this.collectAndStoreDouyinWorks(brandId, account, "DOUYIN_COMPETITOR_WORK"))
         : [],
     );
     const benchmarkWorkRows = await Promise.all(
@@ -621,6 +630,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
         brandAccountRows.length
         + competitorAccountRows.length
         + brandWorkRows.reduce((sum, items) => sum + items.length, 0)
+        + competitorWorkRows.reduce((sum, items) => sum + items.length, 0)
         + benchmarkWorkCount
         + searchWorkRows.length
         + keywordRecommendationRows.length
@@ -632,6 +642,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
         brandAccounts: brandAccountRows.length,
         competitorAccounts: competitorAccountRows.length,
         brandWorks: brandWorkRows.reduce((sum, items) => sum + items.length, 0),
+        competitorWorks: competitorWorkRows.reduce((sum, items) => sum + items.length, 0),
         benchmarkWorks: benchmarkWorkCount,
         searchWorks: searchWorkRows.length,
         keywordRecommendations: keywordRecommendationRows.length,
@@ -1157,6 +1168,9 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     const brandWorks = assets
       .filter((item) => item.metadataJson?.kind === "DOUYIN_BRAND_WORK")
       .map((item) => this.mapDouyinCollectedWork(item, "DOUYIN_BRAND_WORK"));
+    const competitorWorks = assets
+      .filter((item) => item.metadataJson?.kind === "DOUYIN_COMPETITOR_WORK")
+      .map((item) => this.mapDouyinCollectedWork(item, "DOUYIN_COMPETITOR_WORK"));
     const benchmarkWorks = assets
       .filter((item) => item.metadataJson?.kind === "DOUYIN_BENCHMARK_WORK")
       .map((item) => this.mapDouyinCollectedWork(item, "DOUYIN_BENCHMARK_WORK"));
@@ -1184,6 +1198,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       brandAccounts,
       competitorAccounts,
       brandWorks,
+      competitorWorks,
       benchmarkWorks,
       searchWorks,
       keywordRecommendations,
@@ -3398,7 +3413,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
   private async collectAndStoreDouyinWorks(
     brandId: string,
     account: DouyinResolvedAccountRecord,
-    kind: "DOUYIN_BRAND_WORK" | "DOUYIN_BENCHMARK_WORK",
+    kind: "DOUYIN_BRAND_WORK" | "DOUYIN_COMPETITOR_WORK" | "DOUYIN_BENCHMARK_WORK",
   ): Promise<DouyinCollectedWorkRecord[]> {
     const secUserId = this.extractDouyinSecUserId(account.accountLink);
     if (!secUserId) {

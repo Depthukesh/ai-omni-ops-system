@@ -136,6 +136,7 @@ export type DouyinCollectedWorkRecord = {
   id: string;
   kind:
     | "DOUYIN_BRAND_WORK"
+    | "DOUYIN_COMPETITOR_WORK"
     | "DOUYIN_BENCHMARK_WORK"
     | "DOUYIN_SEARCH_WORK"
     | "DOUYIN_LOW_FAN_EXPLOSIVE_WORK"
@@ -220,6 +221,7 @@ export type DouyinCollectionWorkspace = {
   brandAccounts: DouyinCollectedAccountRecord[];
   competitorAccounts: DouyinCollectedAccountRecord[];
   brandWorks: DouyinCollectedWorkRecord[];
+  competitorWorks: DouyinCollectedWorkRecord[];
   benchmarkWorks: DouyinCollectedWorkRecord[];
   searchWorks: DouyinCollectedWorkRecord[];
   keywordRecommendations: DouyinKeywordRecommendationRecord[];
@@ -236,6 +238,7 @@ export type DouyinSyncPayload = {
     | "brandAccount"
     | "competitorAccount"
     | "brandWorks"
+    | "competitorWorks"
     | "benchmarkWorks"
     | "searchWorks"
     | "keywordRecommendations"
@@ -393,6 +396,7 @@ export const douyinCollectionSeed: DouyinCollectionWorkspace = {
       collectedAt: "2026-05-20T08:05:00.000Z",
     },
   ],
+  competitorWorks: [],
   benchmarkWorks: [
     {
       id: "ast_demo_douyin_benchmark_work_001",
@@ -447,6 +451,7 @@ export async function syncDouyinCollectionWorkspace(payload: DouyinSyncPayload =
       brandAccounts: number;
       competitorAccounts: number;
       brandWorks: number;
+      competitorWorks: number;
       benchmarkWorks: number;
       searchWorks: number;
       keywordRecommendations: number;

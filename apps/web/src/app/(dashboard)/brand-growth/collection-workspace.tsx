@@ -58,6 +58,7 @@ export type DouyinCollectionCardKey =
   | "brandAccount"
   | "competitorAccount"
   | "brandWorks"
+  | "competitorWorks"
   | "benchmarkWorks"
   | "searchWorks"
   | "keywordRecommendations"
@@ -73,6 +74,7 @@ export const douyinCollectionCards: Array<{
   { key: "brandAccount", label: "品牌账号信息" },
   { key: "competitorAccount", label: "竞品账号信息" },
   { key: "brandWorks", label: "品牌作品信息及数据" },
+  { key: "competitorWorks", label: "竞品作品信息及数据" },
   { key: "benchmarkWorks", label: "对标作品信息及数据" },
   { key: "searchWorks", label: "搜索关键词" },
   { key: "keywordRecommendations", label: "关键词推荐" },
@@ -122,6 +124,21 @@ const douyinFieldPreviewMap: Record<DouyinCollectionCardKey, DouyinFieldPreviewR
     { field: "postedCount", label: "作品数", source: "获取指定用户的信息", path: "data.user.aweme_count", required: "可选", patch: "否" },
   ],
   brandWorks: [
+    { field: "workId", label: "作品主键", source: "获取用户主页作品数据", path: "data.aweme_list[].aweme_id", required: "必需", patch: "否" },
+    { field: "description", label: "作品描述/文案", source: "获取用户主页作品数据", path: "data.aweme_list[].desc", required: "必需", patch: "否" },
+    { field: "publishTimeText", label: "发布时间戳", source: "获取用户主页作品数据", path: "data.aweme_list[].create_time", required: "可选", patch: "否" },
+    { field: "mediaType", label: "媒体类型", source: "获取用户主页作品数据", path: "data.aweme_list[].media_type", required: "可选", patch: "否" },
+    { field: "durationMs", label: "视频时长(毫秒)", source: "获取用户主页作品数据", path: "data.aweme_list[].duration", required: "可选", patch: "否" },
+    { field: "likeCount", label: "点赞数", source: "获取用户主页作品数据", path: "data.aweme_list[].statistics.digg_count", required: "可选", patch: "否" },
+    { field: "commentCount", label: "评论数", source: "获取用户主页作品数据", path: "data.aweme_list[].statistics.comment_count", required: "可选", patch: "否" },
+    { field: "shareCount", label: "分享数", source: "获取用户主页作品数据", path: "data.aweme_list[].statistics.share_count", required: "可选", patch: "否" },
+    { field: "collectCount", label: "收藏数", source: "获取用户主页作品数据", path: "data.aweme_list[].statistics.collect_count", required: "可选", patch: "否" },
+    { field: "recommendCount", label: "推荐数", source: "获取用户主页作品数据", path: "data.aweme_list[].statistics.recommend_count", required: "可选", patch: "否" },
+    { field: "imageList", label: "图文列表", source: "获取用户主页作品数据", path: "data.aweme_list[].images", required: "可选", patch: "否" },
+    { field: "awemeType", label: "作品类型", source: "获取用户主页作品数据", path: "data.aweme_list[].aweme_type", required: "可选", patch: "否" },
+    { field: "videoUrl", label: "视频下载地址", source: "获取用户主页作品数据", path: "data.aweme_list[].video_download_addr", required: "可选", patch: "否" },
+  ],
+  competitorWorks: [
     { field: "workId", label: "作品主键", source: "获取用户主页作品数据", path: "data.aweme_list[].aweme_id", required: "必需", patch: "否" },
     { field: "description", label: "作品描述/文案", source: "获取用户主页作品数据", path: "data.aweme_list[].desc", required: "必需", patch: "否" },
     { field: "publishTimeText", label: "发布时间戳", source: "获取用户主页作品数据", path: "data.aweme_list[].create_time", required: "可选", patch: "否" },
@@ -326,6 +343,7 @@ export interface BrandGrowthCollectionWorkspaceProps {
   onSyncSingleXhsCompetitorAccount: ValueAction<XhsAccountBindingEntry>;
   onSyncDouyinWorkspace: AsyncAction;
   onSyncAllDouyinBrandAccounts: AsyncAction;
+  onSyncAllDouyinCompetitorAccounts: AsyncAction;
   onSyncSingleDouyinBrandAccount: ValueAction<XhsAccountBindingEntry>;
   onSyncSingleDouyinCompetitorAccount: ValueAction<XhsAccountBindingEntry>;
   onSyncSingleDouyinKeywordRecommendation: ValueAction<string>;
@@ -337,6 +355,7 @@ export interface BrandGrowthCollectionWorkspaceProps {
   sortedDouyinBrandAccounts: DouyinCollectedAccountRecord[];
   sortedDouyinCompetitorAccounts: DouyinCollectedAccountRecord[];
   sortedDouyinBrandWorks: DouyinCollectedWorkRecord[];
+  sortedDouyinCompetitorWorks: DouyinCollectedWorkRecord[];
   sortedDouyinBenchmarkWorks: DouyinCollectedWorkRecord[];
   sortedDouyinSearchWorks: DouyinCollectedWorkRecord[];
   sortedDouyinKeywordRecommendations: DouyinKeywordRecommendationRecord[];
@@ -2603,6 +2622,7 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
     props.sortedDouyinBrandAccounts.length +
     props.sortedDouyinCompetitorAccounts.length +
     props.sortedDouyinBrandWorks.length +
+    props.sortedDouyinCompetitorWorks.length +
     props.sortedDouyinBenchmarkWorks.length +
     props.sortedDouyinSearchWorks.length +
     props.sortedDouyinKeywordRecommendations.length +
@@ -2621,6 +2641,8 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
         ? props.sortedDouyinCompetitorAccounts
         : props.activeDouyinCollectionCard === "brandWorks"
           ? props.sortedDouyinBrandWorks
+          : props.activeDouyinCollectionCard === "competitorWorks"
+            ? props.sortedDouyinCompetitorWorks
           : props.activeDouyinCollectionCard === "benchmarkWorks"
             ? props.sortedDouyinBenchmarkWorks
             : props.activeDouyinCollectionCard === "searchWorks"
@@ -3457,6 +3479,89 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                   />
                 ) : (
                   <div className="note-empty-state">当前还没有采集到品牌作品信息，请先同步品牌账号信息后再提交。</div>
+                )}
+              </article>
+            </>
+          ) : null}
+          {props.activeDouyinCollectionCard === "competitorWorks" ? (
+            <>
+              <article className="light-data-panel xhs-account-builder" style={{ marginBottom: 16 }}>
+                <div className="collection-result-head">
+                  <div>
+                    <h3>竞品作品信息及数据</h3>
+                    <p>直接复用“竞品账号信息”里已绑定的抖音竞品账号，先同步竞品账号信息，再提交拉取这些账号下的竞品作品。</p>
+                  </div>
+                  <div className="strategy-inline-actions">
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      onClick={() => void props.onSyncAllDouyinCompetitorAccounts()}
+                      disabled={props.isHydrating || props.isSyncingDouyinWorkspace || !props.douyinSyncForm.competitorAccountEntries.length}
+                    >
+                      {props.isHydrating || props.isSyncingDouyinWorkspace ? "同步中..." : "同步竞品账号信息"}
+                    </button>
+                    <button
+                      type="button"
+                      className="primary-button"
+                      onClick={() => void props.onSyncDouyinWorkspace()}
+                      disabled={props.isHydrating || props.isSyncingDouyinWorkspace || !props.douyinSyncForm.competitorAccountEntries.length}
+                    >
+                      {props.isHydrating || props.isSyncingDouyinWorkspace ? "提交中..." : "提交"}
+                    </button>
+                  </div>
+                </div>
+                {props.douyinSyncForm.competitorAccountEntries.length ? (
+                  <div className="xhs-account-entry-list">
+                    {props.douyinSyncForm.competitorAccountEntries.map((entry) => {
+                      const hasSyncedResult = props.sortedDouyinCompetitorAccounts.some((item) => doesDouyinAccountMatchEntry(item, entry));
+                      return (
+                        <div key={`douyin-competitor-work-source-${entry.id}`} className="xhs-account-entry-row">
+                          <div className="xhs-account-entry-row__body">
+                            <div className="xhs-account-entry-row__meta">
+                              <span className={`archive-pill ${hasSyncedResult ? "status-ready" : "status-pending"}`}>
+                                {hasSyncedResult ? "作品源已就绪" : "待同步账号"}
+                              </span>
+                            </div>
+                            <strong>{entry.locator}</strong>
+                          </div>
+                          <div className="xhs-account-entry-row__actions">
+                            <button
+                              type="button"
+                              className="note-inline-button"
+                              onClick={() => props.setDouyinSyncForm((current) => ({
+                                ...current,
+                                competitorAccountEntries: current.competitorAccountEntries.filter((item) => item.id !== entry.id),
+                              }))}
+                              disabled={props.isHydrating || props.isSyncingDouyinWorkspace}
+                            >
+                              删除
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="xhs-account-entry-empty">
+                    当前还没有绑定竞品抖音账号，请先到“竞品账号信息”里添加账号。
+                  </div>
+                )}
+              </article>
+              <article className="light-data-panel">
+                <div className="collection-result-head">
+                  <div>
+                    <h3>竞品作品信息及数据</h3>
+                  </div>
+                </div>
+                {douyinPreviewItems.length ? (
+                  <DouyinBrandWorksTable
+                    items={douyinPreviewItems as DouyinCollectedWorkRecord[]}
+                    formatDateTime={props.formatDateTime}
+                    formatCount={props.formatCount}
+                    onPreviewMedia={props.onPreviewMedia}
+                  />
+                ) : (
+                  <div className="note-empty-state">当前还没有采集到竞品作品信息，请先同步竞品账号信息后再提交。</div>
                 )}
               </article>
             </>
