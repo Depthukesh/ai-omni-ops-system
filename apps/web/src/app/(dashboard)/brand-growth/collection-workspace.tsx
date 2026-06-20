@@ -3807,6 +3807,8 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                     formatCount={props.formatCount}
                     onPreviewMedia={props.onPreviewMedia}
                     showBillboardColumns={false}
+                    showWorkUrlColumn
+                    videoColumnLabel="视频预览"
                   />
                 ) : (
                   <div className="note-empty-state">当前还没有搜索结果，请先输入关键词并提交。</div>
