@@ -11735,7 +11735,7 @@ ${normalizedMarkdown}`;
       throw new ServiceUnavailableException("机会洞察账号分析模型配置读取失败");
     }
     return this.reorderReportProvidersByPrimaryModel(
-      this.applyReportProviderSelectionRule(providers, settings),
+      providers,
       settings.preferredModelName || effectiveRequestedModels[0] || "",
     );
   }

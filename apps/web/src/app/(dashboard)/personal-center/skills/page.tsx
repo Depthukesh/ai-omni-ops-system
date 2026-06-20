@@ -315,7 +315,7 @@ export default function PersonalCenterSkillsPage() {
           <h2>技能中心</h2>
           <p className="panel-subtext">这里保存当前品牌共享的技能与提示词配置；品牌管理员可修改，未覆盖时默认跟随后台平台基线。</p>
         </div>
-        <span>{filteredPromptLeaves.length} 条提示词</span>
+        <span>{filteredPromptLeaves.length} 个技能项</span>
       </div>
 
       <div className="personal-actions" style={{ marginBottom: 16, flexWrap: "wrap" }}>
@@ -363,11 +363,11 @@ export default function PersonalCenterSkillsPage() {
 
       <div className="personal-toolbar" style={{ alignItems: "flex-end", gap: 12, flexWrap: "wrap" }}>
         <label className="field personal-search" style={{ minWidth: 240 }}>
-          <span>搜索提示词</span>
+          <span>搜索技能</span>
           <input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="搜索分类、提示词名称、场景、slug、模型"
+            placeholder="搜索分类、技能名称、场景、slug、模型"
           />
         </label>
         {search.trim() ? (
@@ -406,7 +406,7 @@ export default function PersonalCenterSkillsPage() {
               >
                 <div>
                   <strong>{group.label}</strong>
-                  <p className="personal-meta">{group.sections.reduce((sum, section) => sum + section.items.length, 0)} 条提示词</p>
+                  <p className="personal-meta">{group.sections.reduce((sum, section) => sum + section.items.length, 0)} 个技能项</p>
                 </div>
                 <span className="personal-meta">{hasSearchKeyword || !collapsedGroupMap[group.id] ? "收起" : "展开"}</span>
               </button>
@@ -560,7 +560,7 @@ export default function PersonalCenterSkillsPage() {
 
             <div className="personal-inline-hint" style={{ marginBottom: 16 }}>
               <strong>本次编辑范围</strong>
-              当前正在编辑 1 条提示词；保存时会一并提交该执行技能下所有已修改提示词，并写入当前品牌共享技能库。当前提示词{isCurrentPromptDirty ? "已" : "未"}发生改动。
+              当前正在编辑 1 个技能项；保存时会一并提交该执行技能下所有已修改提示词，并写入当前品牌共享技能库。当前提示词{isCurrentPromptDirty ? "已" : "未"}发生改动。
             </div>
 
             <div className="personal-grid" style={{ marginBottom: 12 }}>
@@ -659,8 +659,8 @@ export default function PersonalCenterSkillsPage() {
           </article>
         ) : (
           <div className="empty-canvas-box">
-            <strong>{search.trim() ? "当前搜索结果为空" : "请选择左侧提示词查看并编辑当前品牌版本"}</strong>
-            <p>{search.trim() ? "可以先清空搜索词，或切换状态筛选后重新定位需要编辑的提示词。" : "进入右侧详情后即可核对平台基线、品牌覆盖内容和当前技能的修改状态。"}</p>
+            <strong>{search.trim() ? "当前搜索结果为空" : "请选择左侧技能项查看并编辑当前品牌版本"}</strong>
+            <p>{search.trim() ? "可以先清空搜索词，或切换状态筛选后重新定位需要编辑的技能项。" : "进入右侧详情后即可核对平台基线、品牌覆盖内容和当前技能的修改状态。"}</p>
             <div className="personal-actions">
               {search.trim() ? (
                 <button type="button" className="secondary-button" onClick={() => setSearch("")}>
