@@ -2296,7 +2296,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
       if (activeDouyinCollectionCard === "commentData") {
         const commentSourceUrls = parseDouyinSyncLines(douyinSyncForm.commentSourceUrls);
         if (!commentSourceUrls.length) {
-          setErrorMessage("请输入至少一个带 sec_user_id 的抖音作品链接后再提交。");
+          setErrorMessage("请输入至少一个抖音作品链接后再提交。");
           setIsSyncingDouyinWorkspace(false);
           return;
         }

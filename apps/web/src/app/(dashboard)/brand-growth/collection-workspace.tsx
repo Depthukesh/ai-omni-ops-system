@@ -3895,7 +3895,7 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                 title="评论数据"
                 value={props.douyinSyncForm.commentSourceUrls}
                 onChange={(value) => props.setDouyinSyncForm((current) => ({ ...current, commentSourceUrls: value }))}
-                placeholder="每行一个抖音作品链接，链接中必须带 sec_user_id"
+                placeholder="每行一个抖音作品链接或 aweme_id"
                 isSubmitting={props.isHydrating || props.isSyncingDouyinWorkspace}
                 onSubmit={props.onSyncDouyinWorkspace}
               />
@@ -3903,7 +3903,7 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                 <div className="collection-result-head">
                   <div>
                     <h3>评论数据</h3>
-                    <p>调用 TikHub 单个视频评论接口，按列表展示评论核心参数，并强制保留源作品与评论用户的 sec_user_id。</p>
+                    <p>调用 TikHub 单个视频评论接口，按列表展示评论核心参数，并强制保证输出结果里带有源作品作者与评论用户的 sec_user_id。</p>
                   </div>
                 </div>
                 {props.sortedDouyinCommentData.length ? (
@@ -3913,7 +3913,7 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                     formatCount={props.formatCount}
                   />
                 ) : (
-                  <div className="note-empty-state">当前还没有评论数据结果，请先输入带 sec_user_id 的抖音作品链接并提交。</div>
+                  <div className="note-empty-state">当前还没有评论数据结果，请先输入抖音作品链接并提交。</div>
                 )}
               </article>
             </>

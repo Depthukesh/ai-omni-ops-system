@@ -4052,9 +4052,9 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     if (!sourceWorkId) {
       throw new BadRequestException(`评论数据链接缺少 aweme_id：${normalizedSourceUrl}`);
     }
-    const sourceSecUserId = this.extractDouyinSecUserId(normalizedSourceUrl);
+    const sourceSecUserId = await this.resolveDouyinCommentSourceSecUserId(brandId, sourceWorkId, normalizedSourceUrl);
     if (!sourceSecUserId) {
-      throw new BadRequestException(`评论数据链接缺少 sec_user_id：${normalizedSourceUrl}`);
+      throw new BadRequestException(`评论数据结果缺少源作品作者 sec_user_id：${normalizedSourceUrl}`);
     }
 
     const raw = await this.fetchTikHub(
@@ -4122,6 +4122,26 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     }
 
     return rows;
+  }
+
+  private async resolveDouyinCommentSourceSecUserId(
+    brandId: string,
+    workId: string,
+    sourceUrl: string,
+  ) {
+    const directSecUserId = this.extractDouyinSecUserId(sourceUrl);
+    if (directSecUserId) {
+      return directSecUserId;
+    }
+
+    try {
+      const detailRaw = await this.fetchTikHub("/api/v1/douyin/app/v3/fetch_one_video_v3", { aweme_id: workId }, brandId);
+      const detail = this.extractDouyinAwemeDetail(detailRaw);
+      const author = this.asMeta(detail.author);
+      return this.pickString(author, ["sec_uid", "sec_user_id", "secUid"]) || "";
+    } catch {
+      return "";
+    }
   }
 
   private async collectAndStoreBenchmarkNote(brandId: string, sourceUrl: string): Promise<XhsCollectedNoteRecord> {
