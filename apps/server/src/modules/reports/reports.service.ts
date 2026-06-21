@@ -3234,6 +3234,7 @@ export class ReportsService {
     const now = new Date().toISOString();
     const archive = await this.brandsService.getArchive(brandId);
     const collection = await this.collectorsService.getXiaohongshuWorkspace(brandId);
+    const opportunityInsightWorkspace = await this.getOpportunityInsightWorkspace(brandId);
     const settings = await this.loadGrowthReportGenerationSettings(brandId);
     const providers = await this.loadGrowthReportProviderConfigs(settings);
     const modelName =
@@ -3243,6 +3244,21 @@ export class ReportsService {
 
     const inputMeta = {
       productCount: archive.products.length,
+      brandBackgroundReady: Boolean(
+        archive.brand.brandName?.trim()
+        || archive.brand.brandDescription?.trim()
+        || archive.brand.enterpriseIntro?.trim(),
+      ),
+      opportunityInsightReportCount: [
+        opportunityInsightWorkspace.brandAccountAnalysis,
+        opportunityInsightWorkspace.competitorAccountAnalysis,
+        opportunityInsightWorkspace.commentInsightAnalysis,
+        opportunityInsightWorkspace.finalOpportunityReport,
+      ].filter(Boolean).length,
+      brandAccountHtmlReady: Boolean(opportunityInsightWorkspace.brandAccountAnalysis?.htmlDocument?.trim()),
+      competitorAccountHtmlReady: Boolean(opportunityInsightWorkspace.competitorAccountAnalysis?.htmlDocument?.trim()),
+      commentInsightHtmlReady: Boolean(opportunityInsightWorkspace.commentInsightAnalysis?.htmlDocument?.trim()),
+      finalOpportunityHtmlReady: Boolean(opportunityInsightWorkspace.finalOpportunityReport?.htmlDocument?.trim()),
       platformAccountCount: collection.brandAccounts.length,
       competitorAccountCount: collection.competitorAccounts.length,
       brandNoteCount: collection.brandNotes.length,
@@ -3954,10 +3970,12 @@ export class ReportsService {
     try {
       const archive = await this.brandsService.getArchive(brandId);
       const collection = await this.collectorsService.getXiaohongshuWorkspace(brandId);
+      const opportunityInsightWorkspace = await this.getOpportunityInsightWorkspace(brandId);
       const report = await this.buildReport({
         brandId,
         archive,
         collection,
+        opportunityInsightWorkspace,
         generatedAt: startedAt,
       });
 
@@ -6411,10 +6429,16 @@ export class ReportsService {
     brandId: string;
     archive: Awaited<ReturnType<BrandsService["getArchive"]>>;
     collection: Awaited<ReturnType<CollectorsService["getXiaohongshuWorkspace"]>>;
+    opportunityInsightWorkspace: OpportunityInsightWorkspace;
     generatedAt: string;
   }) {
     const prompt = await this.loadGrowthAnalysisSkillPrompt();
-    const inputPayload = this.buildGrowthAnalysisInput(params.archive, params.collection, params.generatedAt);
+    const inputPayload = this.buildGrowthAnalysisInput(
+      params.archive,
+      params.collection,
+      params.opportunityInsightWorkspace,
+      params.generatedAt,
+    );
     const modelResult = await this.generateReportByModel(params.brandId, prompt, inputPayload);
     const metrics = {
       productCount: params.archive.products.length,
@@ -9251,6 +9275,7 @@ ${normalizedMarkdown}`;
   private buildGrowthAnalysisInput(
     archive: Awaited<ReturnType<BrandsService["getArchive"]>>,
     collection: Awaited<ReturnType<CollectorsService["getXiaohongshuWorkspace"]>>,
+    opportunityInsightWorkspace: OpportunityInsightWorkspace,
     generatedAt: string,
   ) {
     return {
@@ -9278,50 +9303,49 @@ ${normalizedMarkdown}`;
               value: this.truncateText(item.value, 1000),
             })),
         },
-        xiaohongshuCollection: {
-          brandAccounts: collection.brandAccounts.map((item) => ({
-            accountName: item.accountName,
-            sourceAccountLink: item.sourceAccountLink,
-            fanCount: item.fanCount,
-            postedCount: item.postedCount,
-            likedCount: item.likedCount,
-            description: this.truncateText(item.description, 300),
-          })),
-          competitorAccounts: collection.competitorAccounts.map((item) => ({
-            accountName: item.accountName,
-            sourceAccountLink: item.sourceAccountLink,
-            fanCount: item.fanCount,
-            postedCount: item.postedCount,
-            likedCount: item.likedCount,
-            description: this.truncateText(item.description, 300),
-          })),
-          brandNotes: collection.brandNotes.slice(0, 30).map((item) => ({
-            title: item.title,
-            noteType: item.noteType,
-            nickname: item.nickname,
-            noteUrl: item.noteUrl,
-            likeCount: item.likeCount,
-            commentCount: item.commentCount,
-            collectCount: item.collectCount,
-            shareCount: item.shareCount,
-            description: this.truncateText(item.description, 400),
-          })),
-          benchmarkNotes: collection.benchmarkNotes.slice(0, 30).map((item) => ({
-            title: item.title,
-            noteType: item.noteType,
-            nickname: item.nickname,
-            noteUrl: item.noteUrl,
-            likeCount: item.likeCount,
-            commentCount: item.commentCount,
-            collectCount: item.collectCount,
-            shareCount: item.shareCount,
-            likeCollectRatio: item.likeCollectRatio,
-            likeCommentRatio: item.likeCommentRatio,
-            shareRatio: item.shareRatio,
-            isExplosive: item.isExplosive,
-            isSelected: item.followUpDecision,
-            description: this.truncateText(item.description, 400),
-          })),
+        requiredInputs: {
+          brandBackgroundReady: Boolean(
+            archive.brand.brandName?.trim()
+            || archive.brand.brandDescription?.trim()
+            || archive.brand.enterpriseIntro?.trim(),
+          ),
+          productCount: archive.products.length,
+          opportunityInsightReportCount: [
+            opportunityInsightWorkspace.brandAccountAnalysis,
+            opportunityInsightWorkspace.competitorAccountAnalysis,
+            opportunityInsightWorkspace.commentInsightAnalysis,
+            opportunityInsightWorkspace.finalOpportunityReport,
+          ].filter(Boolean).length,
+        },
+        opportunityInsightReports: {
+          brandAccountAnalysis: opportunityInsightWorkspace.brandAccountAnalysis
+            ? {
+                title: opportunityInsightWorkspace.brandAccountAnalysis.title,
+                summary: opportunityInsightWorkspace.brandAccountAnalysis.summary,
+                htmlDocument: this.truncateText(opportunityInsightWorkspace.brandAccountAnalysis.htmlDocument, 16000),
+              }
+            : undefined,
+          competitorAccountAnalysis: opportunityInsightWorkspace.competitorAccountAnalysis
+            ? {
+                title: opportunityInsightWorkspace.competitorAccountAnalysis.title,
+                summary: opportunityInsightWorkspace.competitorAccountAnalysis.summary,
+                htmlDocument: this.truncateText(opportunityInsightWorkspace.competitorAccountAnalysis.htmlDocument, 16000),
+              }
+            : undefined,
+          commentInsightAnalysis: opportunityInsightWorkspace.commentInsightAnalysis
+            ? {
+                title: opportunityInsightWorkspace.commentInsightAnalysis.title,
+                summary: opportunityInsightWorkspace.commentInsightAnalysis.summary,
+                htmlDocument: this.truncateText(opportunityInsightWorkspace.commentInsightAnalysis.htmlDocument, 16000),
+              }
+            : undefined,
+          finalOpportunityReport: opportunityInsightWorkspace.finalOpportunityReport
+            ? {
+                title: opportunityInsightWorkspace.finalOpportunityReport.title,
+                summary: opportunityInsightWorkspace.finalOpportunityReport.summary,
+                htmlDocument: this.truncateText(opportunityInsightWorkspace.finalOpportunityReport.htmlDocument, 16000),
+              }
+            : undefined,
         },
       },
       outputTarget: "品牌增长报告",

@@ -1162,11 +1162,22 @@ export function BrandGrowthWorkspace() {
       };
     });
   }, [sortedDouyinCompetitorAccounts]);
+  const hasBrandBackgroundForGrowthReport = Boolean(
+    archive.brand.brandName?.trim()
+    || archive.brand.brandDescription?.trim()
+    || archive.brand.enterpriseIntro?.trim(),
+  );
+  const hasProductsForGrowthReport = archive.products.length > 0;
+  const hasOpportunityInsightReportsForGrowthReport = Boolean(
+    opportunityInsightWorkspace.brandAccountAnalysis?.htmlDocument?.trim()
+    && opportunityInsightWorkspace.competitorAccountAnalysis?.htmlDocument?.trim()
+    && opportunityInsightWorkspace.commentInsightAnalysis?.htmlDocument?.trim()
+    && opportunityInsightWorkspace.finalOpportunityReport?.htmlDocument?.trim(),
+  );
   const canGenerateGrowthReport =
-    collectionWorkspace.brandAccounts.length > 0
-    && collectionWorkspace.competitorAccounts.length > 0
-    && collectionWorkspace.brandNotes.length > 0
-    && collectionWorkspace.benchmarkNotes.length > 0;
+    hasBrandBackgroundForGrowthReport
+    && hasProductsForGrowthReport
+    && hasOpportunityInsightReportsForGrowthReport;
   const canGenerateVisualGrowthReport = Boolean(reportWorkspace.latest?.reportMarkdown?.trim());
   const canGenerateAnnualMarketingPlan = Boolean(reportWorkspace.latest?.reportMarkdown?.trim());
   const latestMarketingPlan = xiaohongshuMarketingPlanWorkspace.latest;
@@ -1719,7 +1730,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
       return;
     }
     if (!canGenerateGrowthReport) {
-      setErrorMessage("请先完成小红书平台下 4 项收集数据后，再生成品牌增长报告。");
+      setErrorMessage("请先补齐品牌背景资料、产品资料，以及机会洞察中的 4 份 HTML 报告后，再生成品牌增长报告。");
       return;
     }
 

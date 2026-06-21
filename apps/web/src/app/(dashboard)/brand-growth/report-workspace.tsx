@@ -56,6 +56,16 @@ export function BrandGrowthReportWorkspace(props: BrandGrowthReportWorkspaceProp
             <h3>品牌增长报告{latestTask?.taskStatus === "QUEUED" ? "排队中" : "生成中"}</h3>
             <p>当前任务已提交，正在后台调用模型生成。页面会自动刷新结果，无需停留在当前请求中等待。</p>
           </article>
+        ) : !latestReport ? (
+          <article className="light-data-panel">
+            <h3>当前还没有品牌增长报告</h3>
+            <p>点击右上角“生成报告”后，会先提交后台任务；生成完成后，这里会自动进入 Markdown 编辑状态。</p>
+            <div className="visual-report-source-card" style={{ marginTop: 16 }}>
+              <span>当前输入范围</span>
+              <strong>品牌背景资料、产品资料、机会洞察中的 4 份 HTML 报告</strong>
+              <p>只有在以上资料都已具备时，才会允许生成品牌增长报告，不再要求先完成旧版“小红书 4 项收集数据”门槛。</p>
+            </div>
+          </article>
         ) : latestReport ? (
           <article className="light-data-panel report-editor-panel">
             <div className="report-editor-head">
@@ -108,12 +118,7 @@ export function BrandGrowthReportWorkspace(props: BrandGrowthReportWorkspaceProp
               </article>
             </div>
           </article>
-        ) : (
-          <article className="light-data-panel">
-            <h3>当前还没有品牌增长报告</h3>
-            <p>点击右上角“生成报告”后，会先提交后台任务；生成完成后，这里会自动进入 Markdown 编辑状态。</p>
-          </article>
-        )}
+        ) : null}
       </article>
     );
   }
