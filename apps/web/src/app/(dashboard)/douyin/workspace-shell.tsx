@@ -63,6 +63,7 @@ import {
   continueDouyinRemixShortVideoGeneration,
   continueDouyinVideoGeneration,
   deleteDouyinDirectVideoWork,
+  deleteDouyinRemixShortVideoWork,
   deleteDouyinVideoWork,
   generateDouyinDigitalHumanCompleteVideoWork,
   generateDouyinDigitalHumanScript,
@@ -1866,6 +1867,27 @@ export function DouyinWorkspaceShell() {
     }
   }, [activeBrandId, canEditRemixShortVideo, refreshRemixShortVideoWorkspace]);
 
+  const handleDeleteRemixShortVideo = useCallback(async (workId: string) => {
+    if (!canEditRemixShortVideo) {
+      setErrorMessage("当前账号只有查看权限，不能删除复刻短视频。");
+      return false;
+    }
+    setIsSubmittingVideo(true);
+    setErrorMessage("");
+    setNotice("");
+    try {
+      await deleteDouyinRemixShortVideoWork(activeBrandId, workId);
+      await refreshRemixShortVideoWorkspace();
+      setNotice("复刻短视频已删除。");
+      return true;
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "复刻短视频删除失败。");
+      return false;
+    } finally {
+      setIsSubmittingVideo(false);
+    }
+  }, [activeBrandId, canEditRemixShortVideo, refreshRemixShortVideoWorkspace]);
+
   const handleRecoverVideo = useCallback(async (payload: {
     workId?: string;
     providerTaskId: string;
@@ -2885,6 +2907,7 @@ export function DouyinWorkspaceShell() {
                     onPreview={openGeneratedVideoPreview as never}
                     onCreate={handleCreateRemixShortVideo}
                     onGenerateVideo={handleGenerateRemixShortVideo}
+                    onDelete={handleDeleteRemixShortVideo}
                     formatDateTime={formatDateTime}
                   />
                 ) : activeSection === "video" ? (

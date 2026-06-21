@@ -1213,6 +1213,18 @@ export class WorksController {
     });
   }
 
+  @Delete("brands/:brandId/douyin/remix-short-video/:workId")
+  deleteDouyinRemixShortVideo(
+    @Param("brandId") brandId: string,
+    @Param("workId") workId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
+      await this.authService.assertBrandPermission(brandId, "douyin.remixShortVideo", "edit", auth);
+      return this.worksService.deleteDouyinRemixShortVideo(brandId, workId);
+    });
+  }
+
   @Delete("brands/:brandId/douyin/digital-human/video/:workId")
   deleteDouyinDigitalHumanVideo(
     @Param("brandId") brandId: string,

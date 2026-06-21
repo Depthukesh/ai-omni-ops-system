@@ -53,6 +53,7 @@ export interface DouyinRemixShortVideoWorkspaceProps {
     additionalInstruction?: string;
   }) => Promise<boolean>;
   onGenerateVideo: (payload: { workId: string }) => Promise<boolean>;
+  onDelete: (workId: string) => Promise<boolean>;
   formatDateTime: OptionalDateFormatter;
 }
 
@@ -206,6 +207,13 @@ export function DouyinRemixShortVideoWorkspace(props: DouyinRemixShortVideoWorks
     });
   }
 
+  async function handleDelete(workId: string) {
+    if (typeof window !== "undefined" && !window.confirm("确认删除这条复刻短视频作品吗？删除后不可恢复。")) {
+      return;
+    }
+    await props.onDelete(workId);
+  }
+
   return (
     <>
       <article className="workspace-panel strategy-page-card">
@@ -258,20 +266,34 @@ export function DouyinRemixShortVideoWorkspace(props: DouyinRemixShortVideoWorks
               </div>
               <div style={{ display: "grid", gap: "12px", marginTop: "16px" }}>
                 {pagedItems.map((item) => (
-                  <button
+                  <div
                     key={item.id}
-                    type="button"
                     className={`strategy-level-button strategy-level-button--section ${selectedWork?.id === item.id ? "is-active" : ""}`}
-                    style={{ textAlign: "left", display: "block", width: "100%", padding: "14px 16px" }}
-                    onClick={() => setSelectedWorkId(item.id)}
+                    style={{ textAlign: "left", display: "grid", gap: "10px", width: "100%", padding: "14px 16px" }}
                   >
-                    <strong style={{ display: "block", marginBottom: "6px" }}>{item.title}</strong>
-                    <span className={`archive-pill ${getTaskStatusClass(item.taskStatus)}`}>{getTaskStatusText(item.taskStatus)}</span>
-                    <p className="text-xs text-slate-500 mt-2">
-                      {item.sourceDurationSec ? `源视频 ${item.sourceDurationSec}s` : "源视频时长待解析"} · {item.remixSegments.length} 段
-                    </p>
-                    <p className="text-xs text-slate-500 mt-1">{props.formatDateTime(item.updatedAt)}</p>
-                  </button>
+                    <button
+                      type="button"
+                      style={{ textAlign: "left", display: "block", width: "100%", background: "transparent", border: "none", padding: 0 }}
+                      onClick={() => setSelectedWorkId(item.id)}
+                    >
+                      <strong style={{ display: "block", marginBottom: "6px" }}>{item.title}</strong>
+                      <span className={`archive-pill ${getTaskStatusClass(item.taskStatus)}`}>{getTaskStatusText(item.taskStatus)}</span>
+                      <p className="text-xs text-slate-500 mt-2">
+                        {item.sourceDurationSec ? `源视频 ${item.sourceDurationSec}s` : "源视频时长待解析"} · {item.remixSegments.length} 段
+                      </p>
+                      <p className="text-xs text-slate-500 mt-1">{props.formatDateTime(item.updatedAt)}</p>
+                    </button>
+                    <div className="strategy-inline-actions">
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        onClick={() => void handleDelete(item.id)}
+                        disabled={!props.canEdit || props.isSubmitting}
+                      >
+                        删除
+                      </button>
+                    </div>
+                  </div>
                 ))}
               </div>
             </div>
@@ -302,6 +324,14 @@ export function DouyinRemixShortVideoWorkspace(props: DouyinRemixShortVideoWorks
                         disabled={!props.canEdit || props.isSubmitting || !selectedWork.remixSegments.length}
                       >
                         {selectedWork.composeStatus === "RUNNING" ? "拼接生成中..." : "一键生成视频"}
+                      </button>
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        onClick={() => void handleDelete(selectedWork.id)}
+                        disabled={!props.canEdit || props.isSubmitting}
+                      >
+                        删除作品
                       </button>
                     </div>
                   </div>

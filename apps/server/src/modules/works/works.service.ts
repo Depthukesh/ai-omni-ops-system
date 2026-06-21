@@ -8326,6 +8326,59 @@ export class WorksService {
     return { success: true };
   }
 
+  async deleteDouyinRemixShortVideo(brandId: string, workId: string) {
+    const target = await this.getVideoWorkRowById(brandId, workId);
+    const meta = this.readVideoWorkMeta(this.getMediaMetadata(target));
+    this.ensureVideoWorkKind(meta, "DOUYIN_REMIX_SHORT_VIDEO");
+    const taskId = meta.taskId || target.taskId || undefined;
+
+    if (await this.prismaService.canUseDatabase()) {
+      const relatedRows = await this.prismaService.mediaAsset.findMany({
+        where: {
+          OR: [{ id: workId }, ...(taskId ? [{ taskId }] : [])],
+        },
+      });
+      if (relatedRows.length) {
+        await this.prismaService.mediaAsset.deleteMany({
+          where: {
+            id: { in: relatedRows.map((item) => item.id) },
+          },
+        });
+      }
+      if (taskId) {
+        await this.prismaService.task.deleteMany({
+          where: { id: taskId },
+        });
+      }
+    } else {
+      database.media = database.media.filter((item) => item.id !== workId && item.taskId !== taskId);
+      if (taskId) {
+        database.tasks = database.tasks.filter((item) => item.id !== taskId);
+      }
+    }
+
+    await this.deleteGeneratedFileIfExists(brandId, this.extractFileName(target.storageKey || ""));
+    const localFileNames = Array.from(
+      new Set(
+        [
+          meta.sourceVideoUrl,
+          meta.referenceImageUrl,
+          meta.videoUrl,
+          meta.coverImageUrl,
+          meta.mergedVideoUrl,
+          meta.mergedVideoCoverImageUrl,
+          ...(meta.remixSegments || []).flatMap((segment) => [segment.storyboardImageUrl, segment.videoUrl]),
+        ]
+          .map((item) => (item ? this.extractLocalAssetFileName(item, brandId) : ""))
+          .filter(Boolean),
+      ),
+    );
+    for (const fileName of localFileNames) {
+      await this.deleteGeneratedFileIfExists(brandId, fileName);
+    }
+    return { success: true };
+  }
+
   async deleteDouyinDigitalHumanVideo(brandId: string, workId: string) {
     const target = await this.getDigitalHumanWorkRowById(brandId, workId);
     const meta = this.readDigitalHumanVideoWorkMeta(this.getMediaMetadata(target));
@@ -8476,7 +8529,7 @@ export class WorksService {
       originalCopyProfile.promptId,
       ["deepseek-v4-pro", "deepseek-v4-flash", "doubao-seed-2-0-pro-260215", "doubao-seed-2-0-mini-260215", "kimi-k2.6"],
     );
-    const providers = await this.loadOriginalCopyProviders(params.brandId, preference);
+    const providers = await this.loadOriginalCopyProviders(params.brandId, preference, true);
     const inputPayload = {
       noteMode: params.noteMode,
       noteModeLabel: originalCopyProfile.label,
@@ -15427,7 +15480,7 @@ export class WorksService {
       brandId,
       workKind: context.workKind,
       promptId: "prompt_douyin_remix_short_video",
-      fallbackModels: ["kimi-k2.6", "deepseek-v4-pro", "doubao-seed-2-0-pro-260215"],
+      fallbackModels: ["kimi-k2.6", "deepseek-v4-pro", "deepseek-v4-flash", "doubao-seed-2-0-pro-260215"],
       fallbackPrompt: "根据输入的短视频链接或上传短视频，完成 15 秒分段复刻分析并输出角色卡、分镜脚本和出图提示词。",
       stageLabel: "抖音复刻短视频拉片分析",
       includeKnowledgeContext: context.injectBrandProfile,
@@ -15513,7 +15566,7 @@ export class WorksService {
       workKind: "DOUYIN_REMIX_SHORT_VIDEO",
       promptId: "prompt_douyin_remix_short_video_compose",
       skillSlugOverride: "douyin-remix-short-video-compose",
-      fallbackModels: ["kimi-k2.6", "deepseek-v4-pro", "doubao-seed-2-0-pro-260215"],
+      fallbackModels: ["kimi-k2.6", "deepseek-v4-pro", "deepseek-v4-flash", "doubao-seed-2-0-pro-260215"],
       fallbackPrompt: "根据复刻短视频的分段分析、角色卡、分镜图和用户要求，生成可直接用于图生视频的分段提示词。",
       stageLabel: "拼接复刻短视频-分段提示词",
       includeKnowledgeContext: meta.injectBrandProfile !== false,
@@ -19851,7 +19904,11 @@ export class WorksService {
     return ordered.length ? ordered : normalizedAvailable;
   }
 
-  private async loadOriginalCopyProviders(brandId: string | undefined, preference?: SkillModelPreference) {
+  private async loadOriginalCopyProviders(
+    brandId: string | undefined,
+    preference?: SkillModelPreference,
+    preserveFallbackProviders = false,
+  ) {
     const [deepseekProvider, doubaoProvider, kimiProvider, globalProviders] = await Promise.all([
       this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-deepseek"),
       this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-doubao"),
@@ -19933,7 +19990,7 @@ export class WorksService {
       throw new ServiceUnavailableException(`原创笔记文案模型配置读取失败。${reasonText}`);
     }
     return this.reorderTextProvidersByPrimaryModel(
-      this.applyTextProviderSelectionRule(providers, preference),
+      preserveFallbackProviders ? providers : this.applyTextProviderSelectionRule(providers, preference),
       preference?.preferredModelName || "",
       preference?.preferredProviderIds || [],
     );

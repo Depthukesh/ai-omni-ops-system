@@ -1348,6 +1348,12 @@ export async function generateDouyinRemixShortVideoWork(brandId: string, form: G
   );
 }
 
+export async function deleteDouyinRemixShortVideoWork(brandId: string, workId: string) {
+  return request<{ success: boolean }>(`/works/brands/${brandId}/douyin/remix-short-video/${workId}`, {
+    method: "DELETE",
+  });
+}
+
 export async function continueDouyinRemixShortVideoGeneration(
   brandId: string,
   workId: string,
