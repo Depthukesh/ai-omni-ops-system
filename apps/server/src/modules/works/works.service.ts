@@ -15226,7 +15226,7 @@ export class WorksService {
     const skillPrompt = String(prompt?.content || params.fallbackPrompt).trim() || params.fallbackPrompt;
     const skillProfile = this.getVideoSkillProfile(params.workKind);
     const preference = await this.loadSkillModelPreference(params.skillSlugOverride || skillProfile.skillSlug, params.promptId, params.fallbackModels);
-    const providers = await this.loadOriginalCopyProviders(params.brandId, preference);
+    const providers = await this.loadOriginalCopyProviders(params.brandId, preference, true);
     const systemPrompt = [skillPrompt, "", params.systemInstruction].join("\n");
     const knowledgeContext = params.includeKnowledgeContext === false
       ? ""
@@ -15267,9 +15267,10 @@ export class WorksService {
                 attemptTrail.push(`${attemptLabel} -> 返回为空`);
                 continue;
               }
+              const parsed = this.parseJsonObject(content);
               return {
                 modelName,
-                parsed: this.parseJsonObject(content),
+                parsed,
               };
             } catch (error) {
               lastError = error instanceof Error ? error.message : "阶段生成失败";
