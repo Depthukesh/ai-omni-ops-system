@@ -457,8 +457,7 @@ export class ModuleDefinitionsService {
     if (!(await this.canUseModuleDefinitionStorage())) {
       return;
     }
-    const count = await this.prismaService.moduleDefinition.count();
-    if (count > 0 || !database.moduleDefinitions.length) {
+    if (!database.moduleDefinitions.length) {
       return;
     }
     await this.prismaService.moduleDefinition.createMany({
@@ -496,5 +495,29 @@ export class ModuleDefinitionsService {
       })),
       skipDuplicates: true,
     });
+    const douyinWorkbench = await this.prismaService.moduleDefinition.findUnique({
+      where: { moduleKey: "douyin-workbench" },
+      select: { id: true, defaultSkillPackagesJson: true },
+    });
+    if (!douyinWorkbench) {
+      return;
+    }
+    const currentPackages = Array.isArray(douyinWorkbench.defaultSkillPackagesJson)
+      ? douyinWorkbench.defaultSkillPackagesJson
+          .map((item) => String(item || "").trim())
+          .filter(Boolean)
+      : [];
+    const normalizedPackages = currentPackages
+      .filter((item) => item !== "douyin-direct-video")
+      .concat(currentPackages.includes("douyin-video-production") ? [] : ["douyin-video-production"]);
+    if (
+      normalizedPackages.length !== currentPackages.length
+      || normalizedPackages.some((item, index) => item !== currentPackages[index])
+    ) {
+      await this.prismaService.moduleDefinition.update({
+        where: { id: douyinWorkbench.id },
+        data: { defaultSkillPackagesJson: normalizedPackages },
+      });
+    }
   }
 }

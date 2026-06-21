@@ -2278,8 +2278,7 @@ export class SkillPackagesService {
     if (!(await this.canUseSkillPackageStorage())) {
       return;
     }
-    const count = await this.prismaService.skillPackage.count();
-    if (count > 0 || !database.skillPackages.length) {
+    if (!database.skillPackages.length) {
       return;
     }
     await this.prismaService.skillPackage.createMany({
