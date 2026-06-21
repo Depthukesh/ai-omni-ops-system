@@ -1984,7 +1984,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     try {
       const nextWorkspace = await generateXiaohongshuMarketingCalendar(archive.brand.id);
       setMarketingCalendarWorkspace(nextWorkspace);
-      setNotice("已提交后台生成任务，正在生成营销日历。");
+      setNotice("已提交后台生成任务，正在生成接下来 7 天营销日历。");
     } catch (error) {
       const message = error instanceof Error ? error.message : "生成失败";
       setErrorMessage(`生成失败：${message}`);

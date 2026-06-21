@@ -126,7 +126,7 @@ export function CalendarWorkspace(props: CalendarWorkspaceProps) {
             onClick={() => void onGenerate()}
             disabled={isLoading || isPublishing || isGeneratingCalendar || !canGenerateCalendar || isCalendarTaskActive}
           >
-            {isGeneratingCalendar ? "提交中..." : isCalendarTaskActive ? "后台生成中..." : latestCalendar ? "重新生成日历" : "生成营销日历"}
+            {isGeneratingCalendar ? "提交中..." : isCalendarTaskActive ? "后台生成中..." : latestCalendar ? "继续生成下一个7天" : "生成营销日历"}
           </button>
         </div>
       </div>
