@@ -31,7 +31,9 @@ import {
   getDouyinOriginalCopyWorkspace,
   getDouyinRemixCopyWorkspace,
   getGrowthReportWorkspace,
+  getOpportunityInsightWorkspace,
   growthReportSeed,
+  opportunityInsightSeed,
   updateDouyinTopicLibrary,
   updateDouyinOriginalCopy,
   updateDouyinRemixCopy,
@@ -154,8 +156,9 @@ type DouyinSectionKey =
   | "digitalHuman"
   | "adPreAudit";
 
+const MARKETING_PLAN_REQUIRED_INPUTS = ["品牌背景资料", "产品资料库", "机会洞察总报告", "品牌增长报告"] as const;
 const douyinSections: Array<{ key: DouyinSectionKey; label: string; description: string }> = [
-  { key: "plan", label: "营销策划方案", description: "围绕品牌增长报告、半年营销规划和抖音采集数据生成可编辑的 Markdown 方案。" },
+  { key: "plan", label: "营销策划方案", description: "围绕品牌背景资料、产品资料库、机会洞察总报告和品牌增长报告生成可编辑的 Markdown 方案。" },
   { key: "assets", label: "素材库", description: "展示已经从品牌增长策略 → 收集数据 → 抖音加入素材库的采集作品，包括竞品作品、对标作品、搜索关键词结果和各类榜单作品。" },
   { key: "hotTopics", label: "热点找选题", description: "按所选日期读取每日热点全部榜单和品牌背景资料，生成 3 个可勾选的抖音热点选题。" },
   { key: "topicLibrary", label: "选题库", description: "按品牌独立沉淀抖音选题，一行展示两条记录，超过 20 行自动分页。" },
@@ -238,6 +241,7 @@ export function DouyinWorkspaceShell() {
   const [collectionWorkspace, setCollectionWorkspace] = useState<DouyinCollectionWorkspace>(douyinCollectionSeed);
   const [growthReportWorkspace, setGrowthReportWorkspace] = useState(growthReportSeed);
   const [annualPlanWorkspace, setAnnualPlanWorkspace] = useState(annualMarketingPlanSeed);
+  const [opportunityInsightWorkspace, setOpportunityInsightWorkspace] = useState(opportunityInsightSeed);
   const [marketingPlanWorkspace, setMarketingPlanWorkspace] = useState<DouyinMarketingPlanWorkspace>(douyinMarketingPlanSeed);
   const [hotTopicWorkspace, setHotTopicWorkspace] = useState<DouyinHotTopicCandidatesWorkspace>(douyinHotTopicCandidatesSeed);
   const [originalCopyWorkspace, setOriginalCopyWorkspace] = useState<DouyinOriginalCopyWorkspace>(douyinOriginalCopySeed);
@@ -276,6 +280,8 @@ export function DouyinWorkspaceShell() {
   const [digitalHumanTemplateTagError, setDigitalHumanTemplateTagError] = useState("");
   const [isDigitalHumanTemplateLoading, setIsDigitalHumanTemplateLoading] = useState(false);
   const [marketingPlanDraft, setMarketingPlanDraft] = useState("");
+  const [isMarketingPlanGenerateDialogOpen, setIsMarketingPlanGenerateDialogOpen] = useState(false);
+  const [marketingPlanUserRequirement, setMarketingPlanUserRequirement] = useState("");
   const [selectedHotTopicDate, setSelectedHotTopicDate] = useState("");
   const [selectedTopicIds, setSelectedTopicIds] = useState<string[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -440,10 +446,17 @@ export function DouyinWorkspaceShell() {
     },
     [digitalHumanLipSyncWorks, digitalHumanWorks, directVideoWorks, materialWorks, videoWorks],
   );
+  const hasMarketingPlanBrandBackground = Boolean(
+    brandArchive.brand.brandName?.trim()
+    || brandArchive.brand.brandDescription?.trim()
+    || brandArchive.brand.enterpriseIntro?.trim(),
+  );
+  const hasMarketingPlanProductLibrary = brandArchive.products.length > 0;
   const canGenerateMarketingPlan = Boolean(
     growthReportWorkspace.latest
-    && annualPlanWorkspace.latest
-    && (collectionWorkspace.brandAccounts.length || collectionWorkspace.competitorAccounts.length || collectionWorkspace.brandWorks.length || collectionWorkspace.benchmarkWorks.length),
+    && opportunityInsightWorkspace.finalOpportunityReport?.htmlDocument?.trim()
+    && hasMarketingPlanBrandBackground
+    && hasMarketingPlanProductLibrary,
   );
   const currentSection = visibleSections.find((item) => item.key === activeSection) ?? visibleSections[0] ?? douyinSections[0];
   const heroTitle = "抖音工作台";
@@ -704,11 +717,12 @@ export function DouyinWorkspaceShell() {
     setNotice("");
     const failedInterfaceNames: string[] = [];
 
-    const [permissionResult, collectionResult, growthResult, annualResult] = await Promise.allSettled([
+    const [permissionResult, collectionResult, growthResult, annualResult, opportunityInsightResult] = await Promise.allSettled([
       getBrandPermissionSettings(activeBrandId),
       getDouyinCollectionWorkspace(activeBrandId),
       getGrowthReportWorkspace(activeBrandId),
       getAnnualMarketingPlanWorkspace(activeBrandId),
+      getOpportunityInsightWorkspace(activeBrandId),
     ]);
 
     let hasFallback = false;
@@ -784,6 +798,14 @@ export function DouyinWorkspaceShell() {
       hasFallback = true;
       failedInterfaceNames.push("年度营销计划");
       setAnnualPlanWorkspace(annualMarketingPlanSeed);
+    }
+
+    if (opportunityInsightResult.status === "fulfilled") {
+      setOpportunityInsightWorkspace(opportunityInsightResult.value);
+    } else {
+      hasFallback = true;
+      failedInterfaceNames.push("机会洞察总报告");
+      setOpportunityInsightWorkspace(opportunityInsightSeed);
     }
 
     if (planResult.status === "fulfilled") {
@@ -1225,13 +1247,64 @@ export function DouyinWorkspaceShell() {
     }));
   }, [marketingPlanWorkspace.latest?.id, marketingPlanWorkspace.latest?.title]);
 
+  const handleOpenGenerateDialog = useCallback(() => {
+    if (!canEditMarketingPlan) {
+      setErrorMessage("当前账号只有查看权限，不能生成抖音营销策划方案。");
+      return;
+    }
+    if (!growthReportWorkspace.latest) {
+      setErrorMessage("请先生成品牌增长报告。");
+      return;
+    }
+    if (!opportunityInsightWorkspace.finalOpportunityReport?.htmlDocument?.trim()) {
+      setErrorMessage("请先生成机会洞察总报告。");
+      return;
+    }
+    if (!hasMarketingPlanBrandBackground) {
+      setErrorMessage("请先完善品牌背景资料。");
+      return;
+    }
+    if (!hasMarketingPlanProductLibrary) {
+      setErrorMessage("请先完善产品资料库。");
+      return;
+    }
+    setErrorMessage("");
+    setNotice("");
+    setIsMarketingPlanGenerateDialogOpen(true);
+  }, [
+    canEditMarketingPlan,
+    growthReportWorkspace.latest,
+    hasMarketingPlanBrandBackground,
+    hasMarketingPlanProductLibrary,
+    opportunityInsightWorkspace.finalOpportunityReport?.htmlDocument,
+  ]);
+
+  const handleCloseGenerateDialog = useCallback(() => {
+    if (isGenerating) {
+      return;
+    }
+    setIsMarketingPlanGenerateDialogOpen(false);
+  }, [isGenerating]);
+
   const handleGenerate = useCallback(async () => {
     if (!canEditMarketingPlan) {
       setErrorMessage("当前账号只有查看权限，不能生成抖音营销策划方案。");
       return;
     }
-    if (!canGenerateMarketingPlan) {
-      setErrorMessage("请先准备品牌增长报告、半年营销规划和抖音采集数据，再开始生成。");
+    if (!growthReportWorkspace.latest) {
+      setErrorMessage("请先生成品牌增长报告。");
+      return;
+    }
+    if (!opportunityInsightWorkspace.finalOpportunityReport?.htmlDocument?.trim()) {
+      setErrorMessage("请先生成机会洞察总报告。");
+      return;
+    }
+    if (!hasMarketingPlanBrandBackground) {
+      setErrorMessage("请先完善品牌背景资料。");
+      return;
+    }
+    if (!hasMarketingPlanProductLibrary) {
+      setErrorMessage("请先完善产品资料库。");
       return;
     }
 
@@ -1239,15 +1312,30 @@ export function DouyinWorkspaceShell() {
     setErrorMessage("");
     setNotice("");
     try {
-      const nextWorkspace = await generateDouyinMarketingPlan(activeBrandId);
+      const nextWorkspace = await generateDouyinMarketingPlan(
+        {
+          userRequirement: marketingPlanUserRequirement,
+        },
+        activeBrandId,
+      );
       setMarketingPlanWorkspace(nextWorkspace);
+      setIsMarketingPlanGenerateDialogOpen(false);
+      setMarketingPlanUserRequirement("");
       setNotice("抖音营销策划方案任务已提交，系统正在后台生成。");
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "抖音营销策划方案提交失败。");
     } finally {
       setIsGenerating(false);
     }
-  }, [activeBrandId, canEditMarketingPlan, canGenerateMarketingPlan]);
+  }, [
+    activeBrandId,
+    canEditMarketingPlan,
+    growthReportWorkspace.latest,
+    hasMarketingPlanBrandBackground,
+    hasMarketingPlanProductLibrary,
+    marketingPlanUserRequirement,
+    opportunityInsightWorkspace.finalOpportunityReport?.htmlDocument,
+  ]);
 
   const handleSave = useCallback(async () => {
     if (!latestMarketingPlan) {
@@ -2966,7 +3054,7 @@ export function DouyinWorkspaceShell() {
                       <button
                         type="button"
                         className="primary-button"
-                        onClick={() => void handleGenerate()}
+                        onClick={() => void handleOpenGenerateDialog()}
                         disabled={!canEditMarketingPlan || isGenerating || !canGenerateMarketingPlan || isTaskActive}
                       >
                         {isGenerating ? "提交中..." : isTaskActive ? "后台生成中..." : latestMarketingPlan ? "重新生成" : "一键生成"}
@@ -3006,7 +3094,9 @@ export function DouyinWorkspaceShell() {
                       </div>
                     </div>
 
-                    {!canGenerateMarketingPlan ? <div className="report-inline-tip">请先完成品牌增长报告、半年营销规划，并确保抖音采集页已有账号或作品数据。</div> : null}
+                    {!canGenerateMarketingPlan ? (
+                      <div className="report-inline-tip">请先准备品牌背景资料、产品资料库、机会洞察总报告和品牌增长报告，再开始生成。</div>
+                    ) : null}
                     {isTaskActive ? (
                       <div className="report-inline-tip">
                         {latestTask?.taskStatus === "QUEUED"
@@ -3039,6 +3129,48 @@ export function DouyinWorkspaceShell() {
                       </div>
                     )}
                   </article>
+                  {isMarketingPlanGenerateDialogOpen ? (
+                    <div className="media-preview-overlay" onClick={handleCloseGenerateDialog}>
+                      <div className="media-preview-dialog calendar-detail-dialog" onClick={(event) => event.stopPropagation()}>
+                        <button type="button" className="media-preview-close" onClick={handleCloseGenerateDialog} disabled={isGenerating}>
+                          关闭
+                        </button>
+                        <article className="entity-card personal-card">
+                          <div className="entity-card-head">
+                            <div>
+                              <strong>生成抖音营销策划方案</strong>
+                              <p className="personal-meta">确认本次输入范围，并可补充本次生成要求。</p>
+                            </div>
+                          </div>
+                          <div className="personal-list">
+                            <article className="report-editor-pane">
+                              <span>本次输入</span>
+                              <div className="report-inline-tip">
+                                {MARKETING_PLAN_REQUIRED_INPUTS.map((item, index) => `${index + 1}. ${item}`).join("；")}
+                              </div>
+                            </article>
+                            <label className="report-editor-pane">
+                              <span>用户要求</span>
+                              <textarea
+                                className="report-content-textarea"
+                                value={marketingPlanUserRequirement}
+                                onChange={(event) => setMarketingPlanUserRequirement(event.target.value)}
+                                placeholder="可选填写本次营销策划方案的补充要求，例如重点产品、内容风格、资源限制或阶段目标。"
+                              />
+                            </label>
+                            <div className="strategy-inline-actions">
+                              <button type="button" className="primary-button" onClick={() => void handleGenerate()} disabled={isGenerating}>
+                                {isGenerating ? "提交中..." : "提交"}
+                              </button>
+                              <button type="button" className="secondary-button" onClick={handleCloseGenerateDialog} disabled={isGenerating}>
+                                取消
+                              </button>
+                            </div>
+                          </div>
+                        </article>
+                      </div>
+                    </div>
+                  ) : null}
                 </article>
                 )}
                 <MediaLightbox state={materialLightbox} onClose={() => setMaterialLightbox(null)} />

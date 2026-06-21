@@ -20,12 +20,18 @@ export interface PlanWorkspaceProps {
   isEditingMarketingPlan: boolean;
   marketingPlanDraft: string;
   marketingPlanPreviewHtml: string;
+  generateInputLabels: string[];
+  isGenerateDialogOpen: boolean;
+  marketingPlanUserRequirement: string;
   loadWorkspace: AsyncAction;
   onEnterEdit: () => void;
   onDelete: AsyncAction;
   onGenerate: AsyncAction;
+  onCloseGenerateDialog: () => void;
+  onSubmitGenerate: AsyncAction;
   onSave: AsyncAction;
   onChangeDraft: StringChangeHandler;
+  onChangeMarketingPlanUserRequirement: StringChangeHandler;
   getTaskStatusClass: (status?: XiaohongshuMarketingPlanTaskRecord["taskStatus"]) => string;
   formatDateTime: OptionalDateFormatter;
 }
@@ -48,12 +54,18 @@ export function PlanWorkspace(props: PlanWorkspaceProps) {
     isEditingMarketingPlan,
     marketingPlanDraft,
     marketingPlanPreviewHtml,
+    generateInputLabels,
+    isGenerateDialogOpen,
+    marketingPlanUserRequirement,
     loadWorkspace,
     onEnterEdit,
     onDelete,
     onGenerate,
+    onCloseGenerateDialog,
+    onSubmitGenerate,
     onSave,
     onChangeDraft,
+    onChangeMarketingPlanUserRequirement,
     getTaskStatusClass,
     formatDateTime,
   } = props;
@@ -135,7 +147,9 @@ export function PlanWorkspace(props: PlanWorkspaceProps) {
             ) : null}
           </div>
         </div>
-        {!canGenerateMarketingPlan ? <div className="report-inline-tip">请先完成品牌增长报告与半年营销规划，再开始生成。</div> : null}
+        {!canGenerateMarketingPlan ? (
+          <div className="report-inline-tip">请先准备品牌背景资料、产品资料库、机会洞察总报告和品牌增长报告，再开始生成。</div>
+        ) : null}
         {isMarketingPlanTaskActive ? (
           <div className="report-inline-tip">
             {latestMarketingPlanTask?.taskStatus === "QUEUED"
@@ -171,6 +185,48 @@ export function PlanWorkspace(props: PlanWorkspaceProps) {
           </div>
         )}
       </article>
+      {isGenerateDialogOpen ? (
+        <div className="media-preview-overlay" onClick={onCloseGenerateDialog}>
+          <div className="media-preview-dialog calendar-detail-dialog" onClick={(event) => event.stopPropagation()}>
+            <button type="button" className="media-preview-close" onClick={onCloseGenerateDialog} disabled={isGenerating}>
+              关闭
+            </button>
+            <article className="entity-card personal-card">
+              <div className="entity-card-head">
+                <div>
+                  <strong>生成小红书营销策划方案</strong>
+                  <p className="personal-meta">确认本次输入范围，并可补充本次生成要求。</p>
+                </div>
+              </div>
+              <div className="personal-list">
+                <article className="report-editor-pane">
+                  <span>本次输入</span>
+                  <div className="report-inline-tip">
+                    {generateInputLabels.map((item, index) => `${index + 1}. ${item}`).join("；")}
+                  </div>
+                </article>
+                <label className="report-editor-pane">
+                  <span>用户要求</span>
+                  <textarea
+                    className="report-content-textarea"
+                    value={marketingPlanUserRequirement}
+                    onChange={(event) => onChangeMarketingPlanUserRequirement(event.target.value)}
+                    placeholder="可选填写本次营销策划方案的补充要求，例如重点产品、内容风格、资源限制或阶段目标。"
+                  />
+                </label>
+                <div className="strategy-inline-actions">
+                  <button type="button" className="primary-button" onClick={() => void onSubmitGenerate()} disabled={isGenerating}>
+                    {isGenerating ? "提交中..." : "提交"}
+                  </button>
+                  <button type="button" className="secondary-button" onClick={onCloseGenerateDialog} disabled={isGenerating}>
+                    取消
+                  </button>
+                </div>
+              </div>
+            </article>
+          </div>
+        </div>
+      ) : null}
     </article>
   );
 }

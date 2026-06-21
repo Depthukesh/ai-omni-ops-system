@@ -102,6 +102,10 @@ export type GenerateOpportunityInsightPayload = {
   supplementInput?: string;
 };
 
+export type GenerateMarketingPlanPayload = {
+  userRequirement?: string;
+};
+
 export type VisualGrowthReportRecord = {
   id: string;
   title: string;
@@ -695,10 +699,12 @@ export async function getHalfYearMarketingPlanWorkspace(brandId?: string, option
   );
 }
 
-export async function generateHalfYearMarketingPlan(brandId?: string) {
+export async function generateHalfYearMarketingPlan(payload?: GenerateMarketingPlanPayload, brandId?: string) {
   const resolvedBrandId = resolveBrandId(brandId);
   clearReportWorkspaceCacheByBrand(resolvedBrandId);
-  return jsonRequest<HalfYearMarketingPlanWorkspace>(`/reports/brands/${resolvedBrandId}/half-year-marketing-plan/generate`, "POST", {});
+  return jsonRequest<HalfYearMarketingPlanWorkspace>(`/reports/brands/${resolvedBrandId}/half-year-marketing-plan/generate`, "POST", {
+    userRequirement: payload?.userRequirement?.trim() || undefined,
+  });
 }
 
 export const getAnnualMarketingPlanWorkspace = getHalfYearMarketingPlanWorkspace;
@@ -713,10 +719,16 @@ export async function getXiaohongshuMarketingPlanWorkspace(brandId?: string, opt
   );
 }
 
-export async function generateXiaohongshuMarketingPlan(brandId?: string) {
+export async function generateXiaohongshuMarketingPlan(payload?: GenerateMarketingPlanPayload, brandId?: string) {
   const resolvedBrandId = resolveBrandId(brandId);
   clearReportWorkspaceCacheByBrand(resolvedBrandId);
-  return jsonRequest<XiaohongshuMarketingPlanWorkspace>(`/reports/brands/${resolvedBrandId}/xiaohongshu-marketing-plan/generate`, "POST", {});
+  return jsonRequest<XiaohongshuMarketingPlanWorkspace>(
+    `/reports/brands/${resolvedBrandId}/xiaohongshu-marketing-plan/generate`,
+    "POST",
+    {
+      userRequirement: payload?.userRequirement?.trim() || undefined,
+    },
+  );
 }
 
 export async function updateXiaohongshuMarketingPlan(
@@ -745,8 +757,10 @@ export async function getDouyinMarketingPlanWorkspace(brandId?: string) {
   return request<DouyinMarketingPlanWorkspace>(`/reports/brands/${resolveBrandId(brandId)}/douyin-marketing-plan`);
 }
 
-export async function generateDouyinMarketingPlan(brandId?: string) {
-  return jsonRequest<DouyinMarketingPlanWorkspace>(`/reports/brands/${resolveBrandId(brandId)}/douyin-marketing-plan/generate`, "POST", {});
+export async function generateDouyinMarketingPlan(payload?: GenerateMarketingPlanPayload, brandId?: string) {
+  return jsonRequest<DouyinMarketingPlanWorkspace>(`/reports/brands/${resolveBrandId(brandId)}/douyin-marketing-plan/generate`, "POST", {
+    userRequirement: payload?.userRequirement?.trim() || undefined,
+  });
 }
 
 export async function updateDouyinMarketingPlan(
@@ -862,10 +876,12 @@ export async function getXiaohongshuMarketingCalendarWorkspace(brandId?: string,
   );
 }
 
-export async function generateXiaohongshuMarketingCalendar(brandId?: string) {
+export async function generateXiaohongshuMarketingCalendar(payload?: GenerateMarketingPlanPayload, brandId?: string) {
   const resolvedBrandId = resolveBrandId(brandId);
   clearReportWorkspaceCacheByBrand(resolvedBrandId);
-  return jsonRequest<XiaohongshuMarketingCalendarWorkspace>(`/reports/brands/${resolvedBrandId}/xiaohongshu-marketing-calendar/generate`, "POST", {});
+  return jsonRequest<XiaohongshuMarketingCalendarWorkspace>(`/reports/brands/${resolvedBrandId}/xiaohongshu-marketing-calendar/generate`, "POST", {
+    userRequirement: payload?.userRequirement?.trim() || undefined,
+  });
 }
 
 export async function updateXiaohongshuMarketingCalendar(

@@ -55,6 +55,7 @@ import {
   type XiaohongshuMarketingCalendarItem,
   type XiaohongshuMarketingCalendarWorkspace,
   growthReportSeed,
+  opportunityInsightSeed,
   updateXiaohongshuMarketingCalendar,
   updateXiaohongshuMarketingPlan,
   xiaohongshuMarketingPlanSeed,
@@ -83,8 +84,9 @@ import {
 import { formatCollaboratorRoleLabel } from "../personal-center/route-helpers";
 
 type XiaohongshuSectionKey = "plan" | "assets" | "original" | "remix" | "video";
+const MARKETING_PLAN_REQUIRED_INPUTS = ["品牌背景资料", "产品资料库", "机会洞察总报告", "品牌增长报告"] as const;
 const xiaohongshuSections: Array<{ key: XiaohongshuSectionKey; label: string; description: string }> = [
-  { key: "plan", label: "营销策划方案", description: "围绕品牌、产品和目标快速生成小红书策划与选题方案。" },
+  { key: "plan", label: "营销策划方案", description: "围绕品牌背景资料、产品资料库、机会洞察总报告和品牌增长报告生成小红书策划与选题方案。" },
   { key: "assets", label: "素材库", description: "沉淀已生成的笔记、封面、源文件与作品记录。" },
   { key: "original", label: "原创笔记", description: "统一管理原创图文笔记成品，支持新增、编辑、删除与查看配图结果。" },
   { key: "remix", label: "二创笔记", description: "基于已有选题和作品延展二创版本与差异化角度。" },
@@ -152,6 +154,7 @@ export function XiaohongshuWorkspaceShell() {
   const [workspace, setWorkspace] = useState(seedWorkspace);
   const [growthReportWorkspace, setGrowthReportWorkspace] = useState(growthReportSeed);
   const [annualPlanWorkspace, setAnnualPlanWorkspace] = useState(annualMarketingPlanSeed);
+  const [opportunityInsightWorkspace, setOpportunityInsightWorkspace] = useState(opportunityInsightSeed);
   const [marketingPlanWorkspace, setMarketingPlanWorkspace] = useState(xiaohongshuMarketingPlanSeed);
   const [calendarWorkspace, setCalendarWorkspace] = useState<XiaohongshuMarketingCalendarWorkspace>({ history: [] });
   const [activeSection, setActiveSection] = useState<XiaohongshuSectionKey>("plan");
@@ -196,6 +199,8 @@ export function XiaohongshuWorkspaceShell() {
   const [isDeletingMarketingPlan, setIsDeletingMarketingPlan] = useState(false);
   const [isEditingMarketingPlan, setIsEditingMarketingPlan] = useState(false);
   const [marketingPlanDraft, setMarketingPlanDraft] = useState("");
+  const [isMarketingPlanGenerateDialogOpen, setIsMarketingPlanGenerateDialogOpen] = useState(false);
+  const [marketingPlanUserRequirement, setMarketingPlanUserRequirement] = useState("");
   const [selectedCalendarItemId, setSelectedCalendarItemId] = useState("");
   const [isCalendarDetailOpen, setIsCalendarDetailOpen] = useState(false);
   const [isEditingCalendarItem, setIsEditingCalendarItem] = useState(false);
@@ -345,6 +350,7 @@ export function XiaohongshuWorkspaceShell() {
     setWorkspace,
     setGrowthReportWorkspace,
     setAnnualPlanWorkspace,
+    setOpportunityInsightWorkspace,
     setMarketingPlanWorkspace,
     setCalendarWorkspace,
     setSelectedProductId,
@@ -488,11 +494,23 @@ export function XiaohongshuWorkspaceShell() {
   const relatedWorks = useMemo(() => getRelatedWorks(xhsMedia, selectedWork), [selectedWork, xhsMedia]);
   const latestGrowthReport = growthReportWorkspace.latest;
   const latestAnnualPlan = annualPlanWorkspace.latest;
+  const latestOpportunityReport = opportunityInsightWorkspace.finalOpportunityReport;
   const latestMarketingPlan = marketingPlanWorkspace.latest;
   const latestMarketingPlanTask = marketingPlanWorkspace.latestTask;
   const latestCalendar = calendarWorkspace.latest;
   const latestCalendarTask = calendarWorkspace.latestTask;
-  const canGenerateMarketingPlan = Boolean(latestGrowthReport && latestAnnualPlan);
+  const hasMarketingPlanBrandBackground = Boolean(
+    workspace.archive.brand.brandName?.trim()
+    || workspace.archive.brand.brandDescription?.trim()
+    || workspace.archive.brand.enterpriseIntro?.trim(),
+  );
+  const hasMarketingPlanProductLibrary = workspace.archive.products.length > 0;
+  const canGenerateMarketingPlan = Boolean(
+    latestGrowthReport
+    && latestOpportunityReport?.htmlDocument?.trim()
+    && hasMarketingPlanBrandBackground
+    && hasMarketingPlanProductLibrary,
+  );
   const canGenerateCalendar = Boolean(latestGrowthReport && latestAnnualPlan && latestMarketingPlan);
   const marketingPlanPreviewHtml = useMemo(
     () => renderMarkdownToHtml(marketingPlanDraft || latestMarketingPlan?.reportMarkdown || ""),
@@ -734,7 +752,7 @@ export function XiaohongshuWorkspaceShell() {
         ? "当前聚焦【二创笔记】主链路：从素材库选择作品，结合产品与用户要求生成差异化二创图文，并统一管理成品。"
         : activeSection === "video"
           ? "当前聚焦【视频笔记】主链路：先生成创意剧本与故事板，确认后再继续生成短视频，并支持离开页面后回来查看阶段状态。"
-        : "当前先聚焦【营销策划方案】主链路：读取品牌资料、小红书数据、品牌增长报告和半年营销规划，生成可编辑保存的 Markdown 方案。";
+        : "当前先聚焦【营销策划方案】主链路：读取品牌背景资料、产品资料库、机会洞察总报告和品牌增长报告，生成可编辑保存的 Markdown 方案。";
 
   async function handleCancelComposeTask(task: TaskRecord | undefined, label: "原创笔记" | "二创笔记" | "视频笔记") {
     if (!task || !isTaskActive(task.taskStatus)) {
@@ -812,6 +830,39 @@ export function XiaohongshuWorkspaceShell() {
     calendarMonthKeys: [],
   });
 
+  function handleOpenGeneratePlanDialog() {
+    if (!brandPermissionSettings?.currentUserPermissions["xiaohongshu.plan"]?.edit) {
+      setErrorMessage("当前账号没有营销策划方案板块的编辑权限。");
+      return;
+    }
+    if (!growthReportWorkspace.latest) {
+      setErrorMessage("请先生成品牌增长报告。");
+      return;
+    }
+    if (!latestOpportunityReport?.htmlDocument?.trim()) {
+      setErrorMessage("请先生成机会洞察总报告。");
+      return;
+    }
+    if (!hasMarketingPlanBrandBackground) {
+      setErrorMessage("请先完善品牌背景资料。");
+      return;
+    }
+    if (!hasMarketingPlanProductLibrary) {
+      setErrorMessage("请先完善产品资料库。");
+      return;
+    }
+    setErrorMessage("");
+    setNotice("");
+    setIsMarketingPlanGenerateDialogOpen(true);
+  }
+
+  function handleCloseGeneratePlanDialog() {
+    if (isGenerating) {
+      return;
+    }
+    setIsMarketingPlanGenerateDialogOpen(false);
+  }
+
   async function handleGeneratePlan() {
     if (!brandPermissionSettings?.currentUserPermissions["xiaohongshu.plan"]?.edit) {
       setErrorMessage("当前账号没有营销策划方案板块的编辑权限。");
@@ -821,9 +872,16 @@ export function XiaohongshuWorkspaceShell() {
       setErrorMessage("请先生成品牌增长报告。");
       return;
     }
-
-    if (!annualPlanWorkspace.latest) {
-      setErrorMessage("请先生成半年营销规划。");
+    if (!latestOpportunityReport?.htmlDocument?.trim()) {
+      setErrorMessage("请先生成机会洞察总报告。");
+      return;
+    }
+    if (!hasMarketingPlanBrandBackground) {
+      setErrorMessage("请先完善品牌背景资料。");
+      return;
+    }
+    if (!hasMarketingPlanProductLibrary) {
+      setErrorMessage("请先完善产品资料库。");
       return;
     }
 
@@ -832,9 +890,13 @@ export function XiaohongshuWorkspaceShell() {
     setErrorMessage("");
 
     try {
-      const nextWorkspace = await generateXiaohongshuMarketingPlan();
+      const nextWorkspace = await generateXiaohongshuMarketingPlan({
+        userRequirement: marketingPlanUserRequirement,
+      });
       setMarketingPlanWorkspace(nextWorkspace);
       setIsEditingMarketingPlan(false);
+      setIsMarketingPlanGenerateDialogOpen(false);
+      setMarketingPlanUserRequirement("");
       setNotice("已提交后台生成任务，正在生成小红书营销策划方案。");
     } catch (error) {
       const message = error instanceof Error ? error.message : "小红书营销策划方案生成失败";
@@ -1145,12 +1207,18 @@ export function XiaohongshuWorkspaceShell() {
             setNotice("已进入编辑状态，可直接修改左侧 Markdown 内容。");
           }}
           onDelete={() => handleDeleteMarketingPlan()}
-          onGenerate={() => handleGeneratePlan()}
+          onGenerate={() => handleOpenGeneratePlanDialog()}
           onSave={() => handleSaveMarketingPlan()}
           onChangeDraft={(value) => {
             setMarketingPlanDraft(value);
             setIsEditingMarketingPlan(true);
           }}
+          generateInputLabels={[...MARKETING_PLAN_REQUIRED_INPUTS]}
+          isGenerateDialogOpen={isMarketingPlanGenerateDialogOpen}
+          marketingPlanUserRequirement={marketingPlanUserRequirement}
+          onCloseGenerateDialog={handleCloseGeneratePlanDialog}
+          onSubmitGenerate={() => handleGeneratePlan()}
+          onChangeMarketingPlanUserRequirement={setMarketingPlanUserRequirement}
           getTaskStatusClass={getTaskStatusClass}
           formatDateTime={formatDateTime}
         />

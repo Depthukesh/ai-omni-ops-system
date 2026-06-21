@@ -890,6 +890,22 @@ export type UpdateDouyinMarketingPlanPayload = {
   reportMarkdown: string;
 };
 
+export type GenerateXiaohongshuMarketingPlanPayload = {
+  userRequirement?: string;
+};
+
+export type GenerateDouyinMarketingPlanPayload = {
+  userRequirement?: string;
+};
+
+export type GenerateAnnualMarketingPlanPayload = {
+  userRequirement?: string;
+};
+
+export type GenerateXiaohongshuMarketingCalendarPayload = {
+  userRequirement?: string;
+};
+
 export type UpdateXiaohongshuMarketingCalendarPayload = {
   title?: string;
   items: XiaohongshuMarketingCalendarItem[];
@@ -1390,7 +1406,7 @@ export class ReportsService {
     };
   }
 
-  async generateAnnualMarketingPlan(brandId: string) {
+  async generateAnnualMarketingPlan(brandId: string, payload: GenerateAnnualMarketingPlanPayload = {}) {
     const sourceWorkspace = await this.getGrowthReportWorkspace(brandId);
     const sourceReport = sourceWorkspace.latest;
     if (!sourceReport) {
@@ -1402,7 +1418,11 @@ export class ReportsService {
       return workspace;
     }
 
-    const task = await this.createAnnualMarketingPlanTask(brandId, sourceReport);
+    const task = await this.createAnnualMarketingPlanTask(
+      brandId,
+      sourceReport,
+      this.normalizeMarketingPlanUserRequirement(payload.userRequirement),
+    );
     setTimeout(() => {
       void this.runAnnualMarketingPlanTask(brandId, task.id);
     }, 0);
@@ -1472,16 +1492,23 @@ export class ReportsService {
     };
   }
 
-  async generateXiaohongshuMarketingPlan(brandId: string) {
+  async generateXiaohongshuMarketingPlan(brandId: string, payload: GenerateXiaohongshuMarketingPlanPayload = {}) {
     const growthReportWorkspace = await this.getGrowthReportWorkspace(brandId);
-    const annualPlanWorkspace = await this.getAnnualMarketingPlanWorkspace(brandId);
+    const opportunityInsightWorkspace = await this.getOpportunityInsightWorkspace(brandId);
     const sourceReport = growthReportWorkspace.latest;
-    const annualPlan = annualPlanWorkspace.latest;
+    const opportunityReport = opportunityInsightWorkspace.finalOpportunityReport;
     if (!sourceReport) {
       throw new NotFoundException("璇峰厛鐢熸垚鍝佺墝澧為暱鎶ュ憡");
     }
-    if (!annualPlan) {
-      throw new NotFoundException("璇峰厛鐢熸垚鍏ㄥ勾钀ラ攢瑙勫垝");
+    if (!opportunityReport?.htmlDocument?.trim()) {
+      throw new NotFoundException("请先生成机会洞察总报告");
+    }
+    const archive = await this.brandsService.getArchive(brandId);
+    if (!this.hasBrandBackgroundInput(archive)) {
+      throw new NotFoundException("请先完善品牌背景资料");
+    }
+    if (!this.hasProductLibraryInput(archive)) {
+      throw new NotFoundException("请先完善产品资料库");
     }
     const workspace = await this.getXiaohongshuMarketingPlanWorkspace(brandId);
     const runningTask = workspace.latestTask;
@@ -1489,7 +1516,12 @@ export class ReportsService {
       return workspace;
     }
 
-    const task = await this.createXiaohongshuMarketingPlanTask(brandId, sourceReport, annualPlan);
+    const task = await this.createXiaohongshuMarketingPlanTask(
+      brandId,
+      sourceReport,
+      opportunityReport,
+      this.normalizeMarketingPlanUserRequirement(payload.userRequirement),
+    );
     setTimeout(() => {
       void this.runXiaohongshuMarketingPlanTask(brandId, task.id);
     }, 0);
@@ -1706,16 +1738,23 @@ export class ReportsService {
     };
   }
 
-  async generateDouyinMarketingPlan(brandId: string) {
+  async generateDouyinMarketingPlan(brandId: string, payload: GenerateDouyinMarketingPlanPayload = {}) {
     const growthReportWorkspace = await this.getGrowthReportWorkspace(brandId);
-    const annualPlanWorkspace = await this.getAnnualMarketingPlanWorkspace(brandId);
+    const opportunityInsightWorkspace = await this.getOpportunityInsightWorkspace(brandId);
     const sourceReport = growthReportWorkspace.latest;
-    const annualPlan = annualPlanWorkspace.latest;
+    const opportunityReport = opportunityInsightWorkspace.finalOpportunityReport;
     if (!sourceReport) {
       throw new NotFoundException("请先生成品牌增长报告");
     }
-    if (!annualPlan) {
-      throw new NotFoundException("请先生成半年营销规划");
+    if (!opportunityReport?.htmlDocument?.trim()) {
+      throw new NotFoundException("请先生成机会洞察总报告");
+    }
+    const archive = await this.brandsService.getArchive(brandId);
+    if (!this.hasBrandBackgroundInput(archive)) {
+      throw new NotFoundException("请先完善品牌背景资料");
+    }
+    if (!this.hasProductLibraryInput(archive)) {
+      throw new NotFoundException("请先完善产品资料库");
     }
     const workspace = await this.getDouyinMarketingPlanWorkspace(brandId);
     const runningTask = workspace.latestTask;
@@ -1723,7 +1762,12 @@ export class ReportsService {
       return workspace;
     }
 
-    const task = await this.createDouyinMarketingPlanTask(brandId, sourceReport, annualPlan);
+    const task = await this.createDouyinMarketingPlanTask(
+      brandId,
+      sourceReport,
+      opportunityReport,
+      this.normalizeMarketingPlanUserRequirement(payload.userRequirement),
+    );
     setTimeout(() => {
       void this.runDouyinMarketingPlanTask(brandId, task.id);
     }, 0);
@@ -2585,7 +2629,7 @@ export class ReportsService {
     };
   }
 
-  async generateXiaohongshuMarketingCalendar(brandId: string) {
+  async generateXiaohongshuMarketingCalendar(brandId: string, payload: GenerateXiaohongshuMarketingCalendarPayload = {}) {
     const growthReportWorkspace = await this.getGrowthReportWorkspace(brandId);
     const opportunityInsightWorkspace = await this.getOpportunityInsightWorkspace(brandId);
     const sourceReport = growthReportWorkspace.latest;
@@ -2616,7 +2660,12 @@ export class ReportsService {
       return workspace;
     }
 
-    const task = await this.createXiaohongshuMarketingCalendarTask(brandId, sourceReport, opportunityReport);
+    const task = await this.createXiaohongshuMarketingCalendarTask(
+      brandId,
+      sourceReport,
+      opportunityReport,
+      this.normalizeMarketingPlanUserRequirement(payload.userRequirement),
+    );
     setTimeout(() => {
       void this.runXiaohongshuMarketingCalendarTask(brandId, task.id);
     }, 0);
@@ -3600,7 +3649,7 @@ export class ReportsService {
     return this.mapOpportunityInsightTask(task);
   }
 
-  private async createAnnualMarketingPlanTask(brandId: string, sourceReport: GrowthReportRecord) {
+  private async createAnnualMarketingPlanTask(brandId: string, sourceReport: GrowthReportRecord, userRequirement?: string) {
     const now = new Date().toISOString();
     const settings = await this.loadAnnualMarketingPlanGenerationSettings(brandId);
     const modelName =
@@ -3629,6 +3678,7 @@ export class ReportsService {
           inputJson: {
             sourceReportId: sourceReport.id,
             sourceReportTitle: sourceReport.title,
+            userRequirement: userRequirement || undefined,
           } as Prisma.InputJsonValue,
         },
       });
@@ -3653,6 +3703,7 @@ export class ReportsService {
       inputJson: {
         sourceReportId: sourceReport.id,
         sourceReportTitle: sourceReport.title,
+        userRequirement: userRequirement || undefined,
       },
       createdAt: now,
       updatedAt: now,
@@ -3664,7 +3715,8 @@ export class ReportsService {
   private async createXiaohongshuMarketingPlanTask(
     brandId: string,
     sourceReport: GrowthReportRecord,
-    annualPlan: AnnualMarketingPlanRecord,
+    opportunityReport: OpportunityInsightReportRecord,
+    userRequirement?: string,
   ) {
     const now = new Date().toISOString();
     const settings = await this.loadXiaohongshuMarketingPlanGenerationSettings(brandId);
@@ -3694,8 +3746,9 @@ export class ReportsService {
           inputJson: {
             sourceReportId: sourceReport.id,
             sourceReportTitle: sourceReport.title,
-            sourceAnnualPlanId: annualPlan.id,
-            sourceAnnualPlanTitle: annualPlan.title,
+            sourceOpportunityReportId: opportunityReport.id,
+            sourceOpportunityReportTitle: opportunityReport.title,
+            userRequirement: userRequirement || undefined,
           } as Prisma.InputJsonValue,
         },
       });
@@ -3720,8 +3773,9 @@ export class ReportsService {
       inputJson: {
         sourceReportId: sourceReport.id,
         sourceReportTitle: sourceReport.title,
-        sourceAnnualPlanId: annualPlan.id,
-        sourceAnnualPlanTitle: annualPlan.title,
+        sourceOpportunityReportId: opportunityReport.id,
+        sourceOpportunityReportTitle: opportunityReport.title,
+        userRequirement: userRequirement || undefined,
       },
       createdAt: now,
       updatedAt: now,
@@ -3733,7 +3787,8 @@ export class ReportsService {
   private async createDouyinMarketingPlanTask(
     brandId: string,
     sourceReport: GrowthReportRecord,
-    annualPlan: AnnualMarketingPlanRecord,
+    opportunityReport: OpportunityInsightReportRecord,
+    userRequirement?: string,
   ) {
     const now = new Date().toISOString();
     const settings = await this.loadDouyinMarketingPlanGenerationSettings(brandId);
@@ -3763,8 +3818,9 @@ export class ReportsService {
           inputJson: {
             sourceReportId: sourceReport.id,
             sourceReportTitle: sourceReport.title,
-            sourceAnnualPlanId: annualPlan.id,
-            sourceAnnualPlanTitle: annualPlan.title,
+            sourceOpportunityReportId: opportunityReport.id,
+            sourceOpportunityReportTitle: opportunityReport.title,
+            userRequirement: userRequirement || undefined,
           } as Prisma.InputJsonValue,
         },
       });
@@ -3789,8 +3845,9 @@ export class ReportsService {
       inputJson: {
         sourceReportId: sourceReport.id,
         sourceReportTitle: sourceReport.title,
-        sourceAnnualPlanId: annualPlan.id,
-        sourceAnnualPlanTitle: annualPlan.title,
+        sourceOpportunityReportId: opportunityReport.id,
+        sourceOpportunityReportTitle: opportunityReport.title,
+        userRequirement: userRequirement || undefined,
       },
       createdAt: now,
       updatedAt: now,
@@ -4345,6 +4402,7 @@ export class ReportsService {
     brandId: string,
     sourceReport: GrowthReportRecord,
     opportunityReport: OpportunityInsightReportRecord,
+    userRequirement?: string,
   ) {
     const now = new Date().toISOString();
     const settings = await this.loadXiaohongshuMarketingCalendarGenerationSettings(brandId);
@@ -4376,6 +4434,7 @@ export class ReportsService {
             sourceReportTitle: sourceReport.title,
             sourceOpportunityReportId: opportunityReport.id,
             sourceOpportunityReportTitle: opportunityReport.title,
+            userRequirement: userRequirement || undefined,
           } as Prisma.InputJsonValue,
         },
       });
@@ -4402,6 +4461,7 @@ export class ReportsService {
         sourceReportTitle: sourceReport.title,
         sourceOpportunityReportId: opportunityReport.id,
         sourceOpportunityReportTitle: opportunityReport.title,
+        userRequirement: userRequirement || undefined,
       },
       createdAt: now,
       updatedAt: now,
@@ -4468,6 +4528,7 @@ export class ReportsService {
       const sourceWorkspace = await this.getGrowthReportWorkspace(brandId);
       const currentTaskRow = await this.findTaskInputMeta(brandId, taskId);
       const sourceReportId = this.readMetaString(currentTaskRow, "sourceReportId");
+      const userRequirement = this.readMetaString(currentTaskRow, "userRequirement") || undefined;
       const sourceReport = sourceWorkspace.history.find((item) => item.id === sourceReportId) || sourceWorkspace.latest;
       if (!sourceReport) {
         throw new NotFoundException("璇峰厛鐢熸垚鍝佺墝澧為暱鎶ュ憡");
@@ -4478,6 +4539,7 @@ export class ReportsService {
         archive,
         sourceReport,
         generatedAt: startedAt,
+        userRequirement,
       });
 
       await this.persistAnnualMarketingPlanResult(brandId, taskId, sourceReport, plan, startedAt);
@@ -4524,17 +4586,20 @@ export class ReportsService {
       const archive = await this.brandsService.getArchive(brandId);
       const collection = await this.collectorsService.getXiaohongshuWorkspace(brandId);
       const growthReportWorkspace = await this.getGrowthReportWorkspace(brandId);
-      const annualPlanWorkspace = await this.getAnnualMarketingPlanWorkspace(brandId);
+      const opportunityInsightWorkspace = await this.getOpportunityInsightWorkspace(brandId);
       const currentTaskRow = await this.findTaskInputMeta(brandId, taskId);
       const sourceReportId = this.readMetaString(currentTaskRow, "sourceReportId");
-      const sourceAnnualPlanId = this.readMetaString(currentTaskRow, "sourceAnnualPlanId");
+      const sourceOpportunityReportId = this.readMetaString(currentTaskRow, "sourceOpportunityReportId");
+      const userRequirement = this.readMetaString(currentTaskRow, "userRequirement") || undefined;
       const sourceReport = growthReportWorkspace.history.find((item) => item.id === sourceReportId) || growthReportWorkspace.latest;
-      const annualPlan = annualPlanWorkspace.history.find((item) => item.id === sourceAnnualPlanId) || annualPlanWorkspace.latest;
+      const opportunityReport =
+        opportunityInsightWorkspace.history.find((item) => item.id === sourceOpportunityReportId)
+        || opportunityInsightWorkspace.finalOpportunityReport;
       if (!sourceReport) {
         throw new NotFoundException("璇峰厛鐢熸垚鍝佺墝澧為暱鎶ュ憡");
       }
-      if (!annualPlan) {
-        throw new NotFoundException("璇峰厛鐢熸垚鍏ㄥ勾钀ラ攢瑙勫垝");
+      if (!opportunityReport?.htmlDocument?.trim()) {
+        throw new NotFoundException("请先生成机会洞察总报告");
       }
 
       const report = await this.buildXiaohongshuMarketingPlan({
@@ -4542,8 +4607,9 @@ export class ReportsService {
         archive,
         collection,
         sourceReport,
-        annualPlan,
+        opportunityReport,
         generatedAt: startedAt,
+        userRequirement,
         onPhaseUpdate: async (phase, extra) => {
           currentPhaseStatus = this.buildXiaohongshuPhaseStatus(phase, extra);
           await applyRunningStatus();
@@ -4555,7 +4621,7 @@ export class ReportsService {
       });
       await applyRunningStatus();
       clearInterval(heartbeat);
-      await this.persistXiaohongshuMarketingPlanResult(brandId, taskId, sourceReport, annualPlan, report, startedAt);
+      await this.persistXiaohongshuMarketingPlanResult(brandId, taskId, sourceReport, opportunityReport, report, startedAt);
       await this.updateXiaohongshuMarketingPlanTaskStatus(brandId, taskId, {
         taskStatus: "SUCCESS",
         startedAt,
@@ -4602,17 +4668,20 @@ export class ReportsService {
       const archive = await this.brandsService.getArchive(brandId);
       const collection = await this.collectorsService.getDouyinWorkspace(brandId);
       const growthReportWorkspace = await this.getGrowthReportWorkspace(brandId);
-      const annualPlanWorkspace = await this.getAnnualMarketingPlanWorkspace(brandId);
+      const opportunityInsightWorkspace = await this.getOpportunityInsightWorkspace(brandId);
       const currentTaskRow = await this.findTaskInputMeta(brandId, taskId);
       const sourceReportId = this.readMetaString(currentTaskRow, "sourceReportId");
-      const sourceAnnualPlanId = this.readMetaString(currentTaskRow, "sourceAnnualPlanId");
+      const sourceOpportunityReportId = this.readMetaString(currentTaskRow, "sourceOpportunityReportId");
+      const userRequirement = this.readMetaString(currentTaskRow, "userRequirement") || undefined;
       const sourceReport = growthReportWorkspace.history.find((item) => item.id === sourceReportId) || growthReportWorkspace.latest;
-      const annualPlan = annualPlanWorkspace.history.find((item) => item.id === sourceAnnualPlanId) || annualPlanWorkspace.latest;
+      const opportunityReport =
+        opportunityInsightWorkspace.history.find((item) => item.id === sourceOpportunityReportId)
+        || opportunityInsightWorkspace.finalOpportunityReport;
       if (!sourceReport) {
         throw new NotFoundException("请先生成品牌增长报告");
       }
-      if (!annualPlan) {
-        throw new NotFoundException("请先生成半年营销规划");
+      if (!opportunityReport?.htmlDocument?.trim()) {
+        throw new NotFoundException("请先生成机会洞察总报告");
       }
 
       currentPhaseStatus = this.buildDouyinMarketingPlanPhaseStatus("GENERATING");
@@ -4622,8 +4691,9 @@ export class ReportsService {
         archive,
         collection,
         sourceReport,
-        annualPlan,
+        opportunityReport,
         generatedAt: startedAt,
+        userRequirement,
         onPhaseUpdate: async (phase, extra) => {
           currentPhaseStatus = this.buildDouyinMarketingPlanPhaseStatus(phase, extra);
           await applyRunningStatus();
@@ -4635,7 +4705,7 @@ export class ReportsService {
       });
       await applyRunningStatus();
       clearInterval(heartbeat);
-      await this.persistDouyinMarketingPlanResult(brandId, taskId, sourceReport, annualPlan, report, startedAt);
+      await this.persistDouyinMarketingPlanResult(brandId, taskId, sourceReport, opportunityReport, report, startedAt);
       await this.updateDouyinMarketingPlanTaskStatus(brandId, taskId, {
         taskStatus: "SUCCESS",
         startedAt,
@@ -4946,6 +5016,7 @@ export class ReportsService {
       const currentTaskRow = await this.findTaskInputMeta(brandId, taskId);
       const sourceReportId = this.readMetaString(currentTaskRow, "sourceReportId");
       const sourceOpportunityReportId = this.readMetaString(currentTaskRow, "sourceOpportunityReportId");
+      const userRequirement = this.readMetaString(currentTaskRow, "userRequirement") || undefined;
       const sourceReport = growthReportWorkspace.history.find((item) => item.id === sourceReportId) || growthReportWorkspace.latest;
       const opportunityReport =
         opportunityInsightWorkspace.history.find((item) => item.id === sourceOpportunityReportId)
@@ -4966,6 +5037,7 @@ export class ReportsService {
         opportunityReport,
         previousCalendars: calendarWorkspace.history,
         generatedAt: startedAt,
+        userRequirement,
         onPhaseUpdate: async (phase, extra) => {
           currentPhaseStatus = this.buildXiaohongshuMarketingCalendarPhaseStatus(phase, extra);
           await applyRunningStatus();
@@ -5338,7 +5410,7 @@ export class ReportsService {
     brandId: string,
     taskId: string,
     sourceReport: GrowthReportRecord,
-    annualPlan: AnnualMarketingPlanRecord,
+    opportunityReport: OpportunityInsightReportRecord,
     report: Awaited<ReturnType<ReportsService["buildXiaohongshuMarketingPlan"]>>,
     generatedAt: string,
   ) {
@@ -5388,8 +5460,8 @@ export class ReportsService {
             mediaId: media.id,
             sourceReportId: sourceReport.id,
             sourceReportTitle: sourceReport.title,
-            sourceAnnualPlanId: annualPlan.id,
-            sourceAnnualPlanTitle: annualPlan.title,
+            sourceOpportunityReportId: opportunityReport.id,
+            sourceOpportunityReportTitle: opportunityReport.title,
             summary: report.summary,
             reportMarkdown: report.reportMarkdown,
             htmlContent: report.htmlContent,
@@ -5440,8 +5512,8 @@ export class ReportsService {
         mediaId,
         sourceReportId: sourceReport.id,
         sourceReportTitle: sourceReport.title,
-        sourceAnnualPlanId: annualPlan.id,
-        sourceAnnualPlanTitle: annualPlan.title,
+        sourceOpportunityReportId: opportunityReport.id,
+        sourceOpportunityReportTitle: opportunityReport.title,
         summary: report.summary,
         reportMarkdown: report.reportMarkdown,
         htmlContent: report.htmlContent,
@@ -5454,7 +5526,7 @@ export class ReportsService {
     brandId: string,
     taskId: string,
     sourceReport: GrowthReportRecord,
-    annualPlan: AnnualMarketingPlanRecord,
+    opportunityReport: OpportunityInsightReportRecord,
     report: Awaited<ReturnType<ReportsService["buildDouyinMarketingPlan"]>>,
     generatedAt: string,
   ) {
@@ -5504,8 +5576,8 @@ export class ReportsService {
             mediaId: media.id,
             sourceReportId: sourceReport.id,
             sourceReportTitle: sourceReport.title,
-            sourceAnnualPlanId: annualPlan.id,
-            sourceAnnualPlanTitle: annualPlan.title,
+            sourceOpportunityReportId: opportunityReport.id,
+            sourceOpportunityReportTitle: opportunityReport.title,
             summary: report.summary,
             reportMarkdown: report.reportMarkdown,
             htmlContent: report.htmlContent,
@@ -5556,8 +5628,8 @@ export class ReportsService {
         mediaId,
         sourceReportId: sourceReport.id,
         sourceReportTitle: sourceReport.title,
-        sourceAnnualPlanId: annualPlan.id,
-        sourceAnnualPlanTitle: annualPlan.title,
+        sourceOpportunityReportId: opportunityReport.id,
+        sourceOpportunityReportTitle: opportunityReport.title,
         summary: report.summary,
         reportMarkdown: report.reportMarkdown,
         htmlContent: report.htmlContent,
@@ -6436,6 +6508,23 @@ export class ReportsService {
     return normalized ? this.truncateText(normalized, 60000) : undefined;
   }
 
+  private normalizeMarketingPlanUserRequirement(value?: string) {
+    const normalized = typeof value === "string" ? value.trim() : "";
+    return normalized ? this.truncateText(normalized, 1200) : undefined;
+  }
+
+  private hasBrandBackgroundInput(archive: Awaited<ReturnType<BrandsService["getArchive"]>>) {
+    return Boolean(
+      archive.brand.brandName?.trim()
+      || archive.brand.brandDescription?.trim()
+      || archive.brand.enterpriseIntro?.trim(),
+    );
+  }
+
+  private hasProductLibraryInput(archive: Awaited<ReturnType<BrandsService["getArchive"]>>) {
+    return archive.products.length > 0;
+  }
+
   private readOpportunityInsightUserRequirement(inputPayload: Record<string, unknown>) {
     return this.truncateText(
       this.readRecordString(this.readNestedRecord(inputPayload, ["inputScope", "userRequirement"]), "text") || "",
@@ -6504,10 +6593,16 @@ export class ReportsService {
     archive: Awaited<ReturnType<BrandsService["getArchive"]>>;
     sourceReport: GrowthReportRecord;
     generatedAt: string;
+    userRequirement?: string;
   }) {
     const settings = await this.loadAnnualMarketingPlanGenerationSettings(params.brandId);
     const prompt = this.loadAnnualMarketingPlanPrompt(settings);
-    const inputPayload = this.buildAnnualMarketingPlanInput(params.archive, params.sourceReport, params.generatedAt);
+    const inputPayload = this.buildAnnualMarketingPlanInput(
+      params.archive,
+      params.sourceReport,
+      params.generatedAt,
+      params.userRequirement,
+    );
     const modelResult = await this.generateAnnualMarketingPlanByModel(prompt, inputPayload, settings);
     const htmlBody = this.renderAnnualMarketingPlanToHtml(modelResult);
     const htmlDocument = this.buildVisualReportDocument(modelResult.title, htmlBody);
@@ -6524,8 +6619,9 @@ export class ReportsService {
     archive: Awaited<ReturnType<BrandsService["getArchive"]>>;
     collection: Awaited<ReturnType<CollectorsService["getXiaohongshuWorkspace"]>>;
     sourceReport: GrowthReportRecord;
-    annualPlan: AnnualMarketingPlanRecord;
+    opportunityReport: OpportunityInsightReportRecord;
     generatedAt: string;
+    userRequirement?: string;
     onPhaseUpdate?: (
       phase: XiaohongshuMarketingPlanPhase,
       extra?: {
@@ -6540,8 +6636,9 @@ export class ReportsService {
       params.archive,
       params.collection,
       params.sourceReport,
-      params.annualPlan,
+      params.opportunityReport,
       params.generatedAt,
+      params.userRequirement,
     );
     const knowledgeContext = await this.buildXiaohongshuMarketingPlanKnowledgeContext(settings, inputPayload);
     await params.onPhaseUpdate?.("PART_ONE");
@@ -6639,8 +6736,9 @@ export class ReportsService {
     archive: Awaited<ReturnType<BrandsService["getArchive"]>>;
     collection: Awaited<ReturnType<CollectorsService["getDouyinWorkspace"]>>;
     sourceReport: GrowthReportRecord;
-    annualPlan: AnnualMarketingPlanRecord;
+    opportunityReport: OpportunityInsightReportRecord;
     generatedAt: string;
+    userRequirement?: string;
     onPhaseUpdate?: (
       phase: DouyinMarketingPlanPhase,
       extra?: {
@@ -6654,8 +6752,9 @@ export class ReportsService {
       params.archive,
       params.collection,
       params.sourceReport,
-      params.annualPlan,
+      params.opportunityReport,
       params.generatedAt,
+      params.userRequirement,
     );
     await params.onPhaseUpdate?.("GENERATING");
     const modelResult = await this.generateDouyinMarketingPlanByModel(settings.promptContent, inputPayload, settings, {
@@ -7041,6 +7140,7 @@ export class ReportsService {
     opportunityReport: OpportunityInsightReportRecord;
     previousCalendars: XiaohongshuMarketingCalendarRecord[];
     generatedAt: string;
+    userRequirement?: string;
     onPhaseUpdate?: (
       phase: XiaohongshuMarketingCalendarPhase,
       extra?: {
@@ -7056,6 +7156,7 @@ export class ReportsService {
       params.opportunityReport,
       params.previousCalendars,
       params.generatedAt,
+      params.userRequirement,
     );
     await params.onPhaseUpdate?.("GENERATING");
     return this.generateXiaohongshuMarketingCalendarByModel(settings.promptContent, inputPayload, settings, {
@@ -8010,14 +8111,17 @@ export class ReportsService {
   ): Promise<DouyinMarketingPlanModelResult> {
     const providers = await this.loadDouyinMarketingProviderConfigs(settings);
     const preferredModelName = settings.preferredModelName || this.parseDelimitedModels(settings.modelName)[0] || "";
+    const userRequirement = this.readOpportunityInsightUserRequirement(inputPayload);
     const systemPrompt = [
       skillPrompt,
       "",
       "请输出完整的《抖音营销策划方案》。",
-      "输入已包含品牌增长报告、半年营销规划、抖音采集数据（品牌账号、竞品账号、品牌作品、对标作品）。",
+      "输入的核心必备资料已限定为：品牌背景资料、产品资料库、机会洞察总报告、品牌增长报告。",
+      "如果输入中还提供了抖音采集数据，它们只作为补充参考，不能覆盖上述四类核心输入。",
       "只输出 Markdown 正文，不要输出 JSON，不要输出代码块，不要输出执行说明。",
       "内容至少覆盖平台现状判断、账号矩阵策略、内容方向规划、作品打法拆解、投流与转化建议、组织协同与风险提醒。",
       "如果某些数据不足，必须明确写出“待补充/待验证”，不要编造。",
+      userRequirement ? `如果输入中提供了“用户要求”，必须优先满足：${userRequirement}` : "",
     ].join("\n");
     const knowledgeContext = await this.buildDouyinMarketingPlanKnowledgeContext(settings, inputPayload);
     const userPrompt = ["以下是输入数据：", "", JSON.stringify(inputPayload, null, 2), knowledgeContext].join("\n");
@@ -9751,6 +9855,7 @@ ${normalizedMarkdown}`;
     archive: Awaited<ReturnType<BrandsService["getArchive"]>>,
     sourceReport: GrowthReportRecord,
     generatedAt: string,
+    userRequirement?: string,
   ) {
     const planningWindow = this.buildHalfYearPlanningWindow(generatedAt);
     return {
@@ -9801,6 +9906,7 @@ ${normalizedMarkdown}`;
           label: planningWindow.label,
           monthLabels: planningWindow.monthLabels,
         },
+        userRequirement: userRequirement ? { text: userRequirement } : undefined,
       },
       outputTarget: "半年营销规划",
     };
@@ -9810,8 +9916,9 @@ ${normalizedMarkdown}`;
     archive: Awaited<ReturnType<BrandsService["getArchive"]>>,
     collection: Awaited<ReturnType<CollectorsService["getXiaohongshuWorkspace"]>>,
     sourceReport: GrowthReportRecord,
-    annualPlan: AnnualMarketingPlanRecord,
+    opportunityReport: OpportunityInsightReportRecord,
     generatedAt: string,
+    userRequirement?: string,
   ) {
     return {
       task: "输出《小红书营销策划方案》",
@@ -9859,7 +9966,7 @@ ${normalizedMarkdown}`;
             sourceName: item.sourceName,
           })),
         },
-        xiaohongshuCollection: {
+        xiaohongshuCollectionSupplement: {
           brandAccounts: collection.brandAccounts.map((item) => ({
             accountName: item.accountName,
             sourceAccountLink: item.sourceAccountLink,
@@ -9915,23 +10022,20 @@ ${normalizedMarkdown}`;
           nextActions: sourceReport.nextActions,
           reportMarkdown: this.truncateText(sourceReport.reportMarkdown, 4200),
         },
-        annualMarketingPlan: {
-          id: annualPlan.id,
-          title: annualPlan.title,
-          summary: annualPlan.summary,
-          planningYear: annualPlan.planningYear,
-          planningFocus: annualPlan.planningFocus,
-          items: annualPlan.items.slice(0, 30).map((item) => ({
-            month: item.month,
-            node: item.node,
-            date: item.date,
-            type: item.type,
-            marketingTheme: item.marketingTheme,
-            platforms: item.platforms,
-            strategy: this.truncateText(item.strategy, 220),
-            products: item.products,
-          })),
+        opportunityInsightReport: {
+          id: opportunityReport.id,
+          title: opportunityReport.title,
+          summary: opportunityReport.summary,
+          generatedAt: opportunityReport.generatedAt,
+          htmlBody: this.truncateText(opportunityReport.htmlBody, 4200),
         },
+        requiredInputs: {
+          brandBackground: "品牌背景资料",
+          productLibrary: "产品资料库",
+          opportunityInsightReport: "机会洞察总报告",
+          growthReport: "品牌增长报告",
+        },
+        userRequirement: userRequirement ? { text: userRequirement } : undefined,
       },
       outputTarget: "小红书营销策划方案",
     };
@@ -9941,8 +10045,9 @@ ${normalizedMarkdown}`;
     archive: Awaited<ReturnType<BrandsService["getArchive"]>>,
     collection: Awaited<ReturnType<CollectorsService["getDouyinWorkspace"]>>,
     sourceReport: GrowthReportRecord,
-    annualPlan: AnnualMarketingPlanRecord,
+    opportunityReport: OpportunityInsightReportRecord,
     generatedAt: string,
+    userRequirement?: string,
   ) {
     return {
       task: "输出《抖音营销策划方案》",
@@ -9990,7 +10095,7 @@ ${normalizedMarkdown}`;
             sourceName: item.sourceName,
           })),
         },
-        douyinCollection: {
+        douyinCollectionSupplement: {
           brandAccounts: collection.brandAccounts.map((item) => ({
             accountName: item.accountName,
             accountLink: item.accountLink,
@@ -10080,23 +10185,20 @@ ${normalizedMarkdown}`;
           nextActions: sourceReport.nextActions,
           reportMarkdown: this.truncateText(sourceReport.reportMarkdown, 4200),
         },
-        annualMarketingPlan: {
-          id: annualPlan.id,
-          title: annualPlan.title,
-          summary: annualPlan.summary,
-          planningYear: annualPlan.planningYear,
-          planningFocus: annualPlan.planningFocus,
-          items: annualPlan.items.slice(0, 30).map((item) => ({
-            month: item.month,
-            node: item.node,
-            date: item.date,
-            type: item.type,
-            marketingTheme: item.marketingTheme,
-            platforms: item.platforms,
-            strategy: this.truncateText(item.strategy, 220),
-            products: item.products,
-          })),
+        opportunityInsightReport: {
+          id: opportunityReport.id,
+          title: opportunityReport.title,
+          summary: opportunityReport.summary,
+          generatedAt: opportunityReport.generatedAt,
+          htmlBody: this.truncateText(opportunityReport.htmlBody, 4200),
         },
+        requiredInputs: {
+          brandBackground: "品牌背景资料",
+          productLibrary: "产品资料库",
+          opportunityInsightReport: "机会洞察总报告",
+          growthReport: "品牌增长报告",
+        },
+        userRequirement: userRequirement ? { text: userRequirement } : undefined,
       },
       outputTarget: "抖音营销策划方案",
     };
@@ -10430,6 +10532,7 @@ ${normalizedMarkdown}`;
     opportunityReport: OpportunityInsightReportRecord,
     previousCalendars: XiaohongshuMarketingCalendarRecord[],
     generatedAt: string,
+    userRequirement?: string,
   ) {
     const historyDates = previousCalendars
       .flatMap((item) => item.items.map((entry) => entry.date))
@@ -10488,6 +10591,7 @@ ${normalizedMarkdown}`;
           dates: item.items.map((entry) => entry.date),
           themes: item.items.map((entry) => entry.brandMarketing.theme).filter(Boolean),
         })),
+        userRequirement: userRequirement ? { text: userRequirement } : undefined,
       },
       outputTarget: "品牌全平台营销日历",
     };
@@ -11356,6 +11460,8 @@ ${normalizedMarkdown}`;
       skillPrompt,
       businessRequirements ? `# 业务补充要求\n${businessRequirements}` : "",
       "# 运行时补充要求",
+      "本次生成小红书营销策划方案时，核心必备输入只能围绕：品牌背景资料、产品资料库、机会洞察总报告、品牌增长报告。",
+      "如果输入中包含小红书采集数据，它们只作为补充判断依据，不能替代上述四类核心输入。",
       phase === "PART_ONE"
         ? [
             "当前是第 1 次生成，只允许输出第 1 段 Markdown 成品。",
@@ -11403,6 +11509,7 @@ ${normalizedMarkdown}`;
     previousMarkdown?: string,
     knowledgeContext?: string,
   ) {
+    const userRequirement = this.readOpportunityInsightUserRequirement(inputPayload);
     const sectionsText = phase === "PART_ONE"
       ? "请只生成第 1 段：基础说明、账号与对标基础诊断、## 一、定策略（看+定）。"
       : phase === "PART_TWO"
@@ -11423,6 +11530,7 @@ ${normalizedMarkdown}`;
           ].join("\n")
         : "",
       "以下是本次生成小红书营销策划方案的输入数据，请围绕这些数据输出结果。",
+      userRequirement ? `如果输入中提供了“用户要求”，必须优先满足：${userRequirement}` : "",
       "",
       JSON.stringify(inputPayload, null, 2),
       knowledgeContext || "",

@@ -11,9 +11,12 @@ import {
   annualMarketingPlanSeed,
   getAnnualMarketingPlanWorkspace,
   getGrowthReportWorkspace,
+  getOpportunityInsightWorkspace,
   getXiaohongshuMarketingCalendarWorkspace,
   getXiaohongshuMarketingPlanWorkspace,
   growthReportSeed,
+  opportunityInsightSeed,
+  type OpportunityInsightWorkspace,
   type XiaohongshuMarketingCalendarWorkspace,
   xiaohongshuMarketingPlanSeed,
 } from "../../../services/reports";
@@ -68,6 +71,7 @@ interface UseXiaohongshuWorkspaceLoaderOptions {
   setWorkspace: StateSetter<XiaohongshuWorkspaceData>;
   setGrowthReportWorkspace: StateSetter<typeof growthReportSeed>;
   setAnnualPlanWorkspace: StateSetter<typeof annualMarketingPlanSeed>;
+  setOpportunityInsightWorkspace: StateSetter<OpportunityInsightWorkspace>;
   setMarketingPlanWorkspace: StateSetter<typeof xiaohongshuMarketingPlanSeed>;
   setCalendarWorkspace: StateSetter<XiaohongshuMarketingCalendarWorkspace>;
   setSelectedProductId: StateSetter<string>;
@@ -141,6 +145,7 @@ export function useXiaohongshuWorkspaceLoader(options: UseXiaohongshuWorkspaceLo
         workspaceResult,
         growthReportResult,
         annualPlanResult,
+        opportunityInsightResult,
         marketingPlanResult,
         calendarResult,
         originalWorksResult,
@@ -153,6 +158,7 @@ export function useXiaohongshuWorkspaceLoader(options: UseXiaohongshuWorkspaceLo
         getXiaohongshuWorkspace(),
         getGrowthReportWorkspace(),
         getAnnualMarketingPlanWorkspace(),
+        getOpportunityInsightWorkspace(),
         shouldFetchMarketingPlan ? getXiaohongshuMarketingPlanWorkspace() : Promise.resolve(xiaohongshuMarketingPlanSeed),
         shouldFetchCalendar
           ? getXiaohongshuMarketingCalendarWorkspace()
@@ -207,6 +213,13 @@ export function useXiaohongshuWorkspaceLoader(options: UseXiaohongshuWorkspaceLo
         options.setAnnualPlanWorkspace(annualPlanResult.value);
       } else {
         messages.push(formatWorkspaceReadFailure("半年营销规划", annualPlanResult.reason));
+      }
+
+      if (opportunityInsightResult.status === "fulfilled") {
+        options.setOpportunityInsightWorkspace(opportunityInsightResult.value);
+      } else {
+        options.setOpportunityInsightWorkspace(opportunityInsightSeed);
+        messages.push(formatWorkspaceReadFailure("机会洞察总报告", opportunityInsightResult.reason));
       }
 
       if (marketingPlanResult.status === "fulfilled") {

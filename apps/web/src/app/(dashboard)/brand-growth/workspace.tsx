@@ -33,6 +33,8 @@ import {
   renderMarkdownToHtml,
 } from "./markdown-render";
 import { OpportunityInsightStepInputModal } from "./opportunity-insight-step-input-modal";
+import { NoteCreateModalShell } from "../xiaohongshu/note-create-modal-shell";
+import { type NoteCreateModalCopy } from "../xiaohongshu/note-create-modal-copy";
 import type {
   BrandGrowthLibraryPageKey,
   MediaPreviewState,
@@ -159,7 +161,18 @@ type OpportunityInsightStepModalState = {
   step: OpportunityInsightStep;
   isRetry: boolean;
 };
+type ReportGenerationModalKind = "annualMarketingPlan" | "marketingCalendar";
 const REPORT_SCOPE_SNAPSHOT_TTL_MS = 30_000;
+const REPORT_GENERATION_MODAL_COPY: Record<ReportGenerationModalKind, NoteCreateModalCopy> = {
+  annualMarketingPlan: {
+    title: "生成半年营销规划",
+    metaText: "可补充本次规划希望重点强调的业务目标、关键产品、节奏要求或资源限制，提交后开始生成。",
+  },
+  marketingCalendar: {
+    title: "生成营销日历",
+    metaText: "可补充本次排期希望重点强调的平台、节日打法、资源优先级或阶段目标，提交后开始生成。",
+  },
+};
 
 const BrandGrowthLibraryWorkspace = dynamic(
   () => import("./library-workspace").then((module) => module.BrandGrowthLibraryWorkspace),
@@ -936,6 +949,9 @@ export function BrandGrowthWorkspace() {
   const [opportunityInsightStepTwoInput, setOpportunityInsightStepTwoInput] = useState("");
   const [opportunityInsightStepThreeInput, setOpportunityInsightStepThreeInput] = useState("");
   const [opportunityInsightStepModal, setOpportunityInsightStepModal] = useState<OpportunityInsightStepModalState | null>(null);
+  const [reportGenerationModal, setReportGenerationModal] = useState<ReportGenerationModalKind | null>(null);
+  const [annualMarketingPlanUserRequirement, setAnnualMarketingPlanUserRequirement] = useState("");
+  const [marketingCalendarUserRequirement, setMarketingCalendarUserRequirement] = useState("");
   const [dataSource, setDataSource] = useState<"api" | "error" | "loading">("loading");
   const [removedProductIds, setRemovedProductIds] = useState<string[]>([]);
   const [mediaPreview, setMediaPreview] = useState<MediaPreviewState | null>(null);
@@ -1766,6 +1782,30 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     return normalized ? { supplementInput: normalized } : {};
   }
 
+  function buildUserRequirementPayload(userRequirement: string) {
+    const normalized = userRequirement.trim();
+    return normalized ? { userRequirement: normalized } : {};
+  }
+
+  function getReportGenerationInputValue(kind: ReportGenerationModalKind) {
+    return kind === "annualMarketingPlan" ? annualMarketingPlanUserRequirement : marketingCalendarUserRequirement;
+  }
+
+  function setReportGenerationInputValue(kind: ReportGenerationModalKind, value: string) {
+    if (kind === "annualMarketingPlan") {
+      setAnnualMarketingPlanUserRequirement(value);
+      return;
+    }
+    setMarketingCalendarUserRequirement(value);
+  }
+
+  function closeReportGenerationModal() {
+    if (isGeneratingAnnualMarketingPlan || isGeneratingMarketingCalendar) {
+      return;
+    }
+    setReportGenerationModal(null);
+  }
+
   function getOpportunityInsightStepInput(step: OpportunityInsightStep) {
     if (step === 2) {
       return opportunityInsightStepTwoInput;
@@ -1935,7 +1975,27 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     }
   }
 
+  function handleOpenAnnualMarketingPlanGenerateDialog() {
+    if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.report.halfYearMarketingPlan"]?.edit) {
+      setErrorMessage("当前账号没有生成半年营销规划的编辑权限。");
+      return false;
+    }
+    if (!canGenerateAnnualMarketingPlan) {
+      setErrorMessage("请先生成品牌增长报告，再生成半年营销规划。");
+      return false;
+    }
+    clearMessages();
+    setReportGenerationModal("annualMarketingPlan");
+    return true;
+  }
+
   async function handleGenerateAnnualMarketingPlan() {
+    if (!handleOpenAnnualMarketingPlanGenerateDialog()) {
+      return;
+    }
+  }
+
+  async function handleSubmitAnnualMarketingPlan() {
     if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.report.halfYearMarketingPlan"]?.edit) {
       setErrorMessage("当前账号没有生成半年营销规划的编辑权限。");
       return;
@@ -1949,8 +2009,13 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     clearMessages();
 
     try {
-      const nextWorkspace = await generateAnnualMarketingPlan(archive.brand.id);
+      const nextWorkspace = await generateAnnualMarketingPlan(
+        buildUserRequirementPayload(annualMarketingPlanUserRequirement),
+        archive.brand.id,
+      );
       setAnnualMarketingPlanWorkspace(nextWorkspace);
+      setReportGenerationModal(null);
+      setAnnualMarketingPlanUserRequirement("");
       setNotice("已提交半年营销规划生成任务，正在后台生成。");
     } catch (error) {
       const message = error instanceof Error ? error.message : "生成失败";
@@ -1960,7 +2025,35 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     }
   }
 
+  function handleOpenMarketingCalendarGenerateDialog() {
+    if (!brandPermissionSettings?.currentUserPermissions["xiaohongshu.calendar"]?.edit) {
+      setErrorMessage("当前账号没有营销日历板块的编辑权限。");
+      return false;
+    }
+    if (!hasBrandBackgroundForMarketingCalendar) {
+      setErrorMessage("请先补齐品牌背景资料。");
+      return false;
+    }
+    if (!reportWorkspace.latest) {
+      setErrorMessage("请先生成品牌增长报告。");
+      return false;
+    }
+    if (!hasOpportunityFinalReportForMarketingCalendar) {
+      setErrorMessage("请先生成机会洞察总报告。");
+      return false;
+    }
+    clearMessages();
+    setReportGenerationModal("marketingCalendar");
+    return true;
+  }
+
   async function handleGenerateMarketingCalendar() {
+    if (!handleOpenMarketingCalendarGenerateDialog()) {
+      return;
+    }
+  }
+
+  async function handleSubmitMarketingCalendar() {
     if (!brandPermissionSettings?.currentUserPermissions["xiaohongshu.calendar"]?.edit) {
       setErrorMessage("当前账号没有营销日历板块的编辑权限。");
       return;
@@ -1982,8 +2075,13 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     clearMessages();
 
     try {
-      const nextWorkspace = await generateXiaohongshuMarketingCalendar(archive.brand.id);
+      const nextWorkspace = await generateXiaohongshuMarketingCalendar(
+        buildUserRequirementPayload(marketingCalendarUserRequirement),
+        archive.brand.id,
+      );
       setMarketingCalendarWorkspace(nextWorkspace);
+      setReportGenerationModal(null);
+      setMarketingCalendarUserRequirement("");
       setNotice("已提交后台生成任务，正在生成接下来 7 天营销日历。");
     } catch (error) {
       const message = error instanceof Error ? error.message : "生成失败";
@@ -3284,7 +3382,9 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
           isEditingCalendarItem={isEditingCalendarItem}
           isSavingCalendarItem={isSavingCalendarItem}
           onRefresh={() => refreshMarketingCalendarWorkspace()}
-          onGenerate={() => handleGenerateMarketingCalendar()}
+          onGenerate={() => {
+            handleOpenMarketingCalendarGenerateDialog();
+          }}
           onOpenDetail={handleOpenCalendarDetail}
           onCloseDetail={handleCloseCalendarDetail}
           onStartEditDetail={handleStartEditCalendarItem}
@@ -3367,6 +3467,40 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
             }}
             onSubmit={handleSubmitOpportunityInsightStepModal}
           />
+        ) : null}
+        {reportGenerationModal ? (
+          <NoteCreateModalShell
+            open
+            copy={REPORT_GENERATION_MODAL_COPY[reportGenerationModal]}
+            isPublishing={reportGenerationModal === "annualMarketingPlan" ? isGeneratingAnnualMarketingPlan : isGeneratingMarketingCalendar}
+            createLabel={
+              reportGenerationModal === "annualMarketingPlan"
+                ? annualMarketingPlanWorkspace.latest
+                  ? "提交并重新生成规划"
+                  : "提交并生成规划"
+                : marketingCalendarWorkspace.latest
+                  ? "提交并继续生成下一个7天"
+                  : "提交并生成营销日历"
+            }
+            onClose={closeReportGenerationModal}
+            onCreate={reportGenerationModal === "annualMarketingPlan" ? handleSubmitAnnualMarketingPlan : handleSubmitMarketingCalendar}
+          >
+            <label style={{ display: "grid", gap: 6 }}>
+              <span className="status-text">用户要求</span>
+              <textarea
+                value={getReportGenerationInputValue(reportGenerationModal)}
+                onChange={(event) => setReportGenerationInputValue(reportGenerationModal, event.target.value)}
+                disabled={reportGenerationModal === "annualMarketingPlan" ? isGeneratingAnnualMarketingPlan : isGeneratingMarketingCalendar}
+                rows={6}
+                placeholder="可留空；如有特别要求、补充背景、阶段目标、平台优先级、节奏偏好或资源限制，请在这里输入。"
+              />
+              <span className="panel-subtext" style={{ margin: 0 }}>
+                {reportGenerationModal === "annualMarketingPlan"
+                  ? "点击提交后，会将这段用户要求一并带入半年营销规划生成任务。"
+                  : "点击提交后，会将这段用户要求一并带入营销日历生成任务。"}
+              </span>
+            </label>
+          </NoteCreateModalShell>
         ) : null}
       </>
     );
@@ -3508,7 +3642,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
       <button
         type="button"
         className="primary-button"
-        onClick={() => void handleGenerateAnnualMarketingPlan()}
+        onClick={() => void handleOpenAnnualMarketingPlanGenerateDialog()}
         disabled={isGeneratingAnnualMarketingPlan || isHydrating || !canGenerateAnnualMarketingPlan || isAnnualMarketingPlanTaskActive || !hasCurrentPageEditPermission}
       >
         {isGeneratingAnnualMarketingPlan ? "提交中..." : isAnnualMarketingPlanTaskActive ? "生成中..." : "生成规划"}
