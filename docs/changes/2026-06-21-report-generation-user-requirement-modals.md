@@ -37,6 +37,8 @@
 - 运行时 provider 组装不再只限定为 `DEEPSEEK / ARK` 两类。
 - 当技能中心当前模型不可用时，才按可用 provider 与模型白名单自动回退。
 - 因此前台展示的“当前尝试模型”将与技能中心实际配置更一致，不再默认被营销策划方案模块自己的硬编码白名单覆盖。
+- 营销策划方案的最终兜底顺序统一收口为：`deepseek-v4-pro -> deepseek-v4-flash`。
+- 营销策划方案 provider 返回前不再套用 `applyReportProviderSelectionRule(...)`，避免当技能中心首选的是 `THIRD_PARTY` 时把后续 `DEEPSEEK` 兜底链路直接裁掉。
 
 ### 3. 半年营销规划弹窗提交
 

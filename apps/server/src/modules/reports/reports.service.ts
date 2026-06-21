@@ -11753,7 +11753,7 @@ ${normalizedMarkdown}`;
     const preferredModelNames = this.mergeModelPreferenceOrder(
       skill?.defaultModel || "",
       prompt?.modelName || "",
-      "gpt-5.4, claude-sonnet-4-6, kimi-k2.6, deepseek-v4-pro, deepseek-v4-flash, doubao-seed-2-0-pro-260215, doubao-seed-2-0-mini-260215, doubao-seed-1-8-251228",
+      "gpt-5.4, claude-sonnet-4-6, kimi-k2.6, doubao-seed-2-0-pro-260215, doubao-seed-2-0-mini-260215, doubao-seed-1-8-251228, deepseek-v4-pro, deepseek-v4-flash",
     );
     const preferredModelName = preferredModelNames[0] || skill?.defaultModel || prompt?.modelName || provider?.defaultModel || "deepseek-v4-pro";
     return {
@@ -11787,7 +11787,7 @@ ${normalizedMarkdown}`;
     const preferredModelNames = this.mergeModelPreferenceOrder(
       skill?.defaultModel || "",
       prompt?.modelName || "",
-      "gpt-5.4, claude-sonnet-4-6, kimi-k2.6, deepseek-v4-pro, deepseek-v4-flash, doubao-seed-2-0-pro-260215, doubao-seed-2-0-mini-260215, doubao-seed-1-8-251228",
+      "gpt-5.4, claude-sonnet-4-6, kimi-k2.6, doubao-seed-2-0-pro-260215, doubao-seed-2-0-mini-260215, doubao-seed-1-8-251228, deepseek-v4-pro, deepseek-v4-flash",
     );
     const preferredModelName = preferredModelNames[0] || skill?.defaultModel || prompt?.modelName || provider?.defaultModel || "deepseek-v4-pro";
     return {
@@ -12246,11 +12246,11 @@ ${normalizedMarkdown}`;
       "gpt-5.4",
       "claude-sonnet-4-6",
       "kimi-k2.6",
-      "deepseek-v4-pro",
-      "deepseek-v4-flash",
       "doubao-seed-2-0-pro-260215",
       "doubao-seed-2-0-mini-260215",
       "doubao-seed-1-8-251228",
+      "deepseek-v4-pro",
+      "deepseek-v4-flash",
     ];
     const requestedModels = this.orderModels(
       this.parseDelimitedModels(settings.modelName).filter((item) => preferredModels.includes(item)),
@@ -12331,6 +12331,23 @@ ${normalizedMarkdown}`;
         tokenLimitField: "max_completion_tokens",
       });
     }
+    if (doubaoProvider && arkModels.length && doubaoApiKeys.length) {
+      providers.push({
+        provider: "ARK",
+        providerId: doubaoProvider.id,
+        providerName: doubaoProvider.name,
+        baseUrls: this.apiProvidersService.getBaseUrls(doubaoProvider),
+        completionPath: this.apiProvidersService.getStringExtra(doubaoProvider, "completionPath") || "/chat/completions",
+        apiKeys: doubaoApiKeys.slice(0, 1),
+        models: arkModels.slice(0, 1),
+        temperature: Math.min(settings.temperature || 0.5, 0.5),
+        maxTokens: Math.min(settings.maxTokens || 12000, 12000),
+        requestTimeoutMs: 240000,
+        payloadExtras: {
+          response_format: { type: "text" },
+        },
+      });
+    }
     if (deepseekProvider && deepseekModels.length && deepseekApiKeys.length) {
       providers.push({
         provider: "DEEPSEEK",
@@ -12349,28 +12366,11 @@ ${normalizedMarkdown}`;
         },
       });
     }
-    if (doubaoProvider && arkModels.length && doubaoApiKeys.length) {
-      providers.push({
-        provider: "ARK",
-        providerId: doubaoProvider.id,
-        providerName: doubaoProvider.name,
-        baseUrls: this.apiProvidersService.getBaseUrls(doubaoProvider),
-        completionPath: this.apiProvidersService.getStringExtra(doubaoProvider, "completionPath") || "/chat/completions",
-        apiKeys: doubaoApiKeys.slice(0, 1),
-        models: arkModels.slice(0, 1),
-        temperature: Math.min(settings.temperature || 0.5, 0.5),
-        maxTokens: Math.min(settings.maxTokens || 12000, 12000),
-        requestTimeoutMs: 240000,
-        payloadExtras: {
-          response_format: { type: "text" },
-        },
-      });
-    }
     if (!providers.length) {
       throw new ServiceUnavailableException("小红书营销策划方案模型配置读取失败");
     }
     return this.reorderReportProvidersByPrimaryModel(
-      this.applyReportProviderSelectionRule(providers, settings),
+      providers,
       settings.preferredModelName || effectiveRequestedModels[0] || "",
     );
   }

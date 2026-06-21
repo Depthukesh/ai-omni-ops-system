@@ -93,7 +93,7 @@ export function DouyinRemixShortVideoWorkspace(props: DouyinRemixShortVideoWorks
   const [sourceMaterialId, setSourceMaterialId] = useState("");
   const [injectBrandProfileValue, setInjectBrandProfileValue] = useState("yes");
   const [productValue, setProductValue] = useState(NO_PRODUCT_OPTION);
-  const [injectMarketingPlanValue, setInjectMarketingPlanValue] = useState("yes");
+  const [injectMarketingPlanValue, setInjectMarketingPlanValue] = useState(props.hasMarketingPlan ? "yes" : "no");
   const [sourceVideoFile, setSourceVideoFile] = useState<File | null>(null);
   const [referenceImageFile, setReferenceImageFile] = useState<File | null>(null);
   const [providerValue, setProviderValue] = useState("");
@@ -125,6 +125,21 @@ export function DouyinRemixShortVideoWorkspace(props: DouyinRemixShortVideoWorks
     || !storyboardImageModelValue
     || (!sourceMaterialId && !sourceVideoFile)
     || (injectMarketingPlanValue === "yes" && !props.hasMarketingPlan);
+  const createDisabledReason = useMemo(() => {
+    if (!providerValue) {
+      return "当前还没有可用的视频大模型，请先刷新页面或检查视频模型配置。";
+    }
+    if (!storyboardImageModelValue) {
+      return "当前还没有可用的生图大模型，请先刷新页面或检查生图模型配置。";
+    }
+    if (!sourceMaterialId && !sourceVideoFile) {
+      return "请先从抖音素材库选择一个短视频素材，或上传一个短视频文件。";
+    }
+    if (injectMarketingPlanValue === "yes" && !props.hasMarketingPlan) {
+      return "当前品牌还没有抖音营销策划方案；请先生成方案，或将“是否植入营销策划方案”改为“否”。";
+    }
+    return "";
+  }, [injectMarketingPlanValue, props.hasMarketingPlan, providerValue, sourceMaterialId, sourceVideoFile, storyboardImageModelValue]);
   const isTaskActive = latestTaskItem?.taskStatus === "RUNNING" || latestTaskItem?.taskStatus === "QUEUED" || latestTaskItem?.taskStatus === "PENDING";
 
   useEffect(() => {
@@ -151,6 +166,12 @@ export function DouyinRemixShortVideoWorkspace(props: DouyinRemixShortVideoWorks
     }
   }, [props.storyboardImageModelOptions, storyboardImageModelValue]);
 
+  useEffect(() => {
+    if (!props.hasMarketingPlan && injectMarketingPlanValue === "yes") {
+      setInjectMarketingPlanValue("no");
+    }
+  }, [injectMarketingPlanValue, props.hasMarketingPlan]);
+
   async function handleCreate() {
     const success = await props.onCreate({
       sourceMaterialId: sourceMaterialId || undefined,
@@ -170,7 +191,7 @@ export function DouyinRemixShortVideoWorkspace(props: DouyinRemixShortVideoWorks
     setSourceMaterialId("");
     setInjectBrandProfileValue("yes");
     setProductValue(NO_PRODUCT_OPTION);
-    setInjectMarketingPlanValue("yes");
+    setInjectMarketingPlanValue(props.hasMarketingPlan ? "yes" : "no");
     setSourceVideoFile(null);
     setReferenceImageFile(null);
     setAdditionalInstruction("");
@@ -519,6 +540,11 @@ export function DouyinRemixShortVideoWorkspace(props: DouyinRemixShortVideoWorks
               : "当前品牌还没有抖音营销策划方案，选择“是”时将无法提交。"}
           </p>
         </label>
+        {createDisabledReason ? (
+          <div className="field-full report-inline-tip">
+            {createDisabledReason}
+          </div>
+        ) : null}
         <label className="field-full">
           <span>上传短视频</span>
           <input
