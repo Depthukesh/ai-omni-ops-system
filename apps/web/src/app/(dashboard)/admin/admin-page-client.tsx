@@ -4995,6 +4995,14 @@ export default function AdminPage() {
                             <span>上游技能输出</span>
                             <input value={upstreamSkillNames.join(" -> ") || "当前技能为首个步骤，没有上游技能输出"} readOnly />
                           </label>
+                          <label className="admin-skill-field admin-skill-field--wide">
+                            <span>下游技能承接</span>
+                            <input value={downstreamSkillNames.join(" -> ") || "当前技能为最后步骤，后续不再有技能承接"} readOnly />
+                          </label>
+                          <label className="admin-skill-field admin-skill-field--wide">
+                            <span>完整技能链路</span>
+                            <input value={activeSkillFlow.map((item) => item.skillName || item.skillSlug).join(" -> ") || "当前还没有配置能力包技能链路"} readOnly />
+                          </label>
                         </div>
                       </section>
 
@@ -5011,7 +5019,7 @@ export default function AdminPage() {
                             <input value={skillCenterName} readOnly />
                           </label>
                           <label className="admin-skill-field">
-                            <span>执行技能</span>
+                            <span>当前执行技能</span>
                             <input value={activeSkillConfig?.name || "-"} readOnly />
                           </label>
                           <label className="admin-skill-field admin-skill-field--wide">
