@@ -249,6 +249,7 @@ export type DouyinRemixShortVideoWorkRecord = XiaohongshuVideoWorkRecord & {
   segmentDurationSec?: number;
   injectBrandProfile?: boolean;
   analysisModel?: string;
+  storyboardImageModel?: string;
   storyboardImageModelSelection?: string;
   remixSegments: DouyinRemixShortVideoSegmentRecord[];
   composeStatus?: "IDLE" | "RUNNING" | "SUCCESS" | "FAILED";

@@ -14578,6 +14578,9 @@ export class WorksService {
         ...this.readVideoWorkMeta(this.getMediaMetadata(target)),
         taskId,
         workflowStage: "GENERATING_SCRIPT",
+        thirdPartyStatusLabel: "正在生成复刻分析",
+        thirdPartyStatusDetail: "正在解析源视频内容并生成 15 秒分段分析，请稍候。",
+        thirdPartyStatusUpdatedAt: new Date().toISOString(),
         progressSteps: this.buildVideoProgressSteps("GENERATING_SCRIPT", "DOUYIN_REMIX_SHORT_VIDEO"),
       });
       const analysis = await this.generateDouyinRemixShortVideoAnalysis(brandId, context);
@@ -14592,6 +14595,9 @@ export class WorksService {
         sourceDurationSec: analysis.totalDurationSec,
         segmentDurationSec: analysis.segmentDurationSec,
         workflowStage: "GENERATING_STORYBOARD",
+        thirdPartyStatusLabel: "正在生成角色卡与分镜图",
+        thirdPartyStatusDetail: `复刻分析已完成，开始为 ${analysis.segments.length} 个分段生成角色卡与分镜图。`,
+        thirdPartyStatusUpdatedAt: new Date().toISOString(),
         progressSteps: this.buildVideoProgressSteps("GENERATING_STORYBOARD", "DOUYIN_REMIX_SHORT_VIDEO"),
       });
       await this.updateTaskOutputJson(taskId, {
@@ -14658,6 +14664,9 @@ export class WorksService {
           ...meta,
           taskId,
           workflowStage: "GENERATING_STORYBOARD",
+          thirdPartyStatusLabel: "正在生成角色卡与分镜图",
+          thirdPartyStatusDetail: `正在生成第 ${index + 1}/${analysis.segments.length} 段：${segment.segmentLabel}`,
+          thirdPartyStatusUpdatedAt: new Date().toISOString(),
           coverImageUrl: storyboardImage.url,
           storyboardImageUrl: storyboardImage.url,
           storyboardImageModel: storyboardImage.modelName,
@@ -14675,6 +14684,9 @@ export class WorksService {
         remixSegments,
         composeStatus: "IDLE",
         composeError: undefined,
+        thirdPartyStatusLabel: "第一阶段已完成",
+        thirdPartyStatusDetail: "已完成复刻分析与分镜图生成，可继续生成分段视频并自动拼接。",
+        thirdPartyStatusUpdatedAt: new Date().toISOString(),
         progressSteps: this.buildVideoProgressSteps("WAITING_VIDEO", "DOUYIN_REMIX_SHORT_VIDEO"),
       });
       await this.markTaskSuccess(taskId, {
@@ -15234,6 +15246,7 @@ export class WorksService {
     skillSlugOverride?: string;
     includeKnowledgeContext?: boolean;
     validateParsed?: (parsed: Record<string, unknown>) => string | undefined;
+    temperatureOverride?: number;
   }) {
     const prompt = await this.skillsPromptsService.getActivePromptById(params.promptId);
     const skillPrompt = String(prompt?.content || params.fallbackPrompt).trim() || params.fallbackPrompt;
@@ -15263,7 +15276,7 @@ export class WorksService {
                 baseUrl,
                 provider.completionPath,
                 apiKey,
-                this.buildTextProviderPayload(provider, modelName, systemPrompt, userPrompt),
+                this.buildTextProviderPayload(provider, modelName, systemPrompt, userPrompt, params.temperatureOverride),
                 this.resolveModelAttemptTimeoutMs(provider.requestTimeoutMs, TEXT_MODEL_ATTEMPT_TIMEOUT_MS),
               );
               if (!response.ok) {
@@ -15525,6 +15538,7 @@ export class WorksService {
         marketingPlanMarkdown: context.includeMarketingPlan ? this.buildVideoMarketingPlanContext(context.marketingPlanMarkdown) : "",
         additionalInstruction: context.videoAdditionalInstruction || context.copyAdditionalInstruction || null,
       },
+      temperatureOverride: 0.2,
       validateParsed: (parsed) => (
         this.extractRemixShortVideoSegmentItems(parsed).length
           ? undefined
@@ -15666,6 +15680,7 @@ export class WorksService {
         includeMarketingPlan: meta.includeMarketingPlan,
         additionalInstruction: meta.videoAdditionalInstruction || meta.copyAdditionalInstruction || null,
       },
+      temperatureOverride: 0.2,
     });
     const videoPrompt = String(result.parsed.video_prompt ?? result.parsed.videoPrompt ?? segment.videoPrompt ?? segment.storyboardScript).trim();
     if (!videoPrompt) {
@@ -22343,11 +22358,12 @@ export class WorksService {
     modelName: string,
     systemPrompt: string,
     userPrompt: string,
+    temperatureOverride?: number,
   ) {
     const payload: Record<string, unknown> = {
       model: modelName,
       stream: false,
-      temperature: provider.temperature,
+      temperature: typeof temperatureOverride === "number" ? temperatureOverride : provider.temperature,
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },

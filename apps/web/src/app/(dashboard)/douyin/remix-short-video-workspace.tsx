@@ -86,6 +86,50 @@ function getTaskStatusText(status?: DouyinRemixShortVideoWorkRecord["taskStatus"
   return "暂无任务";
 }
 
+function getWorkflowStageLabel(stage?: DouyinRemixShortVideoWorkRecord["workflowStage"]) {
+  switch (stage) {
+    case "QUEUED":
+      return "已入队";
+    case "GENERATING_SCRIPT":
+      return "生成复刻分析";
+    case "GENERATING_STORYBOARD":
+      return "生成角色卡与分镜图";
+    case "WAITING_VIDEO":
+      return "等待生成视频";
+    case "GENERATING_VIDEO":
+      return "生成并拼接视频";
+    case "SUCCESS":
+      return "已完成";
+    case "FAILED":
+      return "失败";
+    default:
+      return "待开始";
+  }
+}
+
+function getProgressStepStatusClass(status: "PENDING" | "RUNNING" | "SUCCESS" | "FAILED") {
+  if (status === "SUCCESS") {
+    return "status-ready";
+  }
+  if (status === "RUNNING") {
+    return "status-in_progress";
+  }
+  return "status-pending";
+}
+
+function getProgressStepStatusText(status: "PENDING" | "RUNNING" | "SUCCESS" | "FAILED") {
+  if (status === "SUCCESS") {
+    return "已完成";
+  }
+  if (status === "RUNNING") {
+    return "进行中";
+  }
+  if (status === "FAILED") {
+    return "失败";
+  }
+  return "待执行";
+}
+
 export function DouyinRemixShortVideoWorkspace(props: DouyinRemixShortVideoWorkspaceProps) {
   const [page, setPage] = useState(1);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -252,8 +296,12 @@ export function DouyinRemixShortVideoWorkspace(props: DouyinRemixShortVideoWorks
           isCancellingTask={false}
           showSubmittingState={props.isSubmitting}
           submittingText="复刻短视频任务已提交，系统正在后台生成。"
-          queuedText="任务已提交，正在排队生成复刻分析与分镜图。"
-          runningText="当前任务正在处理中，页面会自动刷新分段工作区和最终视频状态。"
+          queuedText={latestTaskItem?.thirdPartyStatusDetail || "任务已提交，正在排队生成复刻分析与分镜图。"}
+          runningText={
+            latestTaskItem?.thirdPartyStatusLabel
+              ? `${latestTaskItem.thirdPartyStatusLabel}${latestTaskItem.thirdPartyStatusDetail ? `：${latestTaskItem.thirdPartyStatusDetail}` : ""}`
+              : "当前任务正在处理中，页面会自动刷新分段工作区和最终视频状态。"
+          }
           cancelledText="最近一次任务已取消。"
           getTaskStatusClass={getTaskStatusClass as never}
           formatDateTime={props.formatDateTime}
@@ -344,6 +392,12 @@ export function DouyinRemixShortVideoWorkspace(props: DouyinRemixShortVideoWorks
                   </div>
 
                   <div style={{ display: "grid", gap: "8px", marginTop: "16px" }}>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                      <span className={`archive-pill ${getTaskStatusClass(selectedWork.taskStatus)}`}>{getTaskStatusText(selectedWork.taskStatus)}</span>
+                      <span className="archive-pill status-pending">当前阶段：{getWorkflowStageLabel(selectedWork.workflowStage)}</span>
+                      {selectedWork.analysisModel ? <span className="archive-pill status-pending">分析模型：{selectedWork.analysisModel}</span> : null}
+                      {selectedWork.storyboardImageModel ? <span className="archive-pill status-pending">分镜图模型：{selectedWork.storyboardImageModel}</span> : null}
+                    </div>
                     {selectedWork.sourceVideoUrl ? (
                       <p className="text-xs text-slate-500">
                         源视频：
@@ -361,6 +415,31 @@ export function DouyinRemixShortVideoWorkspace(props: DouyinRemixShortVideoWorks
                     </p>
                     {selectedWork.copyAdditionalInstruction || selectedWork.videoAdditionalInstruction ? (
                       <p className="text-xs text-slate-500">用户要求：{selectedWork.videoAdditionalInstruction || selectedWork.copyAdditionalInstruction}</p>
+                    ) : null}
+                    {selectedWork.thirdPartyStatusLabel ? (
+                      <div className="report-inline-tip">
+                        <strong>{selectedWork.thirdPartyStatusLabel}</strong>
+                        {selectedWork.thirdPartyStatusDetail ? <div style={{ marginTop: "6px" }}>{selectedWork.thirdPartyStatusDetail}</div> : null}
+                      </div>
+                    ) : null}
+                    {selectedWork.progressSteps.length ? (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                        {selectedWork.progressSteps.map((step) => (
+                          <span key={`${selectedWork.id}-${step.key}`} className={`archive-pill ${getProgressStepStatusClass(step.status)}`}>
+                            {step.label} · {getProgressStepStatusText(step.status)}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+                    {selectedWork.videoProviderErrors?.length ? (
+                      <details>
+                        <summary className="text-xs text-slate-500" style={{ cursor: "pointer" }}>查看最近模型报错链路</summary>
+                        <div style={{ display: "grid", gap: "8px", marginTop: "8px" }}>
+                          {selectedWork.videoProviderErrors.map((item, index) => (
+                            <p key={`${selectedWork.id}-provider-error-${index}`} className="text-xs text-slate-500" style={{ whiteSpace: "pre-wrap" }}>{item}</p>
+                          ))}
+                        </div>
+                      </details>
                     ) : null}
                     {selectedWork.composeError ? <p className="status-text error-text">{selectedWork.composeError}</p> : null}
                   </div>
