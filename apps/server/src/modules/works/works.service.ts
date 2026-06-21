@@ -14075,12 +14075,7 @@ export class WorksService {
     let material: ResolvedVideoComposerContext["material"];
     if (payload.materialId?.trim()) {
       const workspace = await this.collectorsService.getDouyinWorkspace(brandId);
-      const target = [
-        ...workspace.benchmarkWorks,
-        ...workspace.lowFanExplosiveWorks,
-        ...workspace.highCompletionRateWorks,
-        ...workspace.highLikeRateWorks,
-      ].find((item) => item.id === payload.materialId?.trim() && item.isInMaterialLibrary);
+      const target = this.findDouyinMaterialLibraryWork(workspace, payload.materialId);
       if (!target) {
         throw new BadRequestException("未找到你选择的抖音素材，请确认该作品已加入抖音素材库。");
       }
@@ -14173,12 +14168,7 @@ export class WorksService {
     let material: ResolvedVideoComposerContext["material"];
     if (payload.materialId?.trim()) {
       const workspace = await this.collectorsService.getDouyinWorkspace(brandId);
-      const target = [
-        ...workspace.benchmarkWorks,
-        ...workspace.lowFanExplosiveWorks,
-        ...workspace.highCompletionRateWorks,
-        ...workspace.highLikeRateWorks,
-      ].find((item) => item.id === payload.materialId?.trim() && item.isInMaterialLibrary);
+      const target = this.findDouyinMaterialLibraryWork(workspace, payload.materialId);
       if (!target) {
         throw new BadRequestException("未找到你选择的抖音素材，请确认该作品已加入抖音素材库。");
       }
@@ -14282,12 +14272,7 @@ export class WorksService {
     } | undefined;
     if (sourceMaterialId) {
       const workspace = await this.collectorsService.getDouyinWorkspace(brandId);
-      const target = [
-        ...workspace.benchmarkWorks,
-        ...workspace.lowFanExplosiveWorks,
-        ...workspace.highCompletionRateWorks,
-        ...workspace.highLikeRateWorks,
-      ].find((item) => item.id === sourceMaterialId && item.isInMaterialLibrary);
+      const target = this.findDouyinMaterialLibraryWork(workspace, sourceMaterialId);
       if (!target) {
         throw new BadRequestException("未找到你选择的抖音素材，请确认该作品已加入抖音素材库。");
       }
@@ -14351,6 +14336,36 @@ export class WorksService {
       sourceDurationSec,
       injectBrandProfile,
     };
+  }
+
+  private listDouyinMaterialLibraryWorks(workspace: Awaited<ReturnType<CollectorsService["getDouyinWorkspace"]>>) {
+    const deduped = new Map<string, (typeof workspace.benchmarkWorks)[number]>();
+    [
+      ...workspace.competitorWorks,
+      ...workspace.benchmarkWorks,
+      ...workspace.searchWorks,
+      ...workspace.lowFanExplosiveWorks,
+      ...workspace.highCompletionRateWorks,
+      ...workspace.highLikeRateWorks,
+    ]
+      .filter((item) => item.isInMaterialLibrary)
+      .forEach((item) => {
+        if (!deduped.has(item.id)) {
+          deduped.set(item.id, item);
+        }
+      });
+    return Array.from(deduped.values());
+  }
+
+  private findDouyinMaterialLibraryWork(
+    workspace: Awaited<ReturnType<CollectorsService["getDouyinWorkspace"]>>,
+    materialId?: string | null,
+  ) {
+    const normalizedMaterialId = String(materialId || "").trim();
+    if (!normalizedMaterialId) {
+      return undefined;
+    }
+    return this.listDouyinMaterialLibraryWorks(workspace).find((item) => item.id === normalizedMaterialId);
   }
 
   private async saveVideoWorkMetadataSnapshot(

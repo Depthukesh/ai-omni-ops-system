@@ -156,7 +156,7 @@ type DouyinSectionKey =
 
 const douyinSections: Array<{ key: DouyinSectionKey; label: string; description: string }> = [
   { key: "plan", label: "营销策划方案", description: "围绕品牌增长报告、半年营销规划和抖音采集数据生成可编辑的 Markdown 方案。" },
-  { key: "assets", label: "素材库", description: "展示已经从品牌增长策略 → 收集数据 → 抖音加入素材库的对标作品，沿用卡片化素材浏览方式。" },
+  { key: "assets", label: "素材库", description: "展示已经从品牌增长策略 → 收集数据 → 抖音加入素材库的采集作品，包括竞品作品、对标作品、搜索关键词结果和各类榜单作品。" },
   { key: "hotTopics", label: "热点找选题", description: "按所选日期读取每日热点全部榜单和品牌背景资料，生成 3 个可勾选的抖音热点选题。" },
   { key: "topicLibrary", label: "选题库", description: "按品牌独立沉淀抖音选题，一行展示两条记录，超过 20 行自动分页。" },
   { key: "originalCopy", label: "原创文案", description: "基于选题库、营销日历和抖音营销策划方案，按不同文案类型生成品牌独立存储的原创文案。" },
@@ -355,20 +355,31 @@ export function DouyinWorkspaceShell() {
   const canEditCurrentSection = brandPermissionSettings
     ? Boolean(permissionMap?.[douyinSectionPermissionMap[activeSection]]?.edit)
     : true;
-  const materialWorks = useMemo(
-    () => [
+  const materialWorks = useMemo(() => {
+    const deduped = new Map<string, (typeof collectionWorkspace.benchmarkWorks)[number]>();
+    [
+      ...collectionWorkspace.competitorWorks,
       ...collectionWorkspace.benchmarkWorks,
+      ...collectionWorkspace.searchWorks,
       ...collectionWorkspace.lowFanExplosiveWorks,
       ...collectionWorkspace.highCompletionRateWorks,
       ...collectionWorkspace.highLikeRateWorks,
-    ].filter((item) => item.isInMaterialLibrary),
-    [
-      collectionWorkspace.benchmarkWorks,
-      collectionWorkspace.lowFanExplosiveWorks,
-      collectionWorkspace.highCompletionRateWorks,
-      collectionWorkspace.highLikeRateWorks,
-    ],
-  );
+    ]
+      .filter((item) => item.isInMaterialLibrary)
+      .forEach((item) => {
+        if (!deduped.has(item.id)) {
+          deduped.set(item.id, item);
+        }
+      });
+    return Array.from(deduped.values());
+  }, [
+    collectionWorkspace.competitorWorks,
+    collectionWorkspace.benchmarkWorks,
+    collectionWorkspace.searchWorks,
+    collectionWorkspace.lowFanExplosiveWorks,
+    collectionWorkspace.highCompletionRateWorks,
+    collectionWorkspace.highLikeRateWorks,
+  ]);
   const materialLibraryItems = useMemo(
     () => {
       const collectedItems = materialWorks.map((item) => ({
@@ -436,7 +447,7 @@ export function DouyinWorkspaceShell() {
   );
   const currentSection = visibleSections.find((item) => item.key === activeSection) ?? visibleSections[0] ?? douyinSections[0];
   const heroTitle = "抖音工作台";
-  const heroDescription = "当前开放营销策划方案、素材库、热点找选题、选题库、原创文案、二创文案、AI 生视频（故事板）、AI 生视频、数字人和广告预审，可直接复用品牌增长策略里沉淀的抖音对标作品、每日热点与品牌资料。";
+  const heroDescription = "当前开放营销策划方案、素材库、热点找选题、选题库、原创文案、二创文案、AI 生视频（故事板）、AI 生视频、数字人和广告预审，可直接复用品牌增长策略里沉淀的抖音采集作品、每日热点与品牌资料。";
   const videoMarketingPlanTitle = marketingPlanWorkspace.latest?.title || originalCopyWorkspace.marketingPlanTitle || remixCopyWorkspace.marketingPlanTitle;
   const hasVideoMarketingPlan = Boolean(marketingPlanWorkspace.latest || originalCopyWorkspace.hasMarketingPlan || remixCopyWorkspace.hasMarketingPlan);
 

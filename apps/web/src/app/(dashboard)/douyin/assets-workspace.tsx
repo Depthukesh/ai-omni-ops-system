@@ -71,7 +71,7 @@ export function DouyinAssetsWorkspace(props: DouyinAssetsWorkspaceProps) {
                     ) : (
                       <span className="xhs-material-card-empty">暂无素材</span>
                     )}
-                    <span className="xhs-material-card-badge">对标</span>
+                    <span className="xhs-material-card-badge">素材库</span>
                     {item.materialAddedAt ? (
                       <span className="xhs-material-card-filehint">入库于 {props.formatDateTime(item.materialAddedAt)}</span>
                     ) : null}
@@ -117,7 +117,7 @@ export function DouyinAssetsWorkspace(props: DouyinAssetsWorkspaceProps) {
           </div>
         </div>
       ) : (
-        <div className="note-empty-state">素材库里还没有抖音对标作品。请先到品牌增长策略 → 收集数据 → 抖音，把对标作品加入素材库。</div>
+        <div className="note-empty-state">素材库里还没有抖音采集作品。请先到品牌增长策略 → 收集数据 → 抖音，把竞品作品、对标作品、搜索关键词结果或榜单作品加入素材库。</div>
       )}
     </article>
   );
