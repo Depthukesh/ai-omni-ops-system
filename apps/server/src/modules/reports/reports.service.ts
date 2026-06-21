@@ -11744,11 +11744,16 @@ ${normalizedMarkdown}`;
     const skill = await this.skillsPromptsService.getActiveSkillBySlug("xiaohongshu-brand-marketing-plan");
     const prompt = await this.skillsPromptsService.getActivePromptById("prompt_xhs_plan");
     const preferredSelections = [skill?.defaultModel || "", prompt?.modelName || ""];
-    const provider = await this.resolvePreferredProvider(skill?.provider, "text-domestic-deepseek", ["text-domestic-deepseek"], preferredSelections);
+    const provider = await this.resolvePreferredProvider(skill?.provider, "text-domestic-deepseek", [
+      "text-global",
+      "text-domestic-kimi",
+      "text-domestic-deepseek",
+      "text-domestic-doubao",
+    ], preferredSelections);
     const preferredModelNames = this.mergeModelPreferenceOrder(
       skill?.defaultModel || "",
       prompt?.modelName || "",
-      "deepseek-v4-pro, doubao-seed-2-0-pro-260215, kimi-k2.6, gpt-5.4, claude-sonnet-4-6",
+      "gpt-5.4, claude-sonnet-4-6, kimi-k2.6, deepseek-v4-pro, deepseek-v4-flash, doubao-seed-2-0-pro-260215, doubao-seed-2-0-mini-260215, doubao-seed-1-8-251228",
     );
     const preferredModelName = preferredModelNames[0] || skill?.defaultModel || prompt?.modelName || provider?.defaultModel || "deepseek-v4-pro";
     return {
@@ -11782,7 +11787,7 @@ ${normalizedMarkdown}`;
     const preferredModelNames = this.mergeModelPreferenceOrder(
       skill?.defaultModel || "",
       prompt?.modelName || "",
-      "deepseek-v4-pro, deepseek-v4-flash, doubao-seed-2-0-pro-260215, kimi-k2.6, gpt-5.4, claude-sonnet-4-6",
+      "gpt-5.4, claude-sonnet-4-6, kimi-k2.6, deepseek-v4-pro, deepseek-v4-flash, doubao-seed-2-0-pro-260215, doubao-seed-2-0-mini-260215, doubao-seed-1-8-251228",
     );
     const preferredModelName = preferredModelNames[0] || skill?.defaultModel || prompt?.modelName || provider?.defaultModel || "deepseek-v4-pro";
     return {
@@ -12237,28 +12242,40 @@ ${normalizedMarkdown}`;
   }
 
   private async loadXiaohongshuMarketingProviderConfigs(settings: ModelGenerationSettings): Promise<XiaohongshuMarketingProviderConfig[]> {
-    const preferredModels = ["deepseek-v4-pro", "deepseek-v4-flash", "doubao-seed-2-0-pro-260215", "doubao-seed-2-0-mini-260215", "doubao-seed-1-8-251228"];
+    const preferredModels = [
+      "gpt-5.4",
+      "claude-sonnet-4-6",
+      "kimi-k2.6",
+      "deepseek-v4-pro",
+      "deepseek-v4-flash",
+      "doubao-seed-2-0-pro-260215",
+      "doubao-seed-2-0-mini-260215",
+      "doubao-seed-1-8-251228",
+    ];
     const requestedModels = this.orderModels(
-      this.parseDelimitedModels(settings.modelName).filter(
-        (item) =>
-          item === "deepseek-v4-pro" ||
-          item === "deepseek-v4-flash" ||
-          item === "doubao-seed-2-0-pro-260215" ||
-          item === "doubao-seed-2-0-mini-260215" ||
-          item === "doubao-seed-1-8-251228",
-      ),
+      this.parseDelimitedModels(settings.modelName).filter((item) => preferredModels.includes(item)),
       preferredModels,
     );
     const effectiveRequestedModels = requestedModels.length ? requestedModels : preferredModels;
 
-    const [deepseekProvider, doubaoProvider] = await Promise.all([
+    const [thirdPartyProvider, kimiProvider, deepseekProvider, doubaoProvider] = await Promise.all([
+      this.resolveRuntimeProviderByBaseUrl("text-global", settings.baseUrl, settings.preferredProviderIds, settings.preferredModelName),
+      this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-kimi"),
       this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-deepseek"),
       this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-doubao"),
     ]);
-    const [deepseekApiKeys, doubaoApiKeys] = await Promise.all([
+    const [thirdPartyApiKeys, kimiApiKeys, deepseekApiKeys, doubaoApiKeys] = await Promise.all([
+      this.resolveBrandAwareApiKeys(settings.brandId, thirdPartyProvider),
+      this.resolveBrandAwareApiKeys(settings.brandId, kimiProvider),
       this.resolveBrandAwareApiKeys(settings.brandId, deepseekProvider),
       this.resolveBrandAwareApiKeys(settings.brandId, doubaoProvider),
     ]);
+    const thirdPartyModels = thirdPartyProvider
+      ? this.pickProviderModels(thirdPartyProvider.modelWhitelist, effectiveRequestedModels, ["gpt-5.4", "claude-sonnet-4-6"])
+      : [];
+    const kimiModels = kimiProvider
+      ? this.pickProviderModels(kimiProvider.modelWhitelist, effectiveRequestedModels, ["kimi-k2.6"])
+      : [];
     const deepseekModels = deepseekProvider
       ? this.pickProviderModels(deepseekProvider.modelWhitelist, effectiveRequestedModels, ["deepseek-v4-pro", "deepseek-v4-flash"])
       : [];
@@ -12271,6 +12288,49 @@ ${normalizedMarkdown}`;
       : [];
 
     const providers: XiaohongshuMarketingProviderConfig[] = [];
+    if (thirdPartyProvider && thirdPartyModels.length && thirdPartyApiKeys.length) {
+      const configuredBaseUrls = this.apiProvidersService.getBaseUrls(thirdPartyProvider);
+      const prioritizedBaseUrls = settings.baseUrl
+        ? [settings.baseUrl, ...configuredBaseUrls.filter((item) => item !== settings.baseUrl)]
+        : configuredBaseUrls;
+      const usableBaseUrls = [
+        ...prioritizedBaseUrls.filter((item) => !this.isPlaceholderProxyBaseUrl(item)),
+        ...prioritizedBaseUrls.filter((item) => this.isPlaceholderProxyBaseUrl(item)),
+      ];
+      if (usableBaseUrls.length) {
+        providers.push({
+          provider: "THIRD_PARTY",
+          providerId: thirdPartyProvider.id,
+          providerName: thirdPartyProvider.name,
+          baseUrls: usableBaseUrls,
+          completionPath: this.apiProvidersService.getStringExtra(thirdPartyProvider, "completionPath") || "/v1/chat/completions",
+          apiKeys: thirdPartyApiKeys.slice(0, 4),
+          models: thirdPartyModels,
+          temperature: settings.temperature,
+          maxTokens: Math.min(settings.maxTokens || 12000, 12000),
+          requestTimeoutMs: 240000,
+          payloadExtras: {
+            response_format: { type: "text" },
+          },
+        });
+      }
+    }
+    if (kimiProvider && kimiModels.length && kimiApiKeys.length) {
+      providers.push({
+        provider: "KIMI",
+        providerId: kimiProvider.id,
+        providerName: kimiProvider.name,
+        baseUrls: this.apiProvidersService.getBaseUrls(kimiProvider),
+        completionPath: this.apiProvidersService.getStringExtra(kimiProvider, "completionPath") || "/chat/completions",
+        apiKeys: kimiApiKeys.slice(0, 2),
+        models: kimiModels,
+        temperature: 1,
+        temperatureOverride: 1,
+        maxTokens: Math.min(settings.maxTokens || 12000, 12000),
+        requestTimeoutMs: 300000,
+        tokenLimitField: "max_completion_tokens",
+      });
+    }
     if (deepseekProvider && deepseekModels.length && deepseekApiKeys.length) {
       providers.push({
         provider: "DEEPSEEK",
@@ -12281,7 +12341,7 @@ ${normalizedMarkdown}`;
         apiKeys: deepseekApiKeys.slice(0, 2),
         models: deepseekModels,
         temperature: Math.min(settings.temperature || 0.3, 0.3),
-        maxTokens: Math.min(settings.maxTokens || 9000, 9000),
+        maxTokens: Math.min(settings.maxTokens || 12000, 12000),
         requestTimeoutMs: 240000,
         payloadExtras: {
           response_format: { type: "text" },
@@ -12299,7 +12359,7 @@ ${normalizedMarkdown}`;
         apiKeys: doubaoApiKeys.slice(0, 1),
         models: arkModels.slice(0, 1),
         temperature: Math.min(settings.temperature || 0.5, 0.5),
-        maxTokens: Math.min(settings.maxTokens || 9000, 9000),
+        maxTokens: Math.min(settings.maxTokens || 12000, 12000),
         requestTimeoutMs: 240000,
         payloadExtras: {
           response_format: { type: "text" },
