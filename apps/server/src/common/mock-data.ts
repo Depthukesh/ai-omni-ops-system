@@ -49,6 +49,7 @@ export type PlatformAccountRecord = {
   platform: "XIAOHONGSHU" | "DOUYIN" | "VIDEO_CHANNEL" | "WECHAT_OA";
   accountName: string;
   accountLink: string;
+  accountRole?: "BRAND" | "STAFF" | "TALENT";
 };
 
 export type SurveyAnswerRecord = {

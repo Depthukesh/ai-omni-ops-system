@@ -399,6 +399,7 @@ model PlatformAccount {
   accountName         String?
   accountLink         String
   username            String?
+  accountRole         String?
   isPrimary           Boolean      @default(true)
   lastCollectedAt     DateTime?
   createdAt           DateTime     @default(now())
@@ -560,6 +561,7 @@ model CompetitorAccount {
   accountName         String?
   accountLink         String
   username            String?
+  accountRole         String?
   createdAt           DateTime     @default(now())
   updatedAt           DateTime     @updatedAt
 

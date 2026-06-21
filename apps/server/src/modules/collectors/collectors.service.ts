@@ -5105,6 +5105,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
           platform: item.platform,
           accountName: item.accountName ?? item.username ?? "未命名账号",
           accountLink: item.accountLink,
+          accountRole: this.normalizeXhsAccountRole(item.accountRole),
         }));
       }
 
@@ -5117,6 +5118,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
         platform: item.platform,
         accountName: item.accountName ?? item.username ?? "未命名竞品账号",
         accountLink: item.accountLink,
+        accountRole: this.normalizeXhsAccountRole(item.accountRole),
       }));
     }
 
@@ -5133,7 +5135,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
   ) {
     const results: DouyinResolvedAccountRecord[] = presetAccounts.map((item) => ({
       ...item,
-      accountRole: target === "brand" ? "BRAND" : undefined,
+      accountRole: target === "brand" ? this.normalizeXhsAccountRole(item.accountRole) || "BRAND" : this.normalizeXhsAccountRole(item.accountRole),
     }));
     const existingIndexByKey = new Map<string, number>();
     for (const [index, item] of results.entries()) {
@@ -5189,7 +5191,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
   ) {
     const results: XhsResolvedAccountRecord[] = presetAccounts.map((item) => ({
       ...item,
-      accountRole: "BRAND",
+      accountRole: target === "brand" ? this.normalizeXhsAccountRole(item.accountRole) || "BRAND" : this.normalizeXhsAccountRole(item.accountRole),
     }));
     const existingIndexByKey = new Map<string, number>();
     for (const [index, item] of results.entries()) {
@@ -5262,7 +5264,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     return `manual_douyin_${target}_${compact || "entry"}`;
   }
 
-  private normalizeXhsAccountRole(value?: string): XhsAccountRole | undefined {
+  private normalizeXhsAccountRole(value?: string | null): XhsAccountRole | undefined {
     if (value === "BRAND" || value === "STAFF" || value === "TALENT") {
       return value;
     }

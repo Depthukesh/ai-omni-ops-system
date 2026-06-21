@@ -302,6 +302,7 @@ export type ReplaceAccountsPayload = {
     platform: "XIAOHONGSHU" | "DOUYIN" | "VIDEO_CHANNEL" | "WECHAT_OA";
     accountName: string;
     accountLink: string;
+    accountRole?: "BRAND" | "STAFF" | "TALENT";
   }>;
 };
 
@@ -1600,6 +1601,7 @@ export class BrandsService {
               accountName: account.accountName,
               accountLink: account.accountLink,
               username: account.accountName,
+              accountRole: this.normalizeAccountRole(account.accountRole),
             },
           }),
         ),
@@ -1610,6 +1612,7 @@ export class BrandsService {
         platform: account.platform,
         accountName: account.accountName,
         accountLink: account.accountLink,
+        accountRole: this.normalizeAccountRole(account.accountRole),
       }));
     }
 
@@ -1630,6 +1633,7 @@ export class BrandsService {
               accountName: account.accountName,
               accountLink: account.accountLink,
               username: account.accountName,
+              accountRole: this.normalizeAccountRole(account.accountRole),
             },
           }),
         ),
@@ -1640,6 +1644,7 @@ export class BrandsService {
         platform: account.platform,
         accountName: account.accountName,
         accountLink: account.accountLink,
+        accountRole: this.normalizeAccountRole(account.accountRole),
       }));
     }
 
@@ -5142,6 +5147,7 @@ export class BrandsService {
       platform: account.platform,
       accountName: account.accountName,
       accountLink: account.accountLink,
+      accountRole: this.normalizeAccountRole(account.accountRole),
     }));
 
     database[target].push(...rows);
@@ -5392,13 +5398,23 @@ export class BrandsService {
     platform: PlatformType;
     accountName: string | null;
     accountLink: string;
+    accountRole?: string | null;
   }) {
     return {
       id: item.id,
       platform: item.platform,
       accountName: item.accountName ?? "",
       accountLink: item.accountLink,
+      accountRole: this.normalizeAccountRole(item.accountRole),
     };
+  }
+
+  private normalizeAccountRole(value?: string | null): "BRAND" | "STAFF" | "TALENT" | undefined {
+    const normalized = String(value || "").trim().toUpperCase();
+    if (normalized === "BRAND" || normalized === "STAFF" || normalized === "TALENT") {
+      return normalized;
+    }
+    return undefined;
   }
 
   private parseSurveyAnswers(value: Prisma.JsonValue | null | undefined) {

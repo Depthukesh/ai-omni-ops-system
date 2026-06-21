@@ -122,6 +122,7 @@ export type BrandAccount = {
   platform: PlatformType;
   accountName: string;
   accountLink: string;
+  accountRole?: "BRAND" | "STAFF" | "TALENT";
 };
 
 export type BrandAsset = {
