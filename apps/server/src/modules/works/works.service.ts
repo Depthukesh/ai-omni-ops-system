@@ -3230,8 +3230,13 @@ export class WorksService {
   }
 
   private async bootstrapOperationsPromptTemplates() {
+    const canUseTemplateTable = await this.canUseOperationsPromptTemplateTable();
+    if (canUseTemplateTable && (await this.countOperationsPromptTemplateRows()) > 0) {
+      return;
+    }
+
     const seeds = await loadOperationsPromptSeeds(process.cwd());
-    if (await this.canUseOperationsPromptTemplateTable()) {
+    if (canUseTemplateTable) {
       for (const seed of seeds) {
         await this.upsertOperationsPromptTemplate(seed);
       }
@@ -3266,6 +3271,17 @@ export class WorksService {
       return Boolean(rows[0]?.exists);
     } catch {
       return false;
+    }
+  }
+
+  private async countOperationsPromptTemplateRows() {
+    try {
+      const rows = await this.prismaService.$queryRawUnsafe<Array<{ count: number | string }>>(
+        `SELECT COUNT(*) AS "count" FROM "OperationsPromptTemplate"`,
+      );
+      return Number(rows[0]?.count || 0) || 0;
+    } catch {
+      return 0;
     }
   }
 

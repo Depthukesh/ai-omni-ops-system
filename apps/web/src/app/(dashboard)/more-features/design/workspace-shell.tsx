@@ -929,16 +929,6 @@ export function DesignWorkspaceShell({ section }: DesignWorkspaceShellProps) {
           </article>
 
           <article className="workspace-panel strategy-page-card">
-            <div className="design-v3-focus-strip">
-              <div>
-                <strong>设计工作台</strong>
-                <p>继续保留图片、HTML、PPT、视频四类设计模块，统一通过创建弹窗进入生成链路。</p>
-              </div>
-              <span className="archive-pill status-ready">设计生成</span>
-            </div>
-          </article>
-
-          <article className="workspace-panel strategy-page-card">
             <div className="design-v3-tab-row" aria-label="设计子板块切换">
               {DESIGN_MODULES.map((moduleKey) => {
                 const tabMeta = DESIGN_MODULE_META_MAP[moduleKey];

@@ -3,6 +3,8 @@ import { existsSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import { basename, extname, relative, resolve, sep } from "node:path";
 
+import { bundledOperationsPromptSeeds } from "./operations-prompt-center.seed-data";
+
 export type OperationsPromptSeedRecord = {
   id: string;
   slug: string;
@@ -30,6 +32,15 @@ const SUPPORTED_SOURCE_EXTENSIONS = new Set([".md", ".txt"]);
 
 export async function loadOperationsPromptSeeds(cwd: string) {
   const sourceRoot = resolveOperationsPromptSourceRoot(cwd);
+  if (!sourceRoot) {
+    return bundledOperationsPromptSeeds.map((seed, index) => ({
+      ...seed,
+      content: normalizeContent(seed.content),
+      preview: truncatePreview(seed.preview),
+      tagsJson: [...(seed.tagsJson || [])],
+      sortOrder: Number(seed.sortOrder) || index + 1,
+    }));
+  }
   const files = await collectPromptFiles(sourceRoot);
   const seeds = await Promise.all(
     files.map(async (filePath, index) => {
@@ -79,7 +90,7 @@ function resolveOperationsPromptSourceRoot(cwd: string) {
     }
   }
 
-  throw new Error("未找到运营提示词源目录，请检查 OPERATIONS_PROMPT_SOURCE_DIR 或当前项目目录结构。");
+  return "";
 }
 
 async function collectPromptFiles(root: string): Promise<string[]> {

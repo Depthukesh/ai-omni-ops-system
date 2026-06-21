@@ -711,7 +711,7 @@ export function OperationsPromptCenter() {
         <div className="ops-prompt-topbar">
           <div>
             <strong>运营提示词中心</strong>
-            <p>Reading this as: 提示词模板工作台 for 运营同学，with a premium editorial utility language, leaning toward restrained cards + compact filters + clear modal hierarchy.</p>
+            <p>后台统一管理运营提示词模板，支持三维分类、可编辑 Prompt 与后台异步生成。</p>
           </div>
           <div className="ops-prompt-inline-actions">
             <button type="button" className="secondary-button" onClick={handleRefresh} disabled={loading}>

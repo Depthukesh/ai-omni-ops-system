@@ -30,16 +30,6 @@ export function OperationsPromptWorkspaceShell({ section }: OperationsPromptWork
             </div>
           </article>
 
-          <article className="workspace-panel strategy-page-card">
-            <div className="design-v3-focus-strip">
-              <div>
-                <strong>运营提示词中心</strong>
-                <p>独立承接运营生文模板、提示词编辑、后台异步生成与作品中心，不再并入设计工作台内部。</p>
-              </div>
-              <span className="archive-pill status-ready">Prompt 异步生成</span>
-            </div>
-          </article>
-
           <OperationsPromptCenter />
         </div>
       </section>
