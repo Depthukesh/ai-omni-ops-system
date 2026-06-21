@@ -311,15 +311,15 @@ export function DouyinRemixShortVideoWorkspace(props: DouyinRemixShortVideoWorks
         {!props.items.length ? (
           <div className="empty-state">当前还没有复刻短视频作品，点击右上角“创建复刻视频”开始生成。</div>
         ) : (
-          <div className="workspace-two-column-grid" style={{ display: "grid", gridTemplateColumns: "320px minmax(0, 1fr)", gap: "20px" }}>
-            <div className="light-data-panel" style={{ padding: "16px" }}>
+          <div style={{ display: "grid", gap: "20px" }}>
+            <article className="light-data-panel" style={{ padding: "16px" }}>
               <div className="strategy-card-toolbar">
                 <div>
                   <strong>作品列表</strong>
                   <p className="text-xs text-slate-500 mt-2">按品牌独立保存复刻短视频工作区。</p>
                 </div>
               </div>
-              <div style={{ display: "grid", gap: "12px", marginTop: "16px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "12px", marginTop: "16px" }}>
                 {pagedItems.map((item) => (
                   <div
                     key={item.id}
@@ -351,16 +351,42 @@ export function DouyinRemixShortVideoWorkspace(props: DouyinRemixShortVideoWorks
                   </div>
                 ))}
               </div>
-            </div>
+              {props.items.length > PAGE_SIZE ? (
+                <div className="note-pagination-bar hotspot-pagination-bar" style={{ marginTop: "16px" }}>
+                  <div className="note-pagination-summary">
+                    <span>第 {page} / {pageCount} 页</span>
+                    <span>当前显示 {pagedItems.length} 条</span>
+                  </div>
+                  <div className="note-pagination-actions">
+                    <button type="button" className="note-inline-button" onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={page === 1}>
+                      上一页
+                    </button>
+                    {Array.from({ length: pageCount }, (_, index) => index + 1).map((currentPage) => (
+                      <button
+                        key={`douyin-remix-short-video-page-${currentPage}`}
+                        type="button"
+                        className={`note-page-button ${currentPage === page ? "is-active" : ""}`}
+                        onClick={() => setPage(currentPage)}
+                      >
+                        {currentPage}
+                      </button>
+                    ))}
+                    <button type="button" className="note-inline-button" onClick={() => setPage((current) => Math.min(pageCount, current + 1))} disabled={page === pageCount}>
+                      下一页
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+            </article>
 
             {selectedWork ? (
-              <div style={{ display: "grid", gap: "20px" }}>
+              <>
                 <article className="light-data-panel" style={{ padding: "20px" }}>
                   <div className="strategy-card-toolbar">
                     <div>
-                      <strong>{selectedWork.title}</strong>
+                      <strong>作品复刻分镜包</strong>
                       <p className="text-xs text-slate-500 mt-2">
-                        {selectedWork.sourceDurationSec ? `源视频时长 ${selectedWork.sourceDurationSec}s` : "源视频时长待解析"} · 每段 {selectedWork.segmentDurationSec || 15}s
+                        {selectedWork.title} · {selectedWork.sourceDurationSec ? `源视频时长 ${selectedWork.sourceDurationSec}s` : "源视频时长待解析"} · 每段 {selectedWork.segmentDurationSec || 15}s
                       </p>
                     </div>
                     <div className="strategy-inline-actions">
@@ -456,7 +482,7 @@ export function DouyinRemixShortVideoWorkspace(props: DouyinRemixShortVideoWorks
                   {!selectedWork.remixSegments.length ? (
                     <div className="empty-state">当前还没有分段结果，系统正在生成复刻分析。</div>
                   ) : (
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: "16px", marginTop: "18px" }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "16px", marginTop: "18px" }}>
                       {selectedWork.remixSegments.map((segment) => (
                         <article key={`${selectedWork.id}-${segment.order}`} className="light-data-panel" style={{ padding: "16px", minHeight: "100%" }}>
                           <div className="strategy-card-toolbar">
@@ -567,37 +593,10 @@ export function DouyinRemixShortVideoWorkspace(props: DouyinRemixShortVideoWorks
                     </div>
                   </div>
                 </article>
-              </div>
+              </>
             ) : null}
           </div>
         )}
-
-        {props.items.length > PAGE_SIZE ? (
-          <div className="note-pagination-bar hotspot-pagination-bar">
-            <div className="note-pagination-summary">
-              <span>第 {page} / {pageCount} 页</span>
-              <span>当前显示 {pagedItems.length} 条</span>
-            </div>
-            <div className="note-pagination-actions">
-              <button type="button" className="note-inline-button" onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={page === 1}>
-                上一页
-              </button>
-              {Array.from({ length: pageCount }, (_, index) => index + 1).map((currentPage) => (
-                <button
-                  key={`douyin-remix-short-video-page-${currentPage}`}
-                  type="button"
-                  className={`note-page-button ${currentPage === page ? "is-active" : ""}`}
-                  onClick={() => setPage(currentPage)}
-                >
-                  {currentPage}
-                </button>
-              ))}
-              <button type="button" className="note-inline-button" onClick={() => setPage((current) => Math.min(pageCount, current + 1))} disabled={page === pageCount}>
-                下一页
-              </button>
-            </div>
-          </div>
-        ) : null}
       </article>
 
       <NoteCreateModalShell
