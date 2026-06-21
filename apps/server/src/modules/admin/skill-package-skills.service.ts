@@ -537,6 +537,17 @@ export class SkillPackageSkillsService {
       })),
       skipDuplicates: true,
     });
+    await this.prismaService.skillPackageSkill.updateMany({
+      where: {
+        skillSlug: { in: ["douyin-remix-short-video-studio", "douyin-remix-short-video-compose"] },
+      },
+      data: {
+        packageId: "sp_douyin_remix_short_video",
+        packageKey: "douyin-remix-short-video",
+        packageName: "抖音复刻短视频能力包",
+        updatedAt: new Date(),
+      },
+    });
   }
 
   private async clearDefaultSkillPackageSkills(skillId: string, excludeId?: string) {

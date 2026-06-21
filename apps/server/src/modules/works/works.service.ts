@@ -12143,7 +12143,7 @@ export class WorksService {
     if (kind === "DOUYIN_REMIX_SHORT_VIDEO") {
       return {
         moduleTargetId: "douyin-workbench",
-        skillPackageKey: "douyin-video-production",
+        skillPackageKey: "douyin-remix-short-video",
         skillSlug: legacyPromptId === "prompt_douyin_remix_short_video_compose"
           ? "douyin-remix-short-video-compose"
           : "douyin-remix-short-video-studio",

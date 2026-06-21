@@ -509,7 +509,8 @@ export class ModuleDefinitionsService {
       : [];
     const normalizedPackages = currentPackages
       .filter((item) => item !== "douyin-direct-video")
-      .concat(currentPackages.includes("douyin-video-production") ? [] : ["douyin-video-production"]);
+      .concat(currentPackages.includes("douyin-video-production") ? [] : ["douyin-video-production"])
+      .concat(currentPackages.includes("douyin-remix-short-video") ? [] : ["douyin-remix-short-video"]);
     if (
       normalizedPackages.length !== currentPackages.length
       || normalizedPackages.some((item, index) => item !== currentPackages[index])
