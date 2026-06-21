@@ -317,6 +317,12 @@ export class SkillPackageSkillsService {
       skill?: SkillConfig | null;
     },
   ): SkillPackageSkillView {
+    const normalizedSkillName =
+      row.skillSlug === "douyin-remix-short-video-studio"
+        ? "复刻短视频-复刻分析"
+        : row.skillSlug === "douyin-remix-short-video-compose"
+          ? "复刻短视频-拼接成片"
+          : row.skill?.name;
     return {
       id: row.id,
       packageId: row.packageId,
@@ -329,7 +335,7 @@ export class SkillPackageSkillsService {
       sortOrder: row.sortOrder,
       enabled: row.enabled,
       remarks: row.remarks || undefined,
-      skillName: row.skill?.name,
+      skillName: normalizedSkillName,
       skillCategory: row.skill?.category,
       skillStatus: row.skill?.status as SkillConfigRecord["status"] | undefined,
       skillProvider: row.skill?.provider,
@@ -341,9 +347,15 @@ export class SkillPackageSkillsService {
 
   private enrichSeedRecord(record: SkillPackageSkillRecord): SkillPackageSkillView {
     const skill = database.skillConfigs.find((item) => item.id === record.skillId || item.slug === record.skillSlug);
+    const normalizedSkillName =
+      record.skillSlug === "douyin-remix-short-video-studio"
+        ? "复刻短视频-复刻分析"
+        : record.skillSlug === "douyin-remix-short-video-compose"
+          ? "复刻短视频-拼接成片"
+          : skill?.name;
     return {
       ...record,
-      skillName: skill?.name,
+      skillName: normalizedSkillName,
       skillCategory: skill?.category,
       skillStatus: skill?.status,
       skillProvider: skill?.provider,

@@ -2230,9 +2230,17 @@ export class SkillsPromptsService implements OnModuleInit {
   private normalizeSkillConfigRow(row: SkillConfigRow): SkillConfigRecord {
     const isHalfYearPlan = row.id === "skill_annual_plan" || row.slug === "enterprise-annual-plan";
     const isImageGenerationSkill = row.id === "skill_xhs_original_image_generation" || row.id === "skill_xhs_rewrite_image_generation";
+    const normalizedSkillName =
+      row.slug === "douyin-remix-short-video-studio"
+        ? "复刻短视频-复刻分析"
+        : row.slug === "douyin-remix-short-video-compose"
+          ? "复刻短视频-拼接成片"
+          : isHalfYearPlan
+            ? "半年营销规划"
+            : row.name;
     return {
       id: row.id,
-      name: isHalfYearPlan ? "半年营销规划" : row.name,
+      name: normalizedSkillName,
       slug: row.slug,
       category: row.category,
       status: row.status,

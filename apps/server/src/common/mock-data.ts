@@ -2026,7 +2026,7 @@ export const database: MockDatabase = {
     },
     {
       id: "skill_douyin_remix_short_video",
-      name: "抖音复刻短视频",
+      name: "复刻短视频-复刻分析",
       slug: "douyin-remix-short-video-studio",
       category: "内容生产",
       status: "ACTIVE",
@@ -2038,7 +2038,7 @@ export const database: MockDatabase = {
     },
     {
       id: "skill_douyin_remix_short_video_compose",
-      name: "拼接复刻短视频",
+      name: "复刻短视频-拼接成片",
       slug: "douyin-remix-short-video-compose",
       category: "内容生产",
       status: "ACTIVE",

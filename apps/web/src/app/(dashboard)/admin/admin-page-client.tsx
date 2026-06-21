@@ -4595,7 +4595,7 @@ export default function AdminPage() {
                         </div>
                       </div>
                       <div className="personal-grid admin-skill-metric-grid" style={{ marginBottom: 16 }}>
-                        <SkillDimensionMetric label="当前技能" value={activeSkillConfig?.name || skillCenterName} />
+                        <SkillDimensionMetric label="当前技能" value={activeSkillLeaf?.label || activeSkillConfig?.name || skillCenterName} />
                         <SkillDimensionMetric label="所在能力包" value={activePrimarySkillRelation?.packageName || activeSkillPackageLabel} />
                         <SkillDimensionMetric label="顺序位置" value={activeSkillFlowIndex >= 0 ? `${activeSkillFlowIndex + 1} / ${activeSkillFlow.length}` : "-"} />
                         <SkillDimensionMetric label="更新时间" value={skillCenterUpdatedAtLabel} />
@@ -5020,7 +5020,7 @@ export default function AdminPage() {
                           </label>
                           <label className="admin-skill-field">
                             <span>当前执行技能</span>
-                            <input value={activeSkillConfig?.name || "-"} readOnly />
+                            <input value={activeSkillLeaf?.label || activeSkillConfig?.name || "-"} readOnly />
                           </label>
                           <label className="admin-skill-field admin-skill-field--wide">
                             <span>References 来源</span>
