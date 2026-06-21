@@ -1806,6 +1806,46 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     setReportGenerationModal(null);
   }
 
+  function renderReportGenerationModal() {
+    if (!reportGenerationModal) {
+      return null;
+    }
+    return (
+      <NoteCreateModalShell
+        open
+        copy={REPORT_GENERATION_MODAL_COPY[reportGenerationModal]}
+        isPublishing={reportGenerationModal === "annualMarketingPlan" ? isGeneratingAnnualMarketingPlan : isGeneratingMarketingCalendar}
+        createLabel={
+          reportGenerationModal === "annualMarketingPlan"
+            ? annualMarketingPlanWorkspace.latest
+              ? "提交并重新生成规划"
+              : "提交并生成规划"
+            : marketingCalendarWorkspace.latest
+              ? "提交并继续生成下一个7天"
+              : "提交并生成营销日历"
+        }
+        onClose={closeReportGenerationModal}
+        onCreate={reportGenerationModal === "annualMarketingPlan" ? handleSubmitAnnualMarketingPlan : handleSubmitMarketingCalendar}
+      >
+        <label style={{ display: "grid", gap: 6 }}>
+          <span className="status-text">用户要求</span>
+          <textarea
+            value={getReportGenerationInputValue(reportGenerationModal)}
+            onChange={(event) => setReportGenerationInputValue(reportGenerationModal, event.target.value)}
+            disabled={reportGenerationModal === "annualMarketingPlan" ? isGeneratingAnnualMarketingPlan : isGeneratingMarketingCalendar}
+            rows={6}
+            placeholder="可留空；如有特别要求、补充背景、阶段目标、平台优先级、节奏偏好或资源限制，请在这里输入。"
+          />
+          <span className="panel-subtext" style={{ margin: 0 }}>
+            {reportGenerationModal === "annualMarketingPlan"
+              ? "点击提交后，会将这段用户要求一并带入半年营销规划生成任务。"
+              : "点击提交后，会将这段用户要求一并带入营销日历生成任务。"}
+          </span>
+        </label>
+      </NoteCreateModalShell>
+    );
+  }
+
   function getOpportunityInsightStepInput(step: OpportunityInsightStep) {
     if (step === 2) {
       return opportunityInsightStepTwoInput;
@@ -3363,38 +3403,41 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
   function renderReportPage() {
     if (activePage === "xiaohongshuMarketingCalendar") {
       return (
-        <CalendarWorkspace
-          sectionLabel={currentPage.label}
-          sectionDescription={currentPage.description}
-          isLoading={isHydrating}
-          isPublishing={false}
-          isGeneratingCalendar={isGeneratingMarketingCalendar}
-          canGenerateCalendar={canGenerateMarketingCalendar}
-          isCalendarTaskActive={isMarketingCalendarTaskActive}
-          latestCalendar={latestCalendar}
-          latestCalendarTask={latestCalendarTask}
-          calendarTaskStatusText={calendarTaskStatusText}
-          calendarInlineError={calendarInlineError}
-          calendarAllItems={calendarAllItems}
-          isCalendarDetailOpen={isCalendarDetailOpen}
-          selectedCalendarItem={selectedCalendarItem}
-          calendarItemDraft={calendarItemDraft}
-          isEditingCalendarItem={isEditingCalendarItem}
-          isSavingCalendarItem={isSavingCalendarItem}
-          onRefresh={() => refreshMarketingCalendarWorkspace()}
-          onGenerate={() => {
-            handleOpenMarketingCalendarGenerateDialog();
-          }}
-          onOpenDetail={handleOpenCalendarDetail}
-          onCloseDetail={handleCloseCalendarDetail}
-          onStartEditDetail={handleStartEditCalendarItem}
-          onCancelEditDetail={handleCancelEditCalendarItem}
-          onSaveDetail={() => handleSaveCalendarItem()}
-          onDetailFieldChange={handleCalendarItemFieldChange}
-          onDetailListFieldChange={handleCalendarItemListFieldChange}
-          formatCalendarDate={formatCalendarDate}
-          formatCalendarListValue={formatCalendarListValue}
-        />
+        <>
+          <CalendarWorkspace
+            sectionLabel={currentPage.label}
+            sectionDescription={currentPage.description}
+            isLoading={isHydrating}
+            isPublishing={false}
+            isGeneratingCalendar={isGeneratingMarketingCalendar}
+            canGenerateCalendar={canGenerateMarketingCalendar}
+            isCalendarTaskActive={isMarketingCalendarTaskActive}
+            latestCalendar={latestCalendar}
+            latestCalendarTask={latestCalendarTask}
+            calendarTaskStatusText={calendarTaskStatusText}
+            calendarInlineError={calendarInlineError}
+            calendarAllItems={calendarAllItems}
+            isCalendarDetailOpen={isCalendarDetailOpen}
+            selectedCalendarItem={selectedCalendarItem}
+            calendarItemDraft={calendarItemDraft}
+            isEditingCalendarItem={isEditingCalendarItem}
+            isSavingCalendarItem={isSavingCalendarItem}
+            onRefresh={() => refreshMarketingCalendarWorkspace()}
+            onGenerate={() => {
+              handleOpenMarketingCalendarGenerateDialog();
+            }}
+            onOpenDetail={handleOpenCalendarDetail}
+            onCloseDetail={handleCloseCalendarDetail}
+            onStartEditDetail={handleStartEditCalendarItem}
+            onCancelEditDetail={handleCancelEditCalendarItem}
+            onSaveDetail={() => handleSaveCalendarItem()}
+            onDetailFieldChange={handleCalendarItemFieldChange}
+            onDetailListFieldChange={handleCalendarItemListFieldChange}
+            formatCalendarDate={formatCalendarDate}
+            formatCalendarListValue={formatCalendarListValue}
+          />
+          {renderReportGenerationModal()}
+        </>
       );
     }
 
@@ -3468,40 +3511,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
             onSubmit={handleSubmitOpportunityInsightStepModal}
           />
         ) : null}
-        {reportGenerationModal ? (
-          <NoteCreateModalShell
-            open
-            copy={REPORT_GENERATION_MODAL_COPY[reportGenerationModal]}
-            isPublishing={reportGenerationModal === "annualMarketingPlan" ? isGeneratingAnnualMarketingPlan : isGeneratingMarketingCalendar}
-            createLabel={
-              reportGenerationModal === "annualMarketingPlan"
-                ? annualMarketingPlanWorkspace.latest
-                  ? "提交并重新生成规划"
-                  : "提交并生成规划"
-                : marketingCalendarWorkspace.latest
-                  ? "提交并继续生成下一个7天"
-                  : "提交并生成营销日历"
-            }
-            onClose={closeReportGenerationModal}
-            onCreate={reportGenerationModal === "annualMarketingPlan" ? handleSubmitAnnualMarketingPlan : handleSubmitMarketingCalendar}
-          >
-            <label style={{ display: "grid", gap: 6 }}>
-              <span className="status-text">用户要求</span>
-              <textarea
-                value={getReportGenerationInputValue(reportGenerationModal)}
-                onChange={(event) => setReportGenerationInputValue(reportGenerationModal, event.target.value)}
-                disabled={reportGenerationModal === "annualMarketingPlan" ? isGeneratingAnnualMarketingPlan : isGeneratingMarketingCalendar}
-                rows={6}
-                placeholder="可留空；如有特别要求、补充背景、阶段目标、平台优先级、节奏偏好或资源限制，请在这里输入。"
-              />
-              <span className="panel-subtext" style={{ margin: 0 }}>
-                {reportGenerationModal === "annualMarketingPlan"
-                  ? "点击提交后，会将这段用户要求一并带入半年营销规划生成任务。"
-                  : "点击提交后，会将这段用户要求一并带入营销日历生成任务。"}
-              </span>
-            </label>
-          </NoteCreateModalShell>
-        ) : null}
+        {renderReportGenerationModal()}
       </>
     );
   }

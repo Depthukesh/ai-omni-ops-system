@@ -7649,6 +7649,18 @@ export class WorksService {
     const target = await this.getVideoWorkRowById(brandId, workId);
     const meta = this.readVideoWorkMeta(this.getMediaMetadata(target));
     this.ensureVideoWorkKind(meta, "DOUYIN_REMIX_SHORT_VIDEO");
+    const currentTaskStatus = targetTaskStatus(target);
+    if (meta.composeStatus === "RUNNING" || currentTaskStatus === "RUNNING" || currentTaskStatus === "QUEUED" || currentTaskStatus === "PENDING") {
+      return {
+        item: this.mapVideoWorkRecord(
+          workId,
+          brandId,
+          meta.taskId || target.taskId || undefined,
+          meta,
+          currentTaskStatus || "RUNNING",
+        ),
+      };
+    }
     const remixSegments = meta.remixSegments || [];
     if (!remixSegments.length) {
       throw new BadRequestException("请先完成复刻分析与分镜出图，再继续生成视频。");
@@ -15221,6 +15233,7 @@ export class WorksService {
     stageLabel: string;
     skillSlugOverride?: string;
     includeKnowledgeContext?: boolean;
+    validateParsed?: (parsed: Record<string, unknown>) => string | undefined;
   }) {
     const prompt = await this.skillsPromptsService.getActivePromptById(params.promptId);
     const skillPrompt = String(prompt?.content || params.fallbackPrompt).trim() || params.fallbackPrompt;
@@ -15268,6 +15281,12 @@ export class WorksService {
                 continue;
               }
               const parsed = this.parseJsonObject(content);
+              const validationError = params.validateParsed?.(parsed);
+              if (validationError) {
+                lastError = `${provider.provider}/${modelName} ${validationError}`;
+                attemptTrail.push(`${attemptLabel} -> ${validationError}`);
+                continue;
+              }
               return {
                 modelName,
                 parsed,
@@ -15506,8 +15525,13 @@ export class WorksService {
         marketingPlanMarkdown: context.includeMarketingPlan ? this.buildVideoMarketingPlanContext(context.marketingPlanMarkdown) : "",
         additionalInstruction: context.videoAdditionalInstruction || context.copyAdditionalInstruction || null,
       },
+      validateParsed: (parsed) => (
+        this.extractRemixShortVideoSegmentItems(parsed).length
+          ? undefined
+          : "未返回有效分段"
+      ),
     });
-    const rawSegments = Array.isArray(result.parsed.segments) ? result.parsed.segments : [];
+    const rawSegments = this.extractRemixShortVideoSegmentItems(result.parsed);
     if (!rawSegments.length) {
       throw new ServiceUnavailableException("复刻短视频第一阶段未返回有效分段，请稍后重试。");
     }
@@ -15524,14 +15548,15 @@ export class WorksService {
       const startSec = this.readOptionalNumber(record?.start_sec ?? record?.startSec) ?? fallbackStart;
       const rawEndSec = this.readOptionalNumber(record?.end_sec ?? record?.endSec);
       const endSec = rawEndSec && rawEndSec > startSec ? rawEndSec : fallbackEnd;
-      const roleCardText = String(record?.role_card_text ?? record?.roleCardText ?? "").trim();
-      const storyboardScript = String(record?.storyboard_script ?? record?.storyboardScript ?? "").trim();
+      const analysisReport = String(record?.analysis_report ?? record?.analysisReport ?? "").trim();
+      const roleCardText = String(record?.role_card_text ?? record?.roleCardText ?? analysisReport).trim();
+      const storyboardScript = String(record?.storyboard_script ?? record?.storyboardScript ?? analysisReport).trim();
       return {
         order: index,
         segmentLabel: this.readOptionalString(record?.segment_label ?? record?.segmentLabel) || `第 ${index + 1} 段`,
         startSec,
         endSec,
-        analysisReport: String(record?.analysis_report ?? record?.analysisReport ?? "").trim(),
+        analysisReport,
         roleCardText,
         storyboardScript,
         consistencyCheck: String(record?.consistency_check ?? record?.consistencyCheck ?? "").trim(),
@@ -15555,6 +15580,53 @@ export class WorksService {
       segmentDurationSec,
       segments,
     };
+  }
+
+  private extractRemixShortVideoSegmentItems(parsed: Record<string, unknown>) {
+    const candidateKeys = [
+      "segments",
+      "segment_list",
+      "segmentList",
+      "scene_list",
+      "sceneList",
+      "scenes",
+      "shot_list",
+      "shotList",
+      "shots",
+      "storyboards",
+      "storyboard_list",
+      "storyboardList",
+      "items",
+    ] as const;
+    const containers = [
+      parsed,
+      this.asRecord(parsed.data),
+      this.asRecord(parsed.result),
+      this.asRecord(parsed.output),
+      this.asRecord(parsed.payload),
+    ].filter((item): item is Record<string, unknown> => Boolean(item));
+    for (const container of containers) {
+      for (const key of candidateKeys) {
+        const value = container[key];
+        if (Array.isArray(value) && value.length) {
+          return value;
+        }
+      }
+    }
+    if (this.hasRemixShortVideoSegmentContent(parsed)) {
+      return [parsed];
+    }
+    return [];
+  }
+
+  private hasRemixShortVideoSegmentContent(record: Record<string, unknown>) {
+    return Boolean(
+      this.readOptionalString(record.segment_label ?? record.segmentLabel)
+      || this.readOptionalString(record.analysis_report ?? record.analysisReport)
+      || this.readOptionalString(record.role_card_text ?? record.roleCardText)
+      || this.readOptionalString(record.storyboard_script ?? record.storyboardScript)
+      || this.readOptionalString(record.video_prompt ?? record.videoPrompt),
+    );
   }
 
   private async generateDouyinRemixShortVideoComposePrompt(
@@ -18116,6 +18188,35 @@ export class WorksService {
     title: string;
     segmentVideoUrls: string[];
   }) {
+    if (!params.segmentVideoUrls.length) {
+      throw new BadRequestException("当前还没有可用于拼接的复刻视频片段。");
+    }
+    if (params.segmentVideoUrls.length === 1) {
+      const sourceUrl = params.segmentVideoUrls[0];
+      const response = await fetch(sourceUrl);
+      if (!response.ok) {
+        throw new ServiceUnavailableException(`下载复刻视频片段失败：${response.status}`);
+      }
+      const outputBuffer = Buffer.from(await response.arrayBuffer());
+      const fileName = `${params.taskId}-douyin-remix-short-video-complete.mp4`;
+      const saved = await this.writeGeneratedBinaryFile(
+        params.brandId,
+        fileName,
+        outputBuffer.toString("base64"),
+        "video/mp4",
+      );
+      const durationSec = await this.tryProbeVideoDurationSec({
+        upload: {
+          fileName,
+          contentType: "video/mp4",
+          dataBase64: outputBuffer.toString("base64"),
+        },
+      });
+      return {
+        videoUrl: saved.url,
+        durationSec,
+      };
+    }
     if (params.segmentVideoUrls.length < 2) {
       throw new BadRequestException("完整复刻短视频至少需要 2 个已生成片段。");
     }

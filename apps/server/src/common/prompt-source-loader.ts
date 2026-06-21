@@ -114,14 +114,16 @@ export const PROMPT_SOURCE_CANDIDATES: Record<string, string[]> = {
     "../提示词/抖音板块/AI生成视频不带故事板.txt",
   ],
   prompt_douyin_remix_short_video: [
+    "../../../提示词/复刻视频/复刻短视频.txt",
+    "../提示词/复刻视频/复刻短视频.txt",
     "../../../../../技能/复刻视频/SKILL.md",
     "../../../技能/复刻视频/SKILL.md",
     "../技能/复刻视频/SKILL.md",
   ],
   prompt_douyin_remix_short_video_compose: [
-    "../../../../../技能/复刻视频/SKILL.md",
-    "../../../技能/复刻视频/SKILL.md",
-    "../技能/复刻视频/SKILL.md",
+    "提示词/复刻视频/复刻短视频-拼接成片提示词.txt",
+    "../../../提示词/复刻视频/复刻短视频-拼接成片提示词.txt",
+    "../提示词/复刻视频/复刻短视频-拼接成片提示词.txt",
   ],
   prompt_douyin_digital_human_script: [
     "../../../提示词/抖音板块/数字人口播脚本.txt",

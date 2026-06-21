@@ -142,6 +142,13 @@ export function DouyinRemixShortVideoWorkspace(props: DouyinRemixShortVideoWorks
     return "";
   }, [injectMarketingPlanValue, props.hasMarketingPlan, providerValue, sourceMaterialId, sourceVideoFile, storyboardImageModelValue]);
   const isTaskActive = latestTaskItem?.taskStatus === "RUNNING" || latestTaskItem?.taskStatus === "QUEUED" || latestTaskItem?.taskStatus === "PENDING";
+  const isSelectedWorkGeneratingVideo = Boolean(
+    selectedWork
+    && (selectedWork.composeStatus === "RUNNING"
+      || selectedWork.taskStatus === "RUNNING"
+      || selectedWork.taskStatus === "QUEUED"
+      || selectedWork.taskStatus === "PENDING"),
+  );
 
   useEffect(() => {
     if (!selectedWorkId && props.items[0]?.id) {
@@ -321,9 +328,9 @@ export function DouyinRemixShortVideoWorkspace(props: DouyinRemixShortVideoWorks
                         type="button"
                         className="primary-button"
                         onClick={() => void handleGenerateVideo()}
-                        disabled={!props.canEdit || props.isSubmitting || !selectedWork.remixSegments.length}
+                        disabled={!props.canEdit || props.isSubmitting || !selectedWork.remixSegments.length || isSelectedWorkGeneratingVideo}
                       >
-                        {selectedWork.composeStatus === "RUNNING" ? "拼接生成中..." : "一键生成视频"}
+                        {isSelectedWorkGeneratingVideo ? "拼接生成中..." : "一键生成视频"}
                       </button>
                       <button
                         type="button"
