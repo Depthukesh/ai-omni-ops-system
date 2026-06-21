@@ -6,7 +6,7 @@ const defaultSection = {
   key: "design" as const,
   label: "设计",
   icon: "🎨",
-  description: "设计工作台采用横向二级模块结构，支持图片设计、HTML 设计、PPT 设计、视频设计，并通过统一弹窗完成创建与作品展示。",
+  description: "设计页独立承接图片、HTML、PPT、视频四类设计工作流，统一通过创建弹窗进入生成链路。",
 };
 
 export default function DesignPage() {

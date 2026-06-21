@@ -748,6 +748,28 @@ model PromptTemplate {
   @@index([scene, updatedAt(sort: Desc)])
 }
 
+model OperationsPromptTemplate {
+  id             String   @id
+  slug           String   @unique
+  title          String
+  preview        String
+  content        String
+  status         String   @default("ACTIVE")
+  sourceFilePath String   @unique
+  sourceCategory String
+  sourceFileName String
+  businessStage  String
+  outputType     String
+  scenarioLabel  String
+  tagsJson       Json
+  sortOrder      Int      @default(100)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([status, sourceCategory, updatedAt])
+  @@index([businessStage, outputType, scenarioLabel])
+}
+
 model SkillPromptBinding {
   id          String         @id
   skillId     String

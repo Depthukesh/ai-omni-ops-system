@@ -21,6 +21,11 @@ import { BrandsService } from "../brands/brands.service";
 import { CollectorsService } from "../collectors/collectors.service";
 import { ReportsService, type XiaohongshuMarketingCalendarRecord } from "../reports/reports.service";
 import { ThirdPartyPlatformsService } from "../third-party-platforms/third-party-platforms.service";
+import {
+  loadOperationsPromptSeeds,
+  OPERATIONS_PROMPT_DEFAULT_MODEL_SEQUENCE,
+  type OperationsPromptSeedRecord,
+} from "./operations-prompt-center.helpers";
 import { XHS_ORIGINAL_REFERENCE_TEMPLATE_LIBRARY } from "./xhs-original-reference-templates.generated";
 import {
   type ChanjingAudioTaskDetail,
@@ -53,11 +58,20 @@ const VIDEO_TASK_TOTAL_TIMEOUT_MS = 20 * 60 * 1000;
 const WORKS_KNOWLEDGE_BINDING_LIMIT = 3;
 const WORKS_KNOWLEDGE_TOP_K = 4;
 const DOUYIN_AD_PRE_AUDIT_TASK_TYPE = "DOUYIN_AD_PRE_AUDIT";
+const OPERATIONS_PROMPT_CENTER_TASK_TYPE = "OPERATIONS_PROMPT_CENTER";
 const VOLCENGINE_VOD_OPENAPI_DEFAULT_REGION = "cn-north-1";
 const VOLCENGINE_VOD_OPENAPI_DEFAULT_SERVICE = "vod";
 const VOLCENGINE_VOD_OPENAPI_DEFAULT_HOST = "vod.volcengineapi.com";
 const VOLCENGINE_VOD_OPENAPI_VERSION = "2023-01-01";
 const VOLCENGINE_VOD_UPLOAD_OPENAPI_VERSION = "2020-08-01";
+
+type OperationsPromptTemplateStoreRecord = OperationsPromptSeedRecord & {
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+const operationsPromptTemplateMockStore: OperationsPromptTemplateStoreRecord[] = [];
 
 const DESIGN_MODULE_TYPES: Record<DesignWorkModuleKey, string[]> = {
   image: ["社媒轮播图", "杂志风海报", "动效首帧", "像素动画首帧", "电商主视觉", "品牌封面图", "信息图海报"],
@@ -778,6 +792,86 @@ export type DesignGeneratedWorkRecord = {
 
 export type DesignWorkspaceHistoryRecord = {
   items: DesignGeneratedWorkRecord[];
+};
+
+export type GenerateOperationsPromptWorkPayload = {
+  templateId?: string;
+  title?: string;
+  injectBrandProfile?: boolean;
+  productId?: string;
+  calendarItemId?: string;
+  userRequirement?: string;
+  editedPrompt?: string;
+};
+
+export type OperationsPromptTemplateCardRecord = {
+  id: string;
+  title: string;
+  preview: string;
+  sourceCategory: string;
+  sourceFileName: string;
+  businessStage: string;
+  outputType: string;
+  scenarioLabel: string;
+  tags: string[];
+};
+
+export type OperationsPromptTemplateDetailRecord = OperationsPromptTemplateCardRecord & {
+  content: string;
+};
+
+export type OperationsPromptCenterOptionsRecord = {
+  brandId: string;
+  brandName: string;
+  brandProfileSummary: string;
+  modelSequence: string[];
+  calendarOptions: Array<{
+    id: string;
+    label: string;
+    topicName: string;
+    date: string;
+  }>;
+  productOptions: Array<{
+    id: string;
+    label: string;
+    description: string;
+  }>;
+  brandOptions: Array<{
+    value: "inject" | "skip";
+    label: string;
+    description: string;
+  }>;
+  filters: {
+    businessStages: Array<{ value: string; label: string; count: number }>;
+    outputTypes: Array<{ value: string; label: string; count: number }>;
+    scenarios: Array<{ value: string; label: string; count: number }>;
+  };
+  templates: OperationsPromptTemplateCardRecord[];
+};
+
+export type OperationsPromptWorkRecord = {
+  id: string;
+  taskId?: string;
+  taskStatus?: WorkTaskStatus;
+  title: string;
+  status: string;
+  updatedAt: string;
+  summary: string;
+  errorDetail?: string;
+  tags: string[];
+  templateId: string;
+  templateTitle: string;
+  generatedText?: string;
+  promptSnapshot?: string;
+  userRequirement?: string;
+  modelName?: string;
+  usedBrandProfile: boolean;
+  usedProductLabel?: string;
+  usedCalendarLabel?: string;
+};
+
+export type OperationsPromptWorkHistoryRecord = {
+  items: OperationsPromptWorkRecord[];
 };
 
 export type WechatAccountConfigRecord = {
@@ -2460,6 +2554,8 @@ type VideoProviderFailureDisposition = "hard" | "retryable";
 export class WorksService {
   private wechatPersistenceBootstrapPromise?: Promise<void>;
   private douyinAdPreAuditBootstrapPromise?: Promise<void>;
+  private operationsPromptBootstrapPromise?: Promise<void>;
+  private operationsPromptBootstrapAt = 0;
 
   constructor(
     @Inject(AppConfigService)
@@ -2906,6 +3002,741 @@ export class WorksService {
         errorDetail: errorMessage,
       });
       throw error;
+    }
+  }
+
+  async getOperationsPromptCenterOptions(brandId: string): Promise<OperationsPromptCenterOptionsRecord> {
+    await this.ensureOperationsPromptTemplatesBootstrapped();
+
+    const [archive, calendarWorkspace, templateStoreItems] = await Promise.all([
+      this.brandsService.getArchive(brandId),
+      this.reportsService.getXiaohongshuMarketingCalendarWorkspace(brandId),
+      this.listOperationsPromptTemplateStoreItems(),
+    ]);
+    const templates = templateStoreItems
+      .filter((item) => item.status === "ACTIVE")
+      .map((item) => this.mapOperationsPromptTemplateToCard(item));
+    const calendarOptions = Array.from(
+      new Map(
+        [calendarWorkspace.latest, ...calendarWorkspace.history]
+          .filter((record): record is NonNullable<typeof calendarWorkspace.latest> => Boolean(record))
+          .flatMap((record) => record.items)
+          .map((item) => {
+            const selection = this.buildMarketingCalendarSelection(item);
+            return [
+              selection.id || `${selection.date}-${selection.topicName}`,
+              {
+                id: selection.id,
+                label: `${selection.date} | ${selection.topicName}`,
+                topicName: selection.topicName,
+                date: selection.date,
+              },
+            ] as const;
+          }),
+      ).values(),
+    ).sort((left, right) => right.date.localeCompare(left.date, "zh-CN"));
+
+    return {
+      brandId,
+      brandName: archive.brand.brandName || "当前品牌",
+      brandProfileSummary: this.buildDesignBrandProfileSummary(archive),
+      modelSequence: [...OPERATIONS_PROMPT_DEFAULT_MODEL_SEQUENCE],
+      calendarOptions,
+      productOptions: archive.products.map((item) => ({
+        id: item.id,
+        label: item.productName,
+        description: item.detailDescription || item.usageScenario || item.productPositioning || "",
+      })),
+      brandOptions: [
+        {
+          value: "inject",
+          label: "同步品牌背景资料",
+          description: "会把品牌背景、品牌介绍、行业属性和重点产品概况带入本次生成上下文。",
+        },
+        {
+          value: "skip",
+          label: "不植入品牌资料",
+          description: "仅使用提示词原文、用户要求、产品资料和每日营销日历，不同步品牌背景资料。",
+        },
+      ],
+      filters: {
+        businessStages: this.buildOperationsPromptFilterOptions(templates, (item) => item.businessStage),
+        outputTypes: this.buildOperationsPromptFilterOptions(templates, (item) => item.outputType),
+        scenarios: this.buildOperationsPromptFilterOptions(templates, (item) => item.scenarioLabel),
+      },
+      templates,
+    };
+  }
+
+  async getOperationsPromptTemplateDetail(
+    _brandId: string,
+    templateId: string,
+  ): Promise<OperationsPromptTemplateDetailRecord> {
+    await this.ensureOperationsPromptTemplatesBootstrapped();
+    const template = await this.findOperationsPromptTemplateStoreItem(templateId);
+    if (!template || template.status !== "ACTIVE") {
+      throw new NotFoundException("提示词模板不存在");
+    }
+    return this.mapOperationsPromptTemplateToDetail(template);
+  }
+
+  async listOperationsPromptWorks(brandId: string): Promise<OperationsPromptWorkHistoryRecord> {
+    if (await this.prismaService.canUseDatabase()) {
+      const tasks = await this.prismaService.task.findMany({
+        where: {
+          brandId,
+          taskType: OPERATIONS_PROMPT_CENTER_TASK_TYPE,
+        },
+        orderBy: { updatedAt: "desc" },
+        take: 120,
+      });
+      return {
+        items: tasks
+          .map((task) => this.mapOperationsPromptTaskToWorkRecord(task))
+          .filter((item): item is OperationsPromptWorkRecord => Boolean(item)),
+      };
+    }
+
+    return {
+      items: database.tasks
+        .filter((task) => task.brandId === brandId && task.taskType === OPERATIONS_PROMPT_CENTER_TASK_TYPE)
+        .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime())
+        .slice(0, 120)
+        .map((task) => this.mapOperationsPromptTaskToWorkRecord(task))
+        .filter((item): item is OperationsPromptWorkRecord => Boolean(item)),
+    };
+  }
+
+  async deleteOperationsPromptWork(brandId: string, workId: string) {
+    const normalizedWorkId = String(workId || "").trim();
+    if (!normalizedWorkId) {
+      throw new NotFoundException("作品记录不存在");
+    }
+
+    if (await this.prismaService.canUseDatabase()) {
+      const task = await this.prismaService.task.findFirst({
+        where: {
+          id: normalizedWorkId,
+          brandId,
+          taskType: OPERATIONS_PROMPT_CENTER_TASK_TYPE,
+        },
+      });
+      if (!task) {
+        throw new NotFoundException("作品记录不存在");
+      }
+      await this.prismaService.task.deleteMany({
+        where: { id: task.id },
+      });
+      return { success: true };
+    }
+
+    const task = database.tasks.find((item) =>
+      item.id === normalizedWorkId
+      && item.brandId === brandId
+      && item.taskType === OPERATIONS_PROMPT_CENTER_TASK_TYPE
+    );
+    if (!task) {
+      throw new NotFoundException("作品记录不存在");
+    }
+    database.tasks = database.tasks.filter((item) => item.id !== normalizedWorkId);
+    return { success: true };
+  }
+
+  async generateOperationsPromptWork(
+    brandId: string,
+    payload: GenerateOperationsPromptWorkPayload,
+    auth: RequestAuthContext,
+  ): Promise<OperationsPromptWorkRecord> {
+    await this.ensureOperationsPromptTemplatesBootstrapped();
+
+    const normalized = this.normalizeOperationsPromptPayload(payload);
+    const [archive, calendarWorkspace, template] = await Promise.all([
+      this.brandsService.getArchive(brandId),
+      this.reportsService.getXiaohongshuMarketingCalendarWorkspace(brandId),
+      this.findOperationsPromptTemplateStoreItem(normalized.templateId),
+    ]);
+    if (!template || template.status !== "ACTIVE") {
+      throw new NotFoundException("提示词模板不存在");
+    }
+
+    const selectedProduct = archive.products.find((item) => item.id === normalized.productId);
+    const selectedCalendarItem = [calendarWorkspace.latest, ...calendarWorkspace.history]
+      .filter((record): record is NonNullable<typeof calendarWorkspace.latest> => Boolean(record))
+      .flatMap((record) => record.items)
+      .find((item) => item.id === normalized.calendarItemId);
+    const userId = await this.resolveTaskUserId(brandId, auth);
+    const taskTitle = normalized.title || `${template.title} · 生成稿`;
+    const task = await this.createDesignTask({
+      userId,
+      brandId,
+      taskTitle,
+      taskType: OPERATIONS_PROMPT_CENTER_TASK_TYPE,
+      modelName: OPERATIONS_PROMPT_DEFAULT_MODEL_SEQUENCE[0],
+    });
+    const promptSnapshot = normalized.editedPrompt || template.content;
+    const initialOutput = {
+      stage: "QUEUED",
+      title: taskTitle,
+      templateId: template.id,
+      templateTitle: template.title,
+      summary: `已提交到后台生成队列，系统会按 ${OPERATIONS_PROMPT_DEFAULT_MODEL_SEQUENCE.join(" -> ")} 依次尝试模型。`,
+      tags: [
+        template.businessStage,
+        template.outputType,
+        template.scenarioLabel,
+        normalized.injectBrandProfile ? "植入品牌资料" : "不植入品牌资料",
+      ].filter(Boolean),
+      promptSnapshot,
+      userRequirement: normalized.userRequirement || "",
+      usedBrandProfile: normalized.injectBrandProfile,
+      usedProductLabel: selectedProduct?.productName || "",
+      usedCalendarLabel: selectedCalendarItem ? `${selectedCalendarItem.date} | ${selectedCalendarItem.topicName}` : "",
+      generatedText: "",
+      modelSequence: [...OPERATIONS_PROMPT_DEFAULT_MODEL_SEQUENCE],
+    };
+    await this.updateTaskOutputJson(task.id, initialOutput);
+
+    void this.runGenerateOperationsPromptWorkTask(brandId, task.id, {
+      templateId: template.id,
+      templateTitle: template.title,
+      title: taskTitle,
+      promptSnapshot,
+      injectBrandProfile: normalized.injectBrandProfile,
+      productId: selectedProduct?.id,
+      productLabel: selectedProduct?.productName || "",
+      calendarItemId: selectedCalendarItem?.id,
+      calendarLabel: selectedCalendarItem ? `${selectedCalendarItem.date} | ${selectedCalendarItem.topicName}` : "",
+      userRequirement: normalized.userRequirement || "",
+    });
+
+    return this.mapOperationsPromptTaskToWorkRecord({
+      ...task,
+      outputJson: initialOutput,
+      taskStatus: TaskStatus.QUEUED,
+    }) as OperationsPromptWorkRecord;
+  }
+
+  private async ensureOperationsPromptTemplatesBootstrapped() {
+    const now = Date.now();
+    if (this.operationsPromptBootstrapPromise && now - this.operationsPromptBootstrapAt < 2 * 60 * 1000) {
+      return this.operationsPromptBootstrapPromise;
+    }
+
+    this.operationsPromptBootstrapAt = now;
+    this.operationsPromptBootstrapPromise = this.bootstrapOperationsPromptTemplates().finally(() => {
+      this.operationsPromptBootstrapPromise = undefined;
+    });
+    return this.operationsPromptBootstrapPromise;
+  }
+
+  private async bootstrapOperationsPromptTemplates() {
+    const seeds = await loadOperationsPromptSeeds(process.cwd());
+    if (await this.canUseOperationsPromptTemplateTable()) {
+      for (const seed of seeds) {
+        await this.upsertOperationsPromptTemplate(seed);
+      }
+      return;
+    }
+
+    const existingById = new Map(operationsPromptTemplateMockStore.map((item) => [item.id, item]));
+    const nextRecords = seeds.map((seed) => {
+      const existing = existingById.get(seed.id);
+      return {
+        ...seed,
+        status: "ACTIVE",
+        createdAt: existing?.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      } satisfies OperationsPromptTemplateStoreRecord;
+    });
+    operationsPromptTemplateMockStore.splice(0, operationsPromptTemplateMockStore.length, ...nextRecords);
+  }
+
+  private async canUseOperationsPromptTemplateTable() {
+    if (!(await this.prismaService.canUseDatabase())) {
+      return false;
+    }
+    try {
+      const rows = await this.prismaService.$queryRawUnsafe<Array<{ exists: boolean }>>(
+        `SELECT EXISTS (
+          SELECT 1
+          FROM information_schema.tables
+          WHERE table_schema = 'public' AND table_name = 'OperationsPromptTemplate'
+        ) AS "exists"`,
+      );
+      return Boolean(rows[0]?.exists);
+    } catch {
+      return false;
+    }
+  }
+
+  private async upsertOperationsPromptTemplate(seed: OperationsPromptSeedRecord) {
+    await this.prismaService.$executeRawUnsafe(
+      `INSERT INTO "OperationsPromptTemplate" (
+        "id",
+        "slug",
+        "title",
+        "preview",
+        "content",
+        "status",
+        "sourceFilePath",
+        "sourceCategory",
+        "sourceFileName",
+        "businessStage",
+        "outputType",
+        "scenarioLabel",
+        "tagsJson",
+        "sortOrder",
+        "createdAt",
+        "updatedAt"
+      ) VALUES (
+        $1, $2, $3, $4, $5, 'ACTIVE', $6, $7, $8, $9, $10, $11, CAST($12 AS jsonb), $13, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+      )
+      ON CONFLICT ("sourceFilePath") DO UPDATE SET
+        "slug" = EXCLUDED."slug",
+        "title" = EXCLUDED."title",
+        "preview" = EXCLUDED."preview",
+        "content" = EXCLUDED."content",
+        "status" = 'ACTIVE',
+        "sourceCategory" = EXCLUDED."sourceCategory",
+        "sourceFileName" = EXCLUDED."sourceFileName",
+        "businessStage" = EXCLUDED."businessStage",
+        "outputType" = EXCLUDED."outputType",
+        "scenarioLabel" = EXCLUDED."scenarioLabel",
+        "tagsJson" = EXCLUDED."tagsJson",
+        "sortOrder" = EXCLUDED."sortOrder",
+        "updatedAt" = CURRENT_TIMESTAMP`,
+      seed.id,
+      seed.slug,
+      seed.title,
+      seed.preview,
+      seed.content,
+      seed.sourceFilePath,
+      seed.sourceCategory,
+      seed.sourceFileName,
+      seed.businessStage,
+      seed.outputType,
+      seed.scenarioLabel,
+      JSON.stringify(seed.tagsJson || []),
+      seed.sortOrder,
+    );
+  }
+
+  private async listOperationsPromptTemplateStoreItems(): Promise<OperationsPromptTemplateStoreRecord[]> {
+    if (await this.canUseOperationsPromptTemplateTable()) {
+      const rows = await this.prismaService.$queryRawUnsafe<Array<Record<string, unknown>>>(
+        `SELECT
+          "id",
+          "slug",
+          "title",
+          "preview",
+          "content",
+          "status",
+          "sourceFilePath",
+          "sourceCategory",
+          "sourceFileName",
+          "businessStage",
+          "outputType",
+          "scenarioLabel",
+          "tagsJson",
+          "sortOrder",
+          "createdAt",
+          "updatedAt"
+        FROM "OperationsPromptTemplate"
+        ORDER BY "sortOrder" ASC, "updatedAt" DESC`,
+      );
+      return rows.map((row) => this.mapOperationsPromptTemplateRow(row));
+    }
+
+    return [...operationsPromptTemplateMockStore].sort((left, right) => left.sortOrder - right.sortOrder);
+  }
+
+  private async findOperationsPromptTemplateStoreItem(templateId: string) {
+    const normalizedTemplateId = String(templateId || "").trim();
+    if (!normalizedTemplateId) {
+      return null;
+    }
+
+    if (await this.canUseOperationsPromptTemplateTable()) {
+      const rows = await this.prismaService.$queryRawUnsafe<Array<Record<string, unknown>>>(
+        `SELECT
+          "id",
+          "slug",
+          "title",
+          "preview",
+          "content",
+          "status",
+          "sourceFilePath",
+          "sourceCategory",
+          "sourceFileName",
+          "businessStage",
+          "outputType",
+          "scenarioLabel",
+          "tagsJson",
+          "sortOrder",
+          "createdAt",
+          "updatedAt"
+        FROM "OperationsPromptTemplate"
+        WHERE "id" = $1 OR "slug" = $1
+        LIMIT 1`,
+        normalizedTemplateId,
+      );
+      return rows[0] ? this.mapOperationsPromptTemplateRow(rows[0]) : null;
+    }
+
+    return operationsPromptTemplateMockStore.find((item) =>
+      item.id === normalizedTemplateId || item.slug === normalizedTemplateId
+    ) || null;
+  }
+
+  private mapOperationsPromptTemplateRow(row: Record<string, unknown>): OperationsPromptTemplateStoreRecord {
+    return {
+      id: this.readOptionalString(row.id) || createId("ops_prompt"),
+      slug: this.readOptionalString(row.slug) || createId("ops-prompt"),
+      title: this.readOptionalString(row.title) || "未命名提示词",
+      preview: this.readOptionalString(row.preview) || "",
+      content: this.readOptionalString(row.content) || "",
+      status: this.readOptionalString(row.status) || "ACTIVE",
+      sourceFilePath: this.readOptionalString(row.sourceFilePath) || "",
+      sourceCategory: this.readOptionalString(row.sourceCategory) || "通用提示词",
+      sourceFileName: this.readOptionalString(row.sourceFileName) || "",
+      businessStage: this.readOptionalString(row.businessStage) || "通用经营",
+      outputType: this.readOptionalString(row.outputType) || "策略方案",
+      scenarioLabel: this.readOptionalString(row.scenarioLabel) || "通用经营",
+      tagsJson: this.readStringArray(row.tagsJson, []),
+      sortOrder: Number(row.sortOrder || 100) || 100,
+      createdAt: this.normalizeHistoryTimestamp(row.createdAt as string | Date | null | undefined) || new Date().toISOString(),
+      updatedAt: this.normalizeHistoryTimestamp(row.updatedAt as string | Date | null | undefined) || new Date().toISOString(),
+    };
+  }
+
+  private mapOperationsPromptTemplateToCard(item: OperationsPromptTemplateStoreRecord): OperationsPromptTemplateCardRecord {
+    return {
+      id: item.id,
+      title: item.title,
+      preview: item.preview,
+      sourceCategory: item.sourceCategory,
+      sourceFileName: item.sourceFileName,
+      businessStage: item.businessStage,
+      outputType: item.outputType,
+      scenarioLabel: item.scenarioLabel,
+      tags: [item.businessStage, item.outputType, item.scenarioLabel].filter(Boolean),
+    };
+  }
+
+  private mapOperationsPromptTemplateToDetail(item: OperationsPromptTemplateStoreRecord): OperationsPromptTemplateDetailRecord {
+    return {
+      ...this.mapOperationsPromptTemplateToCard(item),
+      content: item.content,
+    };
+  }
+
+  private buildOperationsPromptFilterOptions(
+    items: OperationsPromptTemplateCardRecord[],
+    getter: (item: OperationsPromptTemplateCardRecord) => string,
+  ) {
+    return Array.from(
+      items.reduce((map, item) => {
+        const value = String(getter(item) || "").trim();
+        if (!value) {
+          return map;
+        }
+        map.set(value, (map.get(value) || 0) + 1);
+        return map;
+      }, new Map<string, number>()).entries(),
+    )
+      .map(([value, count]) => ({ value, label: value, count }))
+      .sort((left, right) => {
+        if (right.count !== left.count) {
+          return right.count - left.count;
+        }
+        return left.label.localeCompare(right.label, "zh-CN");
+      });
+  }
+
+  private normalizeOperationsPromptPayload(payload: GenerateOperationsPromptWorkPayload) {
+    const templateId = this.readOptionalString(payload.templateId);
+    if (!templateId) {
+      throw new BadRequestException("请选择提示词模板");
+    }
+    const editedPrompt = String(payload.editedPrompt || "").replace(/\r\n/g, "\n").trim();
+    if (!editedPrompt) {
+      throw new BadRequestException("提示词内容不能为空");
+    }
+    return {
+      templateId,
+      title: this.readOptionalString(payload.title),
+      injectBrandProfile: payload.injectBrandProfile !== false,
+      productId: this.readOptionalString(payload.productId),
+      calendarItemId: this.readOptionalString(payload.calendarItemId),
+      userRequirement: this.readOptionalString(payload.userRequirement),
+      editedPrompt,
+    };
+  }
+
+  private mapOperationsPromptTaskToWorkRecord(task: {
+    id: string;
+    taskTitle?: string | null;
+    taskStatus: WorkTaskStatus | TaskStatus;
+    modelName?: string | null;
+    errorMessage?: string | null;
+    outputJson?: unknown;
+    updatedAt?: string | Date | null;
+    finishedAt?: string | Date | null;
+    createdAt?: string | Date | null;
+  }): OperationsPromptWorkRecord | null {
+    const output = this.asRecord(task.outputJson);
+    const templateId = this.readOptionalString(output?.templateId);
+    const templateTitle = this.readOptionalString(output?.templateTitle);
+    if (!templateId || !templateTitle) {
+      return null;
+    }
+    const updatedAt = this.normalizeHistoryTimestamp(task.updatedAt)
+      || this.normalizeHistoryTimestamp(task.finishedAt)
+      || this.normalizeHistoryTimestamp(task.createdAt)
+      || new Date().toISOString();
+    const taskStatus = String(task.taskStatus || "QUEUED") as WorkTaskStatus;
+    const generatedText = this.readOptionalString(output?.generatedText);
+
+    return {
+      id: task.id,
+      taskId: task.id,
+      taskStatus,
+      title: this.readOptionalString(output?.title) || String(task.taskTitle || "").trim() || `${templateTitle} · 生成稿`,
+      status: this.getOperationsPromptTaskStatusLabel(taskStatus),
+      updatedAt,
+      summary: this.readOptionalString(output?.summary)
+        || (taskStatus === "FAILED"
+          ? String(task.errorMessage || "运营提示词作品生成失败")
+          : taskStatus === "SUCCESS"
+            ? "作品已生成，可直接查看和复制。"
+            : "任务已进入后台执行，请稍后刷新作品中心。"),
+      errorDetail: this.readOptionalString(output?.errorDetail)
+        || (taskStatus === "FAILED" ? this.readOptionalString(task.errorMessage) : undefined),
+      tags: this.readStringArray(output?.tags, []),
+      templateId,
+      templateTitle,
+      generatedText,
+      promptSnapshot: this.readOptionalString(output?.promptSnapshot),
+      userRequirement: this.readOptionalString(output?.userRequirement),
+      modelName: this.readOptionalString(output?.modelName) || this.readOptionalString(task.modelName),
+      usedBrandProfile: Boolean(output?.usedBrandProfile),
+      usedProductLabel: this.readOptionalString(output?.usedProductLabel),
+      usedCalendarLabel: this.readOptionalString(output?.usedCalendarLabel),
+    };
+  }
+
+  private getOperationsPromptTaskStatusLabel(status: WorkTaskStatus) {
+    switch (status) {
+      case "SUCCESS":
+        return "已完成";
+      case "FAILED":
+        return "执行失败";
+      case "RUNNING":
+        return "生成中";
+      case "CANCELLED":
+        return "已取消";
+      default:
+        return "排队中";
+    }
+  }
+
+  private async runGenerateOperationsPromptWorkTask(
+    brandId: string,
+    taskId: string,
+    context: {
+      templateId: string;
+      templateTitle: string;
+      title: string;
+      promptSnapshot: string;
+      injectBrandProfile: boolean;
+      productId?: string;
+      productLabel?: string;
+      calendarItemId?: string;
+      calendarLabel?: string;
+      userRequirement?: string;
+    },
+  ) {
+    let latestOutput: Record<string, unknown> = {
+      stage: "RUNNING",
+      title: context.title,
+      templateId: context.templateId,
+      templateTitle: context.templateTitle,
+      promptSnapshot: context.promptSnapshot,
+      userRequirement: context.userRequirement || "",
+      usedBrandProfile: context.injectBrandProfile,
+      usedProductLabel: context.productLabel || "",
+      usedCalendarLabel: context.calendarLabel || "",
+      generatedText: "",
+      tags: [],
+      summary: "正在整理模板上下文并调用文本模型生成作品。",
+    };
+
+    try {
+      const [archive, calendarWorkspace, template] = await Promise.all([
+        this.brandsService.getArchive(brandId),
+        this.reportsService.getXiaohongshuMarketingCalendarWorkspace(brandId),
+        this.findOperationsPromptTemplateStoreItem(context.templateId),
+      ]);
+      if (!template || template.status !== "ACTIVE") {
+        throw new NotFoundException("提示词模板不存在或已停用");
+      }
+
+      const selectedProduct = archive.products.find((item) => item.id === context.productId);
+      const selectedCalendarItem = [calendarWorkspace.latest, ...calendarWorkspace.history]
+        .filter((record): record is NonNullable<typeof calendarWorkspace.latest> => Boolean(record))
+        .flatMap((record) => record.items)
+        .find((item) => item.id === context.calendarItemId);
+      const brandProfileSummary = context.injectBrandProfile ? this.buildDesignBrandProfileSummary(archive) : "";
+      const productSummary = selectedProduct
+        ? [
+            `产品名：${selectedProduct.productName}`,
+            selectedProduct.productPositioning ? `产品定位：${selectedProduct.productPositioning}` : "",
+            selectedProduct.detailDescription ? `产品描述：${selectedProduct.detailDescription}` : "",
+            selectedProduct.usageScenario ? `使用场景：${selectedProduct.usageScenario}` : "",
+            selectedProduct.targetAudience ? `目标人群：${selectedProduct.targetAudience}` : "",
+            selectedProduct.differentiators ? `差异化卖点：${selectedProduct.differentiators}` : "",
+          ].filter(Boolean).join("\n")
+        : "";
+      const marketingSelection = selectedCalendarItem ? this.buildMarketingCalendarSelection(selectedCalendarItem) : undefined;
+      const calendarSummary = marketingSelection
+        ? [
+            `日期：${marketingSelection.date}`,
+            `主题：${marketingSelection.topicName}`,
+            marketingSelection.topicContent ? `主题说明：${marketingSelection.topicContent}` : "",
+            marketingSelection.contentGoal ? `内容目标：${marketingSelection.contentGoal}` : "",
+            marketingSelection.targetAudience ? `目标受众：${marketingSelection.targetAudience}` : "",
+            marketingSelection.expressionFocus ? `表达重点：${marketingSelection.expressionFocus}` : "",
+            marketingSelection.titleDirections.length
+              ? `标题方向：${marketingSelection.titleDirections.slice(0, 6).join("；")}`
+              : "",
+          ].filter(Boolean).join("\n")
+        : "";
+
+      latestOutput = {
+        ...latestOutput,
+        stage: "RUNNING",
+        tags: [template.businessStage, template.outputType, template.scenarioLabel].filter(Boolean),
+        summary: `正在按预设链路调用模型，优先顺序为 ${OPERATIONS_PROMPT_DEFAULT_MODEL_SEQUENCE.join(" -> ")}。`,
+        usedProductLabel: selectedProduct?.productName || "",
+        usedCalendarLabel: marketingSelection ? `${marketingSelection.date} | ${marketingSelection.topicName}` : "",
+      };
+      await this.markTaskRunning(taskId);
+      await this.updateTaskRunningOutput(taskId, latestOutput);
+
+      const preference: SkillModelPreference = {
+        preferredModelName: OPERATIONS_PROMPT_DEFAULT_MODEL_SEQUENCE[0],
+        configuredModels: [...OPERATIONS_PROMPT_DEFAULT_MODEL_SEQUENCE],
+        preferredProviderIds: [],
+      };
+      const providers = await this.loadOriginalCopyProviders(brandId, preference, true);
+      const systemPrompt = [
+        "你是一名运营内容生成助手，需要根据给定的提示词模板和品牌上下文生成最终文稿。",
+        "你必须严格遵循提示词模板中的角色、任务、结构、步骤和输出要求。",
+        "如果未提供品牌资料、产品资料或营销日历，请明确忽略对应信息，不要自行虚构。",
+        "请仅输出 JSON 对象，不要输出 Markdown 代码块或额外解释。",
+        "JSON 结构固定为：",
+        "{",
+        '  "title": "作品标题",',
+        '  "content": "最终生成内容",',
+        '  "summary": "一句话摘要",',
+        '  "tags": ["标签1", "标签2", "标签3"]',
+        "}",
+      ].join("\n");
+      const userPrompt = [
+        `品牌名：${archive.brand.brandName || "当前品牌"}`,
+        "",
+        "以下是本次生成的核心模板，请优先执行：",
+        context.promptSnapshot,
+        "",
+        context.injectBrandProfile ? `品牌资料：\n${brandProfileSummary}` : "品牌资料：本次不植入品牌资料。",
+        productSummary ? `产品资料：\n${productSummary}` : "产品资料：本次不植入产品资料。",
+        calendarSummary ? `每日营销日历：\n${calendarSummary}` : "每日营销日历：本次不植入营销日历。",
+        context.userRequirement ? `用户要求：\n${context.userRequirement}` : "用户要求：无额外补充。",
+        "",
+        "请输出一份可以直接交付的中文结果；若模板中要求列表、话术、脚本、方案、标题组或多段内容，请完整给出，不要只写提纲。",
+      ].filter(Boolean).join("\n");
+
+      let lastError = "";
+      const attemptTrail: string[] = [];
+      for (const provider of providers) {
+        for (const baseUrl of provider.baseUrls) {
+          for (const apiKey of provider.apiKeys) {
+            for (const modelName of provider.models) {
+              const attemptLabel = this.buildTextAttemptLabel(provider.provider, modelName, baseUrl);
+              try {
+                const response = await this.requestModelCompletion(
+                  baseUrl,
+                  provider.completionPath,
+                  apiKey,
+                  this.buildTextProviderPayload(provider, modelName, systemPrompt, userPrompt),
+                  this.resolveModelAttemptTimeoutMs(provider.requestTimeoutMs, TEXT_MODEL_ATTEMPT_TIMEOUT_MS),
+                );
+                if (!response.ok) {
+                  lastError = `${provider.provider}/${modelName} 请求失败：${response.status}`;
+                  attemptTrail.push(`${attemptLabel} -> HTTP ${response.status}`);
+                  continue;
+                }
+                const payload = await response.json() as {
+                  choices?: Array<{ message?: { content?: string; reasoning_content?: string } }>;
+                };
+                const content = this.extractResponseText(payload);
+                if (!content) {
+                  lastError = `${provider.provider}/${modelName} 返回为空`;
+                  attemptTrail.push(`${attemptLabel} -> 返回为空`);
+                  continue;
+                }
+                const parsed = this.parseJsonObject(content);
+                const generatedTitle = String(parsed.title ?? "").trim() || context.title;
+                const generatedText = String(parsed.content ?? "").trim();
+                const summary = String(parsed.summary ?? "").trim() || `${template.title} 已生成完成。`;
+                const tags = this.normalizeStringArray(
+                  parsed.tags,
+                  [template.businessStage, template.outputType, template.scenarioLabel].filter(Boolean),
+                  6,
+                );
+                if (!generatedText) {
+                  lastError = `${provider.provider}/${modelName} 返回正文为空`;
+                  attemptTrail.push(`${attemptLabel} -> 返回正文为空`);
+                  continue;
+                }
+                latestOutput = {
+                  stage: "SUCCESS",
+                  title: generatedTitle,
+                  templateId: template.id,
+                  templateTitle: template.title,
+                  promptSnapshot: context.promptSnapshot,
+                  userRequirement: context.userRequirement || "",
+                  usedBrandProfile: context.injectBrandProfile,
+                  usedProductLabel: selectedProduct?.productName || "",
+                  usedCalendarLabel: marketingSelection ? `${marketingSelection.date} | ${marketingSelection.topicName}` : "",
+                  generatedText,
+                  summary,
+                  tags,
+                  modelName,
+                };
+                await this.markTaskSuccess(taskId, latestOutput, { modelName });
+                return;
+              } catch (error) {
+                lastError = error instanceof Error ? error.message : "运营提示词作品生成失败";
+                attemptTrail.push(`${attemptLabel} -> ${error instanceof Error ? error.message : "调用失败"}`);
+              }
+            }
+          }
+        }
+      }
+
+      throw new ServiceUnavailableException(
+        this.buildModelAttemptFailureMessage("运营提示词作品生成", preference.preferredModelName, lastError, attemptTrail, "未获取到有效响应"),
+      );
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "运营提示词作品生成失败";
+      latestOutput = {
+        ...latestOutput,
+        stage: "FAILED",
+        errorDetail: errorMessage,
+        summary: errorMessage,
+      };
+      await this.markTaskFailed(taskId, errorMessage, { outputJson: latestOutput });
     }
   }
 

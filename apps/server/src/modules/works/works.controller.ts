@@ -12,6 +12,7 @@ import {
   type ContinueDouyinVideoGenerationPayload,
   type ContinueXiaohongshuVideoGenerationPayload,
   type GenerateDesignWorkPayload,
+  type GenerateOperationsPromptWorkPayload,
   type CreateWechatWorkflowPayload,
   type GenerateWechatWorkflowHtmlPayload,
   type UpdateWechatWorkflowHtmlStylePayload,
@@ -497,6 +498,59 @@ export class WorksController {
     const auth = await this.authService.resolveRequestAuthContext(headers);
     await this.authService.assertBrandPermission(brandId, "personalCenter.works", "view", auth);
     return this.worksService.getDesignWorkspaceOptions(brandId);
+  }
+
+  @Get("brands/:brandId/design/operations-prompt-center/options")
+  async getOperationsPromptCenterOptions(
+    @Param("brandId") brandId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "personalCenter.works", "view", auth);
+    return this.worksService.getOperationsPromptCenterOptions(brandId);
+  }
+
+  @Get("brands/:brandId/design/operations-prompt-center/templates/:templateId")
+  async getOperationsPromptTemplateDetail(
+    @Param("brandId") brandId: string,
+    @Param("templateId") templateId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "personalCenter.works", "view", auth);
+    return this.worksService.getOperationsPromptTemplateDetail(brandId, templateId);
+  }
+
+  @Get("brands/:brandId/design/operations-prompt-center/works")
+  async listOperationsPromptWorks(
+    @Param("brandId") brandId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "personalCenter.works", "view", auth);
+    return this.worksService.listOperationsPromptWorks(brandId);
+  }
+
+  @Delete("brands/:brandId/design/operations-prompt-center/works/:workId")
+  async deleteOperationsPromptWork(
+    @Param("brandId") brandId: string,
+    @Param("workId") workId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "personalCenter.works", "edit", auth);
+    return this.worksService.deleteOperationsPromptWork(brandId, workId);
+  }
+
+  @Post("brands/:brandId/design/operations-prompt-center/generate")
+  async createOperationsPromptWork(
+    @Param("brandId") brandId: string,
+    @Body() payload: GenerateOperationsPromptWorkPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "personalCenter.works", "edit", auth);
+    return this.worksService.generateOperationsPromptWork(brandId, payload, auth!);
   }
 
   @Get("brands/:brandId/design/history")

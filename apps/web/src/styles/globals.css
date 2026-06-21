@@ -13037,19 +13037,330 @@ button {
   line-height: 1.7;
 }
 
+.ops-prompt-shell {
+  display: grid;
+  gap: 18px;
+}
+
+.ops-prompt-topbar,
+.ops-prompt-hero,
+.ops-works-layout,
+.ops-works-detail-head,
+.ops-prompt-dialog-summary,
+.ops-prompt-dialog-footer,
+.ops-prompt-inline-actions {
+  display: flex;
+  gap: 14px;
+}
+
+.ops-prompt-topbar,
+.ops-prompt-hero,
+.ops-works-detail-head,
+.ops-prompt-dialog-summary,
+.ops-prompt-dialog-footer {
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.ops-prompt-topbar strong {
+  color: var(--site-hero-text);
+  font-size: 24px;
+}
+
+.ops-prompt-topbar p,
+.ops-prompt-hero-copy p,
+.ops-prompt-stat-card p,
+.ops-works-dialog-subtitle,
+.ops-work-detail-block p {
+  margin: 8px 0 0;
+  color: var(--site-hero-muted);
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+.ops-prompt-hero {
+  padding: 22px;
+  border-radius: 24px;
+  border: 1px solid var(--site-hero-border);
+  background:
+    radial-gradient(circle at top right, rgba(116, 136, 255, 0.12), transparent 26%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(245, 248, 255, 0.92) 100%);
+}
+
+.ops-prompt-hero-copy {
+  display: grid;
+  gap: 8px;
+  max-width: 620px;
+}
+
+.ops-prompt-hero-copy span,
+.ops-prompt-stat-card span,
+.ops-prompt-card-head span,
+.ops-work-detail-block span {
+  color: var(--site-hero-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.ops-prompt-hero-copy strong {
+  color: var(--site-hero-text);
+  font-size: clamp(28px, 3vw, 40px);
+  line-height: 1.08;
+  letter-spacing: -0.03em;
+}
+
+.ops-prompt-hero-stats {
+  min-width: 320px;
+  display: grid;
+  gap: 12px;
+}
+
+.ops-prompt-stat-card,
+.ops-prompt-summary-card {
+  padding: 16px 18px;
+  border-radius: 20px;
+  border: 1px solid rgba(212, 220, 236, 0.92);
+  background: rgba(255, 255, 255, 0.84);
+}
+
+.ops-prompt-stat-card strong,
+.ops-prompt-summary-card strong {
+  display: block;
+  margin-top: 10px;
+  color: var(--site-hero-text);
+  font-size: 16px;
+}
+
+.ops-prompt-summary-card p {
+  margin: 8px 0 0;
+  color: var(--site-hero-muted);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.ops-prompt-filters {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.ops-prompt-feedback {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.ops-prompt-grid {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+}
+
+.ops-prompt-card {
+  display: grid;
+  gap: 16px;
+  padding: 20px;
+  border-radius: 24px;
+  border: 1px solid var(--site-hero-border);
+  background: var(--card-surface);
+  box-shadow: 0 18px 40px rgba(29, 42, 68, 0.08);
+}
+
+.ops-prompt-card-main,
+.ops-work-list-main {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ops-prompt-card-head {
+  display: grid;
+  gap: 10px;
+}
+
+.ops-prompt-card-head strong {
+  color: var(--site-hero-text);
+  font-size: 21px;
+  line-height: 1.28;
+  letter-spacing: -0.02em;
+}
+
+.ops-prompt-card p {
+  margin: 0;
+  color: var(--site-hero-muted);
+  font-size: 13px;
+  line-height: 1.8;
+  min-height: 72px;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.ops-prompt-card-actions,
+.ops-work-list-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.ops-prompt-tag-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ops-prompt-dialog {
+  width: min(1120px, 100%);
+}
+
+.ops-prompt-dialog .design-v3-dialog__body {
+  display: grid;
+  gap: 18px;
+}
+
+.ops-prompt-textarea {
+  min-height: 340px;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  line-height: 1.7;
+}
+
+.ops-works-dialog {
+  width: min(1260px, calc(100vw - 48px));
+}
+
+.ops-works-layout {
+  min-height: 560px;
+  align-items: stretch;
+}
+
+.ops-works-list,
+.ops-works-detail {
+  min-width: 0;
+  border-radius: 22px;
+  border: 1px solid rgba(212, 220, 236, 0.9);
+  background: rgba(255, 255, 255, 0.86);
+}
+
+.ops-works-list {
+  width: 380px;
+  padding: 16px;
+  overflow: auto;
+  display: grid;
+  gap: 12px;
+}
+
+.ops-works-detail {
+  flex: 1;
+  padding: 20px;
+  overflow: auto;
+  display: grid;
+  gap: 16px;
+}
+
+.ops-work-list-card {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(216, 224, 238, 0.92);
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.ops-work-list-card.is-selected {
+  border-color: rgba(95, 118, 255, 0.36);
+  box-shadow: 0 14px 30px rgba(84, 105, 235, 0.14);
+}
+
+.ops-work-list-meta {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.ops-work-list-meta span {
+  color: var(--site-hero-muted);
+  font-size: 11px;
+}
+
+.ops-work-list-card strong,
+.ops-works-detail-head strong {
+  color: var(--site-hero-text);
+  font-size: 18px;
+  line-height: 1.35;
+}
+
+.ops-work-list-card p,
+.ops-works-detail-head p {
+  margin: 8px 0 0;
+  color: var(--site-hero-muted);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.ops-work-detail-blocks {
+  display: grid;
+  gap: 14px;
+}
+
+.ops-work-detail-block {
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(216, 224, 238, 0.88);
+  background: rgba(255, 255, 255, 0.76);
+}
+
+.ops-work-detail-block pre {
+  margin: 10px 0 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--site-hero-text);
+  font-size: 12px;
+  line-height: 1.8;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+}
+
+.ops-work-detail-block.is-output pre {
+  min-height: 240px;
+}
+
+.ops-work-detail-block.is-error {
+  background: rgba(245, 126, 84, 0.08);
+}
+
 @media (max-width: 960px) {
   .design-v3-module-head,
   .design-v3-status-card,
   .design-v3-status-main,
   .design-v3-focus-strip,
   .design-v3-dialog__header,
-  .design-v3-dialog__footer {
+  .design-v3-dialog__footer,
+  .ops-prompt-topbar,
+  .ops-prompt-hero,
+  .ops-prompt-dialog-summary,
+  .ops-works-layout,
+  .ops-works-detail-head,
+  .ops-prompt-dialog-footer {
     flex-direction: column;
     align-items: flex-start;
   }
 
   .design-v3-form-grid {
     grid-template-columns: 1fr;
+  }
+
+  .ops-prompt-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .ops-prompt-hero-stats,
+  .ops-works-list {
+    width: 100%;
+    min-width: 0;
   }
 }
 

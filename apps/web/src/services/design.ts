@@ -85,6 +85,86 @@ export type DeleteDesignWorkResponse = {
   success: boolean;
 };
 
+export type OperationsPromptTemplateCardRecord = {
+  id: string;
+  title: string;
+  preview: string;
+  sourceCategory: string;
+  sourceFileName: string;
+  businessStage: string;
+  outputType: string;
+  scenarioLabel: string;
+  tags: string[];
+};
+
+export type OperationsPromptTemplateDetailRecord = OperationsPromptTemplateCardRecord & {
+  content: string;
+};
+
+export type OperationsPromptCenterOptionsRecord = {
+  brandId: string;
+  brandName: string;
+  brandProfileSummary: string;
+  modelSequence: string[];
+  calendarOptions: Array<{
+    id: string;
+    label: string;
+    topicName: string;
+    date: string;
+  }>;
+  productOptions: Array<{
+    id: string;
+    label: string;
+    description: string;
+  }>;
+  brandOptions: Array<{
+    value: "inject" | "skip";
+    label: string;
+    description: string;
+  }>;
+  filters: {
+    businessStages: Array<{ value: string; label: string; count: number }>;
+    outputTypes: Array<{ value: string; label: string; count: number }>;
+    scenarios: Array<{ value: string; label: string; count: number }>;
+  };
+  templates: OperationsPromptTemplateCardRecord[];
+};
+
+export type GenerateOperationsPromptWorkPayload = {
+  templateId: string;
+  title?: string;
+  injectBrandProfile?: boolean;
+  productId?: string;
+  calendarItemId?: string;
+  userRequirement?: string;
+  editedPrompt: string;
+};
+
+export type OperationsPromptWorkRecord = {
+  id: string;
+  taskId?: string;
+  taskStatus?: "PENDING" | "QUEUED" | "RUNNING" | "SUCCESS" | "FAILED" | "CANCELLED";
+  title: string;
+  status: string;
+  updatedAt: string;
+  summary: string;
+  errorDetail?: string;
+  tags: string[];
+  templateId: string;
+  templateTitle: string;
+  generatedText?: string;
+  promptSnapshot?: string;
+  userRequirement?: string;
+  modelName?: string;
+  usedBrandProfile: boolean;
+  usedProductLabel?: string;
+  usedCalendarLabel?: string;
+};
+
+export type OperationsPromptWorkHistoryRecord = {
+  items: OperationsPromptWorkRecord[];
+};
+
 const DEMO_BRAND_ID = "br_demo_001";
 
 function resolveBrandId(brandId?: string) {
@@ -138,4 +218,39 @@ export async function generateDesignWork(
     ...payload,
     referenceImage,
   });
+}
+
+export async function getOperationsPromptCenterOptions(brandId?: string) {
+  return request<OperationsPromptCenterOptionsRecord>(
+    `/works/brands/${resolveBrandId(brandId)}/design/operations-prompt-center/options`,
+  );
+}
+
+export async function getOperationsPromptTemplateDetail(templateId: string, brandId?: string) {
+  return request<OperationsPromptTemplateDetailRecord>(
+    `/works/brands/${resolveBrandId(brandId)}/design/operations-prompt-center/templates/${encodeURIComponent(templateId)}`,
+  );
+}
+
+export async function getOperationsPromptWorks(brandId?: string) {
+  return request<OperationsPromptWorkHistoryRecord>(
+    `/works/brands/${resolveBrandId(brandId)}/design/operations-prompt-center/works`,
+  );
+}
+
+export async function deleteOperationsPromptWork(workId: string, brandId?: string) {
+  return request<DeleteDesignWorkResponse>(
+    `/works/brands/${resolveBrandId(brandId)}/design/operations-prompt-center/works/${encodeURIComponent(workId)}`,
+    {
+      method: "DELETE",
+    },
+  );
+}
+
+export async function generateOperationsPromptWork(payload: GenerateOperationsPromptWorkPayload, brandId?: string) {
+  return jsonRequest<OperationsPromptWorkRecord>(
+    `/works/brands/${resolveBrandId(brandId)}/design/operations-prompt-center/generate`,
+    "POST",
+    payload,
+  );
 }
