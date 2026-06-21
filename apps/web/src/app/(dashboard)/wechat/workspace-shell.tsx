@@ -230,8 +230,19 @@ function parseWhitelistText(value: string) {
     .filter(Boolean);
 }
 
+function resolveMarketingCalendarTopic(item?: XiaohongshuMarketingCalendarItem | null) {
+  return (
+    item?.topicName
+    || item?.brandMarketing?.theme
+    || item?.xiaohongshu?.brandAccount?.topic
+    || item?.douyin?.brandAccount?.topic
+    || item?.moments?.topic
+    || "未命名主题"
+  ).trim();
+}
+
 function buildWorkflowTitle(calendarItem?: XiaohongshuMarketingCalendarItem, product?: BrandProduct) {
-  const topic = calendarItem?.topicName || "公众号创作工作流";
+  const topic = calendarItem ? resolveMarketingCalendarTopic(calendarItem) : "公众号创作工作流";
   return product && product.id !== NO_PRODUCT_VALUE ? `${topic}：${product.productName}内容策划` : `${topic}：品牌内容策划`;
 }
 
@@ -246,7 +257,7 @@ function buildWorkflowContent(params: {
   const inputLabel = inputTypeOptions.find((item) => item.value === inputType)?.label || inputType;
   const sections = [
     `输入来源：${inputLabel}`,
-    calendarItem ? `营销日历：${calendarItem.date} · ${calendarItem.topicName}` : "营销日历：本次不强依赖营销日历，由自定义创作意图驱动。",
+    calendarItem ? `营销日历：${calendarItem.date} · ${resolveMarketingCalendarTopic(calendarItem)}` : "营销日历：本次不强依赖营销日历，由自定义创作意图驱动。",
     product && product.id !== NO_PRODUCT_VALUE
       ? `产品资料：${product.productName}，定位 ${product.productPositioning}，适用场景 ${product.usageScenario}。`
       : "产品资料：本次不植入具体产品。",
@@ -756,7 +767,7 @@ export function WechatWorkspaceShell() {
         themeColor: createThemeColor,
         imageMode: createImageMode,
         injectBrandProfile: createInjectBrandProfile,
-        selectedMarketingLabels: calendarItem ? [calendarItem.topicName] : [],
+        selectedMarketingLabels: calendarItem ? [resolveMarketingCalendarTopic(calendarItem)] : [],
         selectedProductLabels: product && product.id !== NO_PRODUCT_VALUE ? [product.productName] : [],
         selectedBrandLabels: createInjectBrandProfile ? ["品牌资料"] : [],
       });
@@ -793,7 +804,7 @@ export function WechatWorkspaceShell() {
         themeColor: workflowThemeColor,
         imageMode: workflowImageMode,
         injectBrandProfile: workflowInjectBrandProfile,
-        selectedMarketingLabels: calendarItem ? [calendarItem.topicName] : [],
+        selectedMarketingLabels: calendarItem ? [resolveMarketingCalendarTopic(calendarItem)] : [],
         selectedProductLabels: product && product.id !== NO_PRODUCT_VALUE ? [product.productName] : [],
         selectedBrandLabels: workflowInjectBrandProfile ? ["品牌资料"] : [],
       });
@@ -829,7 +840,7 @@ export function WechatWorkspaceShell() {
         themeColor: workflowThemeColor,
         imageMode: workflowImageMode,
         injectBrandProfile: workflowInjectBrandProfile,
-        selectedMarketingLabels: calendarItem ? [calendarItem.topicName] : [],
+        selectedMarketingLabels: calendarItem ? [resolveMarketingCalendarTopic(calendarItem)] : [],
         selectedProductLabels: product && product.id !== NO_PRODUCT_VALUE ? [product.productName] : [],
         selectedBrandLabels: workflowInjectBrandProfile ? ["品牌资料"] : [],
       });
@@ -1166,7 +1177,7 @@ export function WechatWorkspaceShell() {
                             <option value="">不使用营销日历</option>
                             {calendarItems.map((item) => (
                               <option key={item.id} value={item.id}>
-                                {item.date} · {item.topicName}
+                                {item.date} · {resolveMarketingCalendarTopic(item)}
                               </option>
                             ))}
                           </select>
@@ -1332,7 +1343,7 @@ export function WechatWorkspaceShell() {
                                 <option value="">不使用营销日历</option>
                                 {calendarItems.map((item) => (
                                   <option key={item.id} value={item.id}>
-                                    {item.date} · {item.topicName}
+                                    {item.date} · {resolveMarketingCalendarTopic(item)}
                                   </option>
                                 ))}
                               </select>

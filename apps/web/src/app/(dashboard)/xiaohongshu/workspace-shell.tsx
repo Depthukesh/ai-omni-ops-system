@@ -119,6 +119,17 @@ const DEFAULT_VIDEO_PROVIDER_OPTIONS: VideoProviderOptionRecord[] = [
 ];
 const DEFAULT_STORYBOARD_IMAGE_MODEL_OPTIONS: StoryboardImageModelOptionRecord[] = [];
 
+function resolveMarketingCalendarTopic(item?: XiaohongshuMarketingCalendarItem | null) {
+  return (
+    item?.topicName
+    || item?.brandMarketing?.theme
+    || item?.xiaohongshu?.brandAccount?.topic
+    || item?.douyin?.brandAccount?.topic
+    || item?.moments?.topic
+    || "未命名主题"
+  ).trim();
+}
+
 export function XiaohongshuWorkspaceShell() {
   const seedWorkspace = useMemo(() => getXiaohongshuWorkspaceSeed(), []);
   const defaultProduct = useMemo(() => getDefaultProduct(seedWorkspace.archive.products), [seedWorkspace.archive.products]);
@@ -516,7 +527,7 @@ export function XiaohongshuWorkspaceShell() {
     () =>
       calendarAllItems.map((item) => ({
         value: item.id,
-        label: `${item.date}｜${item.topicName}`,
+        label: `${item.date}｜${resolveMarketingCalendarTopic(item)}`,
       })),
     [calendarAllItems],
   );
@@ -1173,7 +1184,10 @@ export function XiaohongshuWorkspaceShell() {
         isLoading={isLoading}
         products={workspace.archive.products}
         materialNotes={materialNotes}
-        calendarAllItems={calendarAllItems}
+        calendarAllItems={calendarAllItems.map((item) => ({
+          ...item,
+          topicName: resolveMarketingCalendarTopic(item),
+        }))}
         originalAccountRoleOptions={originalAccountRoleOptions}
         originalWorks={originalWorks}
         rewriteWorks={rewriteWorks}
@@ -1326,7 +1340,7 @@ function normalizeEditableMarketingCalendarItem(item: XiaohongshuMarketingCalend
   return {
     ...item,
     date: item.date.trim(),
-    topicName: item.topicName.trim(),
+    topicName: resolveMarketingCalendarTopic(item),
     productName: item.productName?.trim() || "",
     noteType: item.noteType?.trim() || "",
     targetAudience: item.targetAudience?.trim() || "",

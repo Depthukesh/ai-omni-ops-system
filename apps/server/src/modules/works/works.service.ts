@@ -748,6 +748,17 @@ export type DesignWorkspaceOptionsRecord = {
   >;
 };
 
+type MarketingCalendarSelectionRecord = {
+  id: string;
+  date: string;
+  topicName: string;
+  topicContent?: string;
+  titleDirections: string[];
+  contentGoal?: string;
+  targetAudience?: string;
+  expressionFocus?: string;
+};
+
 export type DesignGeneratedWorkRecord = {
   id: string;
   taskId?: string;
@@ -1494,7 +1505,7 @@ type ResolvedVideoComposerContext = {
   workKind: VideoWorkKind;
   accountRole: OriginalAccountRole;
   videoKind: VideoNoteKind;
-  selectedCalendarItem?: XiaohongshuMarketingCalendarRecord["items"][number];
+  selectedCalendarItem?: MarketingCalendarSelectionRecord;
   customTopicName?: string;
   topicLabel: string;
   product?: {
@@ -2601,15 +2612,18 @@ export class WorksService {
         [calendarWorkspace.latest, ...calendarWorkspace.history]
           .filter((record): record is NonNullable<typeof calendarWorkspace.latest> => Boolean(record))
           .flatMap((record) => record.items)
-          .map((item) => [
-            item.id || `${item.date}-${item.topicName}`,
-            {
-              id: item.id,
-              label: `${item.date} | ${item.topicName}`,
-              topicName: item.topicName,
-              date: item.date,
-            },
-          ]),
+          .map((item) => {
+            const selection = this.buildMarketingCalendarSelection(item);
+            return [
+              selection.id || `${selection.date}-${selection.topicName}`,
+              {
+                id: selection.id,
+                label: `${selection.date} | ${selection.topicName}`,
+                topicName: selection.topicName,
+                date: selection.date,
+              },
+            ] as const;
+          }),
       ).values(),
     ).sort((left, right) => right.date.localeCompare(left.date, "zh-CN"));
 
@@ -8438,16 +8452,7 @@ export class WorksService {
     accountRole: OriginalAccountRole;
     noteMode: XiaohongshuOriginalNoteMode;
     marketingPlanMarkdown: string;
-    selectedCalendarItem?: {
-      id: string;
-      date: string;
-      topicName: string;
-      topicContent?: string;
-      titleDirections: string[];
-      contentGoal?: string;
-      targetAudience?: string;
-      expressionFocus?: string;
-    };
+    selectedCalendarItem?: MarketingCalendarSelectionRecord;
     customTopicName?: string;
     product?: {
       id: string;
@@ -8585,16 +8590,7 @@ export class WorksService {
     brandId: string;
     accountRole: OriginalAccountRole;
     marketingPlanMarkdown: string;
-    selectedCalendarItem?: {
-      id: string;
-      date: string;
-      topicName: string;
-      topicContent?: string;
-      titleDirections: string[];
-      contentGoal?: string;
-      targetAudience?: string;
-      expressionFocus?: string;
-    };
+    selectedCalendarItem?: MarketingCalendarSelectionRecord;
     customTopicName?: string;
     product?: {
       productName: string;
@@ -11948,13 +11944,7 @@ export class WorksService {
     marketingPlanMarkdown: string;
     accountRole: OriginalAccountRole;
     noteMode: XiaohongshuOriginalNoteMode;
-    selectedCalendarItem?: {
-      topicName: string;
-      topicContent?: string;
-      contentGoal?: string;
-      targetAudience?: string;
-      expressionFocus?: string;
-    };
+    selectedCalendarItem?: MarketingCalendarSelectionRecord;
     customTopicName?: string;
     product?: {
       productName: string;
@@ -12000,13 +11990,7 @@ export class WorksService {
 
   private async buildXiaohongshuOriginalImageKnowledgeContext(params: {
     accountRole: OriginalAccountRole;
-    selectedCalendarItem?: {
-      topicName: string;
-      topicContent?: string;
-      contentGoal?: string;
-      targetAudience?: string;
-      expressionFocus?: string;
-    };
+    selectedCalendarItem?: MarketingCalendarSelectionRecord;
     customTopicName?: string;
     product?: {
       productName: string;
@@ -13212,6 +13196,32 @@ export class WorksService {
     return database.tasks.find((item) => item.id === taskId)?.taskStatus === "CANCELLED";
   }
 
+  private getMarketingCalendarPrimaryTopic(item: XiaohongshuMarketingCalendarRecord["items"][number]) {
+    return (
+      item.topicName
+      || item.brandMarketing?.theme
+      || item.xiaohongshu?.brandAccount?.topic
+      || item.douyin?.brandAccount?.topic
+      || item.moments?.topic
+      || "未命名主题"
+    ).trim();
+  }
+
+  private buildMarketingCalendarSelection(item: XiaohongshuMarketingCalendarRecord["items"][number]): MarketingCalendarSelectionRecord {
+    return {
+      id: item.id,
+      date: item.date,
+      topicName: this.getMarketingCalendarPrimaryTopic(item),
+      topicContent: item.topicContent || item.brandMarketing?.description || item.xiaohongshu?.brandAccount?.description || undefined,
+      titleDirections: item.titleDirections?.length
+        ? item.titleDirections
+        : item.xiaohongshu?.brandAccount?.titleSuggestions || [],
+      contentGoal: item.contentGoal || item.brandMarketing?.description || undefined,
+      targetAudience: item.targetAudience || undefined,
+      expressionFocus: item.expressionFocus || item.xiaohongshu?.brandAccount?.description || undefined,
+    };
+  }
+
   private findSelectedCalendarItem(history: XiaohongshuMarketingCalendarRecord[], calendarItemId?: string) {
     if (!calendarItemId) {
       return undefined;
@@ -13219,7 +13229,7 @@ export class WorksService {
     for (const record of history) {
       const matched = record.items.find((item) => item.id === calendarItemId);
       if (matched) {
-        return matched;
+        return this.buildMarketingCalendarSelection(matched);
       }
     }
     return undefined;
@@ -20326,16 +20336,7 @@ export class WorksService {
     brandId: string;
     accountRole: OriginalAccountRole;
     marketingPlanMarkdown: string;
-    selectedCalendarItem?: {
-      id: string;
-      date: string;
-      topicName: string;
-      topicContent?: string;
-      titleDirections: string[];
-      contentGoal?: string;
-      targetAudience?: string;
-      expressionFocus?: string;
-    };
+    selectedCalendarItem?: MarketingCalendarSelectionRecord;
     customTopicName?: string;
     product?: {
       id: string;
@@ -20493,16 +20494,7 @@ export class WorksService {
     brandId: string;
     accountRole: OriginalAccountRole;
     marketingPlanMarkdown: string;
-    selectedCalendarItem?: {
-      id: string;
-      date: string;
-      topicName: string;
-      topicContent?: string;
-      titleDirections: string[];
-      contentGoal?: string;
-      targetAudience?: string;
-      expressionFocus?: string;
-    };
+    selectedCalendarItem?: MarketingCalendarSelectionRecord;
     customTopicName?: string;
     product?: {
       id: string;

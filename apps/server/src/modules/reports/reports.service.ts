@@ -353,21 +353,77 @@ type DouyinRemixCopyAssetMeta = {
   modelName?: string;
 };
 
+type MarketingCalendarThemeBlock = {
+  theme: string;
+  description: string;
+};
+
+type MarketingCalendarXhsAccountBlock = {
+  topic: string;
+  description: string;
+  contentType: string;
+  noteKeywords: string[];
+  coverKeywords: string[];
+  titleSuggestions: string[];
+  expectedPerformance: string;
+};
+
+type MarketingCalendarDouyinAccountBlock = {
+  topic: string;
+  description: string;
+  contentType: string;
+  presentationFormat: string;
+  copyKeywords: string[];
+  coverKeywords: string[];
+  titleSuggestions: string[];
+  expectedPerformance: string;
+};
+
+type MarketingCalendarMomentsBlock = {
+  topic: string;
+  description: string;
+  presentationFormat: string;
+};
+
+type MarketingCalendarCapabilityItem = {
+  platform: string;
+  featureName: string;
+  outputType: string;
+  description: string;
+};
+
+type MarketingCalendarCapabilityInventory = {
+  generatedAt: string;
+  items: MarketingCalendarCapabilityItem[];
+};
+
 type XiaohongshuMarketingCalendarItem = {
   id: string;
   date: string;
-  topicName: string;
+  festivalOrSolarTerm?: string;
+  brandMarketing: MarketingCalendarThemeBlock;
+  xiaohongshu: {
+    brandAccount: MarketingCalendarXhsAccountBlock;
+    employeeAccount: MarketingCalendarXhsAccountBlock;
+  };
+  douyin: {
+    brandAccount: MarketingCalendarDouyinAccountBlock;
+    ipAccount: MarketingCalendarDouyinAccountBlock;
+    employeeAccount: MarketingCalendarDouyinAccountBlock;
+  };
+  moments: MarketingCalendarMomentsBlock;
+  topicName?: string;
   productName?: string;
   noteType?: string;
   targetAudience?: string;
   contentGoal?: string;
   expressionFocus?: string;
   topicContent?: string;
-  noteKeywords: string[];
-  titleDirections: string[];
+  noteKeywords?: string[];
+  titleDirections?: string[];
   bodyStructure?: string;
   coverFormat?: string;
-  coverKeywords: string[];
+  coverKeywords?: string[];
   imageBrief?: string;
 };
 
@@ -381,8 +437,11 @@ type XiaohongshuMarketingCalendarAssetMeta = {
   sourceAnnualPlanTitle?: string;
   sourceMarketingPlanId?: string;
   sourceMarketingPlanTitle?: string;
+  sourceOpportunityReportId?: string;
+  sourceOpportunityReportTitle?: string;
   summary: string;
   modelName?: string;
+  executionCapabilityInventory?: MarketingCalendarCapabilityInventory;
   items: XiaohongshuMarketingCalendarItem[];
 };
 
@@ -550,7 +609,10 @@ export type XiaohongshuMarketingCalendarRecord = {
   sourceAnnualPlanTitle?: string;
   sourceMarketingPlanId?: string;
   sourceMarketingPlanTitle?: string;
+  sourceOpportunityReportId?: string;
+  sourceOpportunityReportTitle?: string;
   modelName?: string;
+  executionCapabilityInventory?: MarketingCalendarCapabilityInventory;
   items: XiaohongshuMarketingCalendarItem[];
 };
 
@@ -2525,19 +2587,28 @@ export class ReportsService {
 
   async generateXiaohongshuMarketingCalendar(brandId: string) {
     const growthReportWorkspace = await this.getGrowthReportWorkspace(brandId);
-    const annualPlanWorkspace = await this.getAnnualMarketingPlanWorkspace(brandId);
-    const marketingPlanWorkspace = await this.getXiaohongshuMarketingPlanWorkspace(brandId);
+    const opportunityInsightWorkspace = await this.getOpportunityInsightWorkspace(brandId);
     const sourceReport = growthReportWorkspace.latest;
-    const annualPlan = annualPlanWorkspace.latest;
-    const marketingPlan = marketingPlanWorkspace.latest;
+    const opportunityReport = opportunityInsightWorkspace.finalOpportunityReport;
     if (!sourceReport) {
       throw new NotFoundException("请先生成品牌增长报告");
     }
-    if (!annualPlan) {
-      throw new NotFoundException("请先生成半年营销规划");
+    if (!opportunityReport?.htmlDocument?.trim()) {
+      throw new NotFoundException("请先生成机会洞察总报告");
     }
-    if (!marketingPlan) {
-      throw new NotFoundException("请先生成小红书营销策划方案");
+    if (
+      !sourceReport.reportMarkdown?.trim()
+      && !sourceReport.htmlContent?.trim()
+    ) {
+      throw new NotFoundException("品牌增长报告内容为空，请先完成品牌增长报告");
+    }
+    if (
+      !sourceReport.summary?.trim()
+      && !sourceReport.diagnosis.length
+      && !sourceReport.opportunities.length
+      && !sourceReport.nextActions.length
+    ) {
+      throw new NotFoundException("品牌增长报告内容为空，请先完成品牌增长报告");
     }
     const workspace = await this.getXiaohongshuMarketingCalendarWorkspace(brandId);
     const runningTask = workspace.latestTask;
@@ -2545,7 +2616,7 @@ export class ReportsService {
       return workspace;
     }
 
-    const task = await this.createXiaohongshuMarketingCalendarTask(brandId, sourceReport, annualPlan, marketingPlan);
+    const task = await this.createXiaohongshuMarketingCalendarTask(brandId, sourceReport, opportunityReport);
     setTimeout(() => {
       void this.runXiaohongshuMarketingCalendarTask(brandId, task.id);
     }, 0);
@@ -3816,23 +3887,7 @@ export class ReportsService {
           }
         : undefined,
       calendarItem: params.calendarItem
-        ? {
-            id: params.calendarItem.id,
-            date: params.calendarItem.date,
-            topicName: params.calendarItem.topicName,
-            productName: params.calendarItem.productName,
-            noteType: params.calendarItem.noteType,
-            targetAudience: params.calendarItem.targetAudience,
-            contentGoal: params.calendarItem.contentGoal,
-            expressionFocus: params.calendarItem.expressionFocus,
-            topicContent: params.calendarItem.topicContent,
-            noteKeywords: params.calendarItem.noteKeywords,
-            titleDirections: params.calendarItem.titleDirections,
-            bodyStructure: params.calendarItem.bodyStructure,
-            coverFormat: params.calendarItem.coverFormat,
-            coverKeywords: params.calendarItem.coverKeywords,
-            imageBrief: params.calendarItem.imageBrief,
-          }
+        ? this.buildMarketingCalendarWorkflowSelection(params.calendarItem)
         : undefined,
       injectMarketingPlan: params.injectMarketingPlan,
       marketingPlanTitle: params.marketingPlanTitle || undefined,
@@ -4289,8 +4344,7 @@ export class ReportsService {
   private async createXiaohongshuMarketingCalendarTask(
     brandId: string,
     sourceReport: GrowthReportRecord,
-    annualPlan: AnnualMarketingPlanRecord,
-    marketingPlan: XiaohongshuMarketingPlanRecord,
+    opportunityReport: OpportunityInsightReportRecord,
   ) {
     const now = new Date().toISOString();
     const settings = await this.loadXiaohongshuMarketingCalendarGenerationSettings(brandId);
@@ -4320,10 +4374,8 @@ export class ReportsService {
           inputJson: {
             sourceReportId: sourceReport.id,
             sourceReportTitle: sourceReport.title,
-            sourceAnnualPlanId: annualPlan.id,
-            sourceAnnualPlanTitle: annualPlan.title,
-            sourceMarketingPlanId: marketingPlan.id,
-            sourceMarketingPlanTitle: marketingPlan.title,
+            sourceOpportunityReportId: opportunityReport.id,
+            sourceOpportunityReportTitle: opportunityReport.title,
           } as Prisma.InputJsonValue,
         },
       });
@@ -4348,10 +4400,8 @@ export class ReportsService {
       inputJson: {
         sourceReportId: sourceReport.id,
         sourceReportTitle: sourceReport.title,
-        sourceAnnualPlanId: annualPlan.id,
-        sourceAnnualPlanTitle: annualPlan.title,
-        sourceMarketingPlanId: marketingPlan.id,
-        sourceMarketingPlanTitle: marketingPlan.title,
+        sourceOpportunityReportId: opportunityReport.id,
+        sourceOpportunityReportTitle: opportunityReport.title,
       },
       createdAt: now,
       updatedAt: now,
@@ -4731,27 +4781,7 @@ export class ReportsService {
             }
           : undefined,
         selectedCalendarItem: calendarRecord
-          ? {
-              id: this.readRecordString(calendarRecord, "id") || this.resolveCalendarItemId(calendarRecord, {
-                index: 0,
-                date: this.readRecordString(calendarRecord, "date"),
-                topicName: this.readRecordString(calendarRecord, "topicName"),
-              }),
-              date: this.readRecordString(calendarRecord, "date"),
-              topicName: this.readRecordString(calendarRecord, "topicName"),
-              productName: this.readRecordString(calendarRecord, "productName") || undefined,
-              noteType: this.readRecordString(calendarRecord, "noteType") || undefined,
-              targetAudience: this.readRecordString(calendarRecord, "targetAudience") || undefined,
-              contentGoal: this.readRecordString(calendarRecord, "contentGoal") || undefined,
-              expressionFocus: this.readRecordString(calendarRecord, "expressionFocus") || undefined,
-              topicContent: this.readRecordString(calendarRecord, "topicContent") || undefined,
-              noteKeywords: this.readRecordStringArray(calendarRecord, "noteKeywords"),
-              titleDirections: this.readRecordStringArray(calendarRecord, "titleDirections"),
-              bodyStructure: this.readRecordString(calendarRecord, "bodyStructure") || undefined,
-              coverFormat: this.readRecordString(calendarRecord, "coverFormat") || undefined,
-              coverKeywords: this.readRecordStringArray(calendarRecord, "coverKeywords"),
-              imageBrief: this.readRecordString(calendarRecord, "imageBrief") || undefined,
-            }
+          ? this.normalizeXiaohongshuMarketingCalendarItems([calendarRecord])[0]
           : undefined,
         marketingPlan,
         copyType,
@@ -4910,27 +4940,21 @@ export class ReportsService {
 
     try {
       const archive = await this.brandsService.getArchive(brandId);
-      const collection = await this.collectorsService.getXiaohongshuWorkspace(brandId);
-      const dailyHotspots = await this.collectorsService.getDailyHotspotWorkspace(brandId);
       const growthReportWorkspace = await this.getGrowthReportWorkspace(brandId);
-      const annualPlanWorkspace = await this.getAnnualMarketingPlanWorkspace(brandId);
-      const marketingPlanWorkspace = await this.getXiaohongshuMarketingPlanWorkspace(brandId);
+      const opportunityInsightWorkspace = await this.getOpportunityInsightWorkspace(brandId);
       const calendarWorkspace = await this.getXiaohongshuMarketingCalendarWorkspace(brandId);
       const currentTaskRow = await this.findTaskInputMeta(brandId, taskId);
       const sourceReportId = this.readMetaString(currentTaskRow, "sourceReportId");
-      const sourceAnnualPlanId = this.readMetaString(currentTaskRow, "sourceAnnualPlanId");
-      const sourceMarketingPlanId = this.readMetaString(currentTaskRow, "sourceMarketingPlanId");
+      const sourceOpportunityReportId = this.readMetaString(currentTaskRow, "sourceOpportunityReportId");
       const sourceReport = growthReportWorkspace.history.find((item) => item.id === sourceReportId) || growthReportWorkspace.latest;
-      const annualPlan = annualPlanWorkspace.history.find((item) => item.id === sourceAnnualPlanId) || annualPlanWorkspace.latest;
-      const marketingPlan = marketingPlanWorkspace.history.find((item) => item.id === sourceMarketingPlanId) || marketingPlanWorkspace.latest;
+      const opportunityReport =
+        opportunityInsightWorkspace.history.find((item) => item.id === sourceOpportunityReportId)
+        || opportunityInsightWorkspace.finalOpportunityReport;
       if (!sourceReport) {
         throw new NotFoundException("请先生成品牌增长报告");
       }
-      if (!annualPlan) {
-        throw new NotFoundException("请先生成半年营销规划");
-      }
-      if (!marketingPlan) {
-        throw new NotFoundException("请先生成小红书营销策划方案");
+      if (!opportunityReport?.htmlDocument?.trim()) {
+        throw new NotFoundException("请先生成机会洞察总报告");
       }
 
       currentPhaseStatus = this.buildXiaohongshuMarketingCalendarPhaseStatus("GENERATING");
@@ -4938,11 +4962,8 @@ export class ReportsService {
       const report = await this.buildXiaohongshuMarketingCalendar({
         brandId,
         archive,
-        collection,
-        dailyHotspots,
         sourceReport,
-        annualPlan,
-        marketingPlan,
+        opportunityReport,
         previousCalendars: calendarWorkspace.history,
         generatedAt: startedAt,
         onPhaseUpdate: async (phase, extra) => {
@@ -4960,8 +4981,7 @@ export class ReportsService {
         brandId,
         taskId,
         sourceReport,
-        annualPlan,
-        marketingPlan,
+        opportunityReport,
         report,
         startedAt,
       );
@@ -5739,11 +5759,11 @@ export class ReportsService {
     brandId: string,
     taskId: string,
     sourceReport: GrowthReportRecord,
-    annualPlan: AnnualMarketingPlanRecord,
-    marketingPlan: XiaohongshuMarketingPlanRecord,
+    opportunityReport: OpportunityInsightReportRecord,
     report: Awaited<ReturnType<ReportsService["buildXiaohongshuMarketingCalendar"]>>,
     generatedAt: string,
   ) {
+    const executionCapabilityInventory = this.buildMarketingCalendarExecutionCapabilityInventory(generatedAt);
     if (await this.prismaService.canUseDatabase()) {
       await this.prismaService.businessAsset.create({
         data: {
@@ -5757,13 +5777,12 @@ export class ReportsService {
             taskId,
             sourceReportId: sourceReport.id,
             sourceReportTitle: sourceReport.title,
-            sourceAnnualPlanId: annualPlan.id,
-            sourceAnnualPlanTitle: annualPlan.title,
-            sourceMarketingPlanId: marketingPlan.id,
-            sourceMarketingPlanTitle: marketingPlan.title,
+            sourceOpportunityReportId: opportunityReport.id,
+            sourceOpportunityReportTitle: opportunityReport.title,
             summary: report.summary,
             items: report.items,
             modelName: report.modelName,
+            executionCapabilityInventory,
           } as Prisma.InputJsonValue,
         },
       });
@@ -5784,13 +5803,12 @@ export class ReportsService {
         taskId,
         sourceReportId: sourceReport.id,
         sourceReportTitle: sourceReport.title,
-        sourceAnnualPlanId: annualPlan.id,
-        sourceAnnualPlanTitle: annualPlan.title,
-        sourceMarketingPlanId: marketingPlan.id,
-        sourceMarketingPlanTitle: marketingPlan.title,
+        sourceOpportunityReportId: opportunityReport.id,
+        sourceOpportunityReportTitle: opportunityReport.title,
         summary: report.summary,
         items: report.items,
         modelName: report.modelName,
+        executionCapabilityInventory,
       },
     });
   }
@@ -7019,11 +7037,8 @@ export class ReportsService {
   private async buildXiaohongshuMarketingCalendar(params: {
     brandId: string;
     archive: Awaited<ReturnType<BrandsService["getArchive"]>>;
-    collection: Awaited<ReturnType<CollectorsService["getXiaohongshuWorkspace"]>>;
-    dailyHotspots: Awaited<ReturnType<CollectorsService["getDailyHotspotWorkspace"]>>;
     sourceReport: GrowthReportRecord;
-    annualPlan: AnnualMarketingPlanRecord;
-    marketingPlan: XiaohongshuMarketingPlanRecord;
+    opportunityReport: OpportunityInsightReportRecord;
     previousCalendars: XiaohongshuMarketingCalendarRecord[];
     generatedAt: string;
     onPhaseUpdate?: (
@@ -7037,11 +7052,8 @@ export class ReportsService {
     const settings = await this.loadXiaohongshuMarketingCalendarGenerationSettings(params.brandId);
     const inputPayload = this.buildXiaohongshuMarketingCalendarInput(
       params.archive,
-      params.collection,
-      params.dailyHotspots,
       params.sourceReport,
-      params.annualPlan,
-      params.marketingPlan,
+      params.opportunityReport,
       params.previousCalendars,
       params.generatedAt,
     );
@@ -7915,21 +7927,25 @@ export class ReportsService {
     const systemPrompt = [
       skillPrompt,
       "",
-      "请输出未来 7 天的营销日历。",
-      "输入包含营销策划方案、半年规划、素材库、每日热点和历史记录。",
+      "请输出未来 7 天的品牌全平台营销日历。",
+      "输入包含品牌背景资料、机会洞察总报告、品牌增长报告、系统各板块生成内容功能清单和历史营销日历。",
       "从 startDate 开始连续输出 7 天，不要遗漏日期，不要与历史日期重复。",
       expectedDates.length
         ? `必须严格覆盖这 7 个日期，且顺序保持一致：${expectedDates.join("、")}`
         : "必须严格覆盖从 startDate 开始的连续 7 个日期，且顺序保持一致。",
-      "items 中每一项都必须尽量完整填写字段，除 productName 可按需留空外，其余字段默认都要返回非空内容。",
-      "items 中每一项都必须包含非空的 date、topicName、noteType、targetAudience、contentGoal、expressionFocus、topicContent、bodyStructure、coverFormat、imageBrief。",
-      "items 中每一项都必须包含 noteKeywords、titleDirections、coverKeywords 三个数组；noteKeywords 至少 3 个，titleDirections 建议 2-3 个，coverKeywords 至少 3 个。",
+      "items 中每一项都必须输出以下结构：date、festivalOrSolarTerm、brandMarketing、xiaohongshu、douyin、moments。",
+      "festivalOrSolarTerm 如果当天没有匹配节日或节气，必须明确填写“无”，不要留空。",
+      "brandMarketing 必须包含 theme、description。",
+      "xiaohongshu.brandAccount 与 xiaohongshu.employeeAccount 必须包含 topic、description、contentType、noteKeywords、coverKeywords、titleSuggestions、expectedPerformance。",
+      "douyin.brandAccount、douyin.ipAccount、douyin.employeeAccount 必须包含 topic、description、contentType、presentationFormat、copyKeywords、coverKeywords、titleSuggestions、expectedPerformance。",
+      "moments 必须包含 topic、description、presentationFormat。",
+      "所有数组字段默认返回非空内容；noteKeywords/copyKeywords/coverKeywords 至少 3 个，titleSuggestions 建议 2-3 个。",
       "不允许合并日期、不允许跳过日期、不允许返回少于 7 条，也不允许输出历史日期。",
       "只输出 JSON 对象，不要输出 Markdown 或代码块。",
       "JSON 必须包含 title、summary、items；items 必须正好 7 条。",
       "items 的 date 必须只从 expectedDates 中选取，每个日期只能出现一次。",
-      "JSON 项字段固定为：date、topicName、productName、noteType、targetAudience、contentGoal、expressionFocus、topicContent、noteKeywords、titleDirections、bodyStructure、coverFormat、coverKeywords、imageBrief。",
-      "topicName 要像真实日历主题，简洁但有传播感；topicContent、bodyStructure、imageBrief 要写成可直接交给创作执行的完整说明，不要只写短句。",
+      "请优先保证品牌营销主题与各平台选题之间逻辑一致，但账号角色要有明确区分，不允许不同账号完全重复。",
+      "预期效果必须写成预估发布 7 天后的数据口径，例如曝光、互动、收藏、留资或私域转化等。",
     ].join("\n");
     const userPrompt = ["以下是输入数据：", "", JSON.stringify(inputPayload, null, 2)].join("\n");
 
@@ -10214,23 +10230,7 @@ ${normalizedMarkdown}`;
             }
           : undefined,
         selectedCalendarItem: selectedCalendarItem
-          ? {
-              id: selectedCalendarItem.id,
-              date: selectedCalendarItem.date,
-              topicName: selectedCalendarItem.topicName,
-              productName: selectedCalendarItem.productName,
-              noteType: selectedCalendarItem.noteType,
-              targetAudience: selectedCalendarItem.targetAudience,
-              contentGoal: selectedCalendarItem.contentGoal,
-              expressionFocus: selectedCalendarItem.expressionFocus,
-              topicContent: selectedCalendarItem.topicContent,
-              noteKeywords: selectedCalendarItem.noteKeywords,
-              titleDirections: selectedCalendarItem.titleDirections,
-              bodyStructure: selectedCalendarItem.bodyStructure,
-              coverFormat: selectedCalendarItem.coverFormat,
-              coverKeywords: selectedCalendarItem.coverKeywords,
-              imageBrief: selectedCalendarItem.imageBrief,
-            }
+          ? this.buildMarketingCalendarWorkflowSelection(selectedCalendarItem)
           : undefined,
         douyinMarketingPlan: marketingPlan && injectMarketingPlan
           ? {
@@ -10426,52 +10426,25 @@ ${normalizedMarkdown}`;
 
   private buildXiaohongshuMarketingCalendarInput(
     archive: Awaited<ReturnType<BrandsService["getArchive"]>>,
-    collection: Awaited<ReturnType<CollectorsService["getXiaohongshuWorkspace"]>>,
-    dailyHotspots: Awaited<ReturnType<CollectorsService["getDailyHotspotWorkspace"]>>,
     sourceReport: GrowthReportRecord,
-    annualPlan: AnnualMarketingPlanRecord,
-    marketingPlan: XiaohongshuMarketingPlanRecord,
+    opportunityReport: OpportunityInsightReportRecord,
     previousCalendars: XiaohongshuMarketingCalendarRecord[],
     generatedAt: string,
   ) {
-    const materialLibrary = collection.benchmarkNotes
-      .filter((item) => item.isInMaterialLibrary)
-      .slice(0, 30)
-      .map((item) => ({
-        title: item.title,
-        noteType: item.noteType,
-        nickname: item.nickname,
-        noteUrl: item.noteUrl,
-        likeCount: item.likeCount,
-        collectCount: item.collectCount,
-        commentCount: item.commentCount,
-        shareCount: item.shareCount,
-        likeCollectRatio: item.likeCollectRatio,
-        likeCommentRatio: item.likeCommentRatio,
-        shareRatio: item.shareRatio,
-        isExplosive: item.isExplosive,
-        description: this.truncateText(item.description, 240),
-      }));
-    const hotspotItems = dailyHotspots.platforms
-      .slice(0, 4)
-      .flatMap((platform) =>
-        platform.items.slice(0, 8).map((item) => ({
-          platform: platform.title,
-          rank: item.rank,
-          title: item.title,
-          hot: item.hot,
-          url: item.url || item.mobileUrl,
-        })),
-      )
-      .slice(0, 24);
     const historyDates = previousCalendars
       .flatMap((item) => item.items.map((entry) => entry.date))
       .filter(Boolean);
     const lastHistoryDate = historyDates.sort().at(-1) || "";
     const startDate = this.resolveCalendarStartDate(lastHistoryDate, generatedAt);
+    const executionCapabilityInventory = this.buildMarketingCalendarExecutionCapabilityInventory(generatedAt);
+    const brandBackgroundReady = Boolean(
+      archive.brand.brandName?.trim()
+      || archive.brand.brandDescription?.trim()
+      || archive.brand.enterpriseIntro?.trim(),
+    );
 
     return {
-      task: "输出《营销日历》",
+      task: "输出《品牌全平台营销日历》",
       generatedAt,
       startDate,
       days: 7,
@@ -10487,24 +10460,11 @@ ${normalizedMarkdown}`;
             priceRange: typeof item.price === "number" ? `${item.price}元` : "",
           })),
         },
-        xiaohongshuMarketingPlan: {
-          id: marketingPlan.id,
-          title: marketingPlan.title,
-          summary: marketingPlan.summary,
-          reportMarkdown: this.truncateText(marketingPlan.reportMarkdown, 6000),
-        },
-        annualMarketingPlan: {
-          id: annualPlan.id,
-          title: annualPlan.title,
-          summary: annualPlan.summary,
-          planningYear: annualPlan.planningYear,
-          planningFocus: annualPlan.planningFocus,
-          items: annualPlan.items.slice(0, 40),
-        },
-        materialLibrary,
-        dailyHotspots: {
-          selectedDate: dailyHotspots.selectedDate,
-          items: hotspotItems,
+        requiredInputs: {
+          brandBackgroundReady,
+          growthReportReady: Boolean(sourceReport.reportMarkdown?.trim()),
+          opportunityInsightReady: Boolean(opportunityReport.htmlDocument?.trim()),
+          systemFunctionCount: executionCapabilityInventory.items.length,
         },
         growthReport: {
           id: sourceReport.id,
@@ -10514,14 +10474,22 @@ ${normalizedMarkdown}`;
           opportunities: sourceReport.opportunities,
           nextActions: sourceReport.nextActions,
         },
+        opportunityInsightReport: {
+          id: opportunityReport.id,
+          title: opportunityReport.title,
+          summary: opportunityReport.summary,
+          htmlDocument: this.truncateText(opportunityReport.htmlDocument, 16000),
+        },
+        systemGeneratedContentFunctions: executionCapabilityInventory,
         previousCalendarHistory: previousCalendars.slice(0, 10).map((item) => ({
           id: item.id,
           title: item.title,
           generatedAt: item.generatedAt,
           dates: item.items.map((entry) => entry.date),
+          themes: item.items.map((entry) => entry.brandMarketing.theme).filter(Boolean),
         })),
       },
-      outputTarget: "营销日历",
+      outputTarget: "品牌全平台营销日历",
     };
   }
 
@@ -12600,8 +12568,8 @@ ${normalizedMarkdown}`;
   private buildManualXiaohongshuMarketingCalendarResult(items: XiaohongshuMarketingCalendarItem[], nextTitle?: string) {
     const normalizedItems = this.normalizeXiaohongshuMarketingCalendarItems(items);
     return {
-      title: nextTitle?.trim() || "营销日历",
-      summary: normalizedItems.length ? `已更新 ${normalizedItems.length} 天营销日历。` : "营销日历已更新。",
+      title: nextTitle?.trim() || "品牌全平台营销日历",
+      summary: normalizedItems.length ? `已更新 ${normalizedItems.length} 天品牌全平台营销日历。` : "品牌全平台营销日历已更新。",
       items: normalizedItems,
     };
   }
@@ -13096,6 +13064,74 @@ ${normalizedMarkdown}`;
     return Array.from({ length: days }, (_, index) => this.shiftDate(startDate, index)).filter(Boolean);
   }
 
+  private buildMarketingCalendarExecutionCapabilityInventory(generatedAt: string): MarketingCalendarCapabilityInventory {
+    return {
+      generatedAt,
+      items: [
+        {
+          platform: "小红书",
+          featureName: "营销规划",
+          outputType: "策略方案",
+          description: "可输出小红书营销规划，用于沉淀内容支柱、种草节奏与账号打法。",
+        },
+        {
+          platform: "小红书",
+          featureName: "原创笔记",
+          outputType: "图文/视频内容",
+          description: "可生成通用、科普、测评、避坑等多类型原创笔记文案与标题标签。",
+        },
+        {
+          platform: "小红书",
+          featureName: "配图生成",
+          outputType: "封面/内页提示词",
+          description: "可生成原创配图与二创配图提示词，用于封面图和内容页视觉执行。",
+        },
+        {
+          platform: "小红书",
+          featureName: "视频笔记",
+          outputType: "剧本/故事板",
+          description: "可生成品牌宣传、口播带货、短剧带货等视频剧本与故事板提示词。",
+        },
+        {
+          platform: "抖音",
+          featureName: "营销策划与热点选题",
+          outputType: "策略方案/选题清单",
+          description: "可输出抖音营销策划方案，并结合热点生成可执行选题。",
+        },
+        {
+          platform: "抖音",
+          featureName: "原创文案",
+          outputType: "短视频脚本",
+          description: "可生成聊观点、讲故事、晒过程、教知识、剧情带货、种草、同城带货等原创文案。",
+        },
+        {
+          platform: "抖音",
+          featureName: "二创文案",
+          outputType: "拆解与重写脚本",
+          description: "可对素材视频进行开头、正文、结尾拆解，并生成最终二创文案。",
+        },
+        {
+          platform: "抖音",
+          featureName: "AI生视频/复刻短视频/数字人",
+          outputType: "剧本/提示词/口播脚本",
+          description: "可生成 AI 生视频剧本、故事板、复刻分析与数字人口播脚本。",
+        },
+        {
+          platform: "公众号",
+          featureName: "文章创作工作流",
+          outputType: "文章/配图/HTML",
+          description: "可生成公众号文章、封面图、正文配图、HTML 渲染与 API 发布配置。",
+        },
+        {
+          platform: "朋友圈",
+          featureName: "复用建议",
+          outputType: "图文/短视频",
+          description: "朋友圈内容可直接复用小红书图文思路与当日抖音短视频成片，形成轻量分发。",
+        },
+      ],
+    };
+  }
+
   private normalizeXiaohongshuMarketingCalendarModelResult(
     content: string,
     inputPayload: Record<string, unknown>,
@@ -13109,14 +13145,14 @@ ${normalizedMarkdown}`;
     }
 
     const startDate = String(inputPayload.startDate ?? "").trim();
-    const title = String(parsed.title ?? "").trim() || "营销日历";
+    const title = String(parsed.title ?? "").trim() || "品牌全平台营销日历";
     const items = this.normalizeXiaohongshuMarketingCalendarItems(parsed.items, startDate);
     if (items.length < 7) {
       throw new ServiceUnavailableException(`营销日历解析失败：返回天数不足 7 天（实际 ${items.length} 天）`);
     }
     return {
       title,
-      summary: String(parsed.summary ?? "").trim() || `已生成从 ${startDate} 开始的 7 天营销日历。`,
+      summary: String(parsed.summary ?? "").trim() || `已生成从 ${startDate} 开始的 7 天品牌全平台营销日历。`,
       items: items.slice(0, 7),
       modelName,
     };
@@ -13274,13 +13310,14 @@ ${normalizedMarkdown}`;
     const uniqueMap = new Map<string, DouyinOriginalCopyCalendarOption>();
     for (const calendar of calendars) {
       for (const item of calendar.items) {
+        const topicName = this.getMarketingCalendarPrimaryTopic(item);
         const optionId = item.id || this.resolveCalendarItemId(item, {
           index: 0,
           date: item.date,
-          topicName: item.topicName,
+          topicName,
         });
-        const label = [item.date, item.topicName].filter(Boolean).join(" | ");
-        const uniqueKey = optionId || `${item.date}|${item.topicName}`;
+        const label = [item.date, topicName].filter(Boolean).join(" | ");
+        const uniqueKey = optionId || `${item.date}|${topicName}`;
         if (!label || uniqueMap.has(uniqueKey)) {
           continue;
         }
@@ -13288,7 +13325,7 @@ ${normalizedMarkdown}`;
           id: optionId || uniqueKey,
           label,
           date: item.date,
-          topicName: item.topicName,
+          topicName,
         });
       }
     }
@@ -13326,6 +13363,84 @@ ${normalizedMarkdown}`;
       .find((item): item is { id: string; items: DouyinTopicLibraryItem[] } => Boolean(item));
   }
 
+  private normalizeMarketingCalendarThemeBlock(raw: unknown, fallbackTheme = "", fallbackDescription = ""): MarketingCalendarThemeBlock {
+    const item = this.asRecord(raw) || {};
+    return {
+      theme: String(item.theme ?? item.topicName ?? fallbackTheme ?? "").trim(),
+      description: String(item.description ?? item.topicDescription ?? item.topicContent ?? fallbackDescription ?? "").trim(),
+    };
+  }
+
+  private normalizeMarketingCalendarXhsBlock(raw: unknown, fallbackTopic = "", fallbackDescription = ""): MarketingCalendarXhsAccountBlock {
+    const item = this.asRecord(raw) || {};
+    return {
+      topic: String(item.topic ?? item.topicName ?? fallbackTopic ?? "").trim(),
+      description: String(item.description ?? item.topicDescription ?? item.topicContent ?? fallbackDescription ?? "").trim(),
+      contentType: String(item.contentType ?? item.noteType ?? "").trim(),
+      noteKeywords: this.normalizeStringArray(item.noteKeywords, [], 8),
+      coverKeywords: this.normalizeStringArray(item.coverKeywords, [], 8),
+      titleSuggestions: this.normalizeStringArray(item.titleSuggestions ?? item.titleDirections, [], 5),
+      expectedPerformance: String(item.expectedPerformance ?? "").trim(),
+    };
+  }
+
+  private normalizeMarketingCalendarDouyinBlock(raw: unknown, fallbackTopic = "", fallbackDescription = ""): MarketingCalendarDouyinAccountBlock {
+    const item = this.asRecord(raw) || {};
+    return {
+      topic: String(item.topic ?? item.topicName ?? fallbackTopic ?? "").trim(),
+      description: String(item.description ?? item.topicDescription ?? item.topicContent ?? fallbackDescription ?? "").trim(),
+      contentType: String(item.contentType ?? item.noteType ?? "").trim(),
+      presentationFormat: String(item.presentationFormat ?? item.coverFormat ?? "").trim(),
+      copyKeywords: this.normalizeStringArray(item.copyKeywords ?? item.noteKeywords, [], 8),
+      coverKeywords: this.normalizeStringArray(item.coverKeywords, [], 8),
+      titleSuggestions: this.normalizeStringArray(item.titleSuggestions ?? item.titleDirections, [], 5),
+      expectedPerformance: String(item.expectedPerformance ?? "").trim(),
+    };
+  }
+
+  private normalizeMarketingCalendarMomentsBlock(raw: unknown, fallbackTopic = "", fallbackDescription = ""): MarketingCalendarMomentsBlock {
+    const item = this.asRecord(raw) || {};
+    return {
+      topic: String(item.topic ?? item.topicName ?? fallbackTopic ?? "").trim(),
+      description: String(item.description ?? item.topicDescription ?? item.topicContent ?? fallbackDescription ?? "").trim(),
+      presentationFormat: String(item.presentationFormat ?? item.contentType ?? item.noteType ?? "").trim(),
+    };
+  }
+
+  private getMarketingCalendarPrimaryTopic(item: XiaohongshuMarketingCalendarItem) {
+    return (
+      item.brandMarketing.theme
+      || item.xiaohongshu.brandAccount.topic
+      || item.douyin.brandAccount.topic
+      || item.moments.topic
+      || "未命名主题"
+    ).trim();
+  }
+
+  private buildMarketingCalendarWorkflowSelection(item: XiaohongshuMarketingCalendarItem) {
+    return {
+      id: item.id,
+      date: item.date,
+      topicName: this.getMarketingCalendarPrimaryTopic(item),
+      productName: "",
+      noteType: item.xiaohongshu.brandAccount.contentType,
+      targetAudience: "",
+      contentGoal: item.brandMarketing.description,
+      expressionFocus: item.xiaohongshu.brandAccount.description,
+      topicContent: [
+        item.xiaohongshu.brandAccount.topic ? `小红书品牌号：${item.xiaohongshu.brandAccount.topic}` : "",
+        item.xiaohongshu.employeeAccount.topic ? `小红书员工号：${item.xiaohongshu.employeeAccount.topic}` : "",
+        item.douyin.brandAccount.topic ? `抖音品牌号：${item.douyin.brandAccount.topic}` : "",
+      ].filter(Boolean).join("；"),
+      noteKeywords: item.xiaohongshu.brandAccount.noteKeywords,
+      titleDirections: item.xiaohongshu.brandAccount.titleSuggestions,
+      bodyStructure: item.xiaohongshu.brandAccount.description,
+      coverFormat: "",
+      coverKeywords: item.xiaohongshu.brandAccount.coverKeywords,
+      imageBrief: item.xiaohongshu.brandAccount.expectedPerformance,
+    };
+  }
+
   private normalizeXiaohongshuMarketingCalendarItems(raw: unknown, startDate?: string) {
     const items = Array.isArray(raw) ? raw : [];
     const normalized = items
@@ -13333,30 +13448,58 @@ ${normalizedMarkdown}`;
       .filter((item): item is Record<string, unknown> => Boolean(item))
       .map((item, index) => {
         const date = String(item.date ?? "").trim() || this.shiftDate(startDate, index);
-        const topicName = String(item.topicName ?? "").trim();
-        return {
-        id: this.resolveCalendarItemId(item, {
-          index,
+        const fallbackTheme = String(item.topicName ?? "").trim();
+        const fallbackDescription = String(item.topicContent ?? "").trim();
+        const normalizedItem = {
+          id: this.resolveCalendarItemId(item, {
+            index,
+            date,
+            topicName: fallbackTheme,
+          }),
           date,
-          topicName,
-        }),
-        date,
-        topicName,
-        productName: String(item.productName ?? "").trim() || undefined,
-        noteType: String(item.noteType ?? "").trim() || undefined,
-        targetAudience: String(item.targetAudience ?? "").trim() || undefined,
-        contentGoal: String(item.contentGoal ?? "").trim() || undefined,
-        expressionFocus: String(item.expressionFocus ?? "").trim() || undefined,
-        topicContent: String(item.topicContent ?? "").trim() || undefined,
-        noteKeywords: this.normalizeStringArray(item.noteKeywords, [], 6),
-        titleDirections: this.normalizeStringArray(item.titleDirections, [], 3),
-        bodyStructure: String(item.bodyStructure ?? "").trim() || undefined,
-        coverFormat: String(item.coverFormat ?? "").trim() || undefined,
-        coverKeywords: this.normalizeStringArray(item.coverKeywords, [], 6),
-        imageBrief: String(item.imageBrief ?? "").trim() || undefined,
-      };
+          festivalOrSolarTerm: String(item.festivalOrSolarTerm ?? item.festival ?? item.solarTerm ?? "").trim() || undefined,
+          brandMarketing: this.normalizeMarketingCalendarThemeBlock(item.brandMarketing, fallbackTheme, fallbackDescription),
+          xiaohongshu: {
+            brandAccount: this.normalizeMarketingCalendarXhsBlock(
+              this.readNestedRecord(item, ["xiaohongshu", "brandAccount"]),
+              fallbackTheme,
+              fallbackDescription,
+            ),
+            employeeAccount: this.normalizeMarketingCalendarXhsBlock(
+              this.readNestedRecord(item, ["xiaohongshu", "employeeAccount"]),
+              fallbackTheme,
+              fallbackDescription,
+            ),
+          },
+          douyin: {
+            brandAccount: this.normalizeMarketingCalendarDouyinBlock(
+              this.readNestedRecord(item, ["douyin", "brandAccount"]),
+              fallbackTheme,
+              fallbackDescription,
+            ),
+            ipAccount: this.normalizeMarketingCalendarDouyinBlock(
+              this.readNestedRecord(item, ["douyin", "ipAccount"]),
+              fallbackTheme,
+              fallbackDescription,
+            ),
+            employeeAccount: this.normalizeMarketingCalendarDouyinBlock(
+              this.readNestedRecord(item, ["douyin", "employeeAccount"]),
+              fallbackTheme,
+              fallbackDescription,
+            ),
+          },
+          moments: this.normalizeMarketingCalendarMomentsBlock(
+            item.moments,
+            fallbackTheme,
+            fallbackDescription,
+          ),
+        };
+        return {
+          ...normalizedItem,
+          ...this.buildMarketingCalendarWorkflowSelection(normalizedItem),
+        };
       })
-      .filter((item) => item.date && item.topicName);
+      .filter((item) => item.date && this.getMarketingCalendarPrimaryTopic(item));
     return normalized;
   }
 
@@ -13849,6 +13992,7 @@ ${normalizedMarkdown}`;
       return undefined;
     }
 
+    const executionCapabilityInventory = this.asRecord(meta.executionCapabilityInventory);
     return {
       id: asset.id,
       title: asset.title,
@@ -13861,7 +14005,15 @@ ${normalizedMarkdown}`;
       sourceAnnualPlanTitle: this.readMetaString(meta, "sourceAnnualPlanTitle") || undefined,
       sourceMarketingPlanId: this.readMetaString(meta, "sourceMarketingPlanId") || undefined,
       sourceMarketingPlanTitle: this.readMetaString(meta, "sourceMarketingPlanTitle") || undefined,
+      sourceOpportunityReportId: this.readMetaString(meta, "sourceOpportunityReportId") || undefined,
+      sourceOpportunityReportTitle: this.readMetaString(meta, "sourceOpportunityReportTitle") || undefined,
       modelName: this.readMetaString(meta, "modelName") || undefined,
+      executionCapabilityInventory: {
+        generatedAt: this.readMetaString(executionCapabilityInventory || {}, "generatedAt") || this.readMetaString(meta, "generatedAt"),
+        items: Array.isArray(executionCapabilityInventory?.items)
+          ? (executionCapabilityInventory.items as MarketingCalendarCapabilityItem[])
+          : [],
+      },
       items: this.normalizeXiaohongshuMarketingCalendarItems(meta.items),
     };
   }

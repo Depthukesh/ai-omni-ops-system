@@ -228,7 +228,7 @@ const strategySections: Array<{
       { key: "growthReport", label: "生成品牌增长报告", description: "根据品牌资料与收集数据生成分析报告。" },
       { key: "visualGrowthReport", label: "品牌增长可视化报告", description: "输出图表化的品牌增长可视化结果。" },
       { key: "annualMarketingPlan", label: "半年营销规划", description: "形成未来半年节奏、战役安排与重点营销规划。" },
-      { key: "xiaohongshuMarketingCalendar", label: "营销日历", description: "基于半年营销规划和小红书营销策划方案生成整月运营排期与节日节气月历。" },
+      { key: "xiaohongshuMarketingCalendar", label: "营销日历", description: "基于品牌背景资料、机会洞察总报告和品牌增长报告生成品牌全平台营销日历。" },
     ],
   },
 ];
@@ -1198,7 +1198,19 @@ export function BrandGrowthWorkspace() {
   const isVisualGrowthReportPageActive = activePage === "visualGrowthReport";
   const isAnnualMarketingPlanPageActive = activePage === "annualMarketingPlan";
   const isMarketingCalendarPageActive = activePage === "xiaohongshuMarketingCalendar";
-  const canGenerateMarketingCalendar = Boolean(reportWorkspace.latest?.reportMarkdown?.trim() && annualMarketingPlanWorkspace.latest && latestMarketingPlan);
+  const hasBrandBackgroundForMarketingCalendar = Boolean(
+    archive.brand.brandName?.trim()
+    || archive.brand.brandDescription?.trim()
+    || archive.brand.enterpriseIntro?.trim(),
+  );
+  const hasOpportunityFinalReportForMarketingCalendar = Boolean(
+    opportunityInsightWorkspace.finalOpportunityReport?.htmlDocument?.trim(),
+  );
+  const canGenerateMarketingCalendar = Boolean(
+    hasBrandBackgroundForMarketingCalendar
+    && reportWorkspace.latest
+    && hasOpportunityFinalReportForMarketingCalendar,
+  );
   const calendarTaskStatusText = getReportTaskStatusText(latestCalendarTask?.taskStatus);
   const calendarInlineError =
     latestCalendarTask?.taskStatus === "FAILED" && latestCalendarTask.errorMessage ? latestCalendarTask.errorMessage : "";
@@ -1953,16 +1965,16 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
       setErrorMessage("当前账号没有营销日历板块的编辑权限。");
       return;
     }
+    if (!hasBrandBackgroundForMarketingCalendar) {
+      setErrorMessage("请先补齐品牌背景资料。");
+      return;
+    }
     if (!reportWorkspace.latest) {
       setErrorMessage("请先生成品牌增长报告。");
       return;
     }
-    if (!annualMarketingPlanWorkspace.latest) {
-      setErrorMessage("请先生成半年营销规划。");
-      return;
-    }
-    if (!latestMarketingPlan) {
-      setErrorMessage("请先生成小红书营销策划方案。");
+    if (!hasOpportunityFinalReportForMarketingCalendar) {
+      setErrorMessage("请先生成机会洞察总报告。");
       return;
     }
 
@@ -2008,37 +2020,23 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     setIsEditingCalendarItem(false);
   }
 
-  function handleCalendarItemFieldChange(
-    field:
-      | "date"
-      | "topicName"
-      | "productName"
-      | "noteType"
-      | "targetAudience"
-      | "contentGoal"
-      | "expressionFocus"
-      | "topicContent"
-      | "bodyStructure"
-      | "coverFormat"
-      | "imageBrief",
-    value: string,
-  ) {
-    setCalendarItemDraft((current) => (current ? { ...current, [field]: value } : current));
+  function handleCalendarItemFieldChange(path: string, value: string) {
+    setCalendarItemDraft((current) => (current ? updateMarketingCalendarItemByPath(current, path, value) : current));
   }
 
-  function handleCalendarItemListFieldChange(field: "noteKeywords" | "titleDirections" | "coverKeywords", value: string) {
-    setCalendarItemDraft((current) => {
-      if (!current) {
-        return current;
-      }
-      return {
-        ...current,
-        [field]: value
-          .split(/\n|,|，/)
-          .map((item) => item.trim())
-          .filter(Boolean),
-      };
-    });
+  function handleCalendarItemListFieldChange(path: string, value: string) {
+    setCalendarItemDraft((current) =>
+      current
+        ? updateMarketingCalendarItemByPath(
+            current,
+            path,
+            value
+              .split(/\n|,|，/)
+              .map((item) => item.trim())
+              .filter(Boolean),
+          )
+        : current,
+    );
   }
 
   async function handleSaveCalendarItem() {
@@ -3681,9 +3679,42 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
 function cloneMarketingCalendarItem(item: XiaohongshuMarketingCalendarItem): XiaohongshuMarketingCalendarItem {
   return {
     ...item,
-    noteKeywords: [...(item.noteKeywords || [])],
-    titleDirections: [...(item.titleDirections || [])],
-    coverKeywords: [...(item.coverKeywords || [])],
+    brandMarketing: { ...item.brandMarketing },
+    xiaohongshu: {
+      brandAccount: {
+        ...item.xiaohongshu.brandAccount,
+        noteKeywords: [...item.xiaohongshu.brandAccount.noteKeywords],
+        coverKeywords: [...item.xiaohongshu.brandAccount.coverKeywords],
+        titleSuggestions: [...item.xiaohongshu.brandAccount.titleSuggestions],
+      },
+      employeeAccount: {
+        ...item.xiaohongshu.employeeAccount,
+        noteKeywords: [...item.xiaohongshu.employeeAccount.noteKeywords],
+        coverKeywords: [...item.xiaohongshu.employeeAccount.coverKeywords],
+        titleSuggestions: [...item.xiaohongshu.employeeAccount.titleSuggestions],
+      },
+    },
+    douyin: {
+      brandAccount: {
+        ...item.douyin.brandAccount,
+        copyKeywords: [...item.douyin.brandAccount.copyKeywords],
+        coverKeywords: [...item.douyin.brandAccount.coverKeywords],
+        titleSuggestions: [...item.douyin.brandAccount.titleSuggestions],
+      },
+      ipAccount: {
+        ...item.douyin.ipAccount,
+        copyKeywords: [...item.douyin.ipAccount.copyKeywords],
+        coverKeywords: [...item.douyin.ipAccount.coverKeywords],
+        titleSuggestions: [...item.douyin.ipAccount.titleSuggestions],
+      },
+      employeeAccount: {
+        ...item.douyin.employeeAccount,
+        copyKeywords: [...item.douyin.employeeAccount.copyKeywords],
+        coverKeywords: [...item.douyin.employeeAccount.coverKeywords],
+        titleSuggestions: [...item.douyin.employeeAccount.titleSuggestions],
+      },
+    },
+    moments: { ...item.moments },
   };
 }
 
@@ -3691,24 +3722,93 @@ function normalizeEditableMarketingCalendarItem(item: XiaohongshuMarketingCalend
   return {
     ...item,
     date: item.date.trim(),
-    topicName: item.topicName.trim(),
-    productName: item.productName?.trim() || "",
-    noteType: item.noteType?.trim() || "",
-    targetAudience: item.targetAudience?.trim() || "",
-    contentGoal: item.contentGoal?.trim() || "",
-    expressionFocus: item.expressionFocus?.trim() || "",
-    topicContent: item.topicContent?.trim() || "",
-    bodyStructure: item.bodyStructure?.trim() || "",
-    coverFormat: item.coverFormat?.trim() || "",
-    imageBrief: item.imageBrief?.trim() || "",
-    noteKeywords: normalizeCalendarItemList(item.noteKeywords),
-    titleDirections: normalizeCalendarItemList(item.titleDirections),
-    coverKeywords: normalizeCalendarItemList(item.coverKeywords),
+    festivalOrSolarTerm: item.festivalOrSolarTerm?.trim() || "",
+    brandMarketing: {
+      theme: item.brandMarketing.theme.trim(),
+      description: item.brandMarketing.description.trim(),
+    },
+    xiaohongshu: {
+      brandAccount: {
+        topic: item.xiaohongshu.brandAccount.topic.trim(),
+        description: item.xiaohongshu.brandAccount.description.trim(),
+        contentType: item.xiaohongshu.brandAccount.contentType.trim(),
+        noteKeywords: normalizeCalendarItemList(item.xiaohongshu.brandAccount.noteKeywords),
+        coverKeywords: normalizeCalendarItemList(item.xiaohongshu.brandAccount.coverKeywords),
+        titleSuggestions: normalizeCalendarItemList(item.xiaohongshu.brandAccount.titleSuggestions),
+        expectedPerformance: item.xiaohongshu.brandAccount.expectedPerformance.trim(),
+      },
+      employeeAccount: {
+        topic: item.xiaohongshu.employeeAccount.topic.trim(),
+        description: item.xiaohongshu.employeeAccount.description.trim(),
+        contentType: item.xiaohongshu.employeeAccount.contentType.trim(),
+        noteKeywords: normalizeCalendarItemList(item.xiaohongshu.employeeAccount.noteKeywords),
+        coverKeywords: normalizeCalendarItemList(item.xiaohongshu.employeeAccount.coverKeywords),
+        titleSuggestions: normalizeCalendarItemList(item.xiaohongshu.employeeAccount.titleSuggestions),
+        expectedPerformance: item.xiaohongshu.employeeAccount.expectedPerformance.trim(),
+      },
+    },
+    douyin: {
+      brandAccount: {
+        topic: item.douyin.brandAccount.topic.trim(),
+        description: item.douyin.brandAccount.description.trim(),
+        contentType: item.douyin.brandAccount.contentType.trim(),
+        presentationFormat: item.douyin.brandAccount.presentationFormat.trim(),
+        copyKeywords: normalizeCalendarItemList(item.douyin.brandAccount.copyKeywords),
+        coverKeywords: normalizeCalendarItemList(item.douyin.brandAccount.coverKeywords),
+        titleSuggestions: normalizeCalendarItemList(item.douyin.brandAccount.titleSuggestions),
+        expectedPerformance: item.douyin.brandAccount.expectedPerformance.trim(),
+      },
+      ipAccount: {
+        topic: item.douyin.ipAccount.topic.trim(),
+        description: item.douyin.ipAccount.description.trim(),
+        contentType: item.douyin.ipAccount.contentType.trim(),
+        presentationFormat: item.douyin.ipAccount.presentationFormat.trim(),
+        copyKeywords: normalizeCalendarItemList(item.douyin.ipAccount.copyKeywords),
+        coverKeywords: normalizeCalendarItemList(item.douyin.ipAccount.coverKeywords),
+        titleSuggestions: normalizeCalendarItemList(item.douyin.ipAccount.titleSuggestions),
+        expectedPerformance: item.douyin.ipAccount.expectedPerformance.trim(),
+      },
+      employeeAccount: {
+        topic: item.douyin.employeeAccount.topic.trim(),
+        description: item.douyin.employeeAccount.description.trim(),
+        contentType: item.douyin.employeeAccount.contentType.trim(),
+        presentationFormat: item.douyin.employeeAccount.presentationFormat.trim(),
+        copyKeywords: normalizeCalendarItemList(item.douyin.employeeAccount.copyKeywords),
+        coverKeywords: normalizeCalendarItemList(item.douyin.employeeAccount.coverKeywords),
+        titleSuggestions: normalizeCalendarItemList(item.douyin.employeeAccount.titleSuggestions),
+        expectedPerformance: item.douyin.employeeAccount.expectedPerformance.trim(),
+      },
+    },
+    moments: {
+      topic: item.moments.topic.trim(),
+      description: item.moments.description.trim(),
+      presentationFormat: item.moments.presentationFormat.trim(),
+    },
   };
 }
 
 function normalizeCalendarItemList(items?: string[]) {
   return (items || []).map((item) => item.trim()).filter(Boolean);
+}
+
+function updateMarketingCalendarItemByPath(
+  item: XiaohongshuMarketingCalendarItem,
+  path: string,
+  value: string | string[],
+): XiaohongshuMarketingCalendarItem {
+  const nextItem = cloneMarketingCalendarItem(item);
+  const segments = path.split(".").filter(Boolean);
+  if (!segments.length) {
+    return nextItem;
+  }
+  let current: Record<string, unknown> = nextItem as unknown as Record<string, unknown>;
+  for (let index = 0; index < segments.length - 1; index += 1) {
+    const segment = segments[index];
+    current[segment] = { ...(current[segment] as Record<string, unknown>) };
+    current = current[segment] as Record<string, unknown>;
+  }
+  current[segments[segments.length - 1]] = value;
+  return nextItem;
 }
 
 function getReportTaskStatusClass(status?: "PENDING" | "QUEUED" | "RUNNING" | "SUCCESS" | "FAILED" | "CANCELLED") {

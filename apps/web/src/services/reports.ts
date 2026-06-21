@@ -399,21 +399,77 @@ export type DouyinRemixCopyWorkspace = {
   marketingPlanTitle?: string;
 };
 
+export type MarketingCalendarThemeBlock = {
+  theme: string;
+  description: string;
+};
+
+export type MarketingCalendarXhsAccountBlock = {
+  topic: string;
+  description: string;
+  contentType: string;
+  noteKeywords: string[];
+  coverKeywords: string[];
+  titleSuggestions: string[];
+  expectedPerformance: string;
+};
+
+export type MarketingCalendarDouyinAccountBlock = {
+  topic: string;
+  description: string;
+  contentType: string;
+  presentationFormat: string;
+  copyKeywords: string[];
+  coverKeywords: string[];
+  titleSuggestions: string[];
+  expectedPerformance: string;
+};
+
+export type MarketingCalendarMomentsBlock = {
+  topic: string;
+  description: string;
+  presentationFormat: string;
+};
+
+export type MarketingCalendarCapabilityItem = {
+  platform: string;
+  featureName: string;
+  outputType: string;
+  description: string;
+};
+
+export type MarketingCalendarCapabilityInventory = {
+  generatedAt: string;
+  items: MarketingCalendarCapabilityItem[];
+};
+
 export type XiaohongshuMarketingCalendarItem = {
   id: string;
   date: string;
-  topicName: string;
+  festivalOrSolarTerm?: string;
+  brandMarketing: MarketingCalendarThemeBlock;
+  xiaohongshu: {
+    brandAccount: MarketingCalendarXhsAccountBlock;
+    employeeAccount: MarketingCalendarXhsAccountBlock;
+  };
+  douyin: {
+    brandAccount: MarketingCalendarDouyinAccountBlock;
+    ipAccount: MarketingCalendarDouyinAccountBlock;
+    employeeAccount: MarketingCalendarDouyinAccountBlock;
+  };
+  moments: MarketingCalendarMomentsBlock;
+  topicName?: string;
   productName?: string;
   noteType?: string;
   targetAudience?: string;
   contentGoal?: string;
   expressionFocus?: string;
   topicContent?: string;
-  noteKeywords: string[];
-  titleDirections: string[];
+  noteKeywords?: string[];
+  titleDirections?: string[];
   bodyStructure?: string;
   coverFormat?: string;
-  coverKeywords: string[];
+  coverKeywords?: string[];
   imageBrief?: string;
 };
 
@@ -429,7 +485,10 @@ export type XiaohongshuMarketingCalendarRecord = {
   sourceAnnualPlanTitle?: string;
   sourceMarketingPlanId?: string;
   sourceMarketingPlanTitle?: string;
+  sourceOpportunityReportId?: string;
+  sourceOpportunityReportTitle?: string;
   modelName?: string;
+  executionCapabilityInventory?: MarketingCalendarCapabilityInventory;
   items: XiaohongshuMarketingCalendarItem[];
 };
 

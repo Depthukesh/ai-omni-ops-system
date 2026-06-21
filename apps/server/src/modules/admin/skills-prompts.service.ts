@@ -58,12 +58,14 @@ const SOURCE_PINNED_PROMPT_IDS = new Set([
   "prompt_opportunity_insight_competitor_account",
   "prompt_opportunity_insight_comment",
   "prompt_opportunity_insight_final_report",
+  "prompt_xhs_calendar",
 ]);
 const SOURCE_PINNED_PROMPT_SCENES = new Set([
   "机会洞察-品牌账号分析",
   "机会洞察-竞品账号分析",
   "机会洞察-评论洞察分析",
   "机会洞察-机会洞察总报告",
+  "品牌全平台营销日历生成",
 ]);
 
 export type UpdateSkillConfigPayload = {
@@ -363,11 +365,11 @@ const SKILL_PROMPT_BINDINGS: Record<string, SkillPromptBindingRule> = {
   },
   skill_xhs_calendar: {
     promptIds: ["prompt_xhs_calendar"],
-    promptScenes: ["小红书营销日历生成"],
+    promptScenes: ["品牌全平台营销日历生成"],
   },
   "xiaohongshu-marketing-calendar": {
     promptIds: ["prompt_xhs_calendar"],
-    promptScenes: ["小红书营销日历生成"],
+    promptScenes: ["品牌全平台营销日历生成"],
   },
   skill_article_report: {
     promptIds: ["prompt_visual_report"],
@@ -1721,6 +1723,7 @@ export class SkillsPromptsService implements OnModuleInit {
       "opportunity-insight-competitor-account-analysis",
       "opportunity-insight-comment-analysis",
       "opportunity-insight-final-report",
+      "xiaohongshu-marketing-calendar",
     ]);
     const seeds = database.skillConfigs.filter((item) => targetSlugs.has(item.slug));
 

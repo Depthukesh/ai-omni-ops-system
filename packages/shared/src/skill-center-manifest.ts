@@ -102,10 +102,10 @@ export const SKILL_CENTER_TREE: SkillCenterPrimaryConfig[] = [
         items: [
           {
             id: "xhs-calendar-main",
-            label: "营销日历-生成7天营销日历",
-            description: "对应前台营销日历工作区，基于营销策划方案、半年规划、热点与历史记录生成未来 7 天日历。",
+            label: "营销日历-品牌全平台营销日历",
+            description: "对应前台营销日历工作区，基于品牌背景资料、机会洞察总报告、品牌增长报告与系统内容能力清单生成品牌全平台日历。",
             skillSlug: "xiaohongshu-marketing-calendar",
-            promptScene: "小红书营销日历生成",
+            promptScene: "品牌全平台营销日历生成",
           },
         ],
       },
