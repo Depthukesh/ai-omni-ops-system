@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { SKILL_CENTER_TREE as DASHBOARD_SKILL_CENTER_TREE } from "@shared/skill-center-manifest";
 import {
@@ -22,6 +22,7 @@ import {
   createKnowledgeBaseFile,
   createKnowledgeBinding,
   getImagePromptTemplates,
+  importImagePromptTemplates,
   getOperationsPromptTemplates,
   deleteApiProvider,
   deleteThirdPartyPlatform,
@@ -100,6 +101,7 @@ import {
   type ModelUsageRecord,
   type ModuleDefinitionRecord,
   type ImagePromptTemplateAdminRecord,
+  type ImportImagePromptTemplateItem,
   type OperationsPromptTemplateAdminRecord,
   type PointsPackageRule,
   type PromptTemplateRecord,
@@ -731,6 +733,8 @@ export default function AdminPage() {
   const [updatingPromptId, setUpdatingPromptId] = useState("");
   const [updatingOperationsPromptId, setUpdatingOperationsPromptId] = useState("");
   const [updatingImagePromptId, setUpdatingImagePromptId] = useState("");
+  const [isImportingImagePrompts, setIsImportingImagePrompts] = useState(false);
+  const [imagePromptImportProgress, setImagePromptImportProgress] = useState<{ completed: number; total: number } | null>(null);
   const [updatingKnowledgeBaseId, setUpdatingKnowledgeBaseId] = useState("");
   const [updatingKnowledgeBaseFileId, setUpdatingKnowledgeBaseFileId] = useState("");
   const [updatingKnowledgeRetrievalBaseId, setUpdatingKnowledgeRetrievalBaseId] = useState("");
@@ -770,6 +774,7 @@ export default function AdminPage() {
   const [isCheckingAccess, setIsCheckingAccess] = useState(true);
   const [adminName, setAdminName] = useState("");
   const [adminSystemRole, setAdminSystemRole] = useState<AdminSystemRole | "">("");
+  const imagePromptImportInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     void verifyAdminAccess();
@@ -1676,6 +1681,52 @@ export default function AdminPage() {
       setErrorMessage(`生图提示词保存失败：${message}`);
     } finally {
       setUpdatingImagePromptId("");
+    }
+  }
+
+  async function handleImportImagePromptFolder(files: FileList | null) {
+    if (!files?.length || isImportingImagePrompts) {
+      return;
+    }
+
+    setNotice("");
+    setErrorMessage("");
+    setIsImportingImagePrompts(true);
+    setImagePromptImportProgress(null);
+
+    try {
+      const items = await buildImagePromptImportItems(Array.from(files));
+      if (!items.length) {
+        throw new Error("所选文件夹中没有可导入的 .md / .txt 生图提示词文件。");
+      }
+
+      const batches = chunkImagePromptImportItems(items);
+      setImagePromptImportProgress({ completed: 0, total: batches.length });
+
+      for (let index = 0; index < batches.length; index += 1) {
+        await importImagePromptTemplates(batches[index]);
+        setImagePromptImportProgress({ completed: index + 1, total: batches.length });
+      }
+
+      const refreshed = await getImagePromptTemplates();
+      setImagePromptTemplates(refreshed);
+      setImagePromptDrafts(buildImagePromptDrafts(refreshed));
+      setSelectedImagePromptId((current) => {
+        if (current && refreshed.some((item) => item.id === current)) {
+          return current;
+        }
+        return refreshed[0]?.id || "";
+      });
+      setNotice(`生图提示词素材已导入：${items.length} 套，分 ${batches.length} 批完成同步。`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "未知错误";
+      setErrorMessage(`生图提示词导入失败：${message}`);
+    } finally {
+      setIsImportingImagePrompts(false);
+      setImagePromptImportProgress(null);
+      if (imagePromptImportInputRef.current) {
+        imagePromptImportInputRef.current.value = "";
+      }
     }
   }
 
@@ -5844,6 +5895,18 @@ export default function AdminPage() {
                 <div className="admin-ops-prompt-filter-actions">
                   <button
                     type="button"
+                    className="primary-button"
+                    onClick={() => imagePromptImportInputRef.current?.click()}
+                    disabled={isImportingImagePrompts}
+                  >
+                    {isImportingImagePrompts
+                      ? imagePromptImportProgress
+                        ? `导入中 ${imagePromptImportProgress.completed}/${imagePromptImportProgress.total}`
+                        : "导入中..."
+                      : "导入生图素材文件夹"}
+                  </button>
+                  <button
+                    type="button"
                     className="secondary-button"
                     onClick={() =>
                       setOperationsPromptAdminFilters({
@@ -5862,8 +5925,23 @@ export default function AdminPage() {
                     清空筛选
                   </button>
                 </div>
+                <p className="personal-meta" style={{ margin: "8px 0 0" }}>
+                  支持选择单个素材文件夹后批量导入 `.md` / `.txt` 与同名预览图；两个来源文件夹可分两次导入。
+                </p>
               </div>
               <div className="admin-ops-prompt-list-shell">
+                <input
+                  ref={imagePromptImportInputRef}
+                  type="file"
+                  multiple
+                  accept=".md,.txt,.jpg,.jpeg,.png,.webp"
+                  style={{ display: "none" }}
+                  onChange={(event) => void handleImportImagePromptFolder(event.target.files)}
+                  {...({
+                    webkitdirectory: "",
+                    directory: "",
+                  } as Record<string, string>)}
+                />
                 <div className="admin-ops-prompt-list">
                   {filteredOperationsPromptTemplates.map((item) => (
                     <button
@@ -8616,6 +8694,167 @@ function buildImagePromptDrafts(list: ImagePromptTemplateAdminRecord[]) {
   return Object.fromEntries(
     list.map((item) => [item.id, buildImagePromptDraft(item)]),
   ) as Record<string, ImagePromptEditDraft>;
+}
+
+const IMAGE_PROMPT_IMPORT_BATCH_BYTES = 8 * 1024 * 1024;
+const IMAGE_PROMPT_PROMPT_EXTENSIONS = new Set([".md", ".txt"]);
+const IMAGE_PROMPT_PREVIEW_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp"]);
+
+async function buildImagePromptImportItems(files: File[]): Promise<ImportImagePromptTemplateItem[]> {
+  const promptFiles = files
+    .filter((file) => IMAGE_PROMPT_PROMPT_EXTENSIONS.has(readFileExtension(file.name)))
+    .sort((left, right) => getImagePromptClientRelativePath(left).localeCompare(getImagePromptClientRelativePath(right), "zh-CN"));
+  const previewFileMap = new Map(
+    files
+      .filter((file) => IMAGE_PROMPT_PREVIEW_EXTENSIONS.has(readFileExtension(file.name)))
+      .map((file) => [buildImagePromptStemKey(getImagePromptClientRelativePath(file)), file]),
+  );
+
+  const items: ImportImagePromptTemplateItem[] = [];
+  for (let index = 0; index < promptFiles.length; index += 1) {
+    const file = promptFiles[index];
+    const content = normalizeImportedImagePromptContent(await file.text());
+    if (!content) {
+      continue;
+    }
+
+    const relativePath = getImagePromptClientRelativePath(file);
+    const sourceCategory = resolveImagePromptClientSourceCategory(relativePath);
+    const previewFile = previewFileMap.get(buildImagePromptStemKey(relativePath));
+    items.push({
+      title: extractImagePromptImportTitle(content, file.name),
+      preview: extractImagePromptImportPreview(content),
+      content,
+      sourceFilePath: relativePath,
+      sourceCategory,
+      sourceFileName: file.name,
+      categoryLabel: extractImagePromptImportCategoryLabel(content, sourceCategory, relativePath),
+      tagsJson: extractImagePromptImportTags(content, sourceCategory, relativePath),
+      sortOrder: index + 1,
+      previewImage: previewFile
+        ? {
+            fileName: previewFile.name,
+            contentType: previewFile.type || resolveImagePromptPreviewContentType(previewFile.name),
+            dataBase64: await readFileAsBase64(previewFile),
+          }
+        : undefined,
+    });
+  }
+
+  return items;
+}
+
+function chunkImagePromptImportItems(items: ImportImagePromptTemplateItem[]) {
+  const chunks: ImportImagePromptTemplateItem[][] = [];
+  let currentChunk: ImportImagePromptTemplateItem[] = [];
+  let currentBytes = 0;
+
+  for (const item of items) {
+    const estimatedBytes = JSON.stringify(item).length;
+    if (currentChunk.length > 0 && currentBytes + estimatedBytes > IMAGE_PROMPT_IMPORT_BATCH_BYTES) {
+      chunks.push(currentChunk);
+      currentChunk = [];
+      currentBytes = 0;
+    }
+    currentChunk.push(item);
+    currentBytes += estimatedBytes;
+  }
+
+  if (currentChunk.length) {
+    chunks.push(currentChunk);
+  }
+  return chunks;
+}
+
+function getImagePromptClientRelativePath(file: File) {
+  const candidate = (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name;
+  return String(candidate || file.name).replace(/\\/g, "/").replace(/^\/+/, "");
+}
+
+function buildImagePromptStemKey(filePath: string) {
+  return String(filePath || "").replace(/\.[^.]+$/, "").toLowerCase();
+}
+
+function readFileExtension(fileName: string) {
+  const matched = String(fileName || "").match(/\.[^.]+$/);
+  return matched ? matched[0].toLowerCase() : "";
+}
+
+function normalizeImportedImagePromptContent(content: string) {
+  return String(content || "").replace(/\r\n/g, "\n").trim();
+}
+
+function resolveImagePromptClientSourceCategory(relativePath: string) {
+  return relativePath.split("/").filter(Boolean)[0] || "生图提示词";
+}
+
+function extractImagePromptImportTitle(content: string, fileName: string) {
+  const heading = String(content.match(/^#\s+(.+)$/m)?.[1] || "").trim();
+  if (heading) {
+    return heading;
+  }
+  return String(fileName || "")
+    .replace(/\.[^.]+$/, "")
+    .replace(/^case\d+_/, "")
+    .replace(/^\d+\-/, "")
+    .replace(/\-poster$/i, "")
+    .replace(/\-+/g, " ")
+    .trim() || "未命名生图提示词";
+}
+
+function extractImagePromptImportPreview(content: string) {
+  const lines = String(content || "")
+    .replace(/```[\s\S]*?```/g, "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) =>
+      line
+      && !line.startsWith("#")
+      && !line.startsWith("**分类：**")
+      && !line.startsWith("**风格标签：**")
+      && !line.startsWith("**场景标签：**")
+      && !line.startsWith("**来源：**")
+      && !/^---+$/.test(line),
+    );
+  const normalized = String(lines[0] || content).replace(/\s+/g, " ").trim();
+  return normalized.length > 96 ? `${normalized.slice(0, 93).trim()}...` : normalized;
+}
+
+function extractImagePromptImportCategoryLabel(content: string, sourceCategory: string, relativePath: string) {
+  const directCategory = String(content.match(/\*\*分类：\*\*\s*(.+)$/m)?.[1] || "").trim();
+  if (directCategory) {
+    return directCategory;
+  }
+  const pathSegments = relativePath.split("/").filter(Boolean);
+  return pathSegments.length > 2 ? pathSegments[1] || sourceCategory : sourceCategory;
+}
+
+function extractImagePromptImportTags(content: string, sourceCategory: string, relativePath: string) {
+  const categoryLabel = extractImagePromptImportCategoryLabel(content, sourceCategory, relativePath);
+  const styleTags = splitImagePromptImportTagLine(content.match(/\*\*风格标签：\*\*\s*(.+)$/m)?.[1] || "");
+  const sceneTags = splitImagePromptImportTagLine(content.match(/\*\*场景标签：\*\*\s*(.+)$/m)?.[1] || "");
+  return Array.from(new Set([categoryLabel, sourceCategory, ...styleTags, ...sceneTags].filter(Boolean))).slice(0, 8);
+}
+
+function splitImagePromptImportTagLine(value: string) {
+  return String(value || "")
+    .split(/[，,、|]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function resolveImagePromptPreviewContentType(fileName: string) {
+  const extension = readFileExtension(fileName);
+  if (extension === ".jpg" || extension === ".jpeg") {
+    return "image/jpeg";
+  }
+  if (extension === ".png") {
+    return "image/png";
+  }
+  if (extension === ".webp") {
+    return "image/webp";
+  }
+  return "application/octet-stream";
 }
 
 function groupItemsByLabel<T>(items: T[], getLabel: (item: T) => string) {

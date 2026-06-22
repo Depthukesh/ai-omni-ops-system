@@ -988,6 +988,30 @@ export type UpdateImagePromptTemplatePayload = {
   sortOrder?: number;
 };
 
+export type ImportImagePromptTemplatePayload = {
+  id?: string;
+  slug?: string;
+  title?: string;
+  preview?: string;
+  content?: string;
+  sourceFilePath?: string;
+  sourceCategory?: string;
+  sourceFileName?: string;
+  categoryLabel?: string;
+  tagsJson?: string[];
+  sortOrder?: number;
+  previewImage?: UploadFilePayload;
+};
+
+export type ImportImagePromptTemplatesPayload = {
+  items?: ImportImagePromptTemplatePayload[];
+};
+
+export type ImportImagePromptTemplatesResult = {
+  importedCount: number;
+  templates: ImagePromptTemplateAdminRecord[];
+};
+
 export type ImagePromptCenterOptionsRecord = {
   brandId: string;
   brandName: string;
@@ -4138,6 +4162,28 @@ export class WorksService {
     return items.map((item) => this.mapImagePromptTemplateToAdmin(item));
   }
 
+  async importImagePromptTemplatesForAdmin(
+    payload: ImportImagePromptTemplatesPayload,
+  ): Promise<ImportImagePromptTemplatesResult> {
+    const sourceItems = Array.isArray(payload?.items) ? payload.items : [];
+    if (!sourceItems.length) {
+      throw new BadRequestException("请至少提交一个生图提示词模板。");
+    }
+    if (!(await this.canUseImagePromptTemplateTable())) {
+      throw new ServiceUnavailableException("当前环境未连接可写数据库，无法导入生图提示词模板。");
+    }
+
+    for (let index = 0; index < sourceItems.length; index += 1) {
+      const normalized = this.normalizeImportedImagePromptTemplate(sourceItems[index], index);
+      await this.upsertImagePromptTemplate(normalized.seed, normalized.previewImage);
+    }
+
+    return {
+      importedCount: sourceItems.length,
+      templates: await this.listImagePromptTemplatesForAdmin(),
+    };
+  }
+
   async updateImagePromptTemplateForAdmin(
     templateId: string,
     payload: UpdateImagePromptTemplatePayload,
@@ -4423,7 +4469,7 @@ export class WorksService {
     }
   }
 
-  private async upsertImagePromptTemplate(seed: ImagePromptSeedRecord) {
+  private async upsertImagePromptTemplate(seed: ImagePromptSeedRecord, previewImage?: UploadFilePayload) {
     const existingRows = await this.prismaService.$queryRawUnsafe<Array<Record<string, unknown>>>(
       `SELECT
         "id",
@@ -4436,7 +4482,7 @@ export class WorksService {
       seed.sourceFilePath,
     ).catch(() => []);
     const existing = existingRows[0] ? this.mapImagePromptTemplatePreviewOnlyRow(existingRows[0]) : null;
-    const storedPreview = await this.ensureImagePromptTemplatePreviewStored(seed, existing || undefined);
+    const storedPreview = await this.ensureImagePromptTemplatePreviewStored(seed, existing || undefined, previewImage);
     await this.prismaService.$executeRawUnsafe(
       `INSERT INTO "ImagePromptTemplate" (
         "id",
@@ -4654,6 +4700,48 @@ export class WorksService {
       sortOrder: item.sortOrder,
       createdAt: item.createdAt,
       updatedAt: item.updatedAt,
+    };
+  }
+
+  private normalizeImportedImagePromptTemplate(payload: ImportImagePromptTemplatePayload, index: number) {
+    const content = String(payload?.content || "").trim();
+    if (!content) {
+      throw new BadRequestException(`第 ${index + 1} 条生图提示词缺少 Prompt 正文。`);
+    }
+
+    const sourceFilePath = String(payload?.sourceFilePath || "").trim() || `manual/import-${index + 1}.md`;
+    const sourceFileName = String(payload?.sourceFileName || "").trim() || sourceFilePath.split("/").pop() || `import-${index + 1}.md`;
+    const identity = createHash("sha1").update(sourceFilePath).digest("hex");
+    const title = String(payload?.title || "").trim() || sourceFileName.replace(/\.[^.]+$/, "") || "未命名生图提示词";
+    const sourceCategory = String(payload?.sourceCategory || "").trim() || "生图提示词";
+    const categoryLabel = String(payload?.categoryLabel || "").trim() || sourceCategory;
+    const tagsJson = Array.from(new Set([categoryLabel, sourceCategory, ...(payload?.tagsJson || [])].filter(Boolean))).slice(0, 8);
+    const previewImage = payload?.previewImage && String(payload.previewImage.dataBase64 || "").trim()
+      ? {
+          fileName: String(payload.previewImage.fileName || "").trim() || `${title}.jpg`,
+          contentType: String(payload.previewImage.contentType || "").trim() || "image/jpeg",
+          dataBase64: String(payload.previewImage.dataBase64 || "").trim(),
+        }
+      : undefined;
+
+    return {
+      seed: {
+        id: String(payload?.id || "").trim() || `img_prompt_${identity.slice(0, 24)}`,
+        slug: String(payload?.slug || "").trim() || `img-prompt-${identity.slice(0, 18)}`,
+        title,
+        preview: String(payload?.preview || "").trim() || title,
+        content,
+        sourceFilePath,
+        sourceCategory,
+        sourceFileName,
+        categoryLabel,
+        tagsJson,
+        previewImageFilePath: "",
+        previewImageFileName: previewImage?.fileName || "",
+        previewImageContentType: previewImage?.contentType || "",
+        sortOrder: Number(payload?.sortOrder || index + 1) || index + 1,
+      } satisfies ImagePromptSeedRecord,
+      previewImage,
     };
   }
 
@@ -4963,7 +5051,19 @@ export class WorksService {
       previewImageFileName?: string;
       previewImageContentType?: string;
     },
+    upload?: UploadFilePayload,
   ) {
+    if (upload?.dataBase64) {
+      const extension = this.resolveImageExtensionFromMimeType(upload.contentType, upload.fileName);
+      const storageKey = existing?.previewImageStorageKey || this.buildImagePromptTemplatePreviewStorageKey(seed.id, extension);
+      await this.persistGeneratedObject(storageKey, Buffer.from(upload.dataBase64, "base64"), upload.contentType || "image/jpeg");
+      return {
+        storageKey,
+        fileName: upload.fileName || `${seed.id}${extension}`,
+        contentType: upload.contentType || "image/jpeg",
+      };
+    }
+
     if (!seed.previewImageFilePath) {
       return {
         storageKey: existing?.previewImageStorageKey || "",

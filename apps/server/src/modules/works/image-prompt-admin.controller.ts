@@ -1,7 +1,11 @@
-import { Body, Controller, Get, Headers, Param, Patch } from "@nestjs/common";
+import { Body, Controller, Get, Headers, Param, Patch, Post } from "@nestjs/common";
 import { ADMIN_ROLE_GROUPS, requireAdminRoles } from "../admin/admin-access";
 import { AuthService } from "../auth/auth.service";
-import { type UpdateImagePromptTemplatePayload, WorksService } from "./works.service";
+import {
+  type ImportImagePromptTemplatesPayload,
+  type UpdateImagePromptTemplatePayload,
+  WorksService,
+} from "./works.service";
 
 @Controller("admin/image-prompts")
 export class ImagePromptAdminController {
@@ -14,6 +18,15 @@ export class ImagePromptAdminController {
   async listImagePrompts(@Headers() headers: Record<string, string | string[] | undefined>) {
     await requireAdminRoles(this.authService, headers, ADMIN_ROLE_GROUPS.allAdmin);
     return this.worksService.listImagePromptTemplatesForAdmin();
+  }
+
+  @Post("import")
+  async importImagePrompts(
+    @Body() payload: ImportImagePromptTemplatesPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    await requireAdminRoles(this.authService, headers, ADMIN_ROLE_GROUPS.operatorWrite);
+    return this.worksService.importImagePromptTemplatesForAdmin(payload);
   }
 
   @Patch(":id")

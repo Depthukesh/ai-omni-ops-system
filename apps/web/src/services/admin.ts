@@ -285,6 +285,30 @@ export type ImagePromptTemplateAdminRecord = {
   updatedAt: string;
 };
 
+export type ImportImagePromptTemplateItem = {
+  id?: string;
+  slug?: string;
+  title?: string;
+  preview?: string;
+  content?: string;
+  sourceFilePath?: string;
+  sourceCategory?: string;
+  sourceFileName?: string;
+  categoryLabel?: string;
+  tagsJson?: string[];
+  sortOrder?: number;
+  previewImage?: {
+    fileName: string;
+    contentType: string;
+    dataBase64: string;
+  };
+};
+
+export type ImportImagePromptTemplatesResult = {
+  importedCount: number;
+  templates: ImagePromptTemplateAdminRecord[];
+};
+
 export type KnowledgeBaseRecord = {
   id: string;
   name: string;
@@ -3461,6 +3485,12 @@ export async function updateOperationsPromptTemplate(
 
 export async function getImagePromptTemplates() {
   return request<ImagePromptTemplateAdminRecord[]>("/admin/image-prompts");
+}
+
+export async function importImagePromptTemplates(items: ImportImagePromptTemplateItem[]) {
+  return jsonRequest<ImportImagePromptTemplatesResult>("/admin/image-prompts/import", "POST", {
+    items,
+  });
 }
 
 export async function updateImagePromptTemplate(
