@@ -347,12 +347,16 @@ export class OpenClawInstallationService {
       },
       skillGuide: {
         title: "品牌运营助手 Skill",
-        summary: "安装 MCP 后，Skill 负责把自然语言请求编排成品牌上下文查询、报告生成、知识库操作等工具调用。",
+        summary: "安装 MCP 后，Skill 负责把自然语言请求编排成品牌档案提取、机会洞察推进、团队协作处理、知识库操作、订单与第三方接口查询等工具调用。",
         examples: [
+          "帮我看一下个人中心总览和当前需要优先处理的事",
           "帮我看当前品牌最近的增长报告重点",
+          "帮我提取当前品牌档案摘要，顺便看一下竞品账号和行业资料",
+          "帮我看当前品牌机会洞察做到哪一步了，能继续就直接继续",
+          "帮我看当前品牌成员和邀请列表，再创建一个新的邀请链接",
           "帮我创建一个品牌知识库，并把这份资料加入进去",
           "帮我看最近 30 天失败任务主要卡在哪些问题上",
-          "围绕这个品牌生成一份半年营销规划",
+          "帮我看当前品牌第三方接口配置和最近订单情况",
         ],
       },
       skillInstall: {
@@ -451,10 +455,27 @@ description: 统一调度 AI 全域智能体网站能力的总入口 Skill，负
 
 你必须优先完成这些任务：
 - 查看品牌上下文、最近任务和增长重点
+- 查看个人中心概览、待处理邀请和团队协作提醒
+- 提取品牌档案、品牌账号、竞品账号、行业资料和业务资产
+- 查看并推进机会洞察 step1、step2、step3
+- 查看品牌成员、邀请列表、邀请通知和权限模板
+- 在确认后创建品牌邀请链接或接受品牌邀请
 - 创建知识库并上传资料
 - 生成小红书、抖音、公众号相关内容
 - 查看任务状态、失败原因和回执
 - 查看或调整网站里的技能配置
+- 查看第三方接口配置摘要和个人订单摘要
+
+你在这些场景必须优先调用 MCP：
+- 用户想查看品牌账号、品牌资料、问卷、竞品账号、行业资料时，优先调用 \`get_brand_archive_summary\`、\`get_brand_archive_survey\`、\`get_platform_accounts\`、\`get_brand_competitor_accounts\`、\`get_brand_industry_feeds\`、\`get_brand_business_assets\`
+- 用户想知道机会洞察进度或直接继续下一步时，优先调用 \`get_opportunity_insight_workspace\`，再按需要调用 \`generate_opportunity_insight_step_one\`、\`generate_opportunity_insight_step_two\`、\`generate_opportunity_insight_step_three\`
+- 用户想先看账号侧有哪些待处理事项时，优先调用 \`get_personal_center_overview\`
+- 用户想看品牌成员、邀请链接、邀请通知或团队权限时，优先调用 \`list_brand_members\`、\`list_brand_invites\`、\`get_brand_permission_settings\`、\`list_my_brand_invites\`、\`list_my_brand_invite_notifications\`
+- 用户明确要求新建邀请链接时，先确认角色、备注和有效期，再调用 \`create_brand_invite_link\`
+- 用户明确要求接受品牌邀请时，先确认 \`inviteId\`，再调用 \`accept_my_brand_invite\`
+- 用户想看个人中心里的品牌级接口配置时，优先调用 \`list_my_third_party_platforms\`
+- 用户明确要求更新品牌 API Key 时，先确认平台和新密钥，再调用 \`update_my_third_party_platform_secret\`
+- 用户想看会员购买、点数充值或支付状态时，优先调用 \`list_my_orders\`
 
 输出要求：
 - 不直接暴露内部字段、数据库字段或原始 JSON
@@ -472,6 +493,13 @@ description: 统一调度 AI 全域智能体网站能力的总入口 Skill，负
 3. 选择当前压缩包导入。
 4. 导入后将该 Skill 绑定到 ai-omni-ops MCP。
 5. 首次使用时先验证查询、生成和任务回读是否正常。
+
+建议先用下面 4 句话做安装验收：
+- 帮我看一下个人中心总览
+- 帮我提取当前品牌档案摘要
+- 帮我看当前品牌机会洞察做到哪一步了
+- 帮我看当前品牌成员和邀请列表
+- 帮我看第三方接口配置摘要
 `;
   }
 

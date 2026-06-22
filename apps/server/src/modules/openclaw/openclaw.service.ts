@@ -3,14 +3,17 @@ import { AuthService, type RequestAuthContext } from "../auth/auth.service";
 import {
   type BrandBusinessKnowledgeBaseFileRecord,
   type BrandBusinessKnowledgeBaseRecord,
+  type BrandInviteListRecord,
   BrandsService,
 } from "../brands/brands.service";
 import { CollectorsService } from "../collectors/collectors.service";
 import { FeedbackService } from "../feedback/feedback.service";
 import { OpenClawInstallationService } from "./openclaw-installation.service";
+import { OrdersService } from "../orders/orders.service";
 import { PublishingService } from "../publishing/publishing.service";
 import { ReportsService } from "../reports/reports.service";
 import { TasksService } from "../tasks/tasks.service";
+import { ThirdPartyPlatformsService } from "../third-party-platforms/third-party-platforms.service";
 import { UserSkillsService } from "../user-skills/user-skills.service";
 import { WorksService } from "../works/works.service";
 
@@ -79,7 +82,7 @@ type OpenClawWebsiteFunctionCatalogItem = {
 
 const OPENCLAW_MCP_SERVER_INFO = {
   name: "ai-omni-ops-openclaw-mcp-http",
-  version: "0.2.0",
+  version: "0.4.0",
 };
 
 const OPENCLAW_WEBSITE_FUNCTION_CATALOG: OpenClawWebsiteFunctionCatalogItem[] = [
@@ -203,6 +206,117 @@ const OPENCLAW_WEBSITE_FUNCTION_CATALOG: OpenClawWebsiteFunctionCatalogItem[] = 
     recommendedQuestions: ["帮我看这个任务现在怎么样了", "帮我记录这次生成结果不满意的原因"],
     mcpTools: ["get_task_detail", "cancel_task", "retry_task", "submit_task_result_feedback", "get_feedback_summary", "get_feedback_analysis"],
   },
+  {
+    key: "brand_archive_and_assets",
+    domainKey: "brand_archive",
+    domainName: "品牌档案",
+    name: "提取品牌档案、竞品账号和行业资料",
+    summary: "适合直接读取当前品牌的建档问卷、平台账号、竞品账号、行业资料和业务资产摘要。",
+    pageUrl: "/brand-growth/archive",
+    pageLabel: "打开品牌档案",
+    riskLevel: "low",
+    intentKeywords: ["品牌档案", "问卷", "品牌账号", "竞品", "行业资料", "行业报告", "业务资产"],
+    requiredInputKeys: ["brandId"],
+    requiredInputs: ["当前品牌"],
+    recommendedQuestions: ["帮我提取当前品牌档案摘要", "帮我看一下当前品牌的竞品账号和行业资料"],
+    mcpTools: [
+      "get_brand_archive_summary",
+      "get_brand_archive_survey",
+      "get_platform_accounts",
+      "get_brand_competitor_accounts",
+      "get_brand_industry_feeds",
+      "get_brand_business_assets",
+    ],
+  },
+  {
+    key: "opportunity_insight_control",
+    domainKey: "opportunity_insight",
+    domainName: "机会洞察",
+    name: "查看并推进机会洞察步骤",
+    summary: "适合读取机会洞察工作区状态，并在对话中直接推进 step1、step2、step3 的生成。",
+    pageUrl: "/brand-growth/reports?report=opportunity-insight",
+    pageLabel: "打开机会洞察",
+    riskLevel: "medium",
+    intentKeywords: ["机会洞察", "账号分析", "评论洞察", "step1", "step2", "step3", "总报告"],
+    requiredInputKeys: ["brandId"],
+    requiredInputs: ["当前品牌"],
+    recommendedQuestions: ["帮我看当前品牌机会洞察进行到哪一步了", "直接帮我继续生成机会洞察下一步"],
+    mcpTools: [
+      "get_opportunity_insight_workspace",
+      "generate_opportunity_insight_step_one",
+      "generate_opportunity_insight_step_two",
+      "generate_opportunity_insight_step_three",
+    ],
+  },
+  {
+    key: "third_party_platform_control",
+    domainKey: "personal_center",
+    domainName: "个人中心",
+    name: "查看品牌第三方接口配置",
+    summary: "适合查看当前品牌已接入的平台、密钥遮罩状态和动态能力概况，并可按需更新品牌 API Key。",
+    pageUrl: "/personal-center/third-party-platforms",
+    pageLabel: "打开第三方接口配置",
+    riskLevel: "high",
+    intentKeywords: ["第三方接口", "API Key", "接口配置", "模型配置", "平台密钥", "渠道密钥"],
+    requiredInputKeys: ["platformId", "apiKey"],
+    requiredInputs: ["平台 ID", "新的 API Key"],
+    recommendedQuestions: ["帮我看当前品牌第三方接口配置概况", "帮我更新这个平台的 API Key"],
+    mcpTools: ["list_my_third_party_platforms", "update_my_third_party_platform_secret"],
+  },
+  {
+    key: "personal_order_center",
+    domainKey: "personal_center",
+    domainName: "个人中心",
+    name: "查看个人订单中心",
+    summary: "适合查看当前账号最近订单、会员购买和点数充值状态。",
+    pageUrl: "/personal-center/orders",
+    pageLabel: "打开订单中心",
+    riskLevel: "low",
+    intentKeywords: ["订单", "会员订单", "充值订单", "支付状态", "订单中心"],
+    requiredInputKeys: [],
+    requiredInputs: [],
+    recommendedQuestions: ["帮我看最近的订单情况", "帮我看还有哪些订单没完成支付"],
+    mcpTools: ["list_my_orders"],
+  },
+  {
+    key: "personal_center_overview",
+    domainKey: "personal_center",
+    domainName: "个人中心",
+    name: "查看个人中心总览摘要",
+    summary: "适合快速查看当前账号可访问品牌数、待处理邀请、进行中任务和最近订单概况。",
+    pageUrl: "/personal-center",
+    pageLabel: "打开个人中心",
+    riskLevel: "low",
+    intentKeywords: ["个人中心", "概览", "总览", "待处理邀请", "最近订单", "最近任务"],
+    requiredInputKeys: [],
+    requiredInputs: [],
+    recommendedQuestions: ["帮我看一下个人中心总览", "帮我总结当前账号最近需要处理的事情"],
+    mcpTools: ["get_personal_center_overview"],
+  },
+  {
+    key: "team_collaboration_center",
+    domainKey: "personal_center",
+    domainName: "个人中心",
+    name: "管理品牌团队协作和邀请",
+    summary: "适合查看品牌成员、邀请链接、待处理邀请通知和权限模板，也能直接创建或接受邀请。",
+    pageUrl: "/personal-center/team",
+    pageLabel: "打开团队协作",
+    riskLevel: "high",
+    intentKeywords: ["团队协作", "成员", "邀请", "权限模板", "品牌协作", "邀请通知"],
+    requiredInputKeys: ["role", "inviteId"],
+    requiredInputs: ["角色", "邀请 ID"],
+    recommendedQuestions: ["帮我看当前品牌成员和邀请列表", "帮我创建一个新的品牌邀请链接", "帮我看我还有哪些品牌邀请没处理"],
+    mcpTools: [
+      "list_brand_members",
+      "list_brand_invites",
+      "create_brand_invite_link",
+      "revoke_brand_invite",
+      "get_brand_permission_settings",
+      "list_my_brand_invites",
+      "list_my_brand_invite_notifications",
+      "accept_my_brand_invite",
+    ],
+  },
 ];
 
 const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
@@ -282,6 +396,191 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
         platform: { type: "string", description: "可选：XIAOHONGSHU、DOUYIN、VIDEO_CHANNEL、WECHAT_OA。" },
         limit: { type: "integer", minimum: 1, maximum: 50 },
       },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_brand_archive_summary",
+    description: "查看当前品牌档案摘要，包括品牌背景、产品、问卷、平台账号、竞品账号与行业资料进度。",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
+    name: "get_brand_archive_survey",
+    description: "查看当前品牌建档问卷答案，可按数量截断返回。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        limit: { type: "integer", minimum: 1, maximum: 100 },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_brand_competitor_accounts",
+    description: "查看当前品牌的竞品账号清单，可按平台筛选。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        platform: { type: "string", description: "可选：XIAOHONGSHU、DOUYIN、VIDEO_CHANNEL、WECHAT_OA。" },
+        limit: { type: "integer", minimum: 1, maximum: 50 },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_brand_industry_feeds",
+    description: "查看当前品牌已沉淀的行业资料或行业报告。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        limit: { type: "integer", minimum: 1, maximum: 50 },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_brand_business_assets",
+    description: "查看当前品牌业务资料资产和知识绑定摘要。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        limit: { type: "integer", minimum: 1, maximum: 50 },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_opportunity_insight_workspace",
+    description: "查看当前品牌机会洞察工作区状态，包括 step1/2/3 产物和最近任务。",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
+    name: "generate_opportunity_insight_step_one",
+    description: "发起机会洞察第 1 步，生成品牌账号分析与竞品账号分析。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        supplementInput: { type: "string" },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "generate_opportunity_insight_step_two",
+    description: "发起机会洞察第 2 步，生成评论洞察分析。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        supplementInput: { type: "string" },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "generate_opportunity_insight_step_three",
+    description: "发起机会洞察第 3 步，生成最终机会洞察总报告。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        supplementInput: { type: "string" },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "list_my_third_party_platforms",
+    description: "查看当前品牌下个人中心第三方接口配置摘要，包括 API Key 是否已配置和动态状态。",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
+    name: "update_my_third_party_platform_secret",
+    description: "更新当前品牌指定第三方平台的 API Key。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        platformId: { type: "string" },
+        apiKey: { type: "string" },
+      },
+      required: ["platformId", "apiKey"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "list_my_orders",
+    description: "查看当前账号最近订单摘要，可按状态筛选并限制返回数量。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        status: { type: "string", description: "可选：PENDING、PAID、CANCELLED。" },
+        limit: { type: "integer", minimum: 1, maximum: 50 },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_personal_center_overview",
+    description: "查看当前账号在个人中心的总览摘要，包括品牌数、待处理邀请、任务和订单概况。",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
+    name: "list_brand_members",
+    description: "查看当前品牌的团队成员列表和当前账号的成员管理权限。",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
+    name: "list_brand_invites",
+    description: "查看当前品牌已创建的邀请码和邀请链接列表。",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
+    name: "create_brand_invite_link",
+    description: "为当前品牌创建新的邀请链接，可指定角色、备注和有效天数。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        role: { type: "string", description: "可选：ADMIN、STAFF、TALENT。" },
+        note: { type: "string" },
+        expiresInDays: { type: "integer", minimum: 1, maximum: 365 },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "revoke_brand_invite",
+    description: "撤回当前品牌下指定的待处理邀请。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        inviteId: { type: "string" },
+      },
+      required: ["inviteId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_brand_permission_settings",
+    description: "查看当前品牌团队权限模板和当前账号的权限范围。",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
+    name: "list_my_brand_invites",
+    description: "查看当前账号待处理的品牌邀请列表。",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
+    name: "list_my_brand_invite_notifications",
+    description: "查看当前账号的品牌邀请通知中心摘要。",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
+    name: "accept_my_brand_invite",
+    description: "接受当前账号收到的品牌邀请。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        inviteId: { type: "string" },
+      },
+      required: ["inviteId"],
       additionalProperties: false,
     },
   },
@@ -979,6 +1278,8 @@ export class OpenClawService {
     private readonly feedbackService: FeedbackService,
     private readonly publishingService: PublishingService,
     private readonly reportsService: ReportsService,
+    private readonly thirdPartyPlatformsService: ThirdPartyPlatformsService,
+    private readonly ordersService: OrdersService,
     private readonly userSkillsService: UserSkillsService,
     private readonly worksService: WorksService,
     private readonly openClawInstallationService: OpenClawInstallationService,
@@ -1358,6 +1659,737 @@ export class OpenClawService {
         })),
       },
       links: [{ label: "打开品牌档案", url: "/brand-growth/archive" }],
+    });
+  }
+
+  async getBrandArchiveSummary(headers: HeadersMap) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandAccess(brandId, auth);
+
+    const archive = await this.brandsService.getArchive(brandId);
+    const brand = archive.brand;
+
+    return this.buildSummaryResponse({
+      title: "品牌档案摘要",
+      summary: `当前品牌“${brand.brandName || brandId}”已沉淀 ${archive.products.length} 个产品、${archive.platformAccounts.length} 个平台账号、${archive.competitorAccounts.length} 个竞品账号和 ${archive.industryFeeds.length} 份行业资料。`,
+      highlights: [
+        `行业：${brand.industry || "待补充"}`,
+        `门店数：${brand.storeCount || 0}`,
+        `品牌问卷题数：${archive.survey.length}`,
+        `业务资产数：${archive.businessAssets.length}`,
+      ],
+      data: {
+        brand,
+        counts: {
+          products: archive.products.length,
+          surveyAnswers: archive.survey.length,
+          platformAccounts: archive.platformAccounts.length,
+          competitorAccounts: archive.competitorAccounts.length,
+          industryFeeds: archive.industryFeeds.length,
+          businessAssets: archive.businessAssets.length,
+        },
+        steps: archive.steps,
+      },
+      links: [{ label: "打开品牌档案", url: "/brand-growth/archive" }],
+      resourceKind: "brand_archive",
+    });
+  }
+
+  async getBrandArchiveSurvey(
+    headers: HeadersMap,
+    options?: {
+      limit?: number;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandAccess(brandId, auth);
+
+    const archive = await this.brandsService.getArchive(brandId);
+    const items = archive.survey.slice(0, Math.min(100, this.normalizeLimit(options?.limit))).map((item) => ({
+      key: item.key,
+      label: item.label,
+      value: item.value,
+    }));
+
+    return this.buildSummaryResponse({
+      title: "品牌建档问卷",
+      summary: items.length
+        ? `当前品牌已记录 ${archive.survey.length} 条建档问卷答案。`
+        : "当前品牌还没有建档问卷答案。",
+      highlights: items.length
+        ? items.slice(0, 5).map((item) => `${item.label}：${item.value}`)
+        : ["问卷答案数：0"],
+      data: {
+        total: archive.survey.length,
+        items,
+      },
+      links: [{ label: "打开品牌档案", url: "/brand-growth/archive" }],
+      resourceKind: "brand_archive_survey",
+    });
+  }
+
+  async getBrandCompetitorAccounts(
+    headers: HeadersMap,
+    options?: {
+      platform?: string;
+      limit?: number;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandAccess(brandId, auth);
+
+    const archive = await this.brandsService.getArchive(brandId);
+    const normalizedPlatform = this.normalizePlatformType(options?.platform);
+    const scopedAccounts = archive.competitorAccounts.filter((item) => (normalizedPlatform ? item.platform === normalizedPlatform : true));
+    const items = scopedAccounts.slice(0, this.normalizeLimit(options?.limit));
+
+    return this.buildSummaryResponse({
+      title: "竞品账号清单",
+      summary: items.length
+        ? `当前返回 ${items.length} 个${normalizedPlatform ? `${normalizedPlatform} ` : ""}竞品账号。`
+        : normalizedPlatform
+          ? `当前品牌下没有 ${normalizedPlatform} 竞品账号。`
+          : "当前品牌下还没有竞品账号。",
+      highlights: items.length
+        ? items.slice(0, 5).map((item) => `${item.platform}｜${item.accountName || item.id}`)
+        : ["竞品账号数：0"],
+      data: {
+        total: scopedAccounts.length,
+        platform: normalizedPlatform,
+        items: items.map((item) => ({
+          id: item.id,
+          platform: item.platform,
+          accountName: item.accountName,
+          accountLink: item.accountLink,
+          accountRole: item.accountRole,
+        })),
+      },
+      links: [{ label: "打开品牌档案", url: "/brand-growth/archive" }],
+      resourceKind: "competitor_account",
+    });
+  }
+
+  async getBrandIndustryFeeds(
+    headers: HeadersMap,
+    options?: {
+      limit?: number;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandAccess(brandId, auth);
+
+    const archive = await this.brandsService.getArchive(brandId);
+    const items = archive.industryFeeds.slice(0, this.normalizeLimit(options?.limit)).map((item) => ({
+      id: item.id,
+      title: item.title,
+      description: item.description,
+      sourceName: item.sourceName,
+      fileUrl: item.fileUrl,
+    }));
+
+    return this.buildSummaryResponse({
+      title: "行业资料清单",
+      summary: items.length
+        ? `当前品牌已沉淀 ${archive.industryFeeds.length} 份行业资料。`
+        : "当前品牌还没有行业资料。",
+      highlights: items.length
+        ? items.slice(0, 5).map((item) => `${item.title}${item.sourceName ? `｜${item.sourceName}` : ""}`)
+        : ["行业资料数：0"],
+      data: {
+        total: archive.industryFeeds.length,
+        items,
+      },
+      links: [{ label: "打开品牌档案", url: "/brand-growth/archive" }],
+      resourceKind: "industry_feed",
+    });
+  }
+
+  async getBrandBusinessAssets(
+    headers: HeadersMap,
+    options?: {
+      limit?: number;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandAccess(brandId, auth);
+
+    const archive = await this.brandsService.getArchive(brandId);
+    const items = archive.businessAssets.slice(0, this.normalizeLimit(options?.limit)).map((item) => {
+      const record = item as Record<string, unknown>;
+      return {
+        id: String(record.id || ""),
+        title: String(record.title || ""),
+        description: String(record.description || ""),
+        sourceName: String(record.sourceName || ""),
+        fileUrl: String(record.fileUrl || ""),
+        knowledgeBaseName: typeof record.knowledgeBaseName === "string" ? record.knowledgeBaseName : undefined,
+        bindingType: typeof record.bindingType === "string" ? record.bindingType : undefined,
+        targetName: typeof record.targetName === "string" ? record.targetName : undefined,
+        enabled: typeof record.enabled === "boolean" ? record.enabled : undefined,
+      };
+    });
+
+    return this.buildSummaryResponse({
+      title: "品牌业务资产清单",
+      summary: items.length
+        ? `当前品牌已有 ${archive.businessAssets.length} 份业务资产，可直接供知识库与模块调用。`
+        : "当前品牌还没有业务资产。",
+      highlights: items.length
+        ? items.slice(0, 5).map((item) => `${item.title}${item.knowledgeBaseName ? `｜${item.knowledgeBaseName}` : ""}`)
+        : ["业务资产数：0"],
+      data: {
+        total: archive.businessAssets.length,
+        items,
+      },
+      links: [{ label: "打开品牌档案", url: "/brand-growth/archive" }],
+      resourceKind: "business_asset",
+    });
+  }
+
+  async getOpportunityInsightWorkspace(headers: HeadersMap) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.opportunityInsight", "view", auth);
+
+    const workspace = await this.reportsService.getOpportunityInsightWorkspace(brandId);
+
+    return this.buildSummaryResponse({
+      title: "机会洞察工作区",
+      summary: workspace.finalOpportunityReport
+        ? "当前品牌已生成机会洞察总报告，可继续查看品牌账号分析、竞品账号分析与评论洞察。"
+        : workspace.commentInsightAnalysis
+          ? "当前品牌已完成评论洞察分析，可继续生成机会洞察总报告。"
+          : workspace.brandAccountAnalysis || workspace.competitorAccountAnalysis
+            ? "当前品牌已完成机会洞察第 1 步，可继续生成评论洞察。"
+            : "当前品牌还没有完整的机会洞察结果，可先从第 1 步开始。",
+      highlights: [
+        `品牌账号分析：${workspace.brandAccountAnalysis ? "已完成" : "未完成"}`,
+        `竞品账号分析：${workspace.competitorAccountAnalysis ? "已完成" : "未完成"}`,
+        `评论洞察分析：${workspace.commentInsightAnalysis ? "已完成" : "未完成"}`,
+        `总报告：${workspace.finalOpportunityReport ? "已完成" : "未完成"}`,
+      ],
+      data: {
+        awaitingConfirmationStep: workspace.awaitingConfirmationStep,
+        latestTask: workspace.latestTask,
+        reports: {
+          brandAccountAnalysis: workspace.brandAccountAnalysis
+            ? { id: workspace.brandAccountAnalysis.id, title: workspace.brandAccountAnalysis.title, generatedAt: workspace.brandAccountAnalysis.generatedAt }
+            : undefined,
+          competitorAccountAnalysis: workspace.competitorAccountAnalysis
+            ? { id: workspace.competitorAccountAnalysis.id, title: workspace.competitorAccountAnalysis.title, generatedAt: workspace.competitorAccountAnalysis.generatedAt }
+            : undefined,
+          commentInsightAnalysis: workspace.commentInsightAnalysis
+            ? { id: workspace.commentInsightAnalysis.id, title: workspace.commentInsightAnalysis.title, generatedAt: workspace.commentInsightAnalysis.generatedAt }
+            : undefined,
+          finalOpportunityReport: workspace.finalOpportunityReport
+            ? { id: workspace.finalOpportunityReport.id, title: workspace.finalOpportunityReport.title, generatedAt: workspace.finalOpportunityReport.generatedAt }
+            : undefined,
+        },
+        historyCount: workspace.history.length,
+      },
+      links: [{ label: "打开机会洞察", url: "/brand-growth/reports?report=opportunity-insight" }],
+      resourceKind: "opportunity_insight",
+    });
+  }
+
+  async generateOpportunityInsightStepOne(
+    headers: HeadersMap,
+    options?: {
+      supplementInput?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.opportunityInsight", "edit", auth);
+
+    const workspace = await this.reportsService.generateOpportunityInsightStepOne(brandId, {
+      supplementInput: this.normalizeOptionalString(options?.supplementInput) || undefined,
+    });
+
+    return this.buildSummaryResponse({
+      title: "机会洞察第 1 步已受理",
+      summary: workspace.latestTask
+        ? `已发起品牌账号分析与竞品账号分析任务，当前状态为 ${this.formatTaskStatus(workspace.latestTask.taskStatus)}。`
+        : "已发起机会洞察第 1 步任务。",
+      highlights: [
+        options?.supplementInput ? `补充说明：${options.supplementInput}` : "补充说明：无",
+        "输出内容：品牌账号分析、竞品账号分析",
+      ],
+      data: {
+        latestTask: workspace.latestTask,
+        awaitingConfirmationStep: workspace.awaitingConfirmationStep,
+      },
+      links: [{ label: "打开机会洞察", url: "/brand-growth/reports?report=opportunity-insight" }],
+      resourceKind: "opportunity_insight",
+    });
+  }
+
+  async generateOpportunityInsightStepTwo(
+    headers: HeadersMap,
+    options?: {
+      supplementInput?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.opportunityInsight", "edit", auth);
+
+    const workspace = await this.reportsService.generateOpportunityInsightStepTwo(brandId, {
+      supplementInput: this.normalizeOptionalString(options?.supplementInput) || undefined,
+    });
+
+    return this.buildSummaryResponse({
+      title: "机会洞察第 2 步已受理",
+      summary: workspace.latestTask
+        ? `已发起评论洞察分析任务，当前状态为 ${this.formatTaskStatus(workspace.latestTask.taskStatus)}。`
+        : "已发起机会洞察第 2 步任务。",
+      highlights: [
+        workspace.brandAccountAnalysis ? "品牌账号分析：已就绪" : "品牌账号分析：未就绪",
+        workspace.competitorAccountAnalysis ? "竞品账号分析：已就绪" : "竞品账号分析：未就绪",
+      ],
+      data: {
+        latestTask: workspace.latestTask,
+        awaitingConfirmationStep: workspace.awaitingConfirmationStep,
+      },
+      links: [{ label: "打开机会洞察", url: "/brand-growth/reports?report=opportunity-insight" }],
+      resourceKind: "opportunity_insight",
+    });
+  }
+
+  async generateOpportunityInsightStepThree(
+    headers: HeadersMap,
+    options?: {
+      supplementInput?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.opportunityInsight", "edit", auth);
+
+    const workspace = await this.reportsService.generateOpportunityInsightStepThree(brandId, {
+      supplementInput: this.normalizeOptionalString(options?.supplementInput) || undefined,
+    });
+
+    return this.buildSummaryResponse({
+      title: "机会洞察第 3 步已受理",
+      summary: workspace.latestTask
+        ? `已发起机会洞察总报告生成任务，当前状态为 ${this.formatTaskStatus(workspace.latestTask.taskStatus)}。`
+        : "已发起机会洞察第 3 步任务。",
+      highlights: [
+        workspace.commentInsightAnalysis ? "评论洞察分析：已就绪" : "评论洞察分析：未就绪",
+        "输出内容：机会洞察总报告",
+      ],
+      data: {
+        latestTask: workspace.latestTask,
+        awaitingConfirmationStep: workspace.awaitingConfirmationStep,
+      },
+      links: [{ label: "打开机会洞察", url: "/brand-growth/reports?report=opportunity-insight" }],
+      resourceKind: "opportunity_insight",
+    });
+  }
+
+  async listMyThirdPartyPlatforms(headers: HeadersMap) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "personalCenter.thirdPartyPlatforms", "view", auth);
+
+    const items = await this.thirdPartyPlatformsService.listUserPlatforms(auth.userId, brandId);
+    return this.buildSummaryResponse({
+      title: "第三方接口配置摘要",
+      summary: items.length
+        ? `当前品牌共接入 ${items.length} 个第三方平台，可直接查看 API Key 遮罩状态和动态能力。`
+        : "当前品牌还没有第三方平台配置。",
+      highlights: items.length
+        ? items.slice(0, 5).map((item) => `${item.name}｜${item.effectiveApiKeyMasked || "未配置"}｜${item.dynamicStats?.status || "unknown"}`)
+        : ["平台数：0"],
+      data: {
+        total: items.length,
+        items: items.map((item) => ({
+          id: item.id,
+          name: item.name,
+          providerType: item.providerType,
+          status: item.status,
+          baseUrl: item.baseUrl,
+          defaultModel: item.defaultModel,
+          effectiveApiKeyMasked: item.effectiveApiKeyMasked,
+          dynamicStats: item.dynamicStats,
+        })),
+      },
+      links: [{ label: "打开第三方接口配置", url: "/personal-center/third-party-platforms" }],
+      resourceKind: "third_party_platform",
+    });
+  }
+
+  async updateMyThirdPartyPlatformSecret(
+    headers: HeadersMap,
+    options?: {
+      platformId?: string;
+      apiKey?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "personalCenter.thirdPartyPlatforms", "edit", auth);
+
+    const platformId = String(options?.platformId || "").trim();
+    const apiKey = String(options?.apiKey || "").trim();
+    if (!platformId) {
+      throw new BadRequestException("请提供 platformId");
+    }
+    if (!apiKey) {
+      throw new BadRequestException("请提供 apiKey");
+    }
+
+    const updated = await this.thirdPartyPlatformsService.updateBrandPlatformSecret(brandId, platformId, { apiKey });
+    return this.buildSummaryResponse({
+      title: "第三方接口密钥已更新",
+      summary: `已更新平台“${updated.name}”的品牌级 API Key，后续该品牌下相关功能会优先使用最新密钥。`,
+      highlights: [
+        `平台：${updated.name}`,
+        `当前遮罩：${updated.effectiveApiKeyMasked || "已更新"}`,
+      ],
+      data: {
+        platform: {
+          id: updated.id,
+          name: updated.name,
+          providerType: updated.providerType,
+          status: updated.status,
+          baseUrl: updated.baseUrl,
+          effectiveApiKeyMasked: updated.effectiveApiKeyMasked,
+          dynamicStats: updated.dynamicStats,
+        },
+      },
+      links: [{ label: "打开第三方接口配置", url: "/personal-center/third-party-platforms" }],
+      resourceKind: "third_party_platform",
+      resultStatus: "COMPLETED",
+      nextActions: [
+        { label: "打开第三方接口配置", action: "open_page", target: "/personal-center/third-party-platforms" },
+      ],
+    });
+  }
+
+  async listMyOrders(
+    headers: HeadersMap,
+    options?: {
+      status?: string;
+      limit?: number;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const orders = await this.ordersService.listOrders(auth);
+    const normalizedStatus = this.normalizeOptionalString(options?.status)?.toUpperCase();
+    const filtered = orders
+      .filter((item) => (!normalizedStatus ? true : String(item.orderStatus || "").toUpperCase() === normalizedStatus))
+      .slice(0, this.normalizeLimit(options?.limit));
+
+    return this.buildSummaryResponse({
+      title: "个人订单摘要",
+      summary: filtered.length
+        ? `当前共返回 ${filtered.length} 条订单记录。`
+        : normalizedStatus
+          ? `当前没有状态为 ${normalizedStatus} 的订单。`
+          : "当前没有订单记录。",
+      highlights: filtered.length
+        ? filtered.slice(0, 5).map((item) => `${item.orderNo}｜${item.orderType}｜${item.orderStatus}`)
+        : ["订单数：0"],
+      data: {
+        total: filtered.length,
+        status: normalizedStatus || undefined,
+        items: filtered.map((item) => ({
+          id: item.id,
+          orderNo: item.orderNo,
+          orderType: item.orderType,
+          orderStatus: item.orderStatus,
+          amountYuan: item.amountYuan,
+          membership: item.membership,
+          pointsAmount: item.pointsAmount,
+          createdAt: item.createdAt,
+          updatedAt: item.updatedAt,
+          paidAt: item.paidAt,
+        })),
+      },
+      links: [{ label: "打开订单中心", url: "/personal-center/orders" }],
+      resourceKind: "order",
+    });
+  }
+
+  async getPersonalCenterOverview(headers: HeadersMap) {
+    const auth = await this.requireAuth(headers);
+    const me = await this.authService.getMe(auth);
+    const orders = await this.ordersService.listOrders(auth);
+    const tasks = await this.loadTasks(auth);
+    const pendingInvites = await this.brandsService.listMyPendingBrandInvites(auth.userId);
+
+    const runningTasks = tasks.filter((item) => ["RUNNING", "QUEUED"].includes(String(item.taskStatus || "").toUpperCase()));
+    const currentBrand = me.brands.find((item) => item.id === me.currentBrandId) ?? me.brands[0];
+    const latestOrder = [...orders].sort((left, right) => this.getTimestamp(right.updatedAt || right.createdAt) - this.getTimestamp(left.updatedAt || left.createdAt))[0];
+    const latestTask = [...tasks].sort((left, right) => this.getTimestamp(right.createdAt) - this.getTimestamp(left.createdAt))[0];
+
+    return this.buildSummaryResponse({
+      title: "个人中心总览",
+      summary: currentBrand
+        ? `当前账号正在品牌“${currentBrand.brandName}”下工作，可访问 ${me.brands.length} 个品牌，当前有 ${runningTasks.length} 个进行中任务和 ${pendingInvites.items.length} 条待处理邀请。`
+        : `当前账号可访问 ${me.brands.length} 个品牌，当前有 ${runningTasks.length} 个进行中任务和 ${pendingInvites.items.length} 条待处理邀请。`,
+      highlights: [
+        `当前品牌：${currentBrand?.brandName || "未绑定品牌"}`,
+        `可访问品牌：${me.brands.length}`,
+        `待处理邀请：${pendingInvites.items.length}`,
+        `进行中任务：${runningTasks.length}`,
+        `订单数：${orders.length}`,
+      ],
+      data: {
+        currentBrand: currentBrand
+          ? {
+              id: currentBrand.id,
+              brandName: currentBrand.brandName,
+              role: currentBrand.role,
+            }
+          : undefined,
+        brands: me.brands.map((item) => ({
+          id: item.id,
+          brandName: item.brandName,
+          role: item.role,
+        })),
+        counts: {
+          brands: me.brands.length,
+          pendingInvites: pendingInvites.items.length,
+          runningTasks: runningTasks.length,
+          orders: orders.length,
+        },
+        latestTask: latestTask
+          ? {
+              id: latestTask.id,
+              title: latestTask.taskTitle,
+              status: latestTask.taskStatus,
+              createdAt: latestTask.createdAt,
+            }
+          : undefined,
+        latestOrder: latestOrder
+          ? {
+              id: latestOrder.id,
+              orderNo: latestOrder.orderNo,
+              orderType: latestOrder.orderType,
+              orderStatus: latestOrder.orderStatus,
+              updatedAt: latestOrder.updatedAt,
+            }
+          : undefined,
+      },
+      links: [{ label: "打开个人中心", url: "/personal-center" }],
+      resourceKind: "personal_center",
+    });
+  }
+
+  async listBrandMembers(headers: HeadersMap) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "personalCenter.team", "view", auth);
+
+    const members = await this.brandsService.listBrandMembers(brandId, auth.userId);
+    return this.buildSummaryResponse({
+      title: "品牌成员列表",
+      summary: members.items.length
+        ? `当前品牌“${members.brandName}”共有 ${members.items.length} 位成员，当前账号角色为 ${members.currentUserRole}。`
+        : `当前品牌“${members.brandName}”还没有成员记录。`,
+      highlights: members.items.length
+        ? members.items.slice(0, 5).map((item) => `${item.nickname || item.mobile || item.email}｜${item.role}｜${item.status}`)
+        : ["成员数：0"],
+      data: members,
+      links: [{ label: "打开团队协作", url: "/personal-center/team" }],
+      resourceKind: "brand_team",
+    });
+  }
+
+  async listBrandInvites(headers: HeadersMap) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "personalCenter.team", "view", auth);
+
+    const invites = await this.brandsService.listBrandInvites(brandId, auth.userId);
+    return this.buildSummaryResponse({
+      title: "品牌邀请列表",
+      summary: invites.items.length
+        ? `当前品牌“${invites.brandName}”共有 ${invites.items.length} 条邀请记录。`
+        : `当前品牌“${invites.brandName}”还没有邀请记录。`,
+      highlights: invites.items.length
+        ? invites.items.slice(0, 5).map((item) => `${item.role}｜${item.status}｜${item.inviteCode}`)
+        : ["邀请数：0"],
+      data: invites,
+      links: [{ label: "打开团队协作", url: "/personal-center/team" }],
+      resourceKind: "brand_invite",
+    });
+  }
+
+  async createBrandInviteLink(
+    headers: HeadersMap,
+    options?: {
+      role?: string;
+      note?: string;
+      expiresInDays?: number;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "personalCenter.team", "edit", auth);
+    const normalizedRole = this.normalizeOptionalString(options?.role)?.toUpperCase();
+    const role = normalizedRole === "ADMIN" || normalizedRole === "STAFF" || normalizedRole === "TALENT"
+      ? normalizedRole
+      : undefined;
+
+    const invites = await this.brandsService.createBrandInvite(
+      brandId,
+      {
+        role,
+        note: this.normalizeOptionalString(options?.note) || undefined,
+        expiresInDays: typeof options?.expiresInDays === "number" ? options.expiresInDays : undefined,
+      },
+      auth.userId,
+    ) as BrandInviteListRecord;
+    const latest = invites.items[0];
+
+    return this.buildSummaryResponse({
+      title: "品牌邀请链接已创建",
+      summary: latest
+        ? `已为当前品牌创建 ${latest.role} 角色邀请，邀请码为 ${latest.inviteCode}。`
+        : "已为当前品牌创建新的邀请链接。",
+      highlights: latest
+        ? [
+            `邀请码：${latest.inviteCode}`,
+            `角色：${latest.role}`,
+            `状态：${latest.status}`,
+            latest.expiresAt ? `过期时间：${latest.expiresAt}` : "过期时间：按系统默认",
+          ]
+        : ["邀请已创建"],
+      data: {
+        brandId: invites.brandId,
+        brandName: invites.brandName,
+        latestInvite: latest,
+      },
+      links: [{ label: "打开团队协作", url: "/personal-center/team" }],
+      resourceKind: "brand_invite",
+      resultStatus: "COMPLETED",
+    });
+  }
+
+  async revokeBrandInvite(
+    headers: HeadersMap,
+    options?: {
+      inviteId?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "personalCenter.team", "edit", auth);
+
+    const inviteId = String(options?.inviteId || "").trim();
+    if (!inviteId) {
+      throw new BadRequestException("请提供 inviteId");
+    }
+    const invites = await this.brandsService.revokeBrandInvite(brandId, inviteId, auth.userId) as BrandInviteListRecord;
+    const revoked = invites.items.find((item) => item.id === inviteId);
+
+    return this.buildSummaryResponse({
+      title: "品牌邀请已撤回",
+      summary: revoked ? `已撤回邀请码 ${revoked.inviteCode}。` : "已撤回指定品牌邀请。",
+      highlights: revoked
+        ? [`角色：${revoked.role}`, `状态：${revoked.status}`, `邀请码：${revoked.inviteCode}`]
+        : ["邀请已撤回"],
+      data: {
+        brandId: invites.brandId,
+        brandName: invites.brandName,
+        invite: revoked,
+      },
+      links: [{ label: "打开团队协作", url: "/personal-center/team" }],
+      resourceKind: "brand_invite",
+      resultStatus: "COMPLETED",
+    });
+  }
+
+  async getBrandPermissionSettings(headers: HeadersMap) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "personalCenter.team", "view", auth);
+
+    const settings = await this.brandsService.getBrandPermissionSettings(brandId, auth.userId);
+    return this.buildSummaryResponse({
+      title: "品牌权限模板",
+      summary: `当前品牌“${settings.brandName}”的团队权限模板已加载，当前账号角色为 ${settings.currentUserRole}。`,
+      highlights: [
+        `当前角色：${settings.currentUserRole}`,
+        `可管理成员：${settings.canManageMembers ? "是" : "否"}`,
+        `可管理权限：${settings.canManagePermissions ? "是" : "否"}`,
+        `权限分组数：${settings.permissionTree.length}`,
+      ],
+      data: settings,
+      links: [{ label: "打开团队协作", url: "/personal-center/team" }],
+      resourceKind: "brand_permission",
+    });
+  }
+
+  async listMyBrandInvites(headers: HeadersMap) {
+    const auth = await this.requireAuth(headers);
+    const invites = await this.brandsService.listMyPendingBrandInvites(auth.userId);
+
+    return this.buildSummaryResponse({
+      title: "我的待处理品牌邀请",
+      summary: invites.items.length ? `当前账号还有 ${invites.items.length} 条待处理品牌邀请。` : "当前账号没有待处理品牌邀请。",
+      highlights: invites.items.length
+        ? invites.items.slice(0, 5).map((item) => `${item.brandName}｜${item.role}｜${item.status}`)
+        : ["待处理邀请：0"],
+      data: invites,
+      links: [{ label: "打开邀请通知", url: "/personal-center/invites" }],
+      resourceKind: "brand_invite",
+    });
+  }
+
+  async listMyBrandInviteNotifications(headers: HeadersMap) {
+    const auth = await this.requireAuth(headers);
+    const notifications = await this.brandsService.listMyBrandInviteNotifications(auth.userId);
+
+    return this.buildSummaryResponse({
+      title: "品牌邀请通知中心",
+      summary: notifications.items.length
+        ? `当前账号共有 ${notifications.items.length} 条邀请通知，其中 ${notifications.unreadCount} 条未读。`
+        : "当前账号还没有邀请通知。",
+      highlights: notifications.items.length
+        ? notifications.items.slice(0, 5).map((item) => `${item.brandName}｜${item.title}${item.readAt ? "｜已读" : "｜未读"}`)
+        : ["邀请通知：0"],
+      data: notifications,
+      links: [{ label: "打开邀请通知", url: "/personal-center/invites" }],
+      resourceKind: "brand_invite_notification",
+    });
+  }
+
+  async acceptMyBrandInvite(
+    headers: HeadersMap,
+    options?: {
+      inviteId?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const inviteId = String(options?.inviteId || "").trim();
+    if (!inviteId) {
+      throw new BadRequestException("请提供 inviteId");
+    }
+
+    const accepted = await this.brandsService.acceptBrandInvite(inviteId, auth.userId);
+    return this.buildSummaryResponse({
+      title: "品牌邀请已接受",
+      summary: accepted?.brandName ? `已加入品牌“${accepted.brandName}”。` : "已接受该品牌邀请。",
+      highlights: accepted
+        ? [
+            `品牌：${accepted.brandName || accepted.brandId}`,
+            "状态：已接受",
+          ]
+        : ["邀请已接受"],
+      data: accepted,
+      links: [{ label: "打开团队协作", url: "/personal-center/team" }],
+      resourceKind: "brand_invite",
+      resultStatus: "COMPLETED",
     });
   }
 
@@ -4225,6 +5257,77 @@ export class OpenClawService {
         return this.getPlatformAccounts(headers, {
           platform: typeof toolArgs.platform === "string" ? toolArgs.platform : undefined,
           limit: typeof toolArgs.limit === "number" ? toolArgs.limit : undefined,
+        });
+      case "get_brand_archive_summary":
+        return this.getBrandArchiveSummary(headers);
+      case "get_brand_archive_survey":
+        return this.getBrandArchiveSurvey(headers, {
+          limit: typeof toolArgs.limit === "number" ? toolArgs.limit : undefined,
+        });
+      case "get_brand_competitor_accounts":
+        return this.getBrandCompetitorAccounts(headers, {
+          platform: typeof toolArgs.platform === "string" ? toolArgs.platform : undefined,
+          limit: typeof toolArgs.limit === "number" ? toolArgs.limit : undefined,
+        });
+      case "get_brand_industry_feeds":
+        return this.getBrandIndustryFeeds(headers, {
+          limit: typeof toolArgs.limit === "number" ? toolArgs.limit : undefined,
+        });
+      case "get_brand_business_assets":
+        return this.getBrandBusinessAssets(headers, {
+          limit: typeof toolArgs.limit === "number" ? toolArgs.limit : undefined,
+        });
+      case "get_opportunity_insight_workspace":
+        return this.getOpportunityInsightWorkspace(headers);
+      case "generate_opportunity_insight_step_one":
+        return this.generateOpportunityInsightStepOne(headers, {
+          supplementInput: typeof toolArgs.supplementInput === "string" ? toolArgs.supplementInput : undefined,
+        });
+      case "generate_opportunity_insight_step_two":
+        return this.generateOpportunityInsightStepTwo(headers, {
+          supplementInput: typeof toolArgs.supplementInput === "string" ? toolArgs.supplementInput : undefined,
+        });
+      case "generate_opportunity_insight_step_three":
+        return this.generateOpportunityInsightStepThree(headers, {
+          supplementInput: typeof toolArgs.supplementInput === "string" ? toolArgs.supplementInput : undefined,
+        });
+      case "list_my_third_party_platforms":
+        return this.listMyThirdPartyPlatforms(headers);
+      case "update_my_third_party_platform_secret":
+        return this.updateMyThirdPartyPlatformSecret(headers, {
+          platformId: typeof toolArgs.platformId === "string" ? toolArgs.platformId : undefined,
+          apiKey: typeof toolArgs.apiKey === "string" ? toolArgs.apiKey : undefined,
+        });
+      case "list_my_orders":
+        return this.listMyOrders(headers, {
+          status: typeof toolArgs.status === "string" ? toolArgs.status : undefined,
+          limit: typeof toolArgs.limit === "number" ? toolArgs.limit : undefined,
+        });
+      case "get_personal_center_overview":
+        return this.getPersonalCenterOverview(headers);
+      case "list_brand_members":
+        return this.listBrandMembers(headers);
+      case "list_brand_invites":
+        return this.listBrandInvites(headers);
+      case "create_brand_invite_link":
+        return this.createBrandInviteLink(headers, {
+          role: typeof toolArgs.role === "string" ? toolArgs.role : undefined,
+          note: typeof toolArgs.note === "string" ? toolArgs.note : undefined,
+          expiresInDays: typeof toolArgs.expiresInDays === "number" ? toolArgs.expiresInDays : undefined,
+        });
+      case "revoke_brand_invite":
+        return this.revokeBrandInvite(headers, {
+          inviteId: typeof toolArgs.inviteId === "string" ? toolArgs.inviteId : undefined,
+        });
+      case "get_brand_permission_settings":
+        return this.getBrandPermissionSettings(headers);
+      case "list_my_brand_invites":
+        return this.listMyBrandInvites(headers);
+      case "list_my_brand_invite_notifications":
+        return this.listMyBrandInviteNotifications(headers);
+      case "accept_my_brand_invite":
+        return this.acceptMyBrandInvite(headers, {
+          inviteId: typeof toolArgs.inviteId === "string" ? toolArgs.inviteId : undefined,
         });
       case "get_recent_tasks_summary":
         return this.getRecentTasksSummary(headers, {

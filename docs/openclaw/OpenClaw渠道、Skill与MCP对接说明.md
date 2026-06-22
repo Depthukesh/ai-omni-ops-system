@@ -113,12 +113,33 @@ MCP 在这里解决的是标准化工具接入问题。
 ### MCP 负责的事情
 
 - 提供 `get_recent_tasks_summary`
-- 提供 `summarize_failed_tasks`
+- 提供 `get_failed_tasks_summary`
 - 提供 `create_brand_growth_report`
-- 提供 `list_knowledge_bases`
-- 提供 `list_recent_knowledge_files`
+- 提供 `get_brand_archive_summary`
+- 提供 `get_brand_archive_survey`
+- 提供 `get_platform_accounts`
+- 提供 `get_brand_competitor_accounts`
+- 提供 `get_brand_industry_feeds`
+- 提供 `get_brand_business_assets`
+- 提供 `get_opportunity_insight_workspace`
+- 提供 `generate_opportunity_insight_step_one`
+- 提供 `generate_opportunity_insight_step_two`
+- 提供 `generate_opportunity_insight_step_three`
+- 提供 `get_personal_center_overview`
+- 提供 `list_brand_members`
+- 提供 `list_brand_invites`
+- 提供 `create_brand_invite_link`
+- 提供 `revoke_brand_invite`
+- 提供 `get_brand_permission_settings`
+- 提供 `list_my_brand_invites`
+- 提供 `list_my_brand_invite_notifications`
+- 提供 `accept_my_brand_invite`
+- 提供 `get_recent_knowledge_files`
 - 提供 `get_skill_config_summary`
 - 提供 `create_xiaohongshu_original_note`
+- 提供 `list_my_third_party_platforms`
+- 提供 `update_my_third_party_platform_secret`
+- 提供 `list_my_orders`
 
 ### MCP 不负责的事情
 
@@ -178,11 +199,17 @@ MCP 把网站的能力和历史数据包装成可被 OpenClaw 调用的标准化
 OpenClaw 通过 MCP 获取：
 
 - 当前品牌上下文
+- 个人中心概览和待处理提醒
+- 品牌档案摘要、建档问卷、品牌账号、竞品账号、行业资料、业务资产
 - 任务摘要
 - 历史失败原因
+- 机会洞察工作区和 step1/2/3 的执行能力
+- 团队成员、邀请链接、邀请通知和权限模板
 - 内容历史
 - 知识库历史
 - 技能配置摘要
+- 第三方接口配置摘要
+- 订单中心摘要
 - 各类任务触发能力
 
 ## 4.3 网站是“权威后端”
@@ -270,7 +297,7 @@ MCP 内部不要直接写业务逻辑，而是尽量复用现有网站后端：
 1. 飞书消息进入 OpenClaw Gateway
 2. Gateway 根据绑定关系识别用户和品牌
 3. 品牌运营助手 Skill 识别这属于“失败任务总结”任务
-4. Skill 调用 `summarize_failed_tasks` 相关 MCP 工具
+4. Skill 调用 `get_failed_tasks_summary` 相关 MCP 工具
 5. MCP 工具去网站后端读取失败任务历史、错误摘要、重试记录
 6. OpenClaw 结合 Skill 里的输出规则生成用户可读结论
 7. 结果返回飞书会话
@@ -301,6 +328,83 @@ MCP 内部不要直接写业务逻辑，而是尽量复用现有网站后端：
 
 - 用户仍然是在企微里完成主要交互
 - 网站主要负责执行和结果沉淀
+
+## 6.3 例子三：直接提取品牌账号和品牌资料
+
+用户在飞书里说：
+
+- 帮我把当前品牌的账号资料、竞品账号和行业资料都拉出来
+
+执行链路应该是：
+
+1. 消息进入 OpenClaw Gateway
+2. Gateway 识别当前登录用户与默认品牌
+3. 品牌运营助手 Skill 判断这是“品牌档案提取”任务
+4. Skill 先调 `get_brand_archive_summary`
+5. 再按需要调 `get_platform_accounts`、`get_brand_competitor_accounts`、`get_brand_industry_feeds`
+6. MCP 去网站后端读取品牌档案、账号池和行业资料
+7. Skill 组织成用户可读摘要后返回会话
+
+这里：
+
+- Skill 负责决定要不要展开明细
+- MCP 负责安全地读取品牌账号和品牌数据
+
+## 6.4 例子四：继续机会洞察下一步
+
+用户在企微里说：
+
+- 帮我看机会洞察到哪一步了，能继续就继续
+
+执行链路应该是：
+
+1. Skill 先调 `get_opportunity_insight_workspace`
+2. 根据返回的 step 状态判断是先做 step1、step2 还是 step3
+3. 如果条件满足，调用 `generate_opportunity_insight_step_two` 或 `generate_opportunity_insight_step_three`
+4. 网站原有报告任务链路负责排队和执行
+5. MCP 返回任务状态、下一步建议和页面入口
+
+这意味着：
+
+- OpenClaw 不只是“读报告”，还能推进网站已有的机会洞察流程
+- 但仍然完全复用网站现有权限和任务中心
+
+## 6.5 例子五：查看团队协作并创建邀请链接
+
+用户在飞书里说：
+
+- 帮我看当前品牌成员和邀请列表，再创建一个新的员工邀请链接
+
+执行链路应该是：
+
+1. Skill 先调 `list_brand_members`
+2. 再调 `list_brand_invites`
+3. 如果用户确认需要新建邀请，再调 `create_brand_invite_link`
+4. MCP 复用网站现有团队协作与品牌邀请能力
+5. 最终返回邀请码、邀请链接和页面入口
+
+这里：
+
+- Skill 负责先读再做，避免重复创建邀请
+- MCP 负责复用网站团队协作权限和邀请审计链路
+
+## 6.6 例子六：先看个人中心总览，再处理待接受邀请
+
+用户在企微里说：
+
+- 帮我看看现在有哪些待处理事项，有邀请的话顺手告诉我
+
+执行链路应该是：
+
+1. Skill 先调 `get_personal_center_overview`
+2. 如果存在待处理邀请，再调 `list_my_brand_invites` 或 `list_my_brand_invite_notifications`
+3. 如用户明确接受其中某条，再调用 `accept_my_brand_invite`
+4. MCP 返回当前品牌、进行中任务、最近订单和邀请状态摘要
+
+这意味着：
+
+- OpenClaw 已经可以把个人中心概览和团队协作串起来
+- 用户不需要先打开网页逐页查信息
 
 ---
 

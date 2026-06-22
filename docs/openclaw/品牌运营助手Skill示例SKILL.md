@@ -56,24 +56,30 @@
 
 ### 查询类
 
+- 看个人中心总览
 - 看最近任务情况
 - 总结失败任务原因
+- 提取品牌档案摘要
+- 查看品牌账号、竞品账号和行业资料
+- 查看机会洞察当前进度
+- 查看品牌成员、邀请和权限模板
+- 查看我的待处理品牌邀请和邀请通知
+- 查看第三方接口配置摘要
+- 查看最近订单情况
 - 查看知识库和最近新增资料
 - 看当前技能配置摘要
 
 ### 触发类
 
 - 生成品牌增长报告
+- 继续推进机会洞察 step1、step2、step3
+- 创建品牌邀请链接
+- 接受品牌邀请
 - 生成半年营销规划
 - 做一版小红书原创图文
 - 生成公众号文章
 - 新建知识库
 - 上传知识资料
-
-### 分析类
-
-- 总结最近表现最好的内容规律
-- 对比这个月和上个月的变化
 
 ## 三、工具调用原则
 
@@ -165,19 +171,70 @@
 
 - 优先使用：`get_recent_tasks_summary`
 
+### 看个人中心总览
+
+- 优先使用：`get_personal_center_overview`
+
 ### 总结失败任务原因
 
-- 优先使用：`summarize_failed_tasks`
+- 优先使用：`get_failed_tasks_summary`
+
+### 提取品牌档案摘要
+
+- 优先使用：`get_brand_archive_summary`
+- 必要时使用：`get_brand_archive_survey`
+
+### 查看品牌账号、竞品账号和行业资料
+
+- 品牌账号优先使用：`get_platform_accounts`
+- 竞品账号优先使用：`get_brand_competitor_accounts`
+- 行业资料优先使用：`get_brand_industry_feeds`
+- 业务资产优先使用：`get_brand_business_assets`
+
+### 查看或继续机会洞察
+
+- 先使用：`get_opportunity_insight_workspace`
+- 第一步使用：`generate_opportunity_insight_step_one`
+- 第二步使用：`generate_opportunity_insight_step_two`
+- 第三步使用：`generate_opportunity_insight_step_three`
+
+### 查看品牌成员、邀请和权限模板
+
+- 成员列表优先使用：`list_brand_members`
+- 邀请列表优先使用：`list_brand_invites`
+- 权限模板优先使用：`get_brand_permission_settings`
+
+### 查看我的待处理品牌邀请和邀请通知
+
+- 待处理邀请优先使用：`list_my_brand_invites`
+- 邀请通知优先使用：`list_my_brand_invite_notifications`
+
+### 创建品牌邀请链接
+
+- 优先使用：`create_brand_invite_link`
+- 执行前必须确认：角色、备注是否需要填写、有效天数
+
+### 接受品牌邀请
+
+- 优先使用：`accept_my_brand_invite`
+- 执行前必须确认：`inviteId`
+
+### 查看第三方接口配置摘要
+
+- 优先使用：`list_my_third_party_platforms`
+
+### 更新品牌 API Key
+
+- 优先使用：`update_my_third_party_platform_secret`
+- 执行前必须确认：平台 ID 与新密钥
 
 ### 生成品牌增长报告
 
 - 优先使用：`create_brand_growth_report`
-- 必要时使用：`get_task_result_summary`
 
 ### 查看知识库和最近新增资料
 
-- 优先使用：`list_knowledge_bases`
-- 必要时使用：`list_recent_knowledge_files`
+- 优先使用：`get_recent_knowledge_files`
 
 ### 看当前技能配置摘要
 
@@ -186,12 +243,10 @@
 ### 做一版小红书原创图文
 
 - 优先使用：`create_xiaohongshu_original_note`
-- 回读时使用：`get_content_generation_summary`
 
 ### 生成公众号文章
 
 - 优先使用：`create_wechat_article`
-- 回读时使用：`get_content_generation_summary`
 
 ### 新建知识库
 
@@ -199,15 +254,11 @@
 
 ### 上传知识资料
 
-- 优先使用：`upload_knowledge_files`
+- 优先使用：`upload_knowledge_base_files`
 
-### 总结最近表现最好的内容规律
+### 查看最近订单情况
 
-- 优先使用：`summarize_top_content_patterns`
-
-### 对比这个月和上个月的变化
-
-- 优先使用：`compare_period_metrics`
+- 优先使用：`list_my_orders`
 
 ## 七、行为边界
 
