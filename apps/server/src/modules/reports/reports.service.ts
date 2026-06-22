@@ -10484,11 +10484,12 @@ ${normalizedMarkdown}`;
     collectionWorkspace: Awaited<ReturnType<CollectorsService["getDouyinWorkspace"]>>,
   ): DouyinRemixCopyMaterialOption[] {
     const sourceItems = [
+      ...collectionWorkspace.competitorWorks,
       ...collectionWorkspace.benchmarkWorks,
+      ...collectionWorkspace.searchWorks,
       ...collectionWorkspace.lowFanExplosiveWorks,
       ...collectionWorkspace.highCompletionRateWorks,
       ...collectionWorkspace.highLikeRateWorks,
-      ...collectionWorkspace.brandWorks,
     ];
     const deduped = new Map<string, { option: DouyinRemixCopyMaterialOption; sortAt: string }>();
     for (const item of sourceItems) {
