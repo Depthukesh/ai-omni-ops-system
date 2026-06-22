@@ -1,11 +1,12 @@
 import { createHash, createHmac, randomUUID } from "node:crypto";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, extname, join, resolve } from "node:path";
 import { BadRequestException, Inject, Injectable, NotFoundException, ServiceUnavailableException, UnauthorizedException } from "@nestjs/common";
 import { MediaType, TaskStatus, type Prisma } from "@prisma/client";
+import ffmpegInstaller from "@ffmpeg-installer/ffmpeg";
 import { createId, database, type ApiProviderRecord } from "../../common/mock-data";
 import { XHS_IMAGE_ANALYSIS_PROMPT_FALLBACK } from "../../common/prompt-fallbacks";
 import { readPromptSourceBundle } from "../../common/prompt-source-loader";
@@ -172,6 +173,10 @@ function resolveFfmpegBinary() {
   const envBinary = String(process.env.FFMPEG_BINARY || "").trim();
   if (envBinary) {
     return envBinary;
+  }
+  const bundledBinary = String(ffmpegInstaller?.path || "").trim();
+  if (bundledBinary && existsSync(bundledBinary)) {
+    return bundledBinary;
   }
   return "ffmpeg";
 }
@@ -785,6 +790,7 @@ export type DesignGeneratedWorkRecord = {
   updatedAt: string;
   summary: string;
   errorDetail?: string;
+  spec?: string;
   tags: string[];
   assetUrl?: string;
   htmlContent?: string;
@@ -855,6 +861,7 @@ export type OperationsPromptWorkRecord = {
   taskStatus?: WorkTaskStatus;
   title: string;
   status: string;
+  createdAt: string;
   updatedAt: string;
   summary: string;
   errorDetail?: string;
@@ -2884,6 +2891,7 @@ export class WorksService {
         stage: "RUNNING",
         title,
         designType: designContext.designType,
+        spec: designContext.spec,
         productLabel: designContext.productLabel,
         summary: `正在调用 ${skillProfile.label}，生成${designContext.designType}，请等待本次任务返回。`,
         tags: [
@@ -2910,6 +2918,7 @@ export class WorksService {
           skillSlug: skillProfile.skillSlug,
           ...designContext,
         });
+        const imageSizeOverride = this.resolveDesignImageGenerationSize(designContext.spec);
         const imageAsset = await this.generateImageAsset({
           brandId,
           taskId: task.id,
@@ -2923,6 +2932,7 @@ export class WorksService {
           referenceImageUrls: [],
           referenceImagePayloads: payload.referenceImage ? [payload.referenceImage] : [],
           promptMode: "social_graphic",
+          imageSizeOverride,
           includeFallbackPrompt: true,
         });
         const result: DesignGeneratedWorkRecord = {
@@ -2936,6 +2946,7 @@ export class WorksService {
           status: "已完成",
           updatedAt: new Date().toISOString(),
           summary: this.buildDesignResultSummary(designContext, imageAsset.modelName),
+          spec: designContext.spec,
           tags: [skillProfile.label, designContext.designType, payload.injectBrandProfile === false ? "不植入品牌资料" : "植入品牌资料", designContext.productLabel, imageAsset.modelName],
           assetUrl: imageAsset.url,
         };
@@ -2947,6 +2958,7 @@ export class WorksService {
           title,
           status: result.status,
           summary: result.summary,
+          spec: designContext.spec,
           tags: result.tags,
           assetUrl: imageAsset.url,
         }, { modelName: imageAsset.modelName });
@@ -2973,6 +2985,7 @@ export class WorksService {
         status: payload.module === "video" ? "已生成方案" : "已完成",
         updatedAt: new Date().toISOString(),
         summary: this.buildDesignResultSummary(designContext, textResult.modelName),
+        spec: designContext.spec,
         tags: [skillProfile.label, designContext.designType, payload.injectBrandProfile === false ? "不植入品牌资料" : "植入品牌资料", designContext.productLabel, textResult.modelName],
         assetUrl: textResult.assetUrl,
         htmlContent: textResult.htmlContent,
@@ -2985,6 +2998,7 @@ export class WorksService {
         title: textResult.title,
         status: result.status,
         summary: result.summary,
+        spec: designContext.spec,
         tags: result.tags,
         assetUrl: textResult.assetUrl,
       }, { modelName: textResult.modelName });
@@ -2998,6 +3012,7 @@ export class WorksService {
         skillLabel: skillProfile.label,
         stage: "FAILED",
         title,
+        spec: designContext.spec,
         summary: errorMessage,
         errorDetail: errorMessage,
       });
@@ -3231,10 +3246,6 @@ export class WorksService {
 
   private async bootstrapOperationsPromptTemplates() {
     const canUseTemplateTable = await this.canUseOperationsPromptTemplateTable();
-    if (canUseTemplateTable && (await this.countOperationsPromptTemplateRows()) > 0) {
-      return;
-    }
-
     const seeds = await loadOperationsPromptSeeds(process.cwd());
     if (canUseTemplateTable) {
       for (const seed of seeds) {
@@ -3271,17 +3282,6 @@ export class WorksService {
       return Boolean(rows[0]?.exists);
     } catch {
       return false;
-    }
-  }
-
-  private async countOperationsPromptTemplateRows() {
-    try {
-      const rows = await this.prismaService.$queryRawUnsafe<Array<{ count: number | string }>>(
-        `SELECT COUNT(*) AS "count" FROM "OperationsPromptTemplate"`,
-      );
-      return Number(rows[0]?.count || 0) || 0;
-    } catch {
-      return 0;
     }
   }
 
@@ -3510,6 +3510,8 @@ export class WorksService {
       || this.normalizeHistoryTimestamp(task.finishedAt)
       || this.normalizeHistoryTimestamp(task.createdAt)
       || new Date().toISOString();
+    const createdAt = this.normalizeHistoryTimestamp(task.createdAt)
+      || updatedAt;
     const taskStatus = String(task.taskStatus || "QUEUED") as WorkTaskStatus;
     const generatedText = this.readOptionalString(output?.generatedText);
 
@@ -3519,6 +3521,7 @@ export class WorksService {
       taskStatus,
       title: this.readOptionalString(output?.title) || String(task.taskTitle || "").trim() || `${templateTitle} · 生成稿`,
       status: this.getOperationsPromptTaskStatusLabel(taskStatus),
+      createdAt,
       updatedAt,
       summary: this.readOptionalString(output?.summary)
         || (taskStatus === "FAILED"
@@ -3802,6 +3805,7 @@ export class WorksService {
       updatedAt,
       summary,
       errorDetail,
+      spec: this.readOptionalString(output?.spec),
       tags: this.readStringArray(output?.tags, [
         skillLabel,
         this.readOptionalString(output?.designType) || DESIGN_MODULE_TYPES[module][0],
@@ -8509,12 +8513,19 @@ export class WorksService {
       };
     }
     const remixSegments = meta.remixSegments || [];
+    if (!this.isRemixShortVideoSecondStageReady(meta)) {
+      if (meta.composeStatus === "FAILED" && remixSegments.length) {
+        this.ensureRemixShortVideoComposeReady(remixSegments);
+      } else if (meta.workflowStage === "FAILED") {
+        throw new BadRequestException(meta.thirdPartyStatusDetail || meta.composeError || "第一阶段尚未完成，暂时不能继续生成视频。");
+      } else {
+        throw new BadRequestException("请先完成第一阶段的复刻分析与分镜图生成，再继续生成视频。");
+      }
+    }
     if (!remixSegments.length) {
       throw new BadRequestException("请先完成复刻分析与分镜出图，再继续生成视频。");
     }
-    if (remixSegments.some((item) => !item.storyboardImageUrl)) {
-      throw new BadRequestException("仍有分段缺少分镜图，请等待第一阶段完成后再试。");
-    }
+    this.ensureRemixShortVideoComposeReady(remixSegments);
     const userId = await this.resolveTaskUserId(brandId, auth);
     const task = await this.createVideoTask({
       userId,
@@ -13966,6 +13977,50 @@ export class WorksService {
     };
   }
 
+  private resolveDesignImageGenerationSize(spec: string) {
+    const normalizedSpec = this.normalizeDesignImageSpec(spec);
+    if (!normalizedSpec) {
+      return this.resolveXiaohongshuNoteImageGenerationSize();
+    }
+    const [widthText, heightText] = normalizedSpec.split("x");
+    const width = Number(widthText);
+    const height = Number(heightText);
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+      return this.resolveXiaohongshuNoteImageGenerationSize();
+    }
+    return {
+      apiz: this.resolveClosestImageAspectRatio(width, height),
+      openai: normalizedSpec,
+    };
+  }
+
+  private normalizeDesignImageSpec(spec: string) {
+    const match = String(spec || "").match(/(\d{3,5})\s*[xX*]\s*(\d{3,5})/);
+    if (!match) {
+      return "";
+    }
+    const width = Number(match[1]);
+    const height = Number(match[2]);
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+      return "";
+    }
+    return `${Math.trunc(width)}x${Math.trunc(height)}`;
+  }
+
+  private resolveClosestImageAspectRatio(width: number, height: number) {
+    const ratio = width / height;
+    const presets = [
+      { label: "1:1", value: 1 },
+      { label: "3:4", value: 3 / 4 },
+      { label: "4:3", value: 4 / 3 },
+      { label: "9:16", value: 9 / 16 },
+      { label: "16:9", value: 16 / 9 },
+    ];
+    return presets.reduce((closest, current) => (
+      Math.abs(current.value - ratio) < Math.abs(closest.value - ratio) ? current : closest
+    )).label;
+  }
+
   private resolveWechatBodyImageGenerationSize(bodyImageSize: WechatBodyImageSize) {
     switch (bodyImageSize) {
       case "landscape-16-9":
@@ -13976,6 +14031,34 @@ export class WorksService {
         return { apiz: "3:4", openai: "1200x1600" };
       default:
         return { apiz: "4:3", openai: "1600x1200" };
+    }
+  }
+
+  private isRemixShortVideoSecondStageReady(meta: VideoWorkAssetMeta) {
+    if (meta.composeStatus === "FAILED") {
+      return true;
+    }
+    return meta.workflowStage === "WAITING_VIDEO";
+  }
+
+  private ensureRemixShortVideoComposeReady(remixSegments: RemixShortVideoSegmentMeta[]) {
+    const missingStoryboardSegments = remixSegments.filter((item) => !item.storyboardImageUrl);
+    if (missingStoryboardSegments.length) {
+      throw new BadRequestException(`第一阶段尚未完成，仍有 ${missingStoryboardSegments.length} 段缺少分镜图，请等待生成完成后再试。`);
+    }
+    if (remixSegments.length > 1) {
+      this.assertFfmpegBinaryAvailable("当前服务端未安装 ffmpeg，暂时无法拼接完整复刻短视频。");
+    }
+  }
+
+  private assertFfmpegBinaryAvailable(errorMessage: string) {
+    const binary = resolveFfmpegBinary();
+    const probe = spawnSync(binary, ["-version"], {
+      windowsHide: true,
+      stdio: "ignore",
+    });
+    if (probe.error && (probe.error as NodeJS.ErrnoException).code === "ENOENT") {
+      throw new ServiceUnavailableException(errorMessage);
     }
   }
 

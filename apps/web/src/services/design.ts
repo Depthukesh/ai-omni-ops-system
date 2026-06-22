@@ -72,6 +72,7 @@ export type DesignGeneratedWorkRecord = {
   updatedAt: string;
   summary: string;
   errorDetail?: string;
+  spec?: string;
   tags: string[];
   assetUrl?: string;
   htmlContent?: string;
@@ -146,6 +147,7 @@ export type OperationsPromptWorkRecord = {
   taskStatus?: "PENDING" | "QUEUED" | "RUNNING" | "SUCCESS" | "FAILED" | "CANCELLED";
   title: string;
   status: string;
+  createdAt: string;
   updatedAt: string;
   summary: string;
   errorDetail?: string;

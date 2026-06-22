@@ -174,6 +174,7 @@ function buildPendingDesignWork(params: {
   designType: string;
   skillLabel: string;
   productLabel: string;
+  spec: string;
 }) {
   const updatedAt = new Date().toISOString();
   return {
@@ -185,6 +186,7 @@ function buildPendingDesignWork(params: {
     status: "执行中",
     updatedAt,
     summary: `正在调用 ${params.skillLabel}，生成${params.designType}，请等待本次任务返回。`,
+    spec: params.spec,
     tags: [params.skillLabel, params.designType, params.productLabel || "不植入产品", "执行中"],
   };
 }
@@ -244,9 +246,17 @@ function getWorkStatusTone(status: string) {
   return "status-pending";
 }
 
+function resolvePreviewAspectRatio(spec?: string) {
+  const match = String(spec || "").match(/(\d{3,5})\s*[xX*]\s*(\d{3,5})/);
+  if (!match) {
+    return undefined;
+  }
+  return `${match[1]} / ${match[2]}`;
+}
+
 function renderWorkPreview(module: DesignModuleMeta, work: DesignWork) {
   if (module.key === "image" && work.assetUrl) {
-    return <img src={work.assetUrl} alt={work.title} className="design-v3-card-media" />;
+    return <img src={work.assetUrl} alt={work.title} className="design-v3-card-media design-v3-card-media--image" />;
   }
 
   if (module.key === "html" && (work.htmlContent || work.assetUrl)) {
@@ -540,6 +550,7 @@ function ModuleWorks({
             <button
               type="button"
               className="design-v3-work-preview design-v3-work-preview-button"
+              style={module.key === "image" ? { aspectRatio: resolvePreviewAspectRatio(work.spec) || "4 / 5" } : undefined}
               onClick={() => onViewWork(work)}
             >
               {renderWorkPreview(module, work)}
@@ -786,6 +797,7 @@ export function DesignWorkspaceShell({ section }: DesignWorkspaceShellProps) {
       designType: form.type,
       skillLabel: selectedSkill?.label || activeMeta.label,
       productLabel: selectedProductLabel,
+      spec: form.spec.trim(),
     });
 
     setWorksByModule((current) => ({

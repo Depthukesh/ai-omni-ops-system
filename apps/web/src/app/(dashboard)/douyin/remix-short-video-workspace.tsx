@@ -193,6 +193,24 @@ export function DouyinRemixShortVideoWorkspace(props: DouyinRemixShortVideoWorks
       || selectedWork.taskStatus === "QUEUED"
       || selectedWork.taskStatus === "PENDING"),
   );
+  const selectedWorkMissingStoryboardCount = selectedWork
+    ? selectedWork.remixSegments.filter((item) => !item.storyboardImageUrl).length
+    : 0;
+  const isSelectedWorkReadyForVideo = Boolean(
+    selectedWork
+    && selectedWork.remixSegments.length
+    && selectedWorkMissingStoryboardCount === 0
+    && (selectedWork.workflowStage === "WAITING_VIDEO" || selectedWork.composeStatus === "FAILED"),
+  );
+  const selectedWorkGenerateBlockedReason = !selectedWork
+    ? "请先选择一个复刻作品。"
+    : !selectedWork.remixSegments.length
+      ? "第一阶段还没有生成出分段结果，请稍后刷新。"
+      : selectedWorkMissingStoryboardCount > 0
+        ? `第一阶段尚未完成，仍有 ${selectedWorkMissingStoryboardCount} 段缺少分镜图。`
+        : selectedWork.workflowStage === "FAILED" && selectedWork.composeStatus !== "FAILED"
+          ? (selectedWork.thirdPartyStatusDetail || selectedWork.composeError || "第一阶段执行失败，请先重新创建或排查第一阶段。")
+          : "";
 
   useEffect(() => {
     if (!selectedWorkId && props.items[0]?.id) {
@@ -250,7 +268,7 @@ export function DouyinRemixShortVideoWorkspace(props: DouyinRemixShortVideoWorks
   }
 
   async function handleGenerateVideo() {
-    if (!selectedWork) {
+    if (!selectedWork || !isSelectedWorkReadyForVideo) {
       return;
     }
     await props.onGenerateVideo({
@@ -402,7 +420,7 @@ export function DouyinRemixShortVideoWorkspace(props: DouyinRemixShortVideoWorks
                         type="button"
                         className="primary-button"
                         onClick={() => void handleGenerateVideo()}
-                        disabled={!props.canEdit || props.isSubmitting || !selectedWork.remixSegments.length || isSelectedWorkGeneratingVideo}
+                        disabled={!props.canEdit || props.isSubmitting || !isSelectedWorkReadyForVideo || isSelectedWorkGeneratingVideo}
                       >
                         {isSelectedWorkGeneratingVideo ? "拼接生成中..." : "一键生成视频"}
                       </button>
@@ -441,6 +459,12 @@ export function DouyinRemixShortVideoWorkspace(props: DouyinRemixShortVideoWorks
                     </p>
                     {selectedWork.copyAdditionalInstruction || selectedWork.videoAdditionalInstruction ? (
                       <p className="text-xs text-slate-500">用户要求：{selectedWork.videoAdditionalInstruction || selectedWork.copyAdditionalInstruction}</p>
+                    ) : null}
+                    {selectedWorkGenerateBlockedReason ? (
+                      <div className="report-inline-tip">
+                        <strong>当前还不能执行第二步</strong>
+                        <div style={{ marginTop: "6px" }}>{selectedWorkGenerateBlockedReason}</div>
+                      </div>
                     ) : null}
                     {selectedWork.thirdPartyStatusLabel ? (
                       <div className="report-inline-tip">

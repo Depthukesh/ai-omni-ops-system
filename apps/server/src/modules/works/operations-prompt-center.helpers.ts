@@ -29,6 +29,14 @@ export const OPERATIONS_PROMPT_DEFAULT_MODEL_SEQUENCE = [
 ] as const;
 
 const SUPPORTED_SOURCE_EXTENSIONS = new Set([".md", ".txt"]);
+const GENERIC_PROMPT_TITLES = new Set([
+  "执行指令",
+  "系统指令",
+  "提示词",
+  "prompt",
+  "prompt 模板",
+  "智能体提示词",
+]);
 
 export async function loadOperationsPromptSeeds(cwd: string) {
   const sourceRoot = resolveOperationsPromptSourceRoot(cwd);
@@ -116,10 +124,16 @@ async function collectPromptFiles(root: string): Promise<string[]> {
 }
 
 function extractPromptTitle(content: string, sourceFileName: string) {
-  const headingMatch = content.match(/^#\s+(.+)$/m);
-  const headingTitle = cleanPromptTitle(headingMatch?.[1] || "");
-  if (headingTitle) {
-    return headingTitle;
+  const headings = Array.from(
+    content.matchAll(/^#{1,3}\s+(.+)$/gm),
+    (match) => cleanPromptTitle(match[1] || ""),
+  ).filter(Boolean);
+
+  for (const heading of headings) {
+    if (isGenericPromptTitle(heading)) {
+      continue;
+    }
+    return heading;
   }
   return cleanPromptTitle(sourceFileName.replace(/\.[^.]+$/, "")) || "未命名提示词";
 }
@@ -148,6 +162,20 @@ function cleanPromptTitle(value: string) {
   }
 
   return normalized;
+}
+
+function isGenericPromptTitle(value: string) {
+  const normalized = String(value || "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!normalized) {
+    return true;
+  }
+  if (GENERIC_PROMPT_TITLES.has(normalized)) {
+    return true;
+  }
+  return /^执行指令[：: -]*$/.test(normalized);
 }
 
 function extractPromptPreview(content: string) {

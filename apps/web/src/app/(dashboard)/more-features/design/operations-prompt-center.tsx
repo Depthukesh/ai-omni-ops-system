@@ -84,13 +84,14 @@ function buildPendingOperationsPromptWork(
   template: OperationsPromptTemplateDetailRecord,
   form: OperationsPromptFormState,
 ): OperationsPromptWorkRecord {
-  const updatedAt = new Date().toISOString();
+  const createdAt = new Date().toISOString();
   return {
-    id: `pending-${updatedAt}-${Math.random().toString(36).slice(2, 8)}`,
+    id: `pending-${createdAt}-${Math.random().toString(36).slice(2, 8)}`,
     taskStatus: "QUEUED",
     title: form.title.trim() || `${template.title}生成稿`,
     status: "排队中",
-    updatedAt,
+    createdAt,
+    updatedAt: createdAt,
     summary: "作品已进入后台生成队列，可关闭当前弹窗并在作品中心查看进度。",
     tags: [
       template.businessStage,
@@ -314,7 +315,7 @@ function WorksCenterDialog({
     return null;
   }
 
-  const selectedWork = works.find((item) => item.id === selectedWorkId) ?? works[0] ?? null;
+  const selectedWork = works.find((item) => item.id === selectedWorkId) ?? null;
 
   return (
     <div className="design-v3-dialog-backdrop design-v3-preview-backdrop" role="presentation" onClick={onClose}>
@@ -335,126 +336,88 @@ function WorksCenterDialog({
           </button>
         </div>
 
-        <div className="ops-works-layout">
-          <div className="ops-works-list">
-            {loading ? <div className="empty-state">作品中心加载中...</div> : null}
-            {!loading && works.length === 0 ? <div className="empty-state">当前还没有生成作品，先从模板卡片发起一次生成。</div> : null}
-            {!loading
-              ? works.map((work) => (
-                <article
-                  key={work.id}
-                  className={`ops-work-list-card ${selectedWork?.id === work.id ? "is-selected" : ""}`}
-                >
-                  <button type="button" className="ops-work-list-main" onClick={() => onSelect(work.id)}>
-                    <div className="ops-work-list-meta">
+        <div className="ops-works-table-shell">
+          {loading ? <div className="empty-state">作品中心加载中...</div> : null}
+          {!loading && works.length === 0 ? <div className="empty-state">当前还没有生成作品，先从模板卡片发起一次生成。</div> : null}
+          {!loading && works.length > 0 ? (
+            <>
+              <div className="ops-works-table ops-works-table--head" role="presentation">
+                <span>标题</span>
+                <span>提示词名称</span>
+                <span>创建时间</span>
+                <span>生成状态</span>
+                <span>查看</span>
+                <span>删除</span>
+              </div>
+              <div className="ops-works-table-body">
+                {works.map((work) => (
+                  <article
+                    key={work.id}
+                    className={`ops-works-row ${selectedWork?.id === work.id ? "is-selected" : ""}`}
+                  >
+                    <div className="ops-works-cell">
+                      <strong>{work.title}</strong>
+                    </div>
+                    <div className="ops-works-cell">
+                      <span>{work.templateTitle}</span>
+                    </div>
+                    <div className="ops-works-cell">
+                      <span>{formatTimestamp(new Date(work.createdAt || work.updatedAt))}</span>
+                    </div>
+                    <div className="ops-works-cell">
                       <span className={`archive-pill ${getWorkStatusTone(work.status)}`}>{work.status}</span>
-                      <span>{work.updatedAt}</span>
                     </div>
-                    <strong>{work.title}</strong>
-                    <p>{work.summary}</p>
-                    <div className="ops-prompt-tag-row">
-                      {work.tags.slice(0, 4).map((tag) => (
-                        <span key={tag} className="archive-pill status-pending">
-                          {tag}
-                        </span>
-                      ))}
+                    <div className="ops-works-cell">
+                      <button type="button" className="tiny-action-button is-primary" onClick={() => onSelect(work.id)}>
+                        查看
+                      </button>
                     </div>
-                  </button>
-                  <div className="ops-work-list-actions">
-                    <button type="button" className="tiny-action-button is-primary" onClick={() => onSelect(work.id)}>
-                      查看
-                    </button>
-                    <button
-                      type="button"
-                      className="ghost-danger-button"
-                      onClick={() => void onDelete(work.id)}
-                      disabled={deletingWorkId === work.id}
-                    >
-                      {deletingWorkId === work.id ? "删除中..." : "删除"}
-                    </button>
-                  </div>
-                </article>
-              ))
-              : null}
-          </div>
-
-          <div className="ops-works-detail">
-            {selectedWork ? (
-              <>
-                <div className="ops-works-detail-head">
-                  <div>
-                    <div className="ops-work-list-meta">
-                      <span className={`archive-pill ${getWorkStatusTone(selectedWork.status)}`}>{selectedWork.status}</span>
-                      {selectedWork.modelName ? <span>{selectedWork.modelName}</span> : null}
-                      <span>{selectedWork.updatedAt}</span>
+                    <div className="ops-works-cell">
+                      <button
+                        type="button"
+                        className="ghost-danger-button"
+                        onClick={() => void onDelete(work.id)}
+                        disabled={deletingWorkId === work.id}
+                      >
+                        {deletingWorkId === work.id ? "删除中..." : "删除"}
+                      </button>
                     </div>
-                    <strong>{selectedWork.title}</strong>
-                    <p>{selectedWork.templateTitle}</p>
-                  </div>
-                  <div className="ops-prompt-inline-actions">
-                    <button
-                      type="button"
-                      className="secondary-button"
-                      onClick={() => void onCopyGenerated(selectedWork.generatedText || "")}
-                      disabled={!selectedWork.generatedText}
-                    >
-                      复制内容
-                    </button>
-                  </div>
-                </div>
-
-                <div className="ops-prompt-tag-row">
-                  {selectedWork.tags.map((tag) => (
-                    <span key={tag} className="archive-pill status-pending">
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-
-                <div className="ops-work-detail-blocks">
-                  <div className="ops-work-detail-block">
-                    <span>执行摘要</span>
-                    <p>{selectedWork.summary}</p>
-                  </div>
-                  <div className="ops-work-detail-block">
-                    <span>上下文</span>
-                    <p>
-                      品牌资料：{selectedWork.usedBrandProfile ? "已植入" : "未植入"}
-                      {" | "}
-                      产品：{selectedWork.usedProductLabel || "不植入产品"}
-                      {" | "}
-                      营销日历：{selectedWork.usedCalendarLabel || "不植入营销日历"}
-                    </p>
-                  </div>
-                  {selectedWork.userRequirement ? (
-                    <div className="ops-work-detail-block">
-                      <span>用户要求</span>
-                      <pre>{selectedWork.userRequirement}</pre>
-                    </div>
-                  ) : null}
-                  {selectedWork.promptSnapshot ? (
-                    <div className="ops-work-detail-block">
-                      <span>本次 Prompt 快照</span>
-                      <pre>{selectedWork.promptSnapshot}</pre>
-                    </div>
-                  ) : null}
-                  <div className="ops-work-detail-block is-output">
-                    <span>生成结果</span>
-                    <pre>{selectedWork.generatedText || "当前作品尚未返回正文，可稍后刷新后再看。"}</pre>
-                  </div>
-                  {selectedWork.errorDetail ? (
-                    <div className="ops-work-detail-block is-error">
-                      <span>失败原因</span>
-                      <pre>{selectedWork.errorDetail}</pre>
-                    </div>
-                  ) : null}
-                </div>
-              </>
-            ) : (
-              <div className="empty-state">请选择左侧作品查看详情。</div>
-            )}
-          </div>
+                  </article>
+                ))}
+              </div>
+            </>
+          ) : null}
         </div>
+
+        {selectedWork ? (
+          <div className="ops-works-detail-panel">
+            <div className="ops-works-detail-panel-head">
+              <div>
+                <strong>{selectedWork.title}</strong>
+                <p>
+                  {selectedWork.templateTitle}
+                  {" | "}
+                  创建于 {formatTimestamp(new Date(selectedWork.createdAt || selectedWork.updatedAt))}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => void onCopyGenerated(selectedWork.generatedText || "")}
+                disabled={!selectedWork.generatedText}
+              >
+                一键复制
+              </button>
+            </div>
+            <div className="ops-work-detail-block is-output">
+              <span>生成内容</span>
+              <pre>{selectedWork.generatedText || selectedWork.errorDetail || "当前作品尚未返回正文，可稍后刷新后再看。"}</pre>
+            </div>
+          </div>
+        ) : null}
+        {!loading && works.length > 0 && !selectedWork ? (
+          <div className="empty-state">点击列表里的查看按钮，即可在下方查看生成内容。</div>
+        ) : null}
       </div>
     </div>
   );
