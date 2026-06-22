@@ -247,6 +247,25 @@ export type PromptTemplateRecord = {
   updatedAt: string;
 };
 
+export type OperationsPromptTemplateAdminRecord = {
+  id: string;
+  slug: string;
+  title: string;
+  preview: string;
+  content: string;
+  status: "ACTIVE" | "DISABLED" | "DRAFT";
+  sourceCategory: string;
+  sourceFileName: string;
+  sourceFilePath: string;
+  businessStage: string;
+  outputType: string;
+  scenarioLabel: string;
+  tags: string[];
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type KnowledgeBaseRecord = {
   id: string;
   name: string;
@@ -3403,6 +3422,22 @@ export async function updatePromptTemplate(
   payload: Partial<Pick<PromptTemplateRecord, "status" | "modelName" | "temperature" | "maxTokens" | "content">>,
 ) {
   return jsonRequest<PromptTemplateRecord>(`/admin/prompts/${promptId}`, "PATCH", payload);
+}
+
+export async function getOperationsPromptTemplates() {
+  return request<OperationsPromptTemplateAdminRecord[]>("/admin/operations-prompts");
+}
+
+export async function updateOperationsPromptTemplate(
+  templateId: string,
+  payload: Partial<
+    Pick<
+      OperationsPromptTemplateAdminRecord,
+      "title" | "preview" | "content" | "status" | "businessStage" | "outputType" | "scenarioLabel" | "sortOrder"
+    >
+  >,
+) {
+  return jsonRequest<OperationsPromptTemplateAdminRecord>(`/admin/operations-prompts/${templateId}`, "PATCH", payload);
 }
 
 export async function getKnowledgeBases() {

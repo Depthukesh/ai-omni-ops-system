@@ -8810,6 +8810,62 @@ button {
   min-height: 160px;
 }
 
+.admin-ops-prompt-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.admin-ops-prompt-list-item {
+  width: 100%;
+  padding: 16px;
+  border: 1px solid rgba(140, 157, 255, 0.12);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.03);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.admin-ops-prompt-list-item:hover,
+.admin-ops-prompt-list-item.is-selected {
+  border-color: rgba(95, 118, 255, 0.42);
+  box-shadow: 0 16px 30px rgba(84, 105, 235, 0.12);
+  transform: translateY(-1px);
+}
+
+.admin-ops-prompt-list-head,
+.admin-ops-prompt-list-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.admin-ops-prompt-list-head strong {
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.admin-ops-prompt-list-item p {
+  margin: 10px 0;
+  color: var(--text-soft);
+  font-size: 13px;
+  line-height: 1.75;
+}
+
+.admin-ops-prompt-list-meta {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  color: var(--text-faint);
+  font-size: 12px;
+}
+
+.admin-ops-prompt-editor {
+  min-height: 420px;
+}
+
 .admin-skill-tree-card {
   padding: 18px 16px 22px;
   border-radius: 28px;
@@ -12735,13 +12791,15 @@ button {
   margin-top: 16px;
   display: grid;
   gap: 18px;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(300px, 360px));
+  justify-content: start;
 }
 
 .design-v3-work-card {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  width: min(100%, 360px);
   border-radius: 22px;
   border: 1px solid var(--site-hero-border);
   background: var(--card-surface);

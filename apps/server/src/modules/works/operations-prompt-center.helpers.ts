@@ -36,6 +36,8 @@ const GENERIC_PROMPT_TITLES = new Set([
   "prompt",
   "prompt 模板",
   "智能体提示词",
+  "角色",
+  "目的",
 ]);
 
 export async function loadOperationsPromptSeeds(cwd: string) {
@@ -43,6 +45,7 @@ export async function loadOperationsPromptSeeds(cwd: string) {
   if (!sourceRoot) {
     return bundledOperationsPromptSeeds.map((seed, index) => ({
       ...seed,
+      title: resolveSeedTitle(seed.title, seed.content, seed.sourceFileName),
       content: normalizeContent(seed.content),
       preview: truncatePreview(seed.preview),
       tagsJson: [...(seed.tagsJson || [])],
@@ -135,7 +138,19 @@ function extractPromptTitle(content: string, sourceFileName: string) {
     }
     return heading;
   }
+  const inferredTitle = inferPromptTitleFromContent(content);
+  if (inferredTitle) {
+    return inferredTitle;
+  }
   return cleanPromptTitle(sourceFileName.replace(/\.[^.]+$/, "")) || "未命名提示词";
+}
+
+function resolveSeedTitle(seedTitle: string, content: string, sourceFileName: string) {
+  const cleanedTitle = cleanPromptTitle(seedTitle);
+  if (cleanedTitle && !isGenericPromptTitle(cleanedTitle)) {
+    return cleanedTitle;
+  }
+  return extractPromptTitle(content, sourceFileName);
 }
 
 function cleanPromptTitle(value: string) {
@@ -175,7 +190,7 @@ function isGenericPromptTitle(value: string) {
   if (GENERIC_PROMPT_TITLES.has(normalized)) {
     return true;
   }
-  return /^执行指令[：: -]*$/.test(normalized);
+  return /^执行指令[：: -]*$/.test(normalized) || /^角色[：: -]*$/.test(normalized);
 }
 
 function extractPromptPreview(content: string) {
@@ -219,6 +234,122 @@ function extractSectionParagraph(content: string, headings: string[]) {
     }
   }
   return "";
+}
+
+function inferPromptTitleFromContent(content: string) {
+  const purposeLine = extractSectionParagraph(content, ["目的", "目标", "用途"]);
+  const roleLine = extractSectionParagraph(content, ["角色", "身份"]);
+  const outputHeading = extractFirstOutputHeading(content);
+  const sample = [purposeLine, roleLine, outputHeading]
+    .filter(Boolean)
+    .join("\n");
+  if (!sample.trim()) {
+    return "";
+  }
+
+  const topic = inferPromptTopic(sample);
+  const suffix = inferPromptSuffix(roleLine || sample);
+  if (topic && suffix) {
+    return `${topic}${suffix}`;
+  }
+  if (topic) {
+    return `${topic}策略专家`;
+  }
+  return "";
+}
+
+function extractFirstOutputHeading(content: string) {
+  const outputSection = extractSectionBody(content, ["输出要求", "输出内容", "输出示例"]);
+  if (!outputSection) {
+    return "";
+  }
+  const headingMatch = outputSection.match(/^\s*(?:[-*]\s*)?(?:\d+[.)：:\s-]*)?(?:#{1,3}\s*)?(.{2,24})$/m);
+  return cleanPromptTitle(headingMatch?.[1] || "");
+}
+
+function extractSectionBody(content: string, headings: string[]) {
+  for (const heading of headings) {
+    const expression = new RegExp(`^#{1,3}\\s*${escapeForRegExp(heading)}\\s*$([\\s\\S]*?)(?=^#{1,3}\\s|\\Z)`, "m");
+    const match = content.match(expression);
+    if (match?.[1]) {
+      return match[1];
+    }
+  }
+  return "";
+}
+
+function inferPromptTopic(sample: string) {
+  const topicMappings: Array<[RegExp, string]> = [
+    [/(工作日|周一到周五).*(客流|营业额)|工作日客流/, "工作日客流"],
+    [/(银发|中老年|老年客群|老年人)/, "银发客群"],
+    [/(等位|排队|候位|等待体验)/, "等位体验"],
+    [/(深夜|夜间|夜猫子|晚9点)/, "深夜营业"],
+    [/(学生|校园|学校周边|社团)/, "校园客群"],
+    [/(雨天|下雨|恶劣天气|天气突变)/, "雨天营销"],
+    [/(私域|社群|企业微信|朋友圈|裂变)/, "私域运营"],
+    [/(会员|VIP|忠诚客户|复购)/, "会员维护"],
+    [/(好评|评价|口碑引导)/, "好评引导"],
+    [/(差评|投诉|危机|公关)/, "差评处理"],
+    [/(选址|商圈|门店位置)/, "门店选址"],
+    [/(成本|降本|控费)/, "成本控制"],
+    [/(品牌榜单|冲榜|排行)/, "品牌冲榜"],
+    [/(法律|法务|合规|合同|侵权)/, "品牌法务"],
+    [/(培训|新员工|内训)/, "员工培训"],
+    [/(加盟|加盟商|连锁体系)/, "加盟体系"],
+    [/(供应链|采购|库存|物流)/, "供应链管理"],
+    [/(SOP|流程|标准化)/, "门店SOP"],
+    [/(引流|获客|拉新)/, "门店获客"],
+    [/(套餐|团购|定价|产品组合)/, "套餐策划"],
+    [/(活动|开业|节日营销|促销)/, "营销活动"],
+    [/(直播|短视频|视频内容)/, "短视频内容"],
+    [/(文案|标题|润色|脚本)/, "文案优化"],
+    [/(数据|诊断|分析|ROI|画像|预测)/, "经营分析"],
+    [/(品牌|IP|命名|slogan|装修)/i, "品牌建设"],
+  ];
+
+  for (const [pattern, title] of topicMappings) {
+    if (pattern.test(sample)) {
+      return title;
+    }
+  }
+
+  const purposeLine = sample.split(/\n/).find(Boolean) || "";
+  const compactPurpose = purposeLine
+    .replace(/^帮助/, "")
+    .replace(/^为/, "")
+    .replace(/^针对/, "")
+    .replace(/[，。；：].*$/, "")
+    .trim();
+  if (compactPurpose.length >= 4 && compactPurpose.length <= 14) {
+    return compactPurpose;
+  }
+  return "";
+}
+
+function inferPromptSuffix(sample: string) {
+  const suffixMappings: Array<[RegExp, string]> = [
+    [/创意起名大师/, "创意起名大师"],
+    [/策划大师/, "策划大师"],
+    [/文案助手/, "文案助手"],
+    [/话术专家/, "话术专家"],
+    [/维护专家/, "维护专家"],
+    [/优化师/, "优化师"],
+    [/设计师/, "设计师"],
+    [/顾问/, "顾问"],
+    [/操盘手/, "操盘手"],
+    [/分析师/, "分析师"],
+    [/策略师/, "策略师"],
+    [/专家/, "专家"],
+    [/助手/, "助手"],
+    [/大师/, "大师"],
+  ];
+
+  for (const [pattern, suffix] of suffixMappings) {
+    if (pattern.test(sample)) {
+      return suffix;
+    }
+  }
+  return "策略专家";
 }
 
 function truncatePreview(value: string) {

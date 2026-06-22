@@ -73,6 +73,33 @@ type OperationsPromptTemplateStoreRecord = OperationsPromptSeedRecord & {
 };
 
 const operationsPromptTemplateMockStore: OperationsPromptTemplateStoreRecord[] = [];
+const GENERIC_OPERATIONS_PROMPT_TEMPLATE_TITLES = new Set([
+  "执行指令",
+  "系统指令",
+  "提示词",
+  "prompt",
+  "prompt 模板",
+  "智能体提示词",
+  "角色",
+  "目的",
+]);
+
+function normalizeOperationsPromptTemplateTitle(value: string) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isGenericOperationsPromptTemplateTitle(value: string) {
+  const normalized = normalizeOperationsPromptTemplateTitle(value);
+  if (!normalized) {
+    return true;
+  }
+  return GENERIC_OPERATIONS_PROMPT_TEMPLATE_TITLES.has(normalized)
+    || /^执行指令[：: -]*$/i.test(normalized)
+    || /^角色[：: -]*$/i.test(normalized);
+}
 
 const DESIGN_MODULE_TYPES: Record<DesignWorkModuleKey, string[]> = {
   image: ["社媒轮播图", "杂志风海报", "动效首帧", "像素动画首帧", "电商主视觉", "品牌封面图", "信息图海报"],
@@ -824,6 +851,26 @@ export type OperationsPromptTemplateCardRecord = {
 
 export type OperationsPromptTemplateDetailRecord = OperationsPromptTemplateCardRecord & {
   content: string;
+};
+
+export type OperationsPromptTemplateAdminRecord = OperationsPromptTemplateDetailRecord & {
+  slug: string;
+  status: "ACTIVE" | "DISABLED" | "DRAFT";
+  sourceFilePath: string;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type UpdateOperationsPromptTemplatePayload = {
+  title?: string;
+  preview?: string;
+  content?: string;
+  status?: "ACTIVE" | "DISABLED" | "DRAFT";
+  businessStage?: string;
+  outputType?: string;
+  scenarioLabel?: string;
+  sortOrder?: number;
 };
 
 export type OperationsPromptCenterOptionsRecord = {
@@ -3095,6 +3142,69 @@ export class WorksService {
     return this.mapOperationsPromptTemplateToDetail(template);
   }
 
+  async listOperationsPromptTemplatesForAdmin(): Promise<OperationsPromptTemplateAdminRecord[]> {
+    await this.ensureOperationsPromptTemplatesBootstrapped();
+    const items = await this.listOperationsPromptTemplateStoreItems();
+    return items.map((item) => this.mapOperationsPromptTemplateToAdmin(item));
+  }
+
+  async updateOperationsPromptTemplateForAdmin(
+    templateId: string,
+    payload: UpdateOperationsPromptTemplatePayload,
+  ): Promise<OperationsPromptTemplateAdminRecord> {
+    await this.ensureOperationsPromptTemplatesBootstrapped();
+    const existing = await this.findOperationsPromptTemplateStoreItem(templateId);
+    if (!existing) {
+      throw new NotFoundException("运营提示词模板不存在");
+    }
+
+    const nextRecord = this.normalizeOperationsPromptTemplateUpdatePayload(existing, payload);
+    if (await this.canUseOperationsPromptTemplateTable()) {
+      await this.prismaService.$executeRawUnsafe(
+        `UPDATE "OperationsPromptTemplate"
+        SET
+          "title" = $2,
+          "preview" = $3,
+          "content" = $4,
+          "status" = $5,
+          "businessStage" = $6,
+          "outputType" = $7,
+          "scenarioLabel" = $8,
+          "tagsJson" = CAST($9 AS jsonb),
+          "sortOrder" = $10,
+          "updatedAt" = CURRENT_TIMESTAMP
+        WHERE "id" = $1 OR "slug" = $1`,
+        existing.id,
+        nextRecord.title,
+        nextRecord.preview,
+        nextRecord.content,
+        nextRecord.status,
+        nextRecord.businessStage,
+        nextRecord.outputType,
+        nextRecord.scenarioLabel,
+        JSON.stringify(nextRecord.tagsJson || []),
+        nextRecord.sortOrder,
+      );
+      const updated = await this.findOperationsPromptTemplateStoreItem(existing.id);
+      if (!updated) {
+        throw new NotFoundException("运营提示词模板不存在");
+      }
+      return this.mapOperationsPromptTemplateToAdmin(updated);
+    }
+
+    const index = operationsPromptTemplateMockStore.findIndex((item) => item.id === existing.id || item.slug === templateId);
+    if (index === -1) {
+      throw new NotFoundException("运营提示词模板不存在");
+    }
+    const updated = {
+      ...existing,
+      ...nextRecord,
+      updatedAt: new Date().toISOString(),
+    } satisfies OperationsPromptTemplateStoreRecord;
+    operationsPromptTemplateMockStore.splice(index, 1, updated);
+    return this.mapOperationsPromptTemplateToAdmin(updated);
+  }
+
   async listOperationsPromptWorks(brandId: string): Promise<OperationsPromptWorkHistoryRecord> {
     if (await this.prismaService.canUseDatabase()) {
       const tasks = await this.prismaService.task.findMany({
@@ -3257,11 +3367,17 @@ export class WorksService {
     const existingById = new Map(operationsPromptTemplateMockStore.map((item) => [item.id, item]));
     const nextRecords = seeds.map((seed) => {
       const existing = existingById.get(seed.id);
+      const preservedTitle = String(existing?.title || "").trim();
+      const preservedPreview = String(existing?.preview || "").trim();
+      const preservedContent = String(existing?.content || "").trim();
       return {
         ...seed,
-        status: "ACTIVE",
+        title: preservedTitle && !isGenericOperationsPromptTemplateTitle(preservedTitle) ? preservedTitle : seed.title,
+        preview: preservedPreview || seed.preview,
+        content: preservedContent || seed.content,
+        status: existing?.status || "ACTIVE",
         createdAt: existing?.createdAt || new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        updatedAt: existing?.updatedAt || new Date().toISOString(),
       } satisfies OperationsPromptTemplateStoreRecord;
     });
     operationsPromptTemplateMockStore.splice(0, operationsPromptTemplateMockStore.length, ...nextRecords);
@@ -3309,10 +3425,33 @@ export class WorksService {
       )
       ON CONFLICT ("sourceFilePath") DO UPDATE SET
         "slug" = EXCLUDED."slug",
-        "title" = EXCLUDED."title",
-        "preview" = EXCLUDED."preview",
-        "content" = EXCLUDED."content",
-        "status" = 'ACTIVE',
+        "title" = CASE
+          WHEN "OperationsPromptTemplate"."title" IS NULL
+            OR btrim("OperationsPromptTemplate"."title") = ''
+            OR lower(btrim("OperationsPromptTemplate"."title")) IN ('执行指令', '系统指令', '提示词', 'prompt', 'prompt 模板', '智能体提示词', '角色', '目的')
+            OR "OperationsPromptTemplate"."title" ~* '^执行指令[：: -]*$'
+            OR "OperationsPromptTemplate"."title" ~* '^角色[：: -]*$'
+          THEN EXCLUDED."title"
+          ELSE "OperationsPromptTemplate"."title"
+        END,
+        "preview" = CASE
+          WHEN "OperationsPromptTemplate"."preview" IS NULL
+            OR btrim("OperationsPromptTemplate"."preview") = ''
+          THEN EXCLUDED."preview"
+          ELSE "OperationsPromptTemplate"."preview"
+        END,
+        "content" = CASE
+          WHEN "OperationsPromptTemplate"."content" IS NULL
+            OR btrim("OperationsPromptTemplate"."content") = ''
+          THEN EXCLUDED."content"
+          ELSE "OperationsPromptTemplate"."content"
+        END,
+        "status" = CASE
+          WHEN "OperationsPromptTemplate"."status" IS NULL
+            OR btrim("OperationsPromptTemplate"."status") = ''
+          THEN 'ACTIVE'
+          ELSE "OperationsPromptTemplate"."status"
+        END,
         "sourceCategory" = EXCLUDED."sourceCategory",
         "sourceFileName" = EXCLUDED."sourceFileName",
         "businessStage" = EXCLUDED."businessStage",
@@ -3443,6 +3582,52 @@ export class WorksService {
     return {
       ...this.mapOperationsPromptTemplateToCard(item),
       content: item.content,
+    };
+  }
+
+  private mapOperationsPromptTemplateToAdmin(item: OperationsPromptTemplateStoreRecord): OperationsPromptTemplateAdminRecord {
+    return {
+      ...this.mapOperationsPromptTemplateToDetail(item),
+      slug: item.slug,
+      status: (["ACTIVE", "DISABLED", "DRAFT"].includes(item.status) ? item.status : "ACTIVE") as "ACTIVE" | "DISABLED" | "DRAFT",
+      sourceFilePath: item.sourceFilePath,
+      sortOrder: item.sortOrder,
+      createdAt: item.createdAt,
+      updatedAt: item.updatedAt,
+    };
+  }
+
+  private normalizeOperationsPromptTemplateUpdatePayload(
+    existing: OperationsPromptTemplateStoreRecord,
+    payload: UpdateOperationsPromptTemplatePayload,
+  ): OperationsPromptTemplateStoreRecord {
+    const nextTitle = payload.title === undefined ? existing.title : String(payload.title || "").trim();
+    const nextContent = payload.content === undefined ? existing.content : String(payload.content || "").replace(/\r\n/g, "\n").trim();
+    const nextPreview = payload.preview === undefined ? existing.preview : String(payload.preview || "").trim();
+    const nextStatus = payload.status && ["ACTIVE", "DISABLED", "DRAFT"].includes(payload.status) ? payload.status : existing.status;
+    const nextBusinessStage = payload.businessStage === undefined ? existing.businessStage : String(payload.businessStage || "").trim();
+    const nextOutputType = payload.outputType === undefined ? existing.outputType : String(payload.outputType || "").trim();
+    const nextScenarioLabel = payload.scenarioLabel === undefined ? existing.scenarioLabel : String(payload.scenarioLabel || "").trim();
+    const nextSortOrder = payload.sortOrder === undefined ? existing.sortOrder : Math.max(1, Number(payload.sortOrder) || existing.sortOrder);
+
+    if (!nextTitle) {
+      throw new BadRequestException("标题不能为空");
+    }
+    if (!nextContent) {
+      throw new BadRequestException("提示词内容不能为空");
+    }
+
+    return {
+      ...existing,
+      title: nextTitle,
+      preview: nextPreview,
+      content: nextContent,
+      status: nextStatus,
+      businessStage: nextBusinessStage || existing.businessStage,
+      outputType: nextOutputType || existing.outputType,
+      scenarioLabel: nextScenarioLabel || existing.scenarioLabel,
+      tagsJson: [nextBusinessStage || existing.businessStage, nextOutputType || existing.outputType, nextScenarioLabel || existing.scenarioLabel].filter(Boolean),
+      sortOrder: nextSortOrder,
     };
   }
 

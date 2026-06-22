@@ -21,6 +21,7 @@ import {
   createKnowledgeBase,
   createKnowledgeBaseFile,
   createKnowledgeBinding,
+  getOperationsPromptTemplates,
   deleteApiProvider,
   deleteThirdPartyPlatform,
   deleteKnowledgeBase,
@@ -72,6 +73,7 @@ import {
   updateKnowledgeBinding,
   updateKnowledgeRetrievalConfig,
   updateKnowledgeBase,
+  updateOperationsPromptTemplate,
   updatePromptTemplate,
   updateSkillConfig,
   updateBillingRules,
@@ -95,6 +97,7 @@ import {
   type MembershipPlanRule,
   type ModelUsageRecord,
   type ModuleDefinitionRecord,
+  type OperationsPromptTemplateAdminRecord,
   type PointsPackageRule,
   type PromptTemplateRecord,
   type SkillAssetBindingRecord,
@@ -171,7 +174,7 @@ import {
 } from "./skill-installation";
 import { UsersManagementPanel } from "./users-management-panel";
 
-type AdminTab = "dashboard" | "orders" | "rules" | "users" | "usage" | "assets" | "modules" | "knowledge" | "providers";
+type AdminTab = "dashboard" | "orders" | "rules" | "users" | "usage" | "assets" | "operationsPrompts" | "modules" | "knowledge" | "providers";
 type AdminSystemRole = "SUPER_ADMIN" | "ADMIN_OPERATOR" | "FINANCE_OPERATOR" | "SUPPORT_OPERATOR";
 type KnowledgeWorkspaceSection = "overview" | "files" | "retrieval" | "bindings" | "history" | "calls";
 type SkillEditDraft = {
@@ -247,6 +250,16 @@ type PromptEditDraft = {
   temperature: string;
   maxTokens: string;
   content: string;
+};
+type OperationsPromptEditDraft = {
+  title: string;
+  preview: string;
+  content: string;
+  status: OperationsPromptTemplateAdminRecord["status"];
+  businessStage: string;
+  outputType: string;
+  scenarioLabel: string;
+  sortOrder: string;
 };
 type CreateSkillDraft = {
   name: string;
@@ -549,6 +562,7 @@ const tabs: Array<{ key: AdminTab; label: string; description: string; shortLabe
   { key: "users", label: "用户管理", shortLabel: "用户", description: "调整会员等级、增减点数，并查看用户规模与活跃情况。" },
   { key: "usage", label: "模型消耗", shortLabel: "消耗", description: "查看模型任务量、点数成本、估算金额与最近调用时间。" },
   { key: "assets", label: "技能中心", shortLabel: "技能", description: "按业务板块维护技能配置、执行内容和保存策略。" },
+  { key: "operationsPrompts", label: "运营提示词", shortLabel: "提示词", description: "集中维护运营提示词中心模板的标题、标签、正文与启停状态。" },
   { key: "modules", label: "模块注册中心", shortLabel: "模块", description: "维护模块定义、入口路由、能力依赖和默认能力包摘要。" },
   { key: "knowledge", label: "知识库管理", shortLabel: "知识", description: "维护知识库启停状态、数据源类型、同步状态与文档规模。" },
   {
@@ -560,8 +574,8 @@ const tabs: Array<{ key: AdminTab; label: string; description: string; shortLabe
 ];
 
 const ADMIN_ROLE_TAB_MATRIX: Record<AdminSystemRole, AdminTab[]> = {
-  SUPER_ADMIN: ["dashboard", "orders", "rules", "users", "usage", "assets", "modules", "knowledge", "providers"],
-  ADMIN_OPERATOR: ["dashboard", "orders", "users", "usage", "assets", "modules", "knowledge", "providers"],
+  SUPER_ADMIN: ["dashboard", "orders", "rules", "users", "usage", "assets", "operationsPrompts", "modules", "knowledge", "providers"],
+  ADMIN_OPERATOR: ["dashboard", "orders", "users", "usage", "assets", "operationsPrompts", "modules", "knowledge", "providers"],
   FINANCE_OPERATOR: ["dashboard", "orders", "rules"],
   SUPPORT_OPERATOR: ["dashboard", "orders", "users", "usage"],
 };
@@ -616,6 +630,7 @@ export default function AdminPage() {
   const [usage, setUsage] = useState<ModelUsageRecord[]>(modelUsageSeed);
   const [skills, setSkills] = useState<SkillConfigRecord[]>(skillConfigSeed);
   const [prompts, setPrompts] = useState<PromptTemplateRecord[]>(promptTemplateSeed);
+  const [operationsPromptTemplates, setOperationsPromptTemplates] = useState<OperationsPromptTemplateAdminRecord[]>([]);
   const [modules, setModules] = useState<ModuleDefinitionRecord[]>(moduleDefinitionSeed);
   const [skillPackages, setSkillPackages] = useState<SkillPackageRecord[]>(skillPackageSeed);
   const [skillPackageModules, setSkillPackageModules] = useState<SkillPackageModuleRecord[]>(skillPackageModuleSeed);
@@ -636,6 +651,8 @@ export default function AdminPage() {
   const [thirdPartyPlatforms, setThirdPartyPlatforms] = useState<ThirdPartyPlatformRecord[]>([]);
   const [skillDrafts, setSkillDrafts] = useState<Record<string, SkillEditDraft>>(buildSkillDrafts(skillConfigSeed));
   const [promptDrafts, setPromptDrafts] = useState<Record<string, PromptEditDraft>>(buildPromptDrafts(promptTemplateSeed));
+  const [operationsPromptDrafts, setOperationsPromptDrafts] = useState<Record<string, OperationsPromptEditDraft>>({});
+  const [selectedOperationsPromptId, setSelectedOperationsPromptId] = useState("");
   const [knowledgeBaseDrafts, setKnowledgeBaseDrafts] = useState<Record<string, KnowledgeBaseEditDraft>>(
     buildKnowledgeBaseDrafts(knowledgeBaseSeed),
   );
@@ -675,6 +692,7 @@ export default function AdminPage() {
   const [isSavingRules, setIsSavingRules] = useState(false);
   const [updatingSkillId, setUpdatingSkillId] = useState("");
   const [updatingPromptId, setUpdatingPromptId] = useState("");
+  const [updatingOperationsPromptId, setUpdatingOperationsPromptId] = useState("");
   const [updatingKnowledgeBaseId, setUpdatingKnowledgeBaseId] = useState("");
   const [updatingKnowledgeBaseFileId, setUpdatingKnowledgeBaseFileId] = useState("");
   const [updatingKnowledgeRetrievalBaseId, setUpdatingKnowledgeRetrievalBaseId] = useState("");
@@ -771,6 +789,7 @@ export default function AdminPage() {
     const canReadUsers = allowedTabs.includes("users");
     const canReadUsage = allowedTabs.includes("usage");
     const canReadAssets = allowedTabs.includes("assets");
+    const canReadOperationsPrompts = allowedTabs.includes("operationsPrompts");
     const canReadModules = allowedTabs.includes("modules");
     const canReadKnowledge = allowedTabs.includes("knowledge");
     const canReadProviders = allowedTabs.includes("providers");
@@ -782,6 +801,7 @@ export default function AdminPage() {
       usageResult,
       skillResult,
       promptResult,
+      operationsPromptResult,
       skillPackageResult,
       skillPromptBindingResult,
       moduleDefinitionResult,
@@ -803,6 +823,7 @@ export default function AdminPage() {
       canReadUsage ? getModelUsage() : Promise.resolve([]),
       canReadAssets ? getSkillConfigs() : Promise.resolve([]),
       canReadAssets ? getPromptTemplates() : Promise.resolve([]),
+      canReadOperationsPrompts ? getOperationsPromptTemplates() : Promise.resolve([]),
       canReadAssets ? getSkillPackages() : Promise.resolve([]),
       canReadAssets ? getSkillPromptBindings() : Promise.resolve([]),
       canReadModules ? getModuleDefinitions() : Promise.resolve([]),
@@ -862,6 +883,22 @@ export default function AdminPage() {
     } else {
       setPrompts(promptTemplateSeed);
       setPromptDrafts(buildPromptDrafts(promptTemplateSeed));
+      usingSeed = true;
+    }
+
+    if (operationsPromptResult.status === "fulfilled") {
+      setOperationsPromptTemplates(operationsPromptResult.value);
+      setOperationsPromptDrafts(buildOperationsPromptDrafts(operationsPromptResult.value));
+      setSelectedOperationsPromptId((current) => {
+        if (operationsPromptResult.value.some((item) => item.id === current)) {
+          return current;
+        }
+        return operationsPromptResult.value[0]?.id || "";
+      });
+    } else {
+      setOperationsPromptTemplates([]);
+      setOperationsPromptDrafts({});
+      setSelectedOperationsPromptId("");
       usingSeed = true;
     }
 
@@ -1232,6 +1269,20 @@ export default function AdminPage() {
     );
   }
 
+  function handleOperationsPromptDraftChange(templateId: string, patch: Partial<OperationsPromptEditDraft>) {
+    const fallbackTemplate = operationsPromptTemplates.find((item) => item.id === templateId) || operationsPromptTemplates[0];
+    if (!fallbackTemplate) {
+      return;
+    }
+    setOperationsPromptDrafts((current) => ({
+      ...current,
+      [templateId]: {
+        ...(current[templateId] || buildOperationsPromptDraft(fallbackTemplate)),
+        ...patch,
+      },
+    }));
+  }
+
   function handleSkillCenterStatusChange(status: SkillConfigRecord["status"]) {
     if (activeSkillConfig) {
       handleSkillDraftChange(activeSkillConfig.id, { status });
@@ -1484,6 +1535,42 @@ export default function AdminPage() {
     }
     if (plan.shouldSavePrompt) {
       await handleSavePrompt(plan.activePromptId);
+    }
+  }
+
+  async function handleSaveOperationsPrompt(templateId: string) {
+    const draft = operationsPromptDrafts[templateId];
+    if (!draft) {
+      return;
+    }
+
+    setUpdatingOperationsPromptId(templateId);
+    setNotice("");
+    setErrorMessage("");
+
+    try {
+      const updated = await updateOperationsPromptTemplate(templateId, {
+        title: draft.title,
+        preview: draft.preview,
+        content: draft.content,
+        status: draft.status,
+        businessStage: draft.businessStage,
+        outputType: draft.outputType,
+        scenarioLabel: draft.scenarioLabel,
+        sortOrder: Number(draft.sortOrder || 0),
+      });
+
+      setOperationsPromptTemplates((current) => current.map((item) => (item.id === templateId ? updated : item)));
+      setOperationsPromptDrafts((current) => ({
+        ...current,
+        [templateId]: buildOperationsPromptDraft(updated),
+      }));
+      setNotice(`运营提示词已更新：${updated.title}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "运营提示词保存失败";
+      setErrorMessage(`运营提示词保存失败：${message}`);
+    } finally {
+      setUpdatingOperationsPromptId("");
     }
   }
 
@@ -3157,6 +3244,25 @@ export default function AdminPage() {
   );
   const skillCenterPromptValue = activePromptDraft?.content || "";
   const skillCenterName = activeSkillLeaf?.label || activePromptConfig?.name || activeSkillConfig?.name || "-";
+  const sortedOperationsPromptTemplates = useMemo(
+    () =>
+      [...operationsPromptTemplates].sort((left, right) => {
+        if (left.sortOrder !== right.sortOrder) {
+          return left.sortOrder - right.sortOrder;
+        }
+        return left.updatedAt < right.updatedAt ? 1 : -1;
+      }),
+    [operationsPromptTemplates],
+  );
+  const selectedOperationsPrompt = useMemo(
+    () =>
+      sortedOperationsPromptTemplates.find((item) => item.id === selectedOperationsPromptId)
+      ?? sortedOperationsPromptTemplates[0],
+    [selectedOperationsPromptId, sortedOperationsPromptTemplates],
+  );
+  const selectedOperationsPromptDraft = selectedOperationsPrompt
+    ? operationsPromptDrafts[selectedOperationsPrompt.id] || buildOperationsPromptDraft(selectedOperationsPrompt)
+    : undefined;
   const isSkillPrimaryExpanded = (primaryId: string) => !collapsedSkillPrimaryMap[primaryId];
   const isSkillSectionExpanded = (primaryId: string, sectionId: string) =>
     !collapsedSkillSectionMap[buildAdminSkillSectionCollapseKey(primaryId, sectionId)];
@@ -3581,6 +3687,18 @@ export default function AdminPage() {
       cancelled = true;
     };
   }, [activeTab, dataSource]);
+
+  useEffect(() => {
+    if (!sortedOperationsPromptTemplates.length) {
+      if (selectedOperationsPromptId) {
+        setSelectedOperationsPromptId("");
+      }
+      return;
+    }
+    if (!sortedOperationsPromptTemplates.some((item) => item.id === selectedOperationsPromptId)) {
+      setSelectedOperationsPromptId(sortedOperationsPromptTemplates[0]?.id || "");
+    }
+  }, [selectedOperationsPromptId, sortedOperationsPromptTemplates]);
 
   useEffect(() => {
     if (!isCreateSkillModalOpen) {
@@ -5418,6 +5536,159 @@ export default function AdminPage() {
                 </div>
               </div>
             ) : null}
+          </div>
+        ) : activeTab === "operationsPrompts" ? (
+          <div className="admin-skill-center-layout">
+            <aside className="panel personal-center-panel admin-skill-tree-card admin-skill-tree-card--polished admin-skill-tree-card--directory">
+              <div className="admin-skill-card-topline">
+                <span className="admin-skill-card-kicker">运营提示词</span>
+                <span className="archive-pill status-ready">{sortedOperationsPromptTemplates.length} 套</span>
+              </div>
+              <div className="admin-ops-prompt-list">
+                {sortedOperationsPromptTemplates.map((item) => (
+                  <button
+                    type="button"
+                    key={item.id}
+                    className={`admin-ops-prompt-list-item${selectedOperationsPrompt?.id === item.id ? " is-selected" : ""}`}
+                    onClick={() => setSelectedOperationsPromptId(item.id)}
+                  >
+                    <div className="admin-ops-prompt-list-head">
+                      <strong>{item.title}</strong>
+                      <span className={`archive-pill ${getStatusClassName(item.status)}`}>{getStatusLabel(item.status)}</span>
+                    </div>
+                    <p>{item.preview || "当前还没有预览摘要，可直接在右侧补充。"}</p>
+                    <div className="admin-ops-prompt-list-meta">
+                      <span>{item.businessStage}</span>
+                      <span>{item.outputType}</span>
+                      <span>{item.scenarioLabel}</span>
+                    </div>
+                  </button>
+                ))}
+                {!sortedOperationsPromptTemplates.length ? (
+                  <div className="admin-skill-empty" style={{ marginTop: 0 }}>
+                    当前还没有读取到运营提示词模板。请先确认服务端已完成模板导入与数据库迁移。
+                  </div>
+                ) : null}
+              </div>
+            </aside>
+
+            <section className="panel personal-center-panel admin-skill-center-panel">
+              {selectedOperationsPrompt && selectedOperationsPromptDraft ? (
+                <article className="entity-card admin-rule-card admin-skill-center-card admin-skill-form-card admin-skill-form-shell">
+                  <div className="admin-skill-card-topline">
+                    <span className="admin-skill-card-kicker">运营提示词中心配置</span>
+                    <span className={`archive-pill ${getStatusClassName(selectedOperationsPromptDraft.status)}`}>
+                      {getStatusLabel(selectedOperationsPromptDraft.status)}
+                    </span>
+                  </div>
+                  <div className="admin-skill-card-header">
+                    <div>
+                      <strong>{selectedOperationsPrompt.title}</strong>
+                      <p>{selectedOperationsPrompt.sourceCategory} / {selectedOperationsPrompt.sourceFileName}</p>
+                    </div>
+                    <div className="personal-meta">更新于 {formatDateTime(selectedOperationsPrompt.updatedAt)}</div>
+                  </div>
+
+                  <section className="entity-card admin-skill-section-card">
+                    <div className="entity-card-head">
+                      <div>
+                        <strong>基础信息</strong>
+                        <p className="personal-meta">这里的修改会直接成为运营提示词中心下次打开时的后台标准版本。</p>
+                      </div>
+                    </div>
+                    <div className="admin-skill-simple-grid">
+                      <label className="admin-skill-field">
+                        <span>标题</span>
+                        <input
+                          value={selectedOperationsPromptDraft.title}
+                          onChange={(event) => handleOperationsPromptDraftChange(selectedOperationsPrompt.id, { title: event.target.value })}
+                        />
+                      </label>
+                      <label className="admin-skill-field">
+                        <span>状态</span>
+                        <select
+                          value={selectedOperationsPromptDraft.status}
+                          onChange={(event) =>
+                            handleOperationsPromptDraftChange(selectedOperationsPrompt.id, {
+                              status: event.target.value as OperationsPromptTemplateAdminRecord["status"],
+                            })}
+                        >
+                          <option value="ACTIVE">启用中</option>
+                          <option value="DRAFT">草稿</option>
+                          <option value="DISABLED">停用</option>
+                        </select>
+                      </label>
+                      <label className="admin-skill-field">
+                        <span>业务阶段</span>
+                        <input
+                          value={selectedOperationsPromptDraft.businessStage}
+                          onChange={(event) => handleOperationsPromptDraftChange(selectedOperationsPrompt.id, { businessStage: event.target.value })}
+                        />
+                      </label>
+                      <label className="admin-skill-field">
+                        <span>输出类型</span>
+                        <input
+                          value={selectedOperationsPromptDraft.outputType}
+                          onChange={(event) => handleOperationsPromptDraftChange(selectedOperationsPrompt.id, { outputType: event.target.value })}
+                        />
+                      </label>
+                      <label className="admin-skill-field">
+                        <span>场景标签</span>
+                        <input
+                          value={selectedOperationsPromptDraft.scenarioLabel}
+                          onChange={(event) => handleOperationsPromptDraftChange(selectedOperationsPrompt.id, { scenarioLabel: event.target.value })}
+                        />
+                      </label>
+                      <label className="admin-skill-field">
+                        <span>排序</span>
+                        <input
+                          type="number"
+                          min={1}
+                          value={selectedOperationsPromptDraft.sortOrder}
+                          onChange={(event) => handleOperationsPromptDraftChange(selectedOperationsPrompt.id, { sortOrder: event.target.value })}
+                        />
+                      </label>
+                      <label className="admin-skill-field admin-skill-field--wide">
+                        <span>来源分类</span>
+                        <input value={selectedOperationsPrompt.sourceCategory} readOnly />
+                      </label>
+                      <label className="admin-skill-field admin-skill-field--wide">
+                        <span>来源文件</span>
+                        <input value={selectedOperationsPrompt.sourceFilePath} readOnly />
+                      </label>
+                      <label className="admin-skill-field admin-skill-field--full">
+                        <span>预览摘要</span>
+                        <textarea
+                          value={selectedOperationsPromptDraft.preview}
+                          onChange={(event) => handleOperationsPromptDraftChange(selectedOperationsPrompt.id, { preview: event.target.value })}
+                        />
+                      </label>
+                      <label className="admin-skill-field admin-skill-field--full">
+                        <span>提示词正文</span>
+                        <textarea
+                          className="admin-ops-prompt-editor"
+                          value={selectedOperationsPromptDraft.content}
+                          onChange={(event) => handleOperationsPromptDraftChange(selectedOperationsPrompt.id, { content: event.target.value })}
+                        />
+                      </label>
+                    </div>
+                  </section>
+
+                  <div className="admin-skill-form-actions">
+                    <button
+                      type="button"
+                      className="primary-button"
+                      onClick={() => void handleSaveOperationsPrompt(selectedOperationsPrompt.id)}
+                      disabled={updatingOperationsPromptId === selectedOperationsPrompt.id}
+                    >
+                      {updatingOperationsPromptId === selectedOperationsPrompt.id ? "保存中..." : "保存运营提示词"}
+                    </button>
+                  </div>
+                </article>
+              ) : (
+                <div className="admin-skill-empty">请先从左侧选择一套运营提示词模板。</div>
+              )}
+            </section>
           </div>
         ) : activeTab === "modules" ? (
           <ModuleDefinitionsPanel
@@ -7749,6 +8020,25 @@ function buildPromptDraft(item: PromptTemplateRecord): PromptEditDraft {
 
 function buildPromptDrafts(list: PromptTemplateRecord[]) {
   return Object.fromEntries(list.map((item) => [item.id, buildPromptDraft(item)])) as Record<string, PromptEditDraft>;
+}
+
+function buildOperationsPromptDraft(item: OperationsPromptTemplateAdminRecord): OperationsPromptEditDraft {
+  return {
+    title: item.title,
+    preview: item.preview,
+    content: item.content,
+    status: item.status,
+    businessStage: item.businessStage,
+    outputType: item.outputType,
+    scenarioLabel: item.scenarioLabel,
+    sortOrder: String(item.sortOrder),
+  };
+}
+
+function buildOperationsPromptDrafts(list: OperationsPromptTemplateAdminRecord[]) {
+  return Object.fromEntries(
+    list.map((item) => [item.id, buildOperationsPromptDraft(item)]),
+  ) as Record<string, OperationsPromptEditDraft>;
 }
 
 function groupItemsByLabel<T>(items: T[], getLabel: (item: T) => string) {

@@ -9,13 +9,14 @@ import { CollectorsModule } from "../collectors/collectors.module";
 import { ReportsModule } from "../reports/reports.module";
 import { ThirdPartyPlatformsModule } from "../third-party-platforms/third-party-platforms.module";
 import { ChanjingOpenApiService } from "./chanjing-open-api.service";
+import { OperationsPromptAdminController } from "./operations-prompt-admin.controller";
 import { WechatOfficialAccountApiService } from "./wechat-official-account-api.service";
 import { WorksController } from "./works.controller";
 import { WorksService } from "./works.service";
 
 @Module({
   imports: [AuthModule, BrandsModule, CollectorsModule, ReportsModule, SkillsPromptsModule, StorageModule, ApiProvidersModule, ThirdPartyPlatformsModule, KnowledgeBasesModule],
-  controllers: [WorksController],
+  controllers: [WorksController, OperationsPromptAdminController],
   providers: [WorksService, ChanjingOpenApiService, WechatOfficialAccountApiService],
   exports: [WorksService],
 })
