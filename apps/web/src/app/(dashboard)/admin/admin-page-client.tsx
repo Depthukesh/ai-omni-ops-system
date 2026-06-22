@@ -5895,18 +5895,6 @@ export default function AdminPage() {
                 <div className="admin-ops-prompt-filter-actions">
                   <button
                     type="button"
-                    className="primary-button"
-                    onClick={() => imagePromptImportInputRef.current?.click()}
-                    disabled={isImportingImagePrompts}
-                  >
-                    {isImportingImagePrompts
-                      ? imagePromptImportProgress
-                        ? `导入中 ${imagePromptImportProgress.completed}/${imagePromptImportProgress.total}`
-                        : "导入中..."
-                      : "导入生图素材文件夹"}
-                  </button>
-                  <button
-                    type="button"
                     className="secondary-button"
                     onClick={() =>
                       setOperationsPromptAdminFilters({
@@ -5925,23 +5913,8 @@ export default function AdminPage() {
                     清空筛选
                   </button>
                 </div>
-                <p className="personal-meta" style={{ margin: "8px 0 0" }}>
-                  支持选择单个素材文件夹后批量导入 `.md` / `.txt` 与同名预览图；两个来源文件夹可分两次导入。
-                </p>
               </div>
               <div className="admin-ops-prompt-list-shell">
-                <input
-                  ref={imagePromptImportInputRef}
-                  type="file"
-                  multiple
-                  accept=".md,.txt,.jpg,.jpeg,.png,.webp"
-                  style={{ display: "none" }}
-                  onChange={(event) => void handleImportImagePromptFolder(event.target.files)}
-                  {...({
-                    webkitdirectory: "",
-                    directory: "",
-                  } as Record<string, string>)}
-                />
                 <div className="admin-ops-prompt-list">
                   {filteredOperationsPromptTemplates.map((item) => (
                     <button
@@ -6151,6 +6124,18 @@ export default function AdminPage() {
                 <div className="admin-ops-prompt-filter-actions">
                   <button
                     type="button"
+                    className="primary-button"
+                    onClick={() => imagePromptImportInputRef.current?.click()}
+                    disabled={isImportingImagePrompts}
+                  >
+                    {isImportingImagePrompts
+                      ? imagePromptImportProgress
+                        ? `导入中 ${imagePromptImportProgress.completed}/${imagePromptImportProgress.total}`
+                        : "导入中..."
+                      : "导入生图素材文件夹"}
+                  </button>
+                  <button
+                    type="button"
                     className="secondary-button"
                     onClick={() =>
                       setImagePromptAdminFilters({
@@ -6167,8 +6152,23 @@ export default function AdminPage() {
                     清空筛选
                   </button>
                 </div>
+                <p className="personal-meta" style={{ margin: "8px 0 0" }}>
+                  支持选择单个素材文件夹后批量导入 `.md` / `.txt` 与同名预览图；两个来源文件夹可分两次导入。
+                </p>
               </div>
               <div className="admin-ops-prompt-list-shell">
+                <input
+                  ref={imagePromptImportInputRef}
+                  type="file"
+                  multiple
+                  accept=".md,.txt,.jpg,.jpeg,.png,.webp"
+                  style={{ display: "none" }}
+                  onChange={(event) => void handleImportImagePromptFolder(event.target.files)}
+                  {...({
+                    webkitdirectory: "",
+                    directory: "",
+                  } as Record<string, string>)}
+                />
                 <div className="admin-ops-prompt-list">
                   {filteredImagePromptTemplates.map((item) => (
                     <button
