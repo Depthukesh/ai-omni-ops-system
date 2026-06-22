@@ -261,6 +261,12 @@ type OperationsPromptEditDraft = {
   scenarioLabel: string;
   sortOrder: string;
 };
+type OperationsPromptAdminFilters = {
+  sourceCategory: string;
+  businessStage: string;
+  outputType: string;
+  keyword: string;
+};
 type CreateSkillDraft = {
   name: string;
   slug: string;
@@ -653,6 +659,12 @@ export default function AdminPage() {
   const [promptDrafts, setPromptDrafts] = useState<Record<string, PromptEditDraft>>(buildPromptDrafts(promptTemplateSeed));
   const [operationsPromptDrafts, setOperationsPromptDrafts] = useState<Record<string, OperationsPromptEditDraft>>({});
   const [selectedOperationsPromptId, setSelectedOperationsPromptId] = useState("");
+  const [operationsPromptAdminFilters, setOperationsPromptAdminFilters] = useState<OperationsPromptAdminFilters>({
+    sourceCategory: "",
+    businessStage: "",
+    outputType: "",
+    keyword: "",
+  });
   const [knowledgeBaseDrafts, setKnowledgeBaseDrafts] = useState<Record<string, KnowledgeBaseEditDraft>>(
     buildKnowledgeBaseDrafts(knowledgeBaseSeed),
   );
@@ -3254,11 +3266,67 @@ export default function AdminPage() {
       }),
     [operationsPromptTemplates],
   );
+  const operationsPromptSourceCategoryOptions = useMemo(
+    () =>
+      Array.from(new Set(sortedOperationsPromptTemplates.map((item) => item.sourceCategory).filter(Boolean))).sort((left, right) =>
+        left.localeCompare(right, "zh-CN"),
+      ),
+    [sortedOperationsPromptTemplates],
+  );
+  const operationsPromptBusinessStageOptions = useMemo(
+    () =>
+      Array.from(new Set(sortedOperationsPromptTemplates.map((item) => item.businessStage).filter(Boolean))).sort((left, right) =>
+        left.localeCompare(right, "zh-CN"),
+      ),
+    [sortedOperationsPromptTemplates],
+  );
+  const operationsPromptOutputTypeOptions = useMemo(
+    () =>
+      Array.from(new Set(sortedOperationsPromptTemplates.map((item) => item.outputType).filter(Boolean))).sort((left, right) =>
+        left.localeCompare(right, "zh-CN"),
+      ),
+    [sortedOperationsPromptTemplates],
+  );
+  const filteredOperationsPromptTemplates = useMemo(
+    () =>
+      sortedOperationsPromptTemplates.filter((item) => {
+        if (operationsPromptAdminFilters.sourceCategory && item.sourceCategory !== operationsPromptAdminFilters.sourceCategory) {
+          return false;
+        }
+        if (operationsPromptAdminFilters.businessStage && item.businessStage !== operationsPromptAdminFilters.businessStage) {
+          return false;
+        }
+        if (operationsPromptAdminFilters.outputType && item.outputType !== operationsPromptAdminFilters.outputType) {
+          return false;
+        }
+        if (operationsPromptAdminFilters.keyword) {
+          const normalizedKeyword = operationsPromptAdminFilters.keyword.trim().toLowerCase();
+          const searchSample = [
+            item.title,
+            item.preview,
+            item.content,
+            item.sourceCategory,
+            item.sourceFileName,
+            item.businessStage,
+            item.outputType,
+            item.scenarioLabel,
+            item.tags.join(" "),
+          ]
+            .join(" ")
+            .toLowerCase();
+          if (!searchSample.includes(normalizedKeyword)) {
+            return false;
+          }
+        }
+        return true;
+      }),
+    [operationsPromptAdminFilters, sortedOperationsPromptTemplates],
+  );
   const selectedOperationsPrompt = useMemo(
     () =>
-      sortedOperationsPromptTemplates.find((item) => item.id === selectedOperationsPromptId)
-      ?? sortedOperationsPromptTemplates[0],
-    [selectedOperationsPromptId, sortedOperationsPromptTemplates],
+      filteredOperationsPromptTemplates.find((item) => item.id === selectedOperationsPromptId)
+      ?? filteredOperationsPromptTemplates[0],
+    [filteredOperationsPromptTemplates, selectedOperationsPromptId],
   );
   const selectedOperationsPromptDraft = selectedOperationsPrompt
     ? operationsPromptDrafts[selectedOperationsPrompt.id] || buildOperationsPromptDraft(selectedOperationsPrompt)
@@ -3689,16 +3757,16 @@ export default function AdminPage() {
   }, [activeTab, dataSource]);
 
   useEffect(() => {
-    if (!sortedOperationsPromptTemplates.length) {
+    if (!filteredOperationsPromptTemplates.length) {
       if (selectedOperationsPromptId) {
         setSelectedOperationsPromptId("");
       }
       return;
     }
-    if (!sortedOperationsPromptTemplates.some((item) => item.id === selectedOperationsPromptId)) {
-      setSelectedOperationsPromptId(sortedOperationsPromptTemplates[0]?.id || "");
+    if (!filteredOperationsPromptTemplates.some((item) => item.id === selectedOperationsPromptId)) {
+      setSelectedOperationsPromptId(filteredOperationsPromptTemplates[0]?.id || "");
     }
-  }, [selectedOperationsPromptId, sortedOperationsPromptTemplates]);
+  }, [filteredOperationsPromptTemplates, selectedOperationsPromptId]);
 
   useEffect(() => {
     if (!isCreateSkillModalOpen) {
@@ -5539,34 +5607,123 @@ export default function AdminPage() {
           </div>
         ) : activeTab === "operationsPrompts" ? (
           <div className="admin-skill-center-layout">
-            <aside className="panel personal-center-panel admin-skill-tree-card admin-skill-tree-card--polished admin-skill-tree-card--directory">
+            <aside className="panel personal-center-panel admin-skill-tree-card admin-skill-tree-card--polished admin-skill-tree-card--directory admin-ops-prompt-sidebar">
               <div className="admin-skill-card-topline">
                 <span className="admin-skill-card-kicker">运营提示词</span>
-                <span className="archive-pill status-ready">{sortedOperationsPromptTemplates.length} 套</span>
+                <span className="archive-pill status-ready">
+                  {filteredOperationsPromptTemplates.length} / {sortedOperationsPromptTemplates.length} 套
+                </span>
               </div>
-              <div className="admin-ops-prompt-list">
-                {sortedOperationsPromptTemplates.map((item) => (
+              <div className="admin-ops-prompt-filter-panel">
+                <div className="admin-ops-prompt-filter-grid">
+                  <label className="admin-skill-field">
+                    <span>来源分类</span>
+                    <select
+                      value={operationsPromptAdminFilters.sourceCategory}
+                      onChange={(event) =>
+                        setOperationsPromptAdminFilters((current) => ({ ...current, sourceCategory: event.target.value }))}
+                    >
+                      <option value="">全部</option>
+                      {operationsPromptSourceCategoryOptions.map((item) => (
+                        <option key={item} value={item}>
+                          {item}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="admin-skill-field">
+                    <span>业务阶段</span>
+                    <select
+                      value={operationsPromptAdminFilters.businessStage}
+                      onChange={(event) =>
+                        setOperationsPromptAdminFilters((current) => ({ ...current, businessStage: event.target.value }))}
+                    >
+                      <option value="">全部</option>
+                      {operationsPromptBusinessStageOptions.map((item) => (
+                        <option key={item} value={item}>
+                          {item}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="admin-skill-field">
+                    <span>输出类型</span>
+                    <select
+                      value={operationsPromptAdminFilters.outputType}
+                      onChange={(event) =>
+                        setOperationsPromptAdminFilters((current) => ({ ...current, outputType: event.target.value }))}
+                    >
+                      <option value="">全部</option>
+                      {operationsPromptOutputTypeOptions.map((item) => (
+                        <option key={item} value={item}>
+                          {item}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="admin-skill-field admin-skill-field--full">
+                    <span>搜索</span>
+                    <input
+                      type="text"
+                      value={operationsPromptAdminFilters.keyword}
+                      onChange={(event) =>
+                        setOperationsPromptAdminFilters((current) => ({ ...current, keyword: event.target.value }))}
+                      placeholder="搜索标题、摘要、标签、正文或来源文件"
+                    />
+                  </label>
+                </div>
+                <div className="admin-ops-prompt-filter-actions">
                   <button
                     type="button"
-                    key={item.id}
-                    className={`admin-ops-prompt-list-item${selectedOperationsPrompt?.id === item.id ? " is-selected" : ""}`}
-                    onClick={() => setSelectedOperationsPromptId(item.id)}
+                    className="secondary-button"
+                    onClick={() =>
+                      setOperationsPromptAdminFilters({
+                        sourceCategory: "",
+                        businessStage: "",
+                        outputType: "",
+                        keyword: "",
+                      })}
+                    disabled={
+                      !operationsPromptAdminFilters.sourceCategory
+                      && !operationsPromptAdminFilters.businessStage
+                      && !operationsPromptAdminFilters.outputType
+                      && !operationsPromptAdminFilters.keyword
+                    }
                   >
-                    <div className="admin-ops-prompt-list-head">
-                      <strong>{item.title}</strong>
-                      <span className={`archive-pill ${getStatusClassName(item.status)}`}>{getStatusLabel(item.status)}</span>
-                    </div>
-                    <p>{item.preview || "当前还没有预览摘要，可直接在右侧补充。"}</p>
-                    <div className="admin-ops-prompt-list-meta">
-                      <span>{item.businessStage}</span>
-                      <span>{item.outputType}</span>
-                      <span>{item.scenarioLabel}</span>
-                    </div>
+                    清空筛选
                   </button>
-                ))}
+                </div>
+              </div>
+              <div className="admin-ops-prompt-list-shell">
+                <div className="admin-ops-prompt-list">
+                  {filteredOperationsPromptTemplates.map((item) => (
+                    <button
+                      type="button"
+                      key={item.id}
+                      className={`admin-ops-prompt-list-item${selectedOperationsPrompt?.id === item.id ? " is-selected" : ""}`}
+                      onClick={() => setSelectedOperationsPromptId(item.id)}
+                    >
+                      <div className="admin-ops-prompt-list-head">
+                        <strong>{item.title}</strong>
+                        <span className={`archive-pill ${getStatusClassName(item.status)}`}>{getStatusLabel(item.status)}</span>
+                      </div>
+                      <p>{item.preview || "当前还没有预览摘要，可直接在右侧补充。"}</p>
+                      <div className="admin-ops-prompt-list-meta">
+                        <span>{item.businessStage}</span>
+                        <span>{item.outputType}</span>
+                        <span>{item.scenarioLabel}</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
                 {!sortedOperationsPromptTemplates.length ? (
                   <div className="admin-skill-empty" style={{ marginTop: 0 }}>
                     当前还没有读取到运营提示词模板。请先确认服务端已完成模板导入与数据库迁移。
+                  </div>
+                ) : null}
+                {sortedOperationsPromptTemplates.length > 0 && !filteredOperationsPromptTemplates.length ? (
+                  <div className="admin-skill-empty" style={{ marginTop: 0 }}>
+                    当前筛选条件下没有匹配模板，调整分类或关键词后再试。
                   </div>
                 ) : null}
               </div>
@@ -5685,6 +5842,8 @@ export default function AdminPage() {
                     </button>
                   </div>
                 </article>
+              ) : sortedOperationsPromptTemplates.length > 0 && !filteredOperationsPromptTemplates.length ? (
+                <div className="admin-skill-empty">当前筛选条件下没有可编辑模板，请先调整左侧分类或搜索条件。</div>
               ) : (
                 <div className="admin-skill-empty">请先从左侧选择一套运营提示词模板。</div>
               )}

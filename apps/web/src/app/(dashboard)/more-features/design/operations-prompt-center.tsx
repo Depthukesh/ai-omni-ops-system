@@ -37,6 +37,8 @@ const PRODUCT_SKIP_OPTION = {
   description: "仅使用提示词原文、用户要求和营销日历，不额外植入指定产品。",
 };
 
+const OPERATIONS_PROMPT_PAGE_SIZE = 30;
+
 function formatTimestamp(date: Date) {
   return new Intl.DateTimeFormat("zh-CN", {
     year: "numeric",
@@ -453,6 +455,7 @@ export function OperationsPromptCenter() {
   const [deletingWorkId, setDeletingWorkId] = useState<string | null>(null);
   const [selectedWorkId, setSelectedWorkId] = useState<string | null>(null);
   const [copyFeedback, setCopyFeedback] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
 
   const filteredTemplates = useMemo(() => {
     const list = options?.templates ?? [];
@@ -475,6 +478,16 @@ export function OperationsPromptCenter() {
       return true;
     });
   }, [filters, options]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredTemplates.length / OPERATIONS_PROMPT_PAGE_SIZE));
+  const paginatedTemplates = useMemo(() => {
+    const startIndex = (currentPage - 1) * OPERATIONS_PROMPT_PAGE_SIZE;
+    return filteredTemplates.slice(startIndex, startIndex + OPERATIONS_PROMPT_PAGE_SIZE);
+  }, [currentPage, filteredTemplates]);
+  const currentRangeStart = filteredTemplates.length ? (currentPage - 1) * OPERATIONS_PROMPT_PAGE_SIZE + 1 : 0;
+  const currentRangeEnd = filteredTemplates.length
+    ? Math.min(currentPage * OPERATIONS_PROMPT_PAGE_SIZE, filteredTemplates.length)
+    : 0;
 
   useEffect(() => {
     let cancelled = false;
@@ -520,6 +533,16 @@ export function OperationsPromptCenter() {
     const timer = window.setTimeout(() => setCopyFeedback(""), 1800);
     return () => window.clearTimeout(timer);
   }, [copyFeedback]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filters.businessStage, filters.keyword, filters.outputType, filters.scenario]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
   const handleRefresh = async () => {
     setLoading(true);
@@ -751,6 +774,45 @@ export function OperationsPromptCenter() {
           </label>
         </div>
 
+        {!loading && filteredTemplates.length > 0 ? (
+          <div className="ops-prompt-pagination-bar">
+            <div className="ops-prompt-pagination-summary">
+              <strong>共 {filteredTemplates.length} 条模板</strong>
+              <span>
+                当前显示 {currentRangeStart}-{currentRangeEnd} 条，第 {currentPage}/{totalPages} 页，每页 30 条
+              </span>
+            </div>
+            <div className="ops-prompt-pagination-buttons">
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                disabled={currentPage === 1}
+              >
+                上一页
+              </button>
+              {Array.from({ length: totalPages }, (_, index) => index + 1).map((page) => (
+                <button
+                  type="button"
+                  key={page}
+                  className={`ops-prompt-page-button${page === currentPage ? " is-active" : ""}`}
+                  onClick={() => setCurrentPage(page)}
+                >
+                  {page}
+                </button>
+              ))}
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                disabled={currentPage === totalPages}
+              >
+                下一页
+              </button>
+            </div>
+          </div>
+        ) : null}
+
         {copyFeedback ? (
           <div className="ops-prompt-feedback">
             <span className="archive-pill status-ready">{copyFeedback}</span>
@@ -762,7 +824,7 @@ export function OperationsPromptCenter() {
 
         {!loading ? (
           <div className="ops-prompt-grid">
-            {filteredTemplates.map((template) => (
+            {paginatedTemplates.map((template) => (
               <article key={template.id} className="ops-prompt-card">
                 <button type="button" className="ops-prompt-card-main" onClick={() => void handleOpenTemplate(template.id)}>
                   <div className="ops-prompt-card-head">
@@ -793,6 +855,43 @@ export function OperationsPromptCenter() {
 
         {!loading && filteredTemplates.length === 0 ? (
           <div className="empty-state">当前筛选条件下没有匹配模板，换一个标签或关键词试试。</div>
+        ) : null}
+
+        {!loading && filteredTemplates.length > 0 ? (
+          <div className="ops-prompt-pagination-bar is-footer">
+            <div className="ops-prompt-pagination-summary">
+              <strong>翻页浏览</strong>
+              <span>点击页码可快速跳转，避免一次性拉取过长列表。</span>
+            </div>
+            <div className="ops-prompt-pagination-buttons">
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                disabled={currentPage === 1}
+              >
+                上一页
+              </button>
+              {Array.from({ length: totalPages }, (_, index) => index + 1).map((page) => (
+                <button
+                  type="button"
+                  key={`footer-${page}`}
+                  className={`ops-prompt-page-button${page === currentPage ? " is-active" : ""}`}
+                  onClick={() => setCurrentPage(page)}
+                >
+                  {page}
+                </button>
+              ))}
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                disabled={currentPage === totalPages}
+              >
+                下一页
+              </button>
+            </div>
+          </div>
         ) : null}
       </article>
 
