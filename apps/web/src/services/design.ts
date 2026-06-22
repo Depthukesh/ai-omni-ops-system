@@ -167,6 +167,84 @@ export type OperationsPromptWorkHistoryRecord = {
   items: OperationsPromptWorkRecord[];
 };
 
+export type ImagePromptTemplateCardRecord = {
+  id: string;
+  title: string;
+  preview: string;
+  sourceCategory: string;
+  sourceFileName: string;
+  categoryLabel: string;
+  tags: string[];
+  previewImageUrl?: string;
+};
+
+export type ImagePromptTemplateDetailRecord = ImagePromptTemplateCardRecord & {
+  content: string;
+};
+
+export type ImagePromptCenterOptionsRecord = {
+  brandId: string;
+  brandName: string;
+  brandProfileSummary: string;
+  modelLabel: string;
+  calendarOptions: Array<{
+    id: string;
+    label: string;
+    topicName: string;
+    date: string;
+  }>;
+  productOptions: Array<{
+    id: string;
+    label: string;
+    description: string;
+  }>;
+  brandOptions: Array<{
+    value: "inject" | "skip";
+    label: string;
+    description: string;
+  }>;
+  filters: {
+    categories: Array<{ value: string; label: string; count: number }>;
+  };
+  templates: ImagePromptTemplateCardRecord[];
+};
+
+export type GenerateImagePromptWorkPayload = {
+  templateId: string;
+  title?: string;
+  injectBrandProfile?: boolean;
+  productId?: string;
+  calendarItemId?: string;
+  userRequirement?: string;
+  editedPrompt?: string;
+};
+
+export type ImagePromptWorkRecord = {
+  id: string;
+  taskId?: string;
+  taskStatus?: "PENDING" | "QUEUED" | "RUNNING" | "SUCCESS" | "FAILED" | "CANCELLED";
+  title: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  summary: string;
+  errorDetail?: string;
+  tags: string[];
+  templateId: string;
+  templateTitle: string;
+  assetUrl?: string;
+  promptSnapshot?: string;
+  userRequirement?: string;
+  modelName?: string;
+  usedBrandProfile: boolean;
+  usedProductLabel?: string;
+  usedCalendarLabel?: string;
+};
+
+export type ImagePromptWorkHistoryRecord = {
+  items: ImagePromptWorkRecord[];
+};
+
 const DEMO_BRAND_ID = "br_demo_001";
 
 function resolveBrandId(brandId?: string) {
@@ -254,5 +332,49 @@ export async function generateOperationsPromptWork(payload: GenerateOperationsPr
     `/works/brands/${resolveBrandId(brandId)}/design/operations-prompt-center/generate`,
     "POST",
     payload,
+  );
+}
+
+export async function getImagePromptCenterOptions(brandId?: string) {
+  return request<ImagePromptCenterOptionsRecord>(
+    `/works/brands/${resolveBrandId(brandId)}/design/image-prompt-center/options`,
+  );
+}
+
+export async function getImagePromptTemplateDetail(templateId: string, brandId?: string) {
+  return request<ImagePromptTemplateDetailRecord>(
+    `/works/brands/${resolveBrandId(brandId)}/design/image-prompt-center/templates/${encodeURIComponent(templateId)}`,
+  );
+}
+
+export async function getImagePromptWorks(brandId?: string) {
+  return request<ImagePromptWorkHistoryRecord>(
+    `/works/brands/${resolveBrandId(brandId)}/design/image-prompt-center/works`,
+  );
+}
+
+export async function deleteImagePromptWork(workId: string, brandId?: string) {
+  return request<DeleteDesignWorkResponse>(
+    `/works/brands/${resolveBrandId(brandId)}/design/image-prompt-center/works/${encodeURIComponent(workId)}`,
+    {
+      method: "DELETE",
+    },
+  );
+}
+
+export async function generateImagePromptWork(
+  payload: GenerateImagePromptWorkPayload & {
+    referenceImageFile?: File | null;
+  },
+  brandId?: string,
+) {
+  const referenceImage = payload.referenceImageFile ? await toUploadPayload(payload.referenceImageFile) : undefined;
+  return jsonRequest<ImagePromptWorkRecord>(
+    `/works/brands/${resolveBrandId(brandId)}/design/image-prompt-center/generate`,
+    "POST",
+    {
+      ...payload,
+      referenceImage,
+    },
   );
 }

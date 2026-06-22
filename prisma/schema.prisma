@@ -770,6 +770,29 @@ model OperationsPromptTemplate {
   @@index([businessStage, outputType, scenarioLabel])
 }
 
+model ImagePromptTemplate {
+  id                      String   @id
+  slug                    String   @unique
+  title                   String
+  preview                 String
+  content                 String
+  status                  String   @default("ACTIVE")
+  sourceFilePath          String   @unique
+  sourceCategory          String
+  sourceFileName          String
+  categoryLabel           String
+  tagsJson                Json
+  previewImageStorageKey  String?
+  previewImageFileName    String?
+  previewImageContentType String?
+  sortOrder               Int      @default(100)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  @@index([status, sourceCategory, updatedAt])
+  @@index([categoryLabel, updatedAt(sort: Desc)])
+}
+
 model SkillPromptBinding {
   id          String         @id
   skillId     String

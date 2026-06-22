@@ -23,6 +23,10 @@ import { CollectorsService } from "../collectors/collectors.service";
 import { ReportsService, type XiaohongshuMarketingCalendarRecord } from "../reports/reports.service";
 import { ThirdPartyPlatformsService } from "../third-party-platforms/third-party-platforms.service";
 import {
+  loadImagePromptSeeds,
+  type ImagePromptSeedRecord,
+} from "./image-prompt-center.helpers";
+import {
   loadOperationsPromptSeeds,
   OPERATIONS_PROMPT_DEFAULT_MODEL_SEQUENCE,
   type OperationsPromptSeedRecord,
@@ -60,6 +64,9 @@ const WORKS_KNOWLEDGE_BINDING_LIMIT = 3;
 const WORKS_KNOWLEDGE_TOP_K = 4;
 const DOUYIN_AD_PRE_AUDIT_TASK_TYPE = "DOUYIN_AD_PRE_AUDIT";
 const OPERATIONS_PROMPT_CENTER_TASK_TYPE = "OPERATIONS_PROMPT_CENTER";
+const IMAGE_PROMPT_CENTER_TASK_TYPE = "IMAGE_PROMPT_CENTER";
+const IMAGE_PROMPT_CENTER_PROVIDER_ID = "provider_runtime_image_generation_right_codes";
+const IMAGE_PROMPT_CENTER_MODEL_NAME = "gpt-image-2";
 const VOLCENGINE_VOD_OPENAPI_DEFAULT_REGION = "cn-north-1";
 const VOLCENGINE_VOD_OPENAPI_DEFAULT_SERVICE = "vod";
 const VOLCENGINE_VOD_OPENAPI_DEFAULT_HOST = "vod.volcengineapi.com";
@@ -72,7 +79,15 @@ type OperationsPromptTemplateStoreRecord = OperationsPromptSeedRecord & {
   updatedAt: string;
 };
 
+type ImagePromptTemplateStoreRecord = ImagePromptSeedRecord & {
+  status: string;
+  previewImageStorageKey: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 const operationsPromptTemplateMockStore: OperationsPromptTemplateStoreRecord[] = [];
+const imagePromptTemplateMockStore: ImagePromptTemplateStoreRecord[] = [];
 const GENERIC_OPERATIONS_PROMPT_TEMPLATE_TITLES = new Set([
   "执行指令",
   "系统指令",
@@ -926,6 +941,104 @@ export type OperationsPromptWorkRecord = {
 
 export type OperationsPromptWorkHistoryRecord = {
   items: OperationsPromptWorkRecord[];
+};
+
+export type GenerateImagePromptWorkPayload = {
+  templateId?: string;
+  title?: string;
+  injectBrandProfile?: boolean;
+  productId?: string;
+  calendarItemId?: string;
+  userRequirement?: string;
+  editedPrompt?: string;
+  referenceImage?: UploadFilePayload;
+};
+
+export type ImagePromptTemplateCardRecord = {
+  id: string;
+  title: string;
+  preview: string;
+  sourceCategory: string;
+  sourceFileName: string;
+  categoryLabel: string;
+  tags: string[];
+  previewImageUrl?: string;
+};
+
+export type ImagePromptTemplateDetailRecord = ImagePromptTemplateCardRecord & {
+  content: string;
+};
+
+export type ImagePromptTemplateAdminRecord = ImagePromptTemplateDetailRecord & {
+  slug: string;
+  status: "ACTIVE" | "DISABLED" | "DRAFT";
+  sourceFilePath: string;
+  previewImageFileName?: string;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type UpdateImagePromptTemplatePayload = {
+  title?: string;
+  preview?: string;
+  content?: string;
+  status?: "ACTIVE" | "DISABLED" | "DRAFT";
+  categoryLabel?: string;
+  sortOrder?: number;
+};
+
+export type ImagePromptCenterOptionsRecord = {
+  brandId: string;
+  brandName: string;
+  brandProfileSummary: string;
+  modelLabel: string;
+  calendarOptions: Array<{
+    id: string;
+    label: string;
+    topicName: string;
+    date: string;
+  }>;
+  productOptions: Array<{
+    id: string;
+    label: string;
+    description: string;
+  }>;
+  brandOptions: Array<{
+    value: "inject" | "skip";
+    label: string;
+    description: string;
+  }>;
+  filters: {
+    categories: Array<{ value: string; label: string; count: number }>;
+  };
+  templates: ImagePromptTemplateCardRecord[];
+};
+
+export type ImagePromptWorkRecord = {
+  id: string;
+  taskId?: string;
+  taskStatus?: WorkTaskStatus;
+  title: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  summary: string;
+  errorDetail?: string;
+  tags: string[];
+  templateId: string;
+  templateTitle: string;
+  assetUrl?: string;
+  promptSnapshot?: string;
+  userRequirement?: string;
+  modelName?: string;
+  usedBrandProfile: boolean;
+  usedProductLabel?: string;
+  usedCalendarLabel?: string;
+};
+
+export type ImagePromptWorkHistoryRecord = {
+  items: ImagePromptWorkRecord[];
 };
 
 export type WechatAccountConfigRecord = {
@@ -2610,6 +2723,8 @@ export class WorksService {
   private douyinAdPreAuditBootstrapPromise?: Promise<void>;
   private operationsPromptBootstrapPromise?: Promise<void>;
   private operationsPromptBootstrapAt = 0;
+  private imagePromptBootstrapPromise?: Promise<void>;
+  private imagePromptBootstrapAt = 0;
 
   constructor(
     @Inject(AppConfigService)
@@ -3942,6 +4057,937 @@ export class WorksService {
       };
       await this.markTaskFailed(taskId, errorMessage, { outputJson: latestOutput });
     }
+  }
+
+  async getImagePromptCenterOptions(brandId: string): Promise<ImagePromptCenterOptionsRecord> {
+    await this.ensureImagePromptTemplatesBootstrapped();
+
+    const [archive, calendarWorkspace, templateStoreItems] = await Promise.all([
+      this.brandsService.getArchive(brandId),
+      this.reportsService.getXiaohongshuMarketingCalendarWorkspace(brandId),
+      this.listImagePromptTemplateStoreItems(),
+    ]);
+    const templates = templateStoreItems
+      .filter((item) => item.status === "ACTIVE")
+      .map((item) => this.mapImagePromptTemplateToCard(item));
+    const calendarOptions = Array.from(
+      new Map(
+        [calendarWorkspace.latest, ...calendarWorkspace.history]
+          .filter((record): record is NonNullable<typeof calendarWorkspace.latest> => Boolean(record))
+          .flatMap((record) => record.items)
+          .map((item) => {
+            const selection = this.buildMarketingCalendarSelection(item);
+            return [
+              selection.id || `${selection.date}-${selection.topicName}`,
+              {
+                id: selection.id,
+                label: `${selection.date} | ${selection.topicName}`,
+                topicName: selection.topicName,
+                date: selection.date,
+              },
+            ] as const;
+          }),
+      ).values(),
+    ).sort((left, right) => right.date.localeCompare(left.date, "zh-CN"));
+
+    return {
+      brandId,
+      brandName: archive.brand.brandName || "当前品牌",
+      brandProfileSummary: this.buildDesignBrandProfileSummary(archive),
+      modelLabel: "Right Codes · gpt-image-2",
+      calendarOptions,
+      productOptions: archive.products.map((item) => ({
+        id: item.id,
+        label: item.productName,
+        description: item.detailDescription || item.usageScenario || item.productPositioning || "",
+      })),
+      brandOptions: [
+        {
+          value: "inject",
+          label: "同步品牌背景资料",
+          description: "会把品牌背景、品牌介绍、行业属性和重点产品概况带入本次生图上下文。",
+        },
+        {
+          value: "skip",
+          label: "不植入品牌资料",
+          description: "仅使用当前 Prompt、用户要求、产品资料、营销日历和参考图进行生成。",
+        },
+      ],
+      filters: {
+        categories: this.buildImagePromptFilterOptions(templates, (item) => item.categoryLabel),
+      },
+      templates,
+    };
+  }
+
+  async getImagePromptTemplateDetail(
+    _brandId: string,
+    templateId: string,
+  ): Promise<ImagePromptTemplateDetailRecord> {
+    await this.ensureImagePromptTemplatesBootstrapped();
+    const template = await this.findImagePromptTemplateStoreItem(templateId);
+    if (!template || template.status !== "ACTIVE") {
+      throw new NotFoundException("生图提示词模板不存在");
+    }
+    return this.mapImagePromptTemplateToDetail(template);
+  }
+
+  async listImagePromptTemplatesForAdmin(): Promise<ImagePromptTemplateAdminRecord[]> {
+    await this.ensureImagePromptTemplatesBootstrapped();
+    const items = await this.listImagePromptTemplateStoreItems();
+    return items.map((item) => this.mapImagePromptTemplateToAdmin(item));
+  }
+
+  async updateImagePromptTemplateForAdmin(
+    templateId: string,
+    payload: UpdateImagePromptTemplatePayload,
+  ): Promise<ImagePromptTemplateAdminRecord> {
+    await this.ensureImagePromptTemplatesBootstrapped();
+    const existing = await this.findImagePromptTemplateStoreItem(templateId);
+    if (!existing) {
+      throw new NotFoundException("生图提示词模板不存在");
+    }
+
+    const nextRecord = this.normalizeImagePromptTemplateUpdatePayload(existing, payload);
+    if (await this.canUseImagePromptTemplateTable()) {
+      await this.prismaService.$executeRawUnsafe(
+        `UPDATE "ImagePromptTemplate"
+        SET
+          "title" = $2,
+          "preview" = $3,
+          "content" = $4,
+          "status" = $5,
+          "categoryLabel" = $6,
+          "tagsJson" = CAST($7 AS jsonb),
+          "sortOrder" = $8,
+          "updatedAt" = CURRENT_TIMESTAMP
+        WHERE "id" = $1 OR "slug" = $1`,
+        existing.id,
+        nextRecord.title,
+        nextRecord.preview,
+        nextRecord.content,
+        nextRecord.status,
+        nextRecord.categoryLabel,
+        JSON.stringify(nextRecord.tagsJson || []),
+        nextRecord.sortOrder,
+      );
+      const updated = await this.findImagePromptTemplateStoreItem(existing.id);
+      if (!updated) {
+        throw new NotFoundException("生图提示词模板不存在");
+      }
+      return this.mapImagePromptTemplateToAdmin(updated);
+    }
+
+    const index = imagePromptTemplateMockStore.findIndex((item) => item.id === existing.id || item.slug === templateId);
+    if (index === -1) {
+      throw new NotFoundException("生图提示词模板不存在");
+    }
+    const updated = {
+      ...existing,
+      ...nextRecord,
+      updatedAt: new Date().toISOString(),
+    } satisfies ImagePromptTemplateStoreRecord;
+    imagePromptTemplateMockStore.splice(index, 1, updated);
+    return this.mapImagePromptTemplateToAdmin(updated);
+  }
+
+  async listImagePromptWorks(brandId: string): Promise<ImagePromptWorkHistoryRecord> {
+    if (await this.prismaService.canUseDatabase()) {
+      const tasks = await this.prismaService.task.findMany({
+        where: {
+          brandId,
+          taskType: IMAGE_PROMPT_CENTER_TASK_TYPE,
+        },
+        orderBy: { updatedAt: "desc" },
+        take: 120,
+      });
+      return {
+        items: tasks
+          .map((task) => this.mapImagePromptTaskToWorkRecord(task))
+          .filter((item): item is ImagePromptWorkRecord => Boolean(item)),
+      };
+    }
+
+    return {
+      items: database.tasks
+        .filter((task) => task.brandId === brandId && task.taskType === IMAGE_PROMPT_CENTER_TASK_TYPE)
+        .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime())
+        .slice(0, 120)
+        .map((task) => this.mapImagePromptTaskToWorkRecord(task))
+        .filter((item): item is ImagePromptWorkRecord => Boolean(item)),
+    };
+  }
+
+  async deleteImagePromptWork(brandId: string, workId: string) {
+    const normalizedWorkId = String(workId || "").trim();
+    if (!normalizedWorkId) {
+      throw new NotFoundException("作品记录不存在");
+    }
+
+    if (await this.prismaService.canUseDatabase()) {
+      const task = await this.prismaService.task.findFirst({
+        where: {
+          id: normalizedWorkId,
+          brandId,
+          taskType: IMAGE_PROMPT_CENTER_TASK_TYPE,
+        },
+      });
+      if (!task) {
+        throw new NotFoundException("作品记录不存在");
+      }
+      const output = this.asRecord(task.outputJson);
+      const assetUrl = this.readOptionalString(output?.assetUrl);
+      const assetStorageKey = this.readOptionalString(output?.assetStorageKey);
+      await this.deleteGeneratedFileIfExists(
+        brandId,
+        this.extractFileName(assetStorageKey || (assetUrl ? this.extractLocalAssetFileName(assetUrl, brandId) : "")),
+      );
+      await this.prismaService.task.deleteMany({
+        where: { id: task.id },
+      });
+      return { success: true };
+    }
+
+    const task = database.tasks.find((item) =>
+      item.id === normalizedWorkId
+      && item.brandId === brandId
+      && item.taskType === IMAGE_PROMPT_CENTER_TASK_TYPE
+    );
+    if (!task) {
+      throw new NotFoundException("作品记录不存在");
+    }
+    const output = this.asRecord(task.outputJson);
+    const assetUrl = this.readOptionalString(output?.assetUrl);
+    const assetStorageKey = this.readOptionalString(output?.assetStorageKey);
+    await this.deleteGeneratedFileIfExists(
+      brandId,
+      this.extractFileName(assetStorageKey || (assetUrl ? this.extractLocalAssetFileName(assetUrl, brandId) : "")),
+    );
+    database.tasks = database.tasks.filter((item) => item.id !== normalizedWorkId);
+    return { success: true };
+  }
+
+  async generateImagePromptWork(
+    brandId: string,
+    payload: GenerateImagePromptWorkPayload,
+    auth: RequestAuthContext,
+  ): Promise<ImagePromptWorkRecord> {
+    await this.ensureImagePromptTemplatesBootstrapped();
+
+    const normalized = this.normalizeImagePromptPayload(payload);
+    const [archive, calendarWorkspace, template] = await Promise.all([
+      this.brandsService.getArchive(brandId),
+      this.reportsService.getXiaohongshuMarketingCalendarWorkspace(brandId),
+      this.findImagePromptTemplateStoreItem(normalized.templateId),
+    ]);
+    if (!template || template.status !== "ACTIVE") {
+      throw new NotFoundException("生图提示词模板不存在");
+    }
+
+    const selectedProduct = archive.products.find((item) => item.id === normalized.productId);
+    const selectedCalendarItem = [calendarWorkspace.latest, ...calendarWorkspace.history]
+      .filter((record): record is NonNullable<typeof calendarWorkspace.latest> => Boolean(record))
+      .flatMap((record) => record.items)
+      .find((item) => item.id === normalized.calendarItemId);
+    const userId = await this.resolveTaskUserId(brandId, auth);
+    const taskTitle = normalized.title || `${template.title}成图`;
+    const task = await this.createDesignTask({
+      userId,
+      brandId,
+      taskTitle,
+      taskType: IMAGE_PROMPT_CENTER_TASK_TYPE,
+      modelName: IMAGE_PROMPT_CENTER_MODEL_NAME,
+    });
+    const promptSnapshot = normalized.editedPrompt || template.content;
+    const initialOutput = {
+      stage: "QUEUED",
+      title: taskTitle,
+      templateId: template.id,
+      templateTitle: template.title,
+      summary: `已提交到后台生图队列，系统将直接调用 Right Codes · ${IMAGE_PROMPT_CENTER_MODEL_NAME} 生成图片。`,
+      tags: [
+        template.categoryLabel,
+        ...template.tagsJson,
+        normalized.injectBrandProfile ? "植入品牌资料" : "不植入品牌资料",
+      ].filter(Boolean).slice(0, 8),
+      promptSnapshot,
+      userRequirement: normalized.userRequirement || "",
+      usedBrandProfile: normalized.injectBrandProfile,
+      usedProductLabel: selectedProduct?.productName || "",
+      usedCalendarLabel: selectedCalendarItem ? `${selectedCalendarItem.date} | ${selectedCalendarItem.topicName}` : "",
+      assetUrl: "",
+      assetStorageKey: "",
+      modelName: IMAGE_PROMPT_CENTER_MODEL_NAME,
+    };
+    await this.updateTaskOutputJson(task.id, initialOutput);
+
+    void this.runGenerateImagePromptWorkTask(brandId, task.id, {
+      templateId: template.id,
+      templateTitle: template.title,
+      title: taskTitle,
+      promptSnapshot,
+      injectBrandProfile: normalized.injectBrandProfile,
+      productId: selectedProduct?.id,
+      productLabel: selectedProduct?.productName || "",
+      calendarItemId: selectedCalendarItem?.id,
+      calendarLabel: selectedCalendarItem ? `${selectedCalendarItem.date} | ${selectedCalendarItem.topicName}` : "",
+      userRequirement: normalized.userRequirement || "",
+      referenceImage: normalized.referenceImage,
+    });
+
+    return this.mapImagePromptTaskToWorkRecord({
+      ...task,
+      outputJson: initialOutput,
+      taskStatus: TaskStatus.QUEUED,
+    }) as ImagePromptWorkRecord;
+  }
+
+  async getImagePromptTemplatePreviewAsset(templateId: string) {
+    await this.ensureImagePromptTemplatesBootstrapped();
+    const template = await this.findImagePromptTemplateStoreItem(templateId);
+    if (!template || !template.previewImageStorageKey) {
+      throw new NotFoundException("模板预览图不存在");
+    }
+    const file = await this.ossStorageService.getObject(template.previewImageStorageKey);
+    if (!file) {
+      throw new NotFoundException("模板预览图不存在或尚未上传");
+    }
+    return {
+      buffer: file.buffer,
+      contentType: file.contentType || template.previewImageContentType || "application/octet-stream",
+      fileName: template.previewImageFileName || `${template.id}.png`,
+    };
+  }
+
+  private async ensureImagePromptTemplatesBootstrapped() {
+    const now = Date.now();
+    if (this.imagePromptBootstrapPromise && now - this.imagePromptBootstrapAt < 2 * 60 * 1000) {
+      return this.imagePromptBootstrapPromise;
+    }
+
+    this.imagePromptBootstrapAt = now;
+    this.imagePromptBootstrapPromise = this.bootstrapImagePromptTemplates().finally(() => {
+      this.imagePromptBootstrapPromise = undefined;
+    });
+    return this.imagePromptBootstrapPromise;
+  }
+
+  private async bootstrapImagePromptTemplates() {
+    const canUseTemplateTable = await this.canUseImagePromptTemplateTable();
+    const seeds = await loadImagePromptSeeds(process.cwd());
+    if (canUseTemplateTable) {
+      for (const seed of seeds) {
+        await this.upsertImagePromptTemplate(seed);
+      }
+      return;
+    }
+
+    const existingById = new Map(imagePromptTemplateMockStore.map((item) => [item.id, item]));
+    const nextRecords: ImagePromptTemplateStoreRecord[] = [];
+    for (const seed of seeds) {
+      const existing = existingById.get(seed.id);
+      const storedPreview = await this.ensureImagePromptTemplatePreviewStored(seed, existing);
+      nextRecords.push({
+        ...seed,
+        title: String(existing?.title || "").trim() || seed.title,
+        preview: String(existing?.preview || "").trim() || seed.preview,
+        content: String(existing?.content || "").trim() || seed.content,
+        status: existing?.status || "ACTIVE",
+        categoryLabel: String(existing?.categoryLabel || "").trim() || seed.categoryLabel,
+        tagsJson: existing?.tagsJson?.length ? existing.tagsJson : seed.tagsJson,
+        previewImageStorageKey: storedPreview.storageKey,
+        previewImageFileName: storedPreview.fileName || seed.previewImageFileName,
+        previewImageContentType: storedPreview.contentType || seed.previewImageContentType,
+        createdAt: existing?.createdAt || new Date().toISOString(),
+        updatedAt: existing?.updatedAt || new Date().toISOString(),
+      });
+    }
+    imagePromptTemplateMockStore.splice(0, imagePromptTemplateMockStore.length, ...nextRecords);
+  }
+
+  private async canUseImagePromptTemplateTable() {
+    if (!(await this.prismaService.canUseDatabase())) {
+      return false;
+    }
+    try {
+      const rows = await this.prismaService.$queryRawUnsafe<Array<{ exists: boolean }>>(
+        `SELECT EXISTS (
+          SELECT 1
+          FROM information_schema.tables
+          WHERE table_schema = 'public' AND table_name = 'ImagePromptTemplate'
+        ) AS "exists"`,
+      );
+      return Boolean(rows[0]?.exists);
+    } catch {
+      return false;
+    }
+  }
+
+  private async upsertImagePromptTemplate(seed: ImagePromptSeedRecord) {
+    const existingRows = await this.prismaService.$queryRawUnsafe<Array<Record<string, unknown>>>(
+      `SELECT
+        "id",
+        "previewImageStorageKey",
+        "previewImageFileName",
+        "previewImageContentType"
+      FROM "ImagePromptTemplate"
+      WHERE "sourceFilePath" = $1
+      LIMIT 1`,
+      seed.sourceFilePath,
+    ).catch(() => []);
+    const existing = existingRows[0] ? this.mapImagePromptTemplatePreviewOnlyRow(existingRows[0]) : null;
+    const storedPreview = await this.ensureImagePromptTemplatePreviewStored(seed, existing || undefined);
+    await this.prismaService.$executeRawUnsafe(
+      `INSERT INTO "ImagePromptTemplate" (
+        "id",
+        "slug",
+        "title",
+        "preview",
+        "content",
+        "status",
+        "sourceFilePath",
+        "sourceCategory",
+        "sourceFileName",
+        "categoryLabel",
+        "tagsJson",
+        "previewImageStorageKey",
+        "previewImageFileName",
+        "previewImageContentType",
+        "sortOrder",
+        "createdAt",
+        "updatedAt"
+      ) VALUES (
+        $1, $2, $3, $4, $5, 'ACTIVE', $6, $7, $8, $9, CAST($10 AS jsonb), $11, $12, $13, $14, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+      )
+      ON CONFLICT ("sourceFilePath") DO UPDATE SET
+        "slug" = EXCLUDED."slug",
+        "title" = CASE
+          WHEN "ImagePromptTemplate"."title" IS NULL
+            OR btrim("ImagePromptTemplate"."title") = ''
+          THEN EXCLUDED."title"
+          ELSE "ImagePromptTemplate"."title"
+        END,
+        "preview" = CASE
+          WHEN "ImagePromptTemplate"."preview" IS NULL
+            OR btrim("ImagePromptTemplate"."preview") = ''
+          THEN EXCLUDED."preview"
+          ELSE "ImagePromptTemplate"."preview"
+        END,
+        "content" = CASE
+          WHEN "ImagePromptTemplate"."content" IS NULL
+            OR btrim("ImagePromptTemplate"."content") = ''
+          THEN EXCLUDED."content"
+          ELSE "ImagePromptTemplate"."content"
+        END,
+        "status" = CASE
+          WHEN "ImagePromptTemplate"."status" IS NULL
+            OR btrim("ImagePromptTemplate"."status") = ''
+          THEN 'ACTIVE'
+          ELSE "ImagePromptTemplate"."status"
+        END,
+        "sourceCategory" = EXCLUDED."sourceCategory",
+        "sourceFileName" = EXCLUDED."sourceFileName",
+        "categoryLabel" = EXCLUDED."categoryLabel",
+        "tagsJson" = EXCLUDED."tagsJson",
+        "previewImageStorageKey" = CASE
+          WHEN EXCLUDED."previewImageStorageKey" IS NULL OR btrim(COALESCE(EXCLUDED."previewImageStorageKey", '')) = ''
+          THEN "ImagePromptTemplate"."previewImageStorageKey"
+          ELSE EXCLUDED."previewImageStorageKey"
+        END,
+        "previewImageFileName" = CASE
+          WHEN EXCLUDED."previewImageFileName" IS NULL OR btrim(COALESCE(EXCLUDED."previewImageFileName", '')) = ''
+          THEN "ImagePromptTemplate"."previewImageFileName"
+          ELSE EXCLUDED."previewImageFileName"
+        END,
+        "previewImageContentType" = CASE
+          WHEN EXCLUDED."previewImageContentType" IS NULL OR btrim(COALESCE(EXCLUDED."previewImageContentType", '')) = ''
+          THEN "ImagePromptTemplate"."previewImageContentType"
+          ELSE EXCLUDED."previewImageContentType"
+        END,
+        "sortOrder" = EXCLUDED."sortOrder",
+        "updatedAt" = CURRENT_TIMESTAMP`,
+      seed.id,
+      seed.slug,
+      seed.title,
+      seed.preview,
+      seed.content,
+      seed.sourceFilePath,
+      seed.sourceCategory,
+      seed.sourceFileName,
+      seed.categoryLabel,
+      JSON.stringify(seed.tagsJson || []),
+      storedPreview.storageKey || null,
+      storedPreview.fileName || null,
+      storedPreview.contentType || null,
+      seed.sortOrder,
+    );
+  }
+
+  private async listImagePromptTemplateStoreItems(): Promise<ImagePromptTemplateStoreRecord[]> {
+    if (await this.canUseImagePromptTemplateTable()) {
+      const rows = await this.prismaService.$queryRawUnsafe<Array<Record<string, unknown>>>(
+        `SELECT
+          "id",
+          "slug",
+          "title",
+          "preview",
+          "content",
+          "status",
+          "sourceFilePath",
+          "sourceCategory",
+          "sourceFileName",
+          "categoryLabel",
+          "tagsJson",
+          "previewImageStorageKey",
+          "previewImageFileName",
+          "previewImageContentType",
+          "sortOrder",
+          "createdAt",
+          "updatedAt"
+        FROM "ImagePromptTemplate"
+        ORDER BY "sortOrder" ASC, "updatedAt" DESC`,
+      );
+      return rows.map((row) => this.mapImagePromptTemplateRow(row));
+    }
+
+    return [...imagePromptTemplateMockStore].sort((left, right) => left.sortOrder - right.sortOrder);
+  }
+
+  private async findImagePromptTemplateStoreItem(templateId: string) {
+    const normalizedTemplateId = String(templateId || "").trim();
+    if (!normalizedTemplateId) {
+      return null;
+    }
+
+    if (await this.canUseImagePromptTemplateTable()) {
+      const rows = await this.prismaService.$queryRawUnsafe<Array<Record<string, unknown>>>(
+        `SELECT
+          "id",
+          "slug",
+          "title",
+          "preview",
+          "content",
+          "status",
+          "sourceFilePath",
+          "sourceCategory",
+          "sourceFileName",
+          "categoryLabel",
+          "tagsJson",
+          "previewImageStorageKey",
+          "previewImageFileName",
+          "previewImageContentType",
+          "sortOrder",
+          "createdAt",
+          "updatedAt"
+        FROM "ImagePromptTemplate"
+        WHERE "id" = $1 OR "slug" = $1
+        LIMIT 1`,
+        normalizedTemplateId,
+      );
+      return rows[0] ? this.mapImagePromptTemplateRow(rows[0]) : null;
+    }
+
+    return imagePromptTemplateMockStore.find((item) =>
+      item.id === normalizedTemplateId || item.slug === normalizedTemplateId
+    ) || null;
+  }
+
+  private mapImagePromptTemplatePreviewOnlyRow(row: Record<string, unknown>) {
+    return {
+      id: this.readOptionalString(row.id) || "",
+      previewImageStorageKey: this.readOptionalString(row.previewImageStorageKey) || "",
+      previewImageFileName: this.readOptionalString(row.previewImageFileName) || "",
+      previewImageContentType: this.readOptionalString(row.previewImageContentType) || "",
+    };
+  }
+
+  private mapImagePromptTemplateRow(row: Record<string, unknown>): ImagePromptTemplateStoreRecord {
+    return {
+      id: this.readOptionalString(row.id) || createId("img_prompt"),
+      slug: this.readOptionalString(row.slug) || createId("img-prompt"),
+      title: this.readOptionalString(row.title) || "未命名生图提示词",
+      preview: this.readOptionalString(row.preview) || "",
+      content: this.readOptionalString(row.content) || "",
+      status: this.readOptionalString(row.status) || "ACTIVE",
+      sourceFilePath: this.readOptionalString(row.sourceFilePath) || "",
+      sourceCategory: this.readOptionalString(row.sourceCategory) || "生图提示词",
+      sourceFileName: this.readOptionalString(row.sourceFileName) || "",
+      categoryLabel: this.readOptionalString(row.categoryLabel) || "通用",
+      tagsJson: this.readStringArray(row.tagsJson, []),
+      previewImageFilePath: "",
+      previewImageFileName: this.readOptionalString(row.previewImageFileName) || "",
+      previewImageContentType: this.readOptionalString(row.previewImageContentType) || "",
+      previewImageStorageKey: this.readOptionalString(row.previewImageStorageKey) || "",
+      sortOrder: Number(row.sortOrder || 100) || 100,
+      createdAt: this.normalizeHistoryTimestamp(row.createdAt as string | Date | null | undefined) || new Date().toISOString(),
+      updatedAt: this.normalizeHistoryTimestamp(row.updatedAt as string | Date | null | undefined) || new Date().toISOString(),
+    };
+  }
+
+  private mapImagePromptTemplateToCard(item: ImagePromptTemplateStoreRecord): ImagePromptTemplateCardRecord {
+    return {
+      id: item.id,
+      title: item.title,
+      preview: item.preview,
+      sourceCategory: item.sourceCategory,
+      sourceFileName: item.sourceFileName,
+      categoryLabel: item.categoryLabel,
+      tags: Array.from(new Set([item.categoryLabel, ...item.tagsJson].filter(Boolean))).slice(0, 8),
+      previewImageUrl: item.previewImageStorageKey ? this.resolveImagePromptTemplatePreviewUrl(item.id) : undefined,
+    };
+  }
+
+  private mapImagePromptTemplateToDetail(item: ImagePromptTemplateStoreRecord): ImagePromptTemplateDetailRecord {
+    return {
+      ...this.mapImagePromptTemplateToCard(item),
+      content: item.content,
+    };
+  }
+
+  private mapImagePromptTemplateToAdmin(item: ImagePromptTemplateStoreRecord): ImagePromptTemplateAdminRecord {
+    return {
+      ...this.mapImagePromptTemplateToDetail(item),
+      slug: item.slug,
+      status: (["ACTIVE", "DISABLED", "DRAFT"].includes(item.status) ? item.status : "ACTIVE") as "ACTIVE" | "DISABLED" | "DRAFT",
+      sourceFilePath: item.sourceFilePath,
+      previewImageFileName: item.previewImageFileName || undefined,
+      sortOrder: item.sortOrder,
+      createdAt: item.createdAt,
+      updatedAt: item.updatedAt,
+    };
+  }
+
+  private normalizeImagePromptTemplateUpdatePayload(
+    existing: ImagePromptTemplateStoreRecord,
+    payload: UpdateImagePromptTemplatePayload,
+  ): ImagePromptTemplateStoreRecord {
+    const nextTitle = payload.title === undefined ? existing.title : String(payload.title || "").trim();
+    const nextContent = payload.content === undefined ? existing.content : String(payload.content || "").replace(/\r\n/g, "\n").trim();
+    const nextPreview = payload.preview === undefined ? existing.preview : String(payload.preview || "").trim();
+    const nextStatus = payload.status && ["ACTIVE", "DISABLED", "DRAFT"].includes(payload.status) ? payload.status : existing.status;
+    const nextCategoryLabel = payload.categoryLabel === undefined ? existing.categoryLabel : String(payload.categoryLabel || "").trim();
+    const nextSortOrder = payload.sortOrder === undefined ? existing.sortOrder : Math.max(1, Number(payload.sortOrder) || existing.sortOrder);
+
+    if (!nextTitle) {
+      throw new BadRequestException("标题不能为空");
+    }
+    if (!nextContent) {
+      throw new BadRequestException("提示词内容不能为空");
+    }
+
+    return {
+      ...existing,
+      title: nextTitle,
+      preview: nextPreview,
+      content: nextContent,
+      status: nextStatus,
+      categoryLabel: nextCategoryLabel || existing.categoryLabel,
+      tagsJson: this.normalizeStringArray(
+        [nextCategoryLabel || existing.categoryLabel, ...(existing.tagsJson || [])],
+        [nextCategoryLabel || existing.categoryLabel],
+        8,
+      ),
+      sortOrder: nextSortOrder,
+    };
+  }
+
+  private buildImagePromptFilterOptions(
+    items: ImagePromptTemplateCardRecord[],
+    getter: (item: ImagePromptTemplateCardRecord) => string,
+  ) {
+    return Array.from(
+      items.reduce((map, item) => {
+        const value = String(getter(item) || "").trim();
+        if (!value) {
+          return map;
+        }
+        map.set(value, (map.get(value) || 0) + 1);
+        return map;
+      }, new Map<string, number>()).entries(),
+    )
+      .map(([value, count]) => ({ value, label: value, count }))
+      .sort((left, right) => {
+        if (right.count !== left.count) {
+          return right.count - left.count;
+        }
+        return left.label.localeCompare(right.label, "zh-CN");
+      });
+  }
+
+  private normalizeImagePromptPayload(payload: GenerateImagePromptWorkPayload) {
+    const templateId = this.readOptionalString(payload.templateId);
+    if (!templateId) {
+      throw new BadRequestException("请选择生图提示词模板");
+    }
+    const editedPrompt = String(payload.editedPrompt || "").replace(/\r\n/g, "\n").trim();
+    return {
+      templateId,
+      title: this.readOptionalString(payload.title),
+      injectBrandProfile: payload.injectBrandProfile !== false,
+      productId: this.readOptionalString(payload.productId),
+      calendarItemId: this.readOptionalString(payload.calendarItemId),
+      userRequirement: this.readOptionalString(payload.userRequirement),
+      editedPrompt,
+      referenceImage: payload.referenceImage,
+    };
+  }
+
+  private mapImagePromptTaskToWorkRecord(task: {
+    id: string;
+    taskTitle?: string | null;
+    taskStatus: WorkTaskStatus | TaskStatus;
+    modelName?: string | null;
+    errorMessage?: string | null;
+    outputJson?: unknown;
+    updatedAt?: string | Date | null;
+    finishedAt?: string | Date | null;
+    createdAt?: string | Date | null;
+  }): ImagePromptWorkRecord | null {
+    const output = this.asRecord(task.outputJson);
+    const templateId = this.readOptionalString(output?.templateId);
+    const templateTitle = this.readOptionalString(output?.templateTitle);
+    if (!templateId || !templateTitle) {
+      return null;
+    }
+    const updatedAt = this.normalizeHistoryTimestamp(task.updatedAt)
+      || this.normalizeHistoryTimestamp(task.finishedAt)
+      || this.normalizeHistoryTimestamp(task.createdAt)
+      || new Date().toISOString();
+    const createdAt = this.normalizeHistoryTimestamp(task.createdAt)
+      || updatedAt;
+    const taskStatus = String(task.taskStatus || "QUEUED") as WorkTaskStatus;
+
+    return {
+      id: task.id,
+      taskId: task.id,
+      taskStatus,
+      title: this.readOptionalString(output?.title) || String(task.taskTitle || "").trim() || `${templateTitle}成图`,
+      status: this.getImagePromptTaskStatusLabel(taskStatus),
+      createdAt,
+      updatedAt,
+      summary: this.readOptionalString(output?.summary)
+        || (taskStatus === "FAILED"
+          ? String(task.errorMessage || "生图作品生成失败")
+          : taskStatus === "SUCCESS"
+            ? "图片已生成，可直接查看。"
+            : "任务已进入后台执行，请稍后刷新作品中心。"),
+      errorDetail: this.readOptionalString(output?.errorDetail)
+        || (taskStatus === "FAILED" ? this.readOptionalString(task.errorMessage) : undefined),
+      tags: this.readStringArray(output?.tags, []),
+      templateId,
+      templateTitle,
+      assetUrl: this.readOptionalString(output?.assetUrl),
+      promptSnapshot: this.readOptionalString(output?.promptSnapshot),
+      userRequirement: this.readOptionalString(output?.userRequirement),
+      modelName: this.readOptionalString(output?.modelName) || this.readOptionalString(task.modelName),
+      usedBrandProfile: Boolean(output?.usedBrandProfile),
+      usedProductLabel: this.readOptionalString(output?.usedProductLabel),
+      usedCalendarLabel: this.readOptionalString(output?.usedCalendarLabel),
+    };
+  }
+
+  private getImagePromptTaskStatusLabel(status: WorkTaskStatus) {
+    switch (status) {
+      case "SUCCESS":
+        return "已完成";
+      case "FAILED":
+        return "生成失败";
+      case "RUNNING":
+        return "生成中";
+      case "CANCELLED":
+        return "已取消";
+      default:
+        return "排队中";
+    }
+  }
+
+  private async runGenerateImagePromptWorkTask(
+    brandId: string,
+    taskId: string,
+    context: {
+      templateId: string;
+      templateTitle: string;
+      title: string;
+      promptSnapshot: string;
+      injectBrandProfile: boolean;
+      productId?: string;
+      productLabel?: string;
+      calendarItemId?: string;
+      calendarLabel?: string;
+      userRequirement?: string;
+      referenceImage?: UploadFilePayload;
+    },
+  ) {
+    let latestOutput: Record<string, unknown> = {
+      stage: "RUNNING",
+      title: context.title,
+      templateId: context.templateId,
+      templateTitle: context.templateTitle,
+      promptSnapshot: context.promptSnapshot,
+      userRequirement: context.userRequirement || "",
+      usedBrandProfile: context.injectBrandProfile,
+      usedProductLabel: context.productLabel || "",
+      usedCalendarLabel: context.calendarLabel || "",
+      assetUrl: "",
+      assetStorageKey: "",
+      tags: [],
+      summary: "正在整理模板上下文并调用 Right Codes 生图模型。",
+    };
+
+    try {
+      const [archive, calendarWorkspace, template] = await Promise.all([
+        this.brandsService.getArchive(brandId),
+        this.reportsService.getXiaohongshuMarketingCalendarWorkspace(brandId),
+        this.findImagePromptTemplateStoreItem(context.templateId),
+      ]);
+      if (!template || template.status !== "ACTIVE") {
+        throw new NotFoundException("生图提示词模板不存在或已停用");
+      }
+
+      const selectedProduct = archive.products.find((item) => item.id === context.productId);
+      const selectedCalendarItem = [calendarWorkspace.latest, ...calendarWorkspace.history]
+        .filter((record): record is NonNullable<typeof calendarWorkspace.latest> => Boolean(record))
+        .flatMap((record) => record.items)
+        .find((item) => item.id === context.calendarItemId);
+      const brandProfileSummary = context.injectBrandProfile ? this.buildDesignBrandProfileSummary(archive) : "";
+      const productSummary = selectedProduct
+        ? [
+            `产品名：${selectedProduct.productName}`,
+            selectedProduct.productPositioning ? `产品定位：${selectedProduct.productPositioning}` : "",
+            selectedProduct.detailDescription ? `产品描述：${selectedProduct.detailDescription}` : "",
+            selectedProduct.usageScenario ? `使用场景：${selectedProduct.usageScenario}` : "",
+            selectedProduct.targetAudience ? `目标人群：${selectedProduct.targetAudience}` : "",
+            selectedProduct.differentiators ? `差异化卖点：${selectedProduct.differentiators}` : "",
+          ].filter(Boolean).join("\n")
+        : "";
+      const marketingSelection = selectedCalendarItem ? this.buildMarketingCalendarSelection(selectedCalendarItem) : undefined;
+      const calendarSummary = marketingSelection
+        ? [
+            `日期：${marketingSelection.date}`,
+            `主题：${marketingSelection.topicName}`,
+            marketingSelection.topicContent ? `主题说明：${marketingSelection.topicContent}` : "",
+            marketingSelection.contentGoal ? `内容目标：${marketingSelection.contentGoal}` : "",
+            marketingSelection.targetAudience ? `目标受众：${marketingSelection.targetAudience}` : "",
+            marketingSelection.expressionFocus ? `表达重点：${marketingSelection.expressionFocus}` : "",
+          ].filter(Boolean).join("\n")
+        : "";
+      const composedPrompt = [
+        context.promptSnapshot,
+        "",
+        context.injectBrandProfile ? `品牌资料：\n${brandProfileSummary}` : "品牌资料：本次不植入品牌资料。",
+        productSummary ? `产品资料：\n${productSummary}` : "产品资料：本次不植入产品资料。",
+        calendarSummary ? `每日营销日历：\n${calendarSummary}` : "每日营销日历：本次不植入营销日历。",
+        context.userRequirement ? `用户要求：\n${context.userRequirement}` : "用户要求：无额外补充。",
+        "",
+        "请基于以上信息生成 1 张高完成度、可直接用于营销投放或小红书图文场景的成图。",
+      ].filter(Boolean).join("\n");
+
+      latestOutput = {
+        ...latestOutput,
+        stage: "RUNNING",
+        tags: Array.from(new Set([template.categoryLabel, ...template.tagsJson].filter(Boolean))).slice(0, 8),
+        summary: `正在调用 Right Codes · ${IMAGE_PROMPT_CENTER_MODEL_NAME} 生成图片。`,
+        usedProductLabel: selectedProduct?.productName || "",
+        usedCalendarLabel: marketingSelection ? `${marketingSelection.date} | ${marketingSelection.topicName}` : "",
+        modelName: IMAGE_PROMPT_CENTER_MODEL_NAME,
+      };
+      await this.markTaskRunning(taskId);
+      await this.updateTaskRunningOutput(taskId, latestOutput);
+
+      const providers = await this.loadImageGenerationProviders(
+        brandId,
+        {
+          preferredModelName: IMAGE_PROMPT_CENTER_MODEL_NAME,
+          configuredModels: [IMAGE_PROMPT_CENTER_MODEL_NAME],
+          preferredProviderIds: [IMAGE_PROMPT_CENTER_PROVIDER_ID],
+        },
+        {
+          preferredModelName: IMAGE_PROMPT_CENTER_MODEL_NAME,
+          preferredProviderIds: [IMAGE_PROMPT_CENTER_PROVIDER_ID],
+          usage: "general",
+        },
+      );
+      const imageAsset = await this.generateImageAsset({
+        brandId,
+        taskId,
+        title: context.title,
+        workLabel: "生图提示词中心",
+        role: "COVER",
+        order: 0,
+        providers,
+        executionPrompt: "你是一名商业设计图片生成助手，需要基于用户提供的中文 Prompt 输出高完成度营销图片。",
+        prompt: composedPrompt,
+        referenceImageUrls: [],
+        referenceImagePayloads: context.referenceImage ? [context.referenceImage] : [],
+        promptMode: "social_graphic",
+        includeFallbackPrompt: true,
+        maxProvidersToTry: 1,
+        maxModelsPerProvider: 1,
+      });
+      const assetStorageKey = this.toStorageKeyFromUrl(imageAsset.url);
+      latestOutput = {
+        stage: "SUCCESS",
+        title: context.title,
+        templateId: template.id,
+        templateTitle: template.title,
+        promptSnapshot: context.promptSnapshot,
+        userRequirement: context.userRequirement || "",
+        usedBrandProfile: context.injectBrandProfile,
+        usedProductLabel: selectedProduct?.productName || "",
+        usedCalendarLabel: marketingSelection ? `${marketingSelection.date} | ${marketingSelection.topicName}` : "",
+        assetUrl: imageAsset.url,
+        assetStorageKey,
+        summary: `${template.title} 图片已生成完成。`,
+        tags: Array.from(new Set([template.categoryLabel, ...template.tagsJson].filter(Boolean))).slice(0, 8),
+        modelName: imageAsset.modelName || IMAGE_PROMPT_CENTER_MODEL_NAME,
+      };
+      await this.markTaskSuccess(taskId, latestOutput, {
+        modelName: imageAsset.modelName || IMAGE_PROMPT_CENTER_MODEL_NAME,
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "生图作品生成失败";
+      latestOutput = {
+        ...latestOutput,
+        stage: "FAILED",
+        errorDetail: errorMessage,
+        summary: errorMessage,
+      };
+      await this.markTaskFailed(taskId, errorMessage, { outputJson: latestOutput });
+    }
+  }
+
+  private async ensureImagePromptTemplatePreviewStored(
+    seed: ImagePromptSeedRecord,
+    existing?: {
+      previewImageStorageKey?: string;
+      previewImageFileName?: string;
+      previewImageContentType?: string;
+    },
+  ) {
+    if (!seed.previewImageFilePath) {
+      return {
+        storageKey: existing?.previewImageStorageKey || "",
+        fileName: existing?.previewImageFileName || "",
+        contentType: existing?.previewImageContentType || "",
+      };
+    }
+    const extension = this.resolveImageExtensionFromMimeType(seed.previewImageContentType, seed.previewImageFileName);
+    const storageKey = existing?.previewImageStorageKey || this.buildImagePromptTemplatePreviewStorageKey(seed.id, extension);
+    const buffer = await readFile(seed.previewImageFilePath);
+    await this.persistGeneratedObject(storageKey, buffer, seed.previewImageContentType || "image/jpeg");
+    return {
+      storageKey,
+      fileName: seed.previewImageFileName || `${seed.id}${extension}`,
+      contentType: seed.previewImageContentType || "image/jpeg",
+    };
+  }
+
+  private buildImagePromptTemplatePreviewStorageKey(templateId: string, extension: string) {
+    return `works/shared/image-prompt-templates/${templateId}${extension || ".png"}`;
+  }
+
+  private resolveImagePromptTemplatePreviewUrl(templateId: string) {
+    return `${this.resolveServerBaseUrl()}/api/works/image-prompt-center/templates/${encodeURIComponent(templateId)}/preview`;
   }
 
   private mapDesignTaskToHistoryRecord(task: {

@@ -266,6 +266,25 @@ export type OperationsPromptTemplateAdminRecord = {
   updatedAt: string;
 };
 
+export type ImagePromptTemplateAdminRecord = {
+  id: string;
+  slug: string;
+  title: string;
+  preview: string;
+  content: string;
+  status: "ACTIVE" | "DISABLED" | "DRAFT";
+  sourceCategory: string;
+  sourceFileName: string;
+  sourceFilePath: string;
+  categoryLabel: string;
+  tags: string[];
+  previewImageUrl?: string;
+  previewImageFileName?: string;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type KnowledgeBaseRecord = {
   id: string;
   name: string;
@@ -3438,6 +3457,22 @@ export async function updateOperationsPromptTemplate(
   >,
 ) {
   return jsonRequest<OperationsPromptTemplateAdminRecord>(`/admin/operations-prompts/${templateId}`, "PATCH", payload);
+}
+
+export async function getImagePromptTemplates() {
+  return request<ImagePromptTemplateAdminRecord[]>("/admin/image-prompts");
+}
+
+export async function updateImagePromptTemplate(
+  templateId: string,
+  payload: Partial<
+    Pick<
+      ImagePromptTemplateAdminRecord,
+      "title" | "preview" | "content" | "status" | "categoryLabel" | "sortOrder"
+    >
+  >,
+) {
+  return jsonRequest<ImagePromptTemplateAdminRecord>(`/admin/image-prompts/${templateId}`, "PATCH", payload);
 }
 
 export async function getKnowledgeBases() {

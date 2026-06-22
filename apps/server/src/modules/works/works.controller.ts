@@ -12,6 +12,7 @@ import {
   type ContinueDouyinVideoGenerationPayload,
   type ContinueXiaohongshuVideoGenerationPayload,
   type GenerateDesignWorkPayload,
+  type GenerateImagePromptWorkPayload,
   type GenerateOperationsPromptWorkPayload,
   type CreateWechatWorkflowPayload,
   type GenerateWechatWorkflowHtmlPayload,
@@ -510,6 +511,16 @@ export class WorksController {
     return this.worksService.getOperationsPromptCenterOptions(brandId);
   }
 
+  @Get("brands/:brandId/design/image-prompt-center/options")
+  async getImagePromptCenterOptions(
+    @Param("brandId") brandId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "personalCenter.works", "view", auth);
+    return this.worksService.getImagePromptCenterOptions(brandId);
+  }
+
   @Get("brands/:brandId/design/operations-prompt-center/templates/:templateId")
   async getOperationsPromptTemplateDetail(
     @Param("brandId") brandId: string,
@@ -521,6 +532,17 @@ export class WorksController {
     return this.worksService.getOperationsPromptTemplateDetail(brandId, templateId);
   }
 
+  @Get("brands/:brandId/design/image-prompt-center/templates/:templateId")
+  async getImagePromptTemplateDetail(
+    @Param("brandId") brandId: string,
+    @Param("templateId") templateId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "personalCenter.works", "view", auth);
+    return this.worksService.getImagePromptTemplateDetail(brandId, templateId);
+  }
+
   @Get("brands/:brandId/design/operations-prompt-center/works")
   async listOperationsPromptWorks(
     @Param("brandId") brandId: string,
@@ -529,6 +551,16 @@ export class WorksController {
     const auth = await this.authService.resolveRequestAuthContext(headers);
     await this.authService.assertBrandPermission(brandId, "personalCenter.works", "view", auth);
     return this.worksService.listOperationsPromptWorks(brandId);
+  }
+
+  @Get("brands/:brandId/design/image-prompt-center/works")
+  async listImagePromptWorks(
+    @Param("brandId") brandId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "personalCenter.works", "view", auth);
+    return this.worksService.listImagePromptWorks(brandId);
   }
 
   @Delete("brands/:brandId/design/operations-prompt-center/works/:workId")
@@ -542,6 +574,17 @@ export class WorksController {
     return this.worksService.deleteOperationsPromptWork(brandId, workId);
   }
 
+  @Delete("brands/:brandId/design/image-prompt-center/works/:workId")
+  async deleteImagePromptWork(
+    @Param("brandId") brandId: string,
+    @Param("workId") workId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "personalCenter.works", "edit", auth);
+    return this.worksService.deleteImagePromptWork(brandId, workId);
+  }
+
   @Post("brands/:brandId/design/operations-prompt-center/generate")
   async createOperationsPromptWork(
     @Param("brandId") brandId: string,
@@ -551,6 +594,17 @@ export class WorksController {
     const auth = await this.authService.resolveRequestAuthContext(headers);
     await this.authService.assertBrandPermission(brandId, "personalCenter.works", "edit", auth);
     return this.worksService.generateOperationsPromptWork(brandId, payload, auth!);
+  }
+
+  @Post("brands/:brandId/design/image-prompt-center/generate")
+  async createImagePromptWork(
+    @Param("brandId") brandId: string,
+    @Body() payload: GenerateImagePromptWorkPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "personalCenter.works", "edit", auth);
+    return this.worksService.generateImagePromptWork(brandId, payload, auth!);
   }
 
   @Get("brands/:brandId/design/history")
@@ -898,6 +952,18 @@ export class WorksController {
     @Res() response: { setHeader(name: string, value: string): unknown; send(body: Buffer): unknown },
   ) {
     const file = await this.worksService.getXiaohongshuOriginalReferenceTemplateAsset(templateId);
+    response.setHeader("Content-Type", file.contentType);
+    response.setHeader("Content-Disposition", `inline; filename=\"${encodeURIComponent(file.fileName)}\"`);
+    response.setHeader("Cache-Control", "public, max-age=31536000");
+    return response.send(file.buffer);
+  }
+
+  @Get("image-prompt-center/templates/:templateId/preview")
+  async getImagePromptTemplatePreview(
+    @Param("templateId") templateId: string,
+    @Res() response: { setHeader(name: string, value: string): unknown; send(body: Buffer): unknown },
+  ) {
+    const file = await this.worksService.getImagePromptTemplatePreviewAsset(templateId);
     response.setHeader("Content-Type", file.contentType);
     response.setHeader("Content-Disposition", `inline; filename=\"${encodeURIComponent(file.fileName)}\"`);
     response.setHeader("Cache-Control", "public, max-age=31536000");

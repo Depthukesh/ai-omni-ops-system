@@ -21,6 +21,7 @@ import {
   createKnowledgeBase,
   createKnowledgeBaseFile,
   createKnowledgeBinding,
+  getImagePromptTemplates,
   getOperationsPromptTemplates,
   deleteApiProvider,
   deleteThirdPartyPlatform,
@@ -73,6 +74,7 @@ import {
   updateKnowledgeBinding,
   updateKnowledgeRetrievalConfig,
   updateKnowledgeBase,
+  updateImagePromptTemplate,
   updateOperationsPromptTemplate,
   updatePromptTemplate,
   updateSkillConfig,
@@ -97,6 +99,7 @@ import {
   type MembershipPlanRule,
   type ModelUsageRecord,
   type ModuleDefinitionRecord,
+  type ImagePromptTemplateAdminRecord,
   type OperationsPromptTemplateAdminRecord,
   type PointsPackageRule,
   type PromptTemplateRecord,
@@ -174,7 +177,7 @@ import {
 } from "./skill-installation";
 import { UsersManagementPanel } from "./users-management-panel";
 
-type AdminTab = "dashboard" | "orders" | "rules" | "users" | "usage" | "assets" | "operationsPrompts" | "modules" | "knowledge" | "providers";
+type AdminTab = "dashboard" | "orders" | "rules" | "users" | "usage" | "assets" | "operationsPrompts" | "imagePrompts" | "modules" | "knowledge" | "providers";
 type AdminSystemRole = "SUPER_ADMIN" | "ADMIN_OPERATOR" | "FINANCE_OPERATOR" | "SUPPORT_OPERATOR";
 type KnowledgeWorkspaceSection = "overview" | "files" | "retrieval" | "bindings" | "history" | "calls";
 type SkillEditDraft = {
@@ -265,6 +268,19 @@ type OperationsPromptAdminFilters = {
   sourceCategory: string;
   businessStage: string;
   outputType: string;
+  keyword: string;
+};
+type ImagePromptEditDraft = {
+  title: string;
+  preview: string;
+  content: string;
+  status: ImagePromptTemplateAdminRecord["status"];
+  categoryLabel: string;
+  sortOrder: string;
+};
+type ImagePromptAdminFilters = {
+  sourceCategory: string;
+  categoryLabel: string;
   keyword: string;
 };
 type CreateSkillDraft = {
@@ -569,6 +585,7 @@ const tabs: Array<{ key: AdminTab; label: string; description: string; shortLabe
   { key: "usage", label: "模型消耗", shortLabel: "消耗", description: "查看模型任务量、点数成本、估算金额与最近调用时间。" },
   { key: "assets", label: "技能中心", shortLabel: "技能", description: "按业务板块维护技能配置、执行内容和保存策略。" },
   { key: "operationsPrompts", label: "运营提示词", shortLabel: "提示词", description: "集中维护运营提示词中心模板的标题、标签、正文与启停状态。" },
+  { key: "imagePrompts", label: "生图提示词", shortLabel: "生图", description: "集中维护生图提示词中心模板的标题、预览图、分类标签、正文与启停状态。" },
   { key: "modules", label: "模块注册中心", shortLabel: "模块", description: "维护模块定义、入口路由、能力依赖和默认能力包摘要。" },
   { key: "knowledge", label: "知识库管理", shortLabel: "知识", description: "维护知识库启停状态、数据源类型、同步状态与文档规模。" },
   {
@@ -580,8 +597,8 @@ const tabs: Array<{ key: AdminTab; label: string; description: string; shortLabe
 ];
 
 const ADMIN_ROLE_TAB_MATRIX: Record<AdminSystemRole, AdminTab[]> = {
-  SUPER_ADMIN: ["dashboard", "orders", "rules", "users", "usage", "assets", "operationsPrompts", "modules", "knowledge", "providers"],
-  ADMIN_OPERATOR: ["dashboard", "orders", "users", "usage", "assets", "operationsPrompts", "modules", "knowledge", "providers"],
+  SUPER_ADMIN: ["dashboard", "orders", "rules", "users", "usage", "assets", "operationsPrompts", "imagePrompts", "modules", "knowledge", "providers"],
+  ADMIN_OPERATOR: ["dashboard", "orders", "users", "usage", "assets", "operationsPrompts", "imagePrompts", "modules", "knowledge", "providers"],
   FINANCE_OPERATOR: ["dashboard", "orders", "rules"],
   SUPPORT_OPERATOR: ["dashboard", "orders", "users", "usage"],
 };
@@ -637,6 +654,7 @@ export default function AdminPage() {
   const [skills, setSkills] = useState<SkillConfigRecord[]>(skillConfigSeed);
   const [prompts, setPrompts] = useState<PromptTemplateRecord[]>(promptTemplateSeed);
   const [operationsPromptTemplates, setOperationsPromptTemplates] = useState<OperationsPromptTemplateAdminRecord[]>([]);
+  const [imagePromptTemplates, setImagePromptTemplates] = useState<ImagePromptTemplateAdminRecord[]>([]);
   const [modules, setModules] = useState<ModuleDefinitionRecord[]>(moduleDefinitionSeed);
   const [skillPackages, setSkillPackages] = useState<SkillPackageRecord[]>(skillPackageSeed);
   const [skillPackageModules, setSkillPackageModules] = useState<SkillPackageModuleRecord[]>(skillPackageModuleSeed);
@@ -658,11 +676,18 @@ export default function AdminPage() {
   const [skillDrafts, setSkillDrafts] = useState<Record<string, SkillEditDraft>>(buildSkillDrafts(skillConfigSeed));
   const [promptDrafts, setPromptDrafts] = useState<Record<string, PromptEditDraft>>(buildPromptDrafts(promptTemplateSeed));
   const [operationsPromptDrafts, setOperationsPromptDrafts] = useState<Record<string, OperationsPromptEditDraft>>({});
+  const [imagePromptDrafts, setImagePromptDrafts] = useState<Record<string, ImagePromptEditDraft>>({});
   const [selectedOperationsPromptId, setSelectedOperationsPromptId] = useState("");
+  const [selectedImagePromptId, setSelectedImagePromptId] = useState("");
   const [operationsPromptAdminFilters, setOperationsPromptAdminFilters] = useState<OperationsPromptAdminFilters>({
     sourceCategory: "",
     businessStage: "",
     outputType: "",
+    keyword: "",
+  });
+  const [imagePromptAdminFilters, setImagePromptAdminFilters] = useState<ImagePromptAdminFilters>({
+    sourceCategory: "",
+    categoryLabel: "",
     keyword: "",
   });
   const [knowledgeBaseDrafts, setKnowledgeBaseDrafts] = useState<Record<string, KnowledgeBaseEditDraft>>(
@@ -705,6 +730,7 @@ export default function AdminPage() {
   const [updatingSkillId, setUpdatingSkillId] = useState("");
   const [updatingPromptId, setUpdatingPromptId] = useState("");
   const [updatingOperationsPromptId, setUpdatingOperationsPromptId] = useState("");
+  const [updatingImagePromptId, setUpdatingImagePromptId] = useState("");
   const [updatingKnowledgeBaseId, setUpdatingKnowledgeBaseId] = useState("");
   const [updatingKnowledgeBaseFileId, setUpdatingKnowledgeBaseFileId] = useState("");
   const [updatingKnowledgeRetrievalBaseId, setUpdatingKnowledgeRetrievalBaseId] = useState("");
@@ -802,6 +828,7 @@ export default function AdminPage() {
     const canReadUsage = allowedTabs.includes("usage");
     const canReadAssets = allowedTabs.includes("assets");
     const canReadOperationsPrompts = allowedTabs.includes("operationsPrompts");
+    const canReadImagePrompts = allowedTabs.includes("imagePrompts");
     const canReadModules = allowedTabs.includes("modules");
     const canReadKnowledge = allowedTabs.includes("knowledge");
     const canReadProviders = allowedTabs.includes("providers");
@@ -814,6 +841,7 @@ export default function AdminPage() {
       skillResult,
       promptResult,
       operationsPromptResult,
+      imagePromptResult,
       skillPackageResult,
       skillPromptBindingResult,
       moduleDefinitionResult,
@@ -836,6 +864,7 @@ export default function AdminPage() {
       canReadAssets ? getSkillConfigs() : Promise.resolve([]),
       canReadAssets ? getPromptTemplates() : Promise.resolve([]),
       canReadOperationsPrompts ? getOperationsPromptTemplates() : Promise.resolve([]),
+      canReadImagePrompts ? getImagePromptTemplates() : Promise.resolve([]),
       canReadAssets ? getSkillPackages() : Promise.resolve([]),
       canReadAssets ? getSkillPromptBindings() : Promise.resolve([]),
       canReadModules ? getModuleDefinitions() : Promise.resolve([]),
@@ -911,6 +940,22 @@ export default function AdminPage() {
       setOperationsPromptTemplates([]);
       setOperationsPromptDrafts({});
       setSelectedOperationsPromptId("");
+      usingSeed = true;
+    }
+
+    if (imagePromptResult.status === "fulfilled") {
+      setImagePromptTemplates(imagePromptResult.value);
+      setImagePromptDrafts(buildImagePromptDrafts(imagePromptResult.value));
+      setSelectedImagePromptId((current) => {
+        if (imagePromptResult.value.some((item) => item.id === current)) {
+          return current;
+        }
+        return imagePromptResult.value[0]?.id || "";
+      });
+    } else {
+      setImagePromptTemplates([]);
+      setImagePromptDrafts({});
+      setSelectedImagePromptId("");
       usingSeed = true;
     }
 
@@ -1295,6 +1340,20 @@ export default function AdminPage() {
     }));
   }
 
+  function handleImagePromptDraftChange(templateId: string, patch: Partial<ImagePromptEditDraft>) {
+    const fallbackTemplate = imagePromptTemplates.find((item) => item.id === templateId) || imagePromptTemplates[0];
+    if (!fallbackTemplate) {
+      return;
+    }
+    setImagePromptDrafts((current) => ({
+      ...current,
+      [templateId]: {
+        ...(current[templateId] || buildImagePromptDraft(fallbackTemplate)),
+        ...patch,
+      },
+    }));
+  }
+
   function handleSkillCenterStatusChange(status: SkillConfigRecord["status"]) {
     if (activeSkillConfig) {
       handleSkillDraftChange(activeSkillConfig.id, { status });
@@ -1583,6 +1642,40 @@ export default function AdminPage() {
       setErrorMessage(`运营提示词保存失败：${message}`);
     } finally {
       setUpdatingOperationsPromptId("");
+    }
+  }
+
+  async function handleSaveImagePrompt(templateId: string) {
+    const draft = imagePromptDrafts[templateId];
+    if (!draft) {
+      return;
+    }
+
+    setUpdatingImagePromptId(templateId);
+    setNotice("");
+    setErrorMessage("");
+
+    try {
+      const updated = await updateImagePromptTemplate(templateId, {
+        title: draft.title,
+        preview: draft.preview,
+        content: draft.content,
+        status: draft.status,
+        categoryLabel: draft.categoryLabel,
+        sortOrder: Number(draft.sortOrder || 0),
+      });
+
+      setImagePromptTemplates((current) => current.map((item) => (item.id === templateId ? updated : item)));
+      setImagePromptDrafts((current) => ({
+        ...current,
+        [templateId]: buildImagePromptDraft(updated),
+      }));
+      setNotice(`生图提示词已更新：${updated.title}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "生图提示词保存失败";
+      setErrorMessage(`生图提示词保存失败：${message}`);
+    } finally {
+      setUpdatingImagePromptId("");
     }
   }
 
@@ -3331,6 +3424,70 @@ export default function AdminPage() {
   const selectedOperationsPromptDraft = selectedOperationsPrompt
     ? operationsPromptDrafts[selectedOperationsPrompt.id] || buildOperationsPromptDraft(selectedOperationsPrompt)
     : undefined;
+  const sortedImagePromptTemplates = useMemo(
+    () =>
+      [...imagePromptTemplates].sort((left, right) => {
+        if (left.sortOrder !== right.sortOrder) {
+          return left.sortOrder - right.sortOrder;
+        }
+        return left.updatedAt < right.updatedAt ? 1 : -1;
+      }),
+    [imagePromptTemplates],
+  );
+  const imagePromptSourceCategoryOptions = useMemo(
+    () =>
+      Array.from(new Set(sortedImagePromptTemplates.map((item) => item.sourceCategory).filter(Boolean))).sort((left, right) =>
+        left.localeCompare(right, "zh-CN"),
+      ),
+    [sortedImagePromptTemplates],
+  );
+  const imagePromptCategoryOptions = useMemo(
+    () =>
+      Array.from(new Set(sortedImagePromptTemplates.map((item) => item.categoryLabel).filter(Boolean))).sort((left, right) =>
+        left.localeCompare(right, "zh-CN"),
+      ),
+    [sortedImagePromptTemplates],
+  );
+  const filteredImagePromptTemplates = useMemo(
+    () =>
+      sortedImagePromptTemplates.filter((item) => {
+        if (imagePromptAdminFilters.sourceCategory && item.sourceCategory !== imagePromptAdminFilters.sourceCategory) {
+          return false;
+        }
+        if (imagePromptAdminFilters.categoryLabel && item.categoryLabel !== imagePromptAdminFilters.categoryLabel) {
+          return false;
+        }
+        if (imagePromptAdminFilters.keyword) {
+          const normalizedKeyword = imagePromptAdminFilters.keyword.trim().toLowerCase();
+          const searchSample = [
+            item.title,
+            item.preview,
+            item.content,
+            item.sourceCategory,
+            item.sourceFileName,
+            item.categoryLabel,
+            item.previewImageFileName,
+            item.tags.join(" "),
+          ]
+            .join(" ")
+            .toLowerCase();
+          if (!searchSample.includes(normalizedKeyword)) {
+            return false;
+          }
+        }
+        return true;
+      }),
+    [imagePromptAdminFilters, sortedImagePromptTemplates],
+  );
+  const selectedImagePrompt = useMemo(
+    () =>
+      filteredImagePromptTemplates.find((item) => item.id === selectedImagePromptId)
+      ?? filteredImagePromptTemplates[0],
+    [filteredImagePromptTemplates, selectedImagePromptId],
+  );
+  const selectedImagePromptDraft = selectedImagePrompt
+    ? imagePromptDrafts[selectedImagePrompt.id] || buildImagePromptDraft(selectedImagePrompt)
+    : undefined;
   const isSkillPrimaryExpanded = (primaryId: string) => !collapsedSkillPrimaryMap[primaryId];
   const isSkillSectionExpanded = (primaryId: string, sectionId: string) =>
     !collapsedSkillSectionMap[buildAdminSkillSectionCollapseKey(primaryId, sectionId)];
@@ -3767,6 +3924,18 @@ export default function AdminPage() {
       setSelectedOperationsPromptId(filteredOperationsPromptTemplates[0]?.id || "");
     }
   }, [filteredOperationsPromptTemplates, selectedOperationsPromptId]);
+
+  useEffect(() => {
+    if (!filteredImagePromptTemplates.length) {
+      if (selectedImagePromptId) {
+        setSelectedImagePromptId("");
+      }
+      return;
+    }
+    if (!filteredImagePromptTemplates.some((item) => item.id === selectedImagePromptId)) {
+      setSelectedImagePromptId(filteredImagePromptTemplates[0]?.id || "");
+    }
+  }, [filteredImagePromptTemplates, selectedImagePromptId]);
 
   useEffect(() => {
     if (!isCreateSkillModalOpen) {
@@ -5846,6 +6015,238 @@ export default function AdminPage() {
                 <div className="admin-skill-empty">当前筛选条件下没有可编辑模板，请先调整左侧分类或搜索条件。</div>
               ) : (
                 <div className="admin-skill-empty">请先从左侧选择一套运营提示词模板。</div>
+              )}
+            </section>
+          </div>
+        ) : activeTab === "imagePrompts" ? (
+          <div className="admin-skill-center-layout">
+            <aside className="panel personal-center-panel admin-skill-tree-card admin-skill-tree-card--polished admin-skill-tree-card--directory admin-ops-prompt-sidebar">
+              <div className="admin-skill-card-topline">
+                <span className="admin-skill-card-kicker">生图提示词</span>
+                <span className="archive-pill status-ready">
+                  {filteredImagePromptTemplates.length} / {sortedImagePromptTemplates.length} 套
+                </span>
+              </div>
+              <div className="admin-ops-prompt-filter-panel">
+                <div className="admin-ops-prompt-filter-grid">
+                  <label className="admin-skill-field">
+                    <span>来源分类</span>
+                    <select
+                      value={imagePromptAdminFilters.sourceCategory}
+                      onChange={(event) =>
+                        setImagePromptAdminFilters((current) => ({ ...current, sourceCategory: event.target.value }))}
+                    >
+                      <option value="">全部</option>
+                      {imagePromptSourceCategoryOptions.map((item) => (
+                        <option key={item} value={item}>
+                          {item}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="admin-skill-field">
+                    <span>分类标签</span>
+                    <select
+                      value={imagePromptAdminFilters.categoryLabel}
+                      onChange={(event) =>
+                        setImagePromptAdminFilters((current) => ({ ...current, categoryLabel: event.target.value }))}
+                    >
+                      <option value="">全部</option>
+                      {imagePromptCategoryOptions.map((item) => (
+                        <option key={item} value={item}>
+                          {item}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="admin-skill-field admin-skill-field--full">
+                    <span>搜索</span>
+                    <input
+                      type="text"
+                      value={imagePromptAdminFilters.keyword}
+                      onChange={(event) =>
+                        setImagePromptAdminFilters((current) => ({ ...current, keyword: event.target.value }))}
+                      placeholder="搜索标题、摘要、标签、正文、来源文件或预览图文件"
+                    />
+                  </label>
+                </div>
+                <div className="admin-ops-prompt-filter-actions">
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() =>
+                      setImagePromptAdminFilters({
+                        sourceCategory: "",
+                        categoryLabel: "",
+                        keyword: "",
+                      })}
+                    disabled={
+                      !imagePromptAdminFilters.sourceCategory
+                      && !imagePromptAdminFilters.categoryLabel
+                      && !imagePromptAdminFilters.keyword
+                    }
+                  >
+                    清空筛选
+                  </button>
+                </div>
+              </div>
+              <div className="admin-ops-prompt-list-shell">
+                <div className="admin-ops-prompt-list">
+                  {filteredImagePromptTemplates.map((item) => (
+                    <button
+                      type="button"
+                      key={item.id}
+                      className={`admin-ops-prompt-list-item${selectedImagePrompt?.id === item.id ? " is-selected" : ""}`}
+                      onClick={() => setSelectedImagePromptId(item.id)}
+                    >
+                      <div className="admin-ops-prompt-list-head">
+                        <strong>{item.title}</strong>
+                        <span className={`archive-pill ${getStatusClassName(item.status)}`}>{getStatusLabel(item.status)}</span>
+                      </div>
+                      <p>{item.preview || "当前还没有预览摘要，可直接在右侧补充。"}</p>
+                      <div className="admin-ops-prompt-list-meta">
+                        <span>{item.categoryLabel || "未分类"}</span>
+                        <span>{item.sourceCategory}</span>
+                        <span>{item.previewImageFileName || "未记录预览图"}</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+                {!sortedImagePromptTemplates.length ? (
+                  <div className="admin-skill-empty" style={{ marginTop: 0 }}>
+                    当前还没有读取到生图提示词模板。请先确认服务端已完成素材导入、OSS 预览图同步与数据库迁移。
+                  </div>
+                ) : null}
+                {sortedImagePromptTemplates.length > 0 && !filteredImagePromptTemplates.length ? (
+                  <div className="admin-skill-empty" style={{ marginTop: 0 }}>
+                    当前筛选条件下没有匹配模板，调整分类或关键词后再试。
+                  </div>
+                ) : null}
+              </div>
+            </aside>
+
+            <section className="panel personal-center-panel admin-skill-center-panel">
+              {selectedImagePrompt && selectedImagePromptDraft ? (
+                <article className="entity-card admin-rule-card admin-skill-center-card admin-skill-form-card admin-skill-form-shell">
+                  <div className="admin-skill-card-topline">
+                    <span className="admin-skill-card-kicker">生图提示词中心配置</span>
+                    <span className={`archive-pill ${getStatusClassName(selectedImagePromptDraft.status)}`}>
+                      {getStatusLabel(selectedImagePromptDraft.status)}
+                    </span>
+                  </div>
+                  <div className="admin-skill-card-header">
+                    <div>
+                      <strong>{selectedImagePrompt.title}</strong>
+                      <p>{selectedImagePrompt.sourceCategory} / {selectedImagePrompt.sourceFileName}</p>
+                    </div>
+                    <div className="personal-meta">更新于 {formatDateTime(selectedImagePrompt.updatedAt)}</div>
+                  </div>
+
+                  {selectedImagePrompt.previewImageUrl ? (
+                    <section className="entity-card admin-skill-section-card">
+                      <div className="entity-card-head">
+                        <div>
+                          <strong>模板预览图</strong>
+                          <p className="personal-meta">这里显示当前模板同步到 OSS 后提供给前后台共用的缩略图。</p>
+                        </div>
+                      </div>
+                      <div className="image-prompt-preview-card">
+                        <img src={selectedImagePrompt.previewImageUrl} alt={selectedImagePrompt.title} />
+                      </div>
+                    </section>
+                  ) : null}
+
+                  <section className="entity-card admin-skill-section-card">
+                    <div className="entity-card-head">
+                      <div>
+                        <strong>基础信息</strong>
+                        <p className="personal-meta">这里的修改会直接成为生图提示词中心下次打开时的后台标准版本。</p>
+                      </div>
+                    </div>
+                    <div className="admin-skill-simple-grid">
+                      <label className="admin-skill-field">
+                        <span>标题</span>
+                        <input
+                          value={selectedImagePromptDraft.title}
+                          onChange={(event) => handleImagePromptDraftChange(selectedImagePrompt.id, { title: event.target.value })}
+                        />
+                      </label>
+                      <label className="admin-skill-field">
+                        <span>状态</span>
+                        <select
+                          value={selectedImagePromptDraft.status}
+                          onChange={(event) =>
+                            handleImagePromptDraftChange(selectedImagePrompt.id, {
+                              status: event.target.value as ImagePromptTemplateAdminRecord["status"],
+                            })}
+                        >
+                          <option value="ACTIVE">启用中</option>
+                          <option value="DRAFT">草稿</option>
+                          <option value="DISABLED">停用</option>
+                        </select>
+                      </label>
+                      <label className="admin-skill-field">
+                        <span>分类标签</span>
+                        <input
+                          value={selectedImagePromptDraft.categoryLabel}
+                          onChange={(event) =>
+                            handleImagePromptDraftChange(selectedImagePrompt.id, { categoryLabel: event.target.value })}
+                        />
+                      </label>
+                      <label className="admin-skill-field">
+                        <span>排序</span>
+                        <input
+                          type="number"
+                          min={1}
+                          value={selectedImagePromptDraft.sortOrder}
+                          onChange={(event) => handleImagePromptDraftChange(selectedImagePrompt.id, { sortOrder: event.target.value })}
+                        />
+                      </label>
+                      <label className="admin-skill-field admin-skill-field--wide">
+                        <span>来源分类</span>
+                        <input value={selectedImagePrompt.sourceCategory} readOnly />
+                      </label>
+                      <label className="admin-skill-field admin-skill-field--wide">
+                        <span>来源文件</span>
+                        <input value={selectedImagePrompt.sourceFilePath} readOnly />
+                      </label>
+                      <label className="admin-skill-field admin-skill-field--wide">
+                        <span>预览图文件</span>
+                        <input value={selectedImagePrompt.previewImageFileName || ""} readOnly />
+                      </label>
+                      <label className="admin-skill-field admin-skill-field--full">
+                        <span>预览摘要</span>
+                        <textarea
+                          value={selectedImagePromptDraft.preview}
+                          onChange={(event) => handleImagePromptDraftChange(selectedImagePrompt.id, { preview: event.target.value })}
+                        />
+                      </label>
+                      <label className="admin-skill-field admin-skill-field--full">
+                        <span>提示词正文</span>
+                        <textarea
+                          className="admin-ops-prompt-editor"
+                          value={selectedImagePromptDraft.content}
+                          onChange={(event) => handleImagePromptDraftChange(selectedImagePrompt.id, { content: event.target.value })}
+                        />
+                      </label>
+                    </div>
+                  </section>
+
+                  <div className="admin-skill-form-actions">
+                    <button
+                      type="button"
+                      className="primary-button"
+                      onClick={() => void handleSaveImagePrompt(selectedImagePrompt.id)}
+                      disabled={updatingImagePromptId === selectedImagePrompt.id}
+                    >
+                      {updatingImagePromptId === selectedImagePrompt.id ? "保存中..." : "保存生图提示词"}
+                    </button>
+                  </div>
+                </article>
+              ) : sortedImagePromptTemplates.length > 0 && !filteredImagePromptTemplates.length ? (
+                <div className="admin-skill-empty">当前筛选条件下没有可编辑模板，请先调整左侧分类或搜索条件。</div>
+              ) : (
+                <div className="admin-skill-empty">请先从左侧选择一套生图提示词模板。</div>
               )}
             </section>
           </div>
@@ -8198,6 +8599,23 @@ function buildOperationsPromptDrafts(list: OperationsPromptTemplateAdminRecord[]
   return Object.fromEntries(
     list.map((item) => [item.id, buildOperationsPromptDraft(item)]),
   ) as Record<string, OperationsPromptEditDraft>;
+}
+
+function buildImagePromptDraft(item: ImagePromptTemplateAdminRecord): ImagePromptEditDraft {
+  return {
+    title: item.title,
+    preview: item.preview,
+    content: item.content,
+    status: item.status,
+    categoryLabel: item.categoryLabel,
+    sortOrder: String(item.sortOrder),
+  };
+}
+
+function buildImagePromptDrafts(list: ImagePromptTemplateAdminRecord[]) {
+  return Object.fromEntries(
+    list.map((item) => [item.id, buildImagePromptDraft(item)]),
+  ) as Record<string, ImagePromptEditDraft>;
 }
 
 function groupItemsByLabel<T>(items: T[], getLabel: (item: T) => string) {

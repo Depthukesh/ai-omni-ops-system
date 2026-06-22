@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 type MoreFeatureSectionItem = {
-  key: "design" | "operations-prompt-center";
+  key: "design" | "operations-prompt-center" | "image-prompt-center";
   label: string;
   href: string;
 };
@@ -19,6 +19,11 @@ const MORE_FEATURE_SECTION_ITEMS: MoreFeatureSectionItem[] = [
     key: "operations-prompt-center",
     label: "运营提示词中心",
     href: "/more-features/operations-prompt-center",
+  },
+  {
+    key: "image-prompt-center",
+    label: "生图提示词中心",
+    href: "/more-features/image-prompt-center",
   },
 ];
 
