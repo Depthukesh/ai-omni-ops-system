@@ -1,6 +1,7 @@
 import { Injectable, InternalServerErrorException, NotFoundException } from "@nestjs/common";
 import { createId, database, type PromptTemplateRecord, type SkillConfigRecord } from "../../common/mock-data";
 import { resolvePromptFallbackContent } from "../../common/prompt-fallbacks";
+import { normalizeSafeText } from "../../common/prompt-injection-guard";
 import { PrismaService } from "../../prisma/prisma.service";
 import { ApiProvidersService } from "../admin/api-providers.service";
 import { SkillsPromptsService } from "../admin/skills-prompts.service";
@@ -269,7 +270,10 @@ export class UserSkillsService {
             && item.basePromptId === promptOverride.promptId,
         );
         const normalizedOverrideData = {
-          content: normalizeOptionalText(promptOverride.content) ?? undefined,
+          content: normalizeSafeText(promptOverride.content, {
+            fieldLabel: "品牌级提示词覆盖",
+            strict: true,
+          }) ?? undefined,
           modelName: this.normalizeModelSelectionValue(promptOverride.modelName, modelSelectionResolver) ?? undefined,
           temperature: normalizeOptionalNumber(promptOverride.temperature) ?? undefined,
           maxTokens: normalizeOptionalInt(promptOverride.maxTokens) ?? undefined,
@@ -1152,11 +1156,7 @@ export class UserSkillsService {
 }
 
 function normalizeOptionalText(value: unknown) {
-  if (typeof value !== "string") {
-    return value === null ? null : undefined;
-  }
-  const normalized = value.trim();
-  return normalized ? normalized : null;
+  return normalizeSafeText(value, { fieldLabel: "品牌技能文本配置", strict: true });
 }
 
 function normalizeOptionalNumber(value: unknown) {

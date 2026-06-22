@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { BadRequestException, Inject, Injectable, NotFoundException, OnModuleInit } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { createId, database, type PromptTemplateRecord, type SkillConfigRecord } from "../../common/mock-data";
+import { normalizeSafeText } from "../../common/prompt-injection-guard";
 import {
   PROMPT_SOURCE_CANDIDATES,
   readPromptSourceBundle,
@@ -2219,7 +2220,7 @@ export class SkillsPromptsService implements OnModuleInit {
 
   private normalizePromptContent(content: unknown) {
     if (typeof content === "string") {
-      return content;
+      return normalizeSafeText(content, { fieldLabel: "提示词正文", strict: true }) || "";
     }
     if (content === null || content === undefined) {
       return "";

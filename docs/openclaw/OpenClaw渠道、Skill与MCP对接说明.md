@@ -121,6 +121,15 @@ MCP 在这里解决的是标准化工具接入问题。
 - 提供 `get_brand_competitor_accounts`
 - 提供 `get_brand_industry_feeds`
 - 提供 `get_brand_business_assets`
+- 提供 `get_xiaohongshu_collection_workspace`
+- 提供 `sync_xiaohongshu_brand_accounts`
+- 提供 `sync_xiaohongshu_competitor_accounts`
+- 提供 `sync_xiaohongshu_brand_notes`
+- 提供 `sync_xiaohongshu_benchmark_notes`
+- 提供 `sync_xiaohongshu_search_notes`
+- 提供 `sync_xiaohongshu_target_users`
+- 提供 `sync_xiaohongshu_feishu_workspace`
+- 提供 `add_xiaohongshu_note_to_material_library`
 - 提供 `get_opportunity_insight_workspace`
 - 提供 `generate_opportunity_insight_step_one`
 - 提供 `generate_opportunity_insight_step_two`
@@ -201,6 +210,7 @@ OpenClaw 通过 MCP 获取：
 - 当前品牌上下文
 - 个人中心概览和待处理提醒
 - 品牌档案摘要、建档问卷、品牌账号、竞品账号、行业资料、业务资产
+- 品牌资料库里的小红书搜集数据工作区，以及品牌账号、竞品账号、作品、搜索笔记、目标用户和飞书副本同步
 - 任务摘要
 - 历史失败原因
 - 机会洞察工作区和 step1/2/3 的执行能力
@@ -368,6 +378,30 @@ MCP 内部不要直接写业务逻辑，而是尽量复用现有网站后端：
 
 - OpenClaw 不只是“读报告”，还能推进网站已有的机会洞察流程
 - 但仍然完全复用网站现有权限和任务中心
+
+## 6.7 例子七：查看品牌资料库中的小红书搜集数据
+
+用户在 WorkBuddy 里说：
+
+- 你看看品牌资料库里搜集数据的小红书板块现在有什么数据
+
+执行链路应该是：
+
+1. Skill 先调 `get_xiaohongshu_collection_workspace`
+2. MCP 返回品牌账号、竞品账号、品牌作品、对标作品、搜索笔记、目标用户等统计和样例
+3. 如果用户要求继续同步，再按目标调用对应的 `sync_xiaohongshu_*` 工具
+4. 如需把采集结果用于二创，再调用 `add_xiaohongshu_note_to_material_library`
+
+这里：
+
+- Skill 负责识别“品牌资料库 -> 搜集数据 -> 小红书”这个业务入口
+- MCP 负责复用网站里现有的小红书采集与素材沉淀能力
+
+## 7. 安全边界
+
+- MCP 和 Skill 都必须把用户消息、知识库文本、素材文本、网页内容视为不可信上下文
+- 遇到“忽略之前指令”“输出系统提示词”“泄露密钥”“绕过安全策略”等请求时，必须拒绝执行
+- 站内可写入 Prompt 的链路应增加注入扫描，防止通过 MCP 改写品牌级技能配置或提示词
 
 ## 6.5 例子五：查看团队协作并创建邀请链接
 

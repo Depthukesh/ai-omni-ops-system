@@ -13467,6 +13467,7 @@ button {
   padding: 20px;
   display: grid;
   gap: 16px;
+  min-width: 0;
 }
 
 .ops-works-detail-panel-head {
@@ -13486,12 +13487,16 @@ button {
   border-radius: 18px;
   border: 1px solid rgba(216, 224, 238, 0.88);
   background: rgba(255, 255, 255, 0.76);
+  min-width: 0;
 }
 
 .ops-work-detail-block pre {
   margin: 10px 0 0;
+  max-width: 100%;
   white-space: pre-wrap;
   word-break: break-word;
+  overflow-wrap: anywhere;
+  overflow: auto;
   color: var(--site-hero-text);
   font-size: 12px;
   line-height: 1.8;
@@ -13500,6 +13505,7 @@ button {
 
 .ops-work-detail-block.is-output pre {
   min-height: 240px;
+  max-height: min(52vh, 560px);
 }
 
 .ops-work-detail-block.is-error {

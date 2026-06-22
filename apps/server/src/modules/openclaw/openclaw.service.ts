@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, UnauthorizedException } from "@nestjs/common";
+import { normalizeSafeText } from "../../common/prompt-injection-guard";
 import { AuthService, type RequestAuthContext } from "../auth/auth.service";
 import {
   type BrandBusinessKnowledgeBaseFileRecord,
@@ -6,7 +7,7 @@ import {
   type BrandInviteListRecord,
   BrandsService,
 } from "../brands/brands.service";
-import { CollectorsService } from "../collectors/collectors.service";
+import { CollectorsService, type XhsAccountRole, type XhsCollectionWorkspace } from "../collectors/collectors.service";
 import { FeedbackService } from "../feedback/feedback.service";
 import { OpenClawInstallationService } from "./openclaw-installation.service";
 import { OrdersService } from "../orders/orders.service";
@@ -229,6 +230,31 @@ const OPENCLAW_WEBSITE_FUNCTION_CATALOG: OpenClawWebsiteFunctionCatalogItem[] = 
     ],
   },
   {
+    key: "xiaohongshu_collection_workspace",
+    domainKey: "brand_growth",
+    domainName: "品牌增长",
+    name: "查看并同步小红书搜集数据",
+    summary: "适合读取品牌资料库中的小红书搜集数据工作区，并直接触发品牌账号、竞品账号、作品、搜索笔记和飞书副本同步。",
+    pageUrl: "/brand-growth",
+    pageLabel: "打开品牌增长工作台",
+    riskLevel: "medium",
+    intentKeywords: ["品牌资料库", "搜集数据", "小红书板块", "小红书采集", "搜索笔记", "目标用户", "飞书副本"],
+    requiredInputKeys: ["brandId"],
+    requiredInputs: ["当前品牌"],
+    recommendedQuestions: ["帮我看品牌资料库里小红书搜集数据板块", "帮我同步一下小红书搜索笔记和飞书副本"],
+    mcpTools: [
+      "get_xiaohongshu_collection_workspace",
+      "sync_xiaohongshu_brand_accounts",
+      "sync_xiaohongshu_competitor_accounts",
+      "sync_xiaohongshu_brand_notes",
+      "sync_xiaohongshu_benchmark_notes",
+      "sync_xiaohongshu_search_notes",
+      "sync_xiaohongshu_target_users",
+      "sync_xiaohongshu_feishu_workspace",
+      "add_xiaohongshu_note_to_material_library",
+    ],
+  },
+  {
     key: "opportunity_insight_control",
     domainKey: "opportunity_insight",
     domainName: "机会洞察",
@@ -446,6 +472,124 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
       properties: {
         limit: { type: "integer", minimum: 1, maximum: 50 },
       },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_xiaohongshu_collection_workspace",
+    description: "查看品牌资料库里小红书搜集数据工作区，包括品牌账号、竞品账号、品牌作品、对标作品、搜索笔记和目标用户。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        limit: { type: "integer", minimum: 1, maximum: 50 },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "sync_xiaohongshu_brand_accounts",
+    description: "同步品牌资料库里小红书品牌账号数据，可补充账号链接。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        accountLocators: { type: "array", items: { type: "string" } },
+        accountEntries: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              locator: { type: "string" },
+              accountRole: { type: "string", description: "可选：BRAND、STAFF、TALENT。" },
+            },
+            required: ["locator"],
+            additionalProperties: false,
+          },
+        },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "sync_xiaohongshu_competitor_accounts",
+    description: "同步品牌资料库里小红书竞品账号数据，可补充账号链接。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        accountLocators: { type: "array", items: { type: "string" } },
+        accountEntries: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              locator: { type: "string" },
+              accountRole: { type: "string", description: "可选：BRAND、STAFF、TALENT。" },
+            },
+            required: ["locator"],
+            additionalProperties: false,
+          },
+        },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "sync_xiaohongshu_brand_notes",
+    description: "同步品牌资料库里小红书品牌作品数据。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        accountLocators: { type: "array", items: { type: "string" } },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "sync_xiaohongshu_benchmark_notes",
+    description: "同步品牌资料库里小红书对标作品数据，需要提供作品链接。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        sourceUrls: { type: "array", items: { type: "string" } },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "sync_xiaohongshu_search_notes",
+    description: "同步品牌资料库里小红书搜索笔记数据，需要提供关键词。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        keyword: { type: "string" },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "sync_xiaohongshu_target_users",
+    description: "同步品牌资料库里小红书目标用户数据，需要提供用户或作品链接。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        sourceUrls: { type: "array", items: { type: "string" } },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "sync_xiaohongshu_feishu_workspace",
+    description: "从品牌绑定的飞书副本同步小红书搜集数据工作区。",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
+    name: "add_xiaohongshu_note_to_material_library",
+    description: "把小红书对标作品或搜索笔记加入素材库。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        assetId: { type: "string" },
+      },
+      required: ["assetId"],
       additionalProperties: false,
     },
   },
@@ -1851,6 +1995,286 @@ export class OpenClawService {
     });
   }
 
+  async getXiaohongshuCollectionWorkspace(
+    headers: HeadersMap,
+    options?: {
+      limit?: number;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.collection.xiaohongshuCollection", "view", auth);
+
+    const workspace = await this.collectorsService.getXiaohongshuWorkspace(brandId);
+    const limit = this.normalizeLimit(options?.limit);
+    const counts = this.buildXiaohongshuCollectionCounts(workspace);
+
+    return this.buildSummaryResponse({
+      title: "小红书搜集数据工作区",
+      summary: `当前品牌资料库中的小红书搜集数据已包含 ${counts.brandAccounts} 个品牌账号、${counts.competitorAccounts} 个竞品账号、${counts.brandNotes} 条品牌作品、${counts.benchmarkNotes} 条对标作品、${counts.searchNotes} 条搜索笔记和 ${counts.targetUsers} 条目标用户。`,
+      highlights: [
+        `品牌账号：${counts.brandAccounts}`,
+        `竞品账号：${counts.competitorAccounts}`,
+        `品牌作品：${counts.brandNotes}`,
+        `对标作品：${counts.benchmarkNotes}`,
+        `搜索笔记：${counts.searchNotes}`,
+        `目标用户：${counts.targetUsers}`,
+      ],
+      data: {
+        counts,
+        brandAccounts: workspace.brandAccounts.slice(0, limit),
+        competitorAccounts: workspace.competitorAccounts.slice(0, limit),
+        brandNotes: workspace.brandNotes.slice(0, limit),
+        benchmarkNotes: workspace.benchmarkNotes.slice(0, limit),
+        searchNotes: workspace.searchNotes.slice(0, limit),
+        targetUsers: workspace.targetUsers.slice(0, limit),
+      },
+      links: [{ label: "打开品牌增长工作台", url: "/brand-growth" }],
+      resourceKind: "xiaohongshu_collection",
+    });
+  }
+
+  async syncXiaohongshuBrandAccounts(
+    headers: HeadersMap,
+    options?: {
+      accountLocators?: string[];
+      accountEntries?: Array<{ locator?: string; accountRole?: string }>;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.collection.xiaohongshuCollection", "edit", auth);
+
+    const result = await this.collectorsService.syncBrandAccounts(brandId, {
+      accountLocators: this.normalizeStringArray(options?.accountLocators),
+      accountEntries: this.normalizeXhsAccountEntries(options?.accountEntries),
+    });
+    const counts = this.buildXiaohongshuCollectionCounts(result.workspace);
+
+    return this.buildSummaryResponse({
+      title: "小红书品牌账号已同步",
+      summary: `已同步 ${result.syncedCount} 条品牌账号数据，当前小红书搜集数据工作区里共有 ${counts.brandAccounts} 个品牌账号。`,
+      highlights: [
+        `本次同步：${result.syncedCount}`,
+        `工作区品牌账号：${counts.brandAccounts}`,
+      ],
+      data: result,
+      links: [{ label: "打开品牌增长工作台", url: "/brand-growth" }],
+      resultStatus: "COMPLETED",
+      resourceKind: "xiaohongshu_collection",
+    });
+  }
+
+  async syncXiaohongshuCompetitorAccounts(
+    headers: HeadersMap,
+    options?: {
+      accountLocators?: string[];
+      accountEntries?: Array<{ locator?: string; accountRole?: string }>;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.collection.xiaohongshuCollection", "edit", auth);
+
+    const result = await this.collectorsService.syncCompetitorAccounts(brandId, {
+      accountLocators: this.normalizeStringArray(options?.accountLocators),
+      accountEntries: this.normalizeXhsAccountEntries(options?.accountEntries),
+    });
+    const counts = this.buildXiaohongshuCollectionCounts(result.workspace);
+
+    return this.buildSummaryResponse({
+      title: "小红书竞品账号已同步",
+      summary: `已同步 ${result.syncedCount} 条竞品账号数据，当前工作区里共有 ${counts.competitorAccounts} 个竞品账号。`,
+      highlights: [
+        `本次同步：${result.syncedCount}`,
+        `工作区竞品账号：${counts.competitorAccounts}`,
+      ],
+      data: result,
+      links: [{ label: "打开品牌增长工作台", url: "/brand-growth" }],
+      resultStatus: "COMPLETED",
+      resourceKind: "xiaohongshu_collection",
+    });
+  }
+
+  async syncXiaohongshuBrandNotes(
+    headers: HeadersMap,
+    options?: {
+      accountLocators?: string[];
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.collection.xiaohongshuCollection", "edit", auth);
+
+    const result = await this.collectorsService.syncBrandNotes(brandId, {
+      accountLocators: this.normalizeStringArray(options?.accountLocators),
+    });
+    const counts = this.buildXiaohongshuCollectionCounts(result.workspace);
+
+    return this.buildSummaryResponse({
+      title: "小红书品牌作品已同步",
+      summary: `已同步 ${result.syncedCount} 条品牌作品，当前工作区里共有 ${counts.brandNotes} 条品牌作品。`,
+      highlights: [
+        `本次同步：${result.syncedCount}`,
+        `工作区品牌作品：${counts.brandNotes}`,
+      ],
+      data: result,
+      links: [{ label: "打开品牌增长工作台", url: "/brand-growth" }],
+      resultStatus: "COMPLETED",
+      resourceKind: "xiaohongshu_collection",
+    });
+  }
+
+  async syncXiaohongshuBenchmarkNotes(
+    headers: HeadersMap,
+    options?: {
+      sourceUrls?: string[];
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.collection.xiaohongshuCollection", "edit", auth);
+
+    const sourceUrls = this.normalizeStringArray(options?.sourceUrls);
+    if (!sourceUrls.length) {
+      throw new BadRequestException("请提供至少一条小红书对标作品链接");
+    }
+    const result = await this.collectorsService.syncBenchmarkNotes(brandId, sourceUrls);
+    const counts = this.buildXiaohongshuCollectionCounts(result.workspace);
+
+    return this.buildSummaryResponse({
+      title: "小红书对标作品已同步",
+      summary: `已同步 ${result.syncedCount} 条对标作品，当前工作区里共有 ${counts.benchmarkNotes} 条对标作品。`,
+      highlights: [
+        `本次同步：${result.syncedCount}`,
+        `工作区对标作品：${counts.benchmarkNotes}`,
+      ],
+      data: result,
+      links: [{ label: "打开品牌增长工作台", url: "/brand-growth" }],
+      resultStatus: "COMPLETED",
+      resourceKind: "xiaohongshu_collection",
+    });
+  }
+
+  async syncXiaohongshuSearchNotes(
+    headers: HeadersMap,
+    options?: {
+      keyword?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.collection.xiaohongshuCollection", "edit", auth);
+
+    const keyword = this.normalizeSafeInstruction(options?.keyword, "小红书搜索关键词");
+    if (!keyword) {
+      throw new BadRequestException("请提供 keyword");
+    }
+    const result = await this.collectorsService.syncSearchNotes(brandId, keyword);
+    const counts = this.buildXiaohongshuCollectionCounts(result.workspace);
+
+    return this.buildSummaryResponse({
+      title: "小红书搜索笔记已同步",
+      summary: `已按关键词“${keyword}”同步 ${result.syncedCount} 条搜索笔记，当前工作区里共有 ${counts.searchNotes} 条搜索笔记。`,
+      highlights: [
+        `关键词：${keyword}`,
+        `本次同步：${result.syncedCount}`,
+        `工作区搜索笔记：${counts.searchNotes}`,
+      ],
+      data: result,
+      links: [{ label: "打开品牌增长工作台", url: "/brand-growth" }],
+      resultStatus: "COMPLETED",
+      resourceKind: "xiaohongshu_collection",
+    });
+  }
+
+  async syncXiaohongshuTargetUsers(
+    headers: HeadersMap,
+    options?: {
+      sourceUrls?: string[];
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.collection.xiaohongshuCollection", "edit", auth);
+
+    const sourceUrls = this.normalizeStringArray(options?.sourceUrls);
+    if (!sourceUrls.length) {
+      throw new BadRequestException("请提供至少一条目标用户链接");
+    }
+    const result = await this.collectorsService.syncTargetUsers(brandId, sourceUrls);
+    const counts = this.buildXiaohongshuCollectionCounts(result.workspace);
+
+    return this.buildSummaryResponse({
+      title: "小红书目标用户已同步",
+      summary: `已同步 ${result.syncedCount} 条目标用户数据，当前工作区里共有 ${counts.targetUsers} 条目标用户。`,
+      highlights: [
+        `本次同步：${result.syncedCount}`,
+        `工作区目标用户：${counts.targetUsers}`,
+      ],
+      data: result,
+      links: [{ label: "打开品牌增长工作台", url: "/brand-growth" }],
+      resultStatus: "COMPLETED",
+      resourceKind: "xiaohongshu_collection",
+    });
+  }
+
+  async syncXiaohongshuFeishuWorkspace(headers: HeadersMap) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.collection.xiaohongshuCollection", "edit", auth);
+
+    const result = await this.collectorsService.syncFeishuWorkspace(brandId);
+    const counts = this.buildXiaohongshuCollectionCounts(result.workspace);
+
+    return this.buildSummaryResponse({
+      title: "小红书飞书副本同步已完成",
+      summary: `已从飞书副本同步 ${result.syncedCount} 条数据，当前工作区里共有 ${counts.brandAccounts + counts.competitorAccounts + counts.brandNotes + counts.benchmarkNotes + counts.searchNotes + counts.targetUsers} 条小红书采集结果。`,
+      highlights: [
+        `本次同步：${result.syncedCount}`,
+        `匹配数据表：${result.tableCount}`,
+        `品牌账号：${counts.brandAccounts}`,
+        `竞品账号：${counts.competitorAccounts}`,
+        `品牌作品：${counts.brandNotes}`,
+        `对标作品：${counts.benchmarkNotes}`,
+      ],
+      data: result,
+      links: [{ label: "打开品牌增长工作台", url: "/brand-growth" }],
+      resultStatus: "COMPLETED",
+      resourceKind: "xiaohongshu_collection",
+    });
+  }
+
+  async addXiaohongshuNoteToMaterialLibrary(
+    headers: HeadersMap,
+    options?: {
+      assetId?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.collection.xiaohongshuCollection", "edit", auth);
+
+    const assetId = String(options?.assetId || "").trim();
+    if (!assetId) {
+      throw new BadRequestException("请提供 assetId");
+    }
+    const result = await this.collectorsService.addBenchmarkNoteToMaterialLibrary(brandId, assetId);
+
+    return this.buildSummaryResponse({
+      title: "小红书素材已加入素材库",
+      summary: `素材 ${assetId} 已加入素材库，可继续用于小红书二创图文。`,
+      highlights: [
+        `素材 ID：${assetId}`,
+        result.item?.title ? `素材标题：${result.item.title}` : "素材标题：未返回",
+      ],
+      data: result,
+      links: [{ label: "打开小红书工作区", url: "/xiaohongshu" }],
+      resultStatus: "COMPLETED",
+      resourceKind: "xiaohongshu_material",
+    });
+  }
+
   async getOpportunityInsightWorkspace(headers: HeadersMap) {
     const auth = await this.requireAuth(headers);
     const brandId = await this.requireCurrentBrandId(auth);
@@ -1908,7 +2332,7 @@ export class OpenClawService {
     await this.authService.assertBrandPermission(brandId, "brandGrowth.report.opportunityInsight", "edit", auth);
 
     const workspace = await this.reportsService.generateOpportunityInsightStepOne(brandId, {
-      supplementInput: this.normalizeOptionalString(options?.supplementInput) || undefined,
+      supplementInput: this.normalizeSafeInstruction(options?.supplementInput, "补充要求") || undefined,
     });
 
     return this.buildSummaryResponse({
@@ -1940,7 +2364,7 @@ export class OpenClawService {
     await this.authService.assertBrandPermission(brandId, "brandGrowth.report.opportunityInsight", "edit", auth);
 
     const workspace = await this.reportsService.generateOpportunityInsightStepTwo(brandId, {
-      supplementInput: this.normalizeOptionalString(options?.supplementInput) || undefined,
+      supplementInput: this.normalizeSafeInstruction(options?.supplementInput, "补充要求") || undefined,
     });
 
     return this.buildSummaryResponse({
@@ -1972,7 +2396,7 @@ export class OpenClawService {
     await this.authService.assertBrandPermission(brandId, "brandGrowth.report.opportunityInsight", "edit", auth);
 
     const workspace = await this.reportsService.generateOpportunityInsightStepThree(brandId, {
-      supplementInput: this.normalizeOptionalString(options?.supplementInput) || undefined,
+      supplementInput: this.normalizeSafeInstruction(options?.supplementInput, "补充要求") || undefined,
     });
 
     return this.buildSummaryResponse({
@@ -2753,13 +3177,13 @@ export class OpenClawService {
     const skill = await this.userSkillsService.updateUserSkill(
       skillId,
       {
-        displayName: this.normalizeOptionalString(options?.displayName),
+        displayName: this.normalizeSafeInstruction(options?.displayName, "技能名称", true),
         defaultModel: this.normalizeOptionalString(options?.defaultModel),
-        description: this.normalizeOptionalString(options?.description),
+        description: this.normalizeSafeInstruction(options?.description, "技能说明", true),
         promptOverrides: (options?.promptOverrides || [])
           .map((item) => ({
             promptId: String(item.promptId || "").trim(),
-            content: this.normalizeOptionalString(item.content),
+            content: this.normalizeSafeInstruction(item.content, `提示词 ${String(item.promptId || "").trim() || ""} 覆盖内容`, true),
             modelName: this.normalizeOptionalString(item.modelName),
             temperature: typeof item.temperature === "number" ? item.temperature : null,
             maxTokens: typeof item.maxTokens === "number" ? item.maxTokens : null,
@@ -3738,7 +4162,7 @@ export class OpenClawService {
       injectBrandProfile: typeof options?.injectBrandProfile === "boolean" ? options.injectBrandProfile : undefined,
       modelSelection: String(options?.modelSelection || "").trim() || undefined,
       spec: String(options?.spec || "").trim() || undefined,
-      additionalInstruction: String(options?.additionalInstruction || "").trim() || undefined,
+      additionalInstruction: this.normalizeSafeInstruction(options?.additionalInstruction, "设计补充要求") || undefined,
     }, auth);
 
     return this.buildSummaryResponse({
@@ -3886,7 +4310,7 @@ export class OpenClawService {
       topicId: String(options?.topicId || "").trim() || undefined,
       calendarItemId: String(options?.calendarItemId || "").trim() || undefined,
       injectMarketingPlan: typeof options?.injectMarketingPlan === "boolean" ? options.injectMarketingPlan : false,
-      userRequirement: String(options?.userRequirement || "").trim() || undefined,
+      userRequirement: this.normalizeSafeInstruction(options?.userRequirement, "抖音原创补充要求") || undefined,
     });
 
     return this.buildSummaryResponse({
@@ -3983,7 +4407,7 @@ export class OpenClawService {
       injectBrandProfile: typeof options?.injectBrandProfile === "boolean" ? options.injectBrandProfile : false,
       productId: String(options?.productId || "").trim() || undefined,
       injectMarketingPlan: typeof options?.injectMarketingPlan === "boolean" ? options.injectMarketingPlan : false,
-      userRequirement: String(options?.userRequirement || "").trim() || undefined,
+      userRequirement: this.normalizeSafeInstruction(options?.userRequirement, "抖音二创补充要求") || undefined,
     });
 
     return this.buildSummaryResponse({
@@ -4439,7 +4863,10 @@ export class OpenClawService {
         productId: options?.productId,
         accountRole: this.normalizeOriginalAccountRole(options?.accountRole),
         imageCount: this.normalizeImageCount(options?.imageCount),
-        additionalInstruction: String(options?.additionalInstruction || options?.styleHint || "").trim() || undefined,
+        additionalInstruction: this.normalizeSafeInstruction(
+          options?.additionalInstruction || options?.styleHint,
+          "小红书原创补充要求",
+        ) || undefined,
         includeMarketingPlan: typeof options?.includeMarketingPlan === "boolean" ? options.includeMarketingPlan : false,
       },
       auth,
@@ -4496,7 +4923,7 @@ export class OpenClawService {
         productId: options?.productId,
         accountRole: this.normalizeOriginalAccountRole(options?.accountRole),
         includeMarketingPlan: typeof options?.includeMarketingPlan === "boolean" ? options.includeMarketingPlan : false,
-        additionalInstruction: String(options?.additionalInstruction || "").trim() || undefined,
+        additionalInstruction: this.normalizeSafeInstruction(options?.additionalInstruction, "小红书二创补充要求") || undefined,
       },
       auth,
       access.role,
@@ -5063,6 +5490,49 @@ export class OpenClawService {
     return normalized ? normalized : null;
   }
 
+  private normalizeSafeInstruction(value: unknown, fieldLabel: string, strict = false) {
+    return normalizeSafeText(value, { fieldLabel, strict });
+  }
+
+  private normalizeStringArray(value: unknown) {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+    return value
+      .map((item) => this.normalizeSafeInstruction(item, "列表输入"))
+      .filter((item): item is string => Boolean(item));
+  }
+
+  private normalizeXhsAccountEntries(
+    value: Array<{ locator?: string; accountRole?: string }> | undefined,
+  ): Array<{ locator: string; accountRole?: XhsAccountRole }> {
+    const normalizedEntries: Array<{ locator: string; accountRole?: XhsAccountRole }> = [];
+    for (const item of value ?? []) {
+      const locator = this.normalizeSafeInstruction(item.locator, "小红书账号链接");
+      if (!locator) {
+        continue;
+      }
+      const normalizedEntry: { locator: string; accountRole?: XhsAccountRole } = { locator };
+      const accountRole = this.normalizeOriginalAccountRole(item.accountRole);
+      if (accountRole) {
+        normalizedEntry.accountRole = accountRole;
+      }
+      normalizedEntries.push(normalizedEntry);
+    }
+    return normalizedEntries;
+  }
+
+  private buildXiaohongshuCollectionCounts(workspace: XhsCollectionWorkspace) {
+    return {
+      brandAccounts: workspace.brandAccounts.length,
+      competitorAccounts: workspace.competitorAccounts.length,
+      brandNotes: workspace.brandNotes.length,
+      benchmarkNotes: workspace.benchmarkNotes.length,
+      searchNotes: workspace.searchNotes.length,
+      targetUsers: workspace.targetUsers.length,
+    };
+  }
+
   private scoreWebsiteFunctionIntentMatch(
     intent: string,
     item: OpenClawWebsiteFunctionCatalogItem,
@@ -5276,6 +5746,70 @@ export class OpenClawService {
       case "get_brand_business_assets":
         return this.getBrandBusinessAssets(headers, {
           limit: typeof toolArgs.limit === "number" ? toolArgs.limit : undefined,
+        });
+      case "get_xiaohongshu_collection_workspace":
+        return this.getXiaohongshuCollectionWorkspace(headers, {
+          limit: typeof toolArgs.limit === "number" ? toolArgs.limit : undefined,
+        });
+      case "sync_xiaohongshu_brand_accounts":
+        return this.syncXiaohongshuBrandAccounts(headers, {
+          accountLocators: Array.isArray(toolArgs.accountLocators)
+            ? toolArgs.accountLocators.map((item) => String(item || ""))
+            : undefined,
+          accountEntries: Array.isArray(toolArgs.accountEntries)
+            ? toolArgs.accountEntries.map((item) =>
+                item && typeof item === "object" && !Array.isArray(item)
+                  ? item as Record<string, unknown>
+                  : {})
+              .map((item) => ({
+                locator: typeof item.locator === "string" ? item.locator : undefined,
+                accountRole: typeof item.accountRole === "string" ? item.accountRole : undefined,
+              }))
+            : undefined,
+        });
+      case "sync_xiaohongshu_competitor_accounts":
+        return this.syncXiaohongshuCompetitorAccounts(headers, {
+          accountLocators: Array.isArray(toolArgs.accountLocators)
+            ? toolArgs.accountLocators.map((item) => String(item || ""))
+            : undefined,
+          accountEntries: Array.isArray(toolArgs.accountEntries)
+            ? toolArgs.accountEntries.map((item) =>
+                item && typeof item === "object" && !Array.isArray(item)
+                  ? item as Record<string, unknown>
+                  : {})
+              .map((item) => ({
+                locator: typeof item.locator === "string" ? item.locator : undefined,
+                accountRole: typeof item.accountRole === "string" ? item.accountRole : undefined,
+              }))
+            : undefined,
+        });
+      case "sync_xiaohongshu_brand_notes":
+        return this.syncXiaohongshuBrandNotes(headers, {
+          accountLocators: Array.isArray(toolArgs.accountLocators)
+            ? toolArgs.accountLocators.map((item) => String(item || ""))
+            : undefined,
+        });
+      case "sync_xiaohongshu_benchmark_notes":
+        return this.syncXiaohongshuBenchmarkNotes(headers, {
+          sourceUrls: Array.isArray(toolArgs.sourceUrls)
+            ? toolArgs.sourceUrls.map((item) => String(item || ""))
+            : undefined,
+        });
+      case "sync_xiaohongshu_search_notes":
+        return this.syncXiaohongshuSearchNotes(headers, {
+          keyword: typeof toolArgs.keyword === "string" ? toolArgs.keyword : undefined,
+        });
+      case "sync_xiaohongshu_target_users":
+        return this.syncXiaohongshuTargetUsers(headers, {
+          sourceUrls: Array.isArray(toolArgs.sourceUrls)
+            ? toolArgs.sourceUrls.map((item) => String(item || ""))
+            : undefined,
+        });
+      case "sync_xiaohongshu_feishu_workspace":
+        return this.syncXiaohongshuFeishuWorkspace(headers);
+      case "add_xiaohongshu_note_to_material_library":
+        return this.addXiaohongshuNoteToMaterialLibrary(headers, {
+          assetId: typeof toolArgs.assetId === "string" ? toolArgs.assetId : undefined,
         });
       case "get_opportunity_insight_workspace":
         return this.getOpportunityInsightWorkspace(headers);
