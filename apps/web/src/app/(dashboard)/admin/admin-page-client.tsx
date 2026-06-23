@@ -13,8 +13,10 @@ import {
   backfillSkillInputSchema,
   billingRulesSeed,
   createApiProvider,
+  createImagePromptTemplate,
   createSkillPackageSkill,
   createSkillPromptBinding,
+  createOperationsPromptTemplate,
   createPromptTemplate,
   createSkillConfig,
   createThirdPartyPlatform,
@@ -25,10 +27,12 @@ import {
   importImagePromptTemplates,
   getOperationsPromptTemplates,
   deleteApiProvider,
+  deleteImagePromptTemplate,
   deleteThirdPartyPlatform,
   deleteKnowledgeBase,
   deleteKnowledgeBaseFile,
   deleteKnowledgeBinding,
+  deleteOperationsPromptTemplate,
   completeKnowledgeBaseSyncRun,
   getAdminOrders,
   getApiProviders,
@@ -733,6 +737,10 @@ export default function AdminPage() {
   const [updatingPromptId, setUpdatingPromptId] = useState("");
   const [updatingOperationsPromptId, setUpdatingOperationsPromptId] = useState("");
   const [updatingImagePromptId, setUpdatingImagePromptId] = useState("");
+  const [isCreatingOperationsPrompt, setIsCreatingOperationsPrompt] = useState(false);
+  const [isCreatingImagePrompt, setIsCreatingImagePrompt] = useState(false);
+  const [deletingOperationsPromptId, setDeletingOperationsPromptId] = useState("");
+  const [deletingImagePromptId, setDeletingImagePromptId] = useState("");
   const [isImportingImagePrompts, setIsImportingImagePrompts] = useState(false);
   const [imagePromptImportProgress, setImagePromptImportProgress] = useState<{ completed: number; total: number } | null>(null);
   const [updatingKnowledgeBaseId, setUpdatingKnowledgeBaseId] = useState("");
@@ -1650,6 +1658,79 @@ export default function AdminPage() {
     }
   }
 
+  async function handleCreateOperationsPrompt() {
+    setIsCreatingOperationsPrompt(true);
+    setNotice("");
+    setErrorMessage("");
+
+    try {
+      const nextIndex = operationsPromptTemplates.length + 1;
+      const title = `新运营提示词 ${nextIndex}`;
+      const created = await createOperationsPromptTemplate({
+        title,
+        preview: "请补充该提示词的适用场景、目标和输出预期。",
+        content: [
+          "# 角色定义",
+          "",
+          "请在这里填写该运营提示词的角色设定。",
+          "",
+          "# 核心任务",
+          "",
+          "请在这里填写目标、约束和输出要求。",
+        ].join("\n"),
+        status: "DRAFT",
+        sourceCategory: operationsPromptAdminFilters.sourceCategory || "手动新增",
+        businessStage: operationsPromptAdminFilters.businessStage || "通用经营",
+        outputType: operationsPromptAdminFilters.outputType || "策略方案",
+        scenarioLabel: operationsPromptAdminFilters.keyword.trim() || operationsPromptAdminFilters.sourceCategory || "手动新增",
+        sortOrder: nextIndex,
+      });
+      setOperationsPromptTemplates((current) => [created, ...current]);
+      setOperationsPromptDrafts((current) => ({
+        [created.id]: buildOperationsPromptDraft(created),
+        ...current,
+      }));
+      setSelectedOperationsPromptId(created.id);
+      setNotice(`已新增运营提示词：${created.title}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "运营提示词创建失败";
+      setErrorMessage(`运营提示词创建失败：${message}`);
+    } finally {
+      setIsCreatingOperationsPrompt(false);
+    }
+  }
+
+  async function handleDeleteOperationsPrompt(templateId: string) {
+    const target = operationsPromptTemplates.find((item) => item.id === templateId);
+    if (!target) {
+      return;
+    }
+    if (!window.confirm(`确认删除运营提示词“${target.title}”吗？删除后将不再出现在提示词中心。`)) {
+      return;
+    }
+
+    setDeletingOperationsPromptId(templateId);
+    setNotice("");
+    setErrorMessage("");
+
+    try {
+      const deleted = await deleteOperationsPromptTemplate(templateId);
+      setOperationsPromptTemplates((current) => current.filter((item) => item.id !== templateId));
+      setOperationsPromptDrafts((current) => {
+        const next = { ...current };
+        delete next[templateId];
+        return next;
+      });
+      setSelectedOperationsPromptId((current) => (current === templateId ? "" : current));
+      setNotice(`已删除运营提示词：${deleted.title}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "运营提示词删除失败";
+      setErrorMessage(`运营提示词删除失败：${message}`);
+    } finally {
+      setDeletingOperationsPromptId("");
+    }
+  }
+
   async function handleSaveImagePrompt(templateId: string) {
     const draft = imagePromptDrafts[templateId];
     if (!draft) {
@@ -1681,6 +1762,83 @@ export default function AdminPage() {
       setErrorMessage(`生图提示词保存失败：${message}`);
     } finally {
       setUpdatingImagePromptId("");
+    }
+  }
+
+  async function handleCreateImagePrompt() {
+    setIsCreatingImagePrompt(true);
+    setNotice("");
+    setErrorMessage("");
+
+    try {
+      const nextIndex = imagePromptTemplates.length + 1;
+      const title = `新生图提示词 ${nextIndex}`;
+      const sourceCategory = imagePromptAdminFilters.sourceCategory || "手动新增";
+      const categoryLabel = imagePromptAdminFilters.categoryLabel || sourceCategory;
+      const created = await createImagePromptTemplate({
+        title,
+        preview: "请补充该生图提示词的核心视觉方向、构图重点和风格要求。",
+        content: [
+          "请根据品牌资料、产品资料、营销日历和用户要求，生成一条完整、可直接用于成图的高质量图片提示词。",
+          "",
+          "要求：",
+          "1. 明确主体、场景、材质、光线、镜头与构图。",
+          "2. 输出风格与品牌调性保持一致。",
+          "3. 避免出现水印、乱码、畸形手部和低质背景。",
+        ].join("\n"),
+        status: "DRAFT",
+        sourceCategory,
+        categoryLabel,
+        tagsJson: [categoryLabel, sourceCategory].filter(Boolean),
+        sortOrder: nextIndex,
+      });
+      setImagePromptTemplates((current) => [created, ...current]);
+      setImagePromptDrafts((current) => ({
+        [created.id]: buildImagePromptDraft(created),
+        ...current,
+      }));
+      setSelectedImagePromptId(created.id);
+      setNotice(`已新增生图提示词：${created.title}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "生图提示词创建失败";
+      setErrorMessage(`生图提示词创建失败：${message}`);
+    } finally {
+      setIsCreatingImagePrompt(false);
+    }
+  }
+
+  async function handleDeleteImagePrompt(templateId: string) {
+    const target = imagePromptTemplates.find((item) => item.id === templateId);
+    if (!target) {
+      return;
+    }
+    if (!window.confirm(`确认删除生图提示词“${target.title}”吗？系统会同时删除已上传到 OSS 的模板预览图。`)) {
+      return;
+    }
+
+    setDeletingImagePromptId(templateId);
+    setNotice("");
+    setErrorMessage("");
+
+    try {
+      const deleted = await deleteImagePromptTemplate(templateId);
+      setImagePromptTemplates((current) => current.filter((item) => item.id !== templateId));
+      setImagePromptDrafts((current) => {
+        const next = { ...current };
+        delete next[templateId];
+        return next;
+      });
+      setSelectedImagePromptId((current) => (current === templateId ? "" : current));
+      setNotice(
+        deleted.deletedPreviewStorageKey
+          ? `已删除生图提示词：${deleted.title}，并清理 OSS 预览图。`
+          : `已删除生图提示词：${deleted.title}`,
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "生图提示词删除失败";
+      setErrorMessage(`生图提示词删除失败：${message}`);
+    } finally {
+      setDeletingImagePromptId("");
     }
   }
 
@@ -5895,6 +6053,14 @@ export default function AdminPage() {
                 <div className="admin-ops-prompt-filter-actions">
                   <button
                     type="button"
+                    className="primary-button"
+                    onClick={() => void handleCreateOperationsPrompt()}
+                    disabled={isCreatingOperationsPrompt}
+                  >
+                    {isCreatingOperationsPrompt ? "新增中..." : "新增运营提示词"}
+                  </button>
+                  <button
+                    type="button"
                     className="secondary-button"
                     onClick={() =>
                       setOperationsPromptAdminFilters({
@@ -5917,23 +6083,34 @@ export default function AdminPage() {
               <div className="admin-ops-prompt-list-shell">
                 <div className="admin-ops-prompt-list">
                   {filteredOperationsPromptTemplates.map((item) => (
-                    <button
-                      type="button"
-                      key={item.id}
-                      className={`admin-ops-prompt-list-item${selectedOperationsPrompt?.id === item.id ? " is-selected" : ""}`}
-                      onClick={() => setSelectedOperationsPromptId(item.id)}
-                    >
-                      <div className="admin-ops-prompt-list-head">
-                        <strong>{item.title}</strong>
-                        <span className={`archive-pill ${getStatusClassName(item.status)}`}>{getStatusLabel(item.status)}</span>
+                    <div key={item.id} style={{ display: "grid", gap: 8 }}>
+                      <button
+                        type="button"
+                        className={`admin-ops-prompt-list-item${selectedOperationsPrompt?.id === item.id ? " is-selected" : ""}`}
+                        onClick={() => setSelectedOperationsPromptId(item.id)}
+                      >
+                        <div className="admin-ops-prompt-list-head">
+                          <strong>{item.title}</strong>
+                          <span className={`archive-pill ${getStatusClassName(item.status)}`}>{getStatusLabel(item.status)}</span>
+                        </div>
+                        <p>{item.preview || "当前还没有预览摘要，可直接在右侧补充。"}</p>
+                        <div className="admin-ops-prompt-list-meta">
+                          <span>{item.businessStage}</span>
+                          <span>{item.outputType}</span>
+                          <span>{item.scenarioLabel}</span>
+                        </div>
+                      </button>
+                      <div className="personal-actions" style={{ justifyContent: "flex-end", marginTop: -2 }}>
+                        <button
+                          type="button"
+                          className="ghost-danger-button"
+                          onClick={() => void handleDeleteOperationsPrompt(item.id)}
+                          disabled={deletingOperationsPromptId === item.id}
+                        >
+                          {deletingOperationsPromptId === item.id ? "删除中..." : "删除"}
+                        </button>
                       </div>
-                      <p>{item.preview || "当前还没有预览摘要，可直接在右侧补充。"}</p>
-                      <div className="admin-ops-prompt-list-meta">
-                        <span>{item.businessStage}</span>
-                        <span>{item.outputType}</span>
-                        <span>{item.scenarioLabel}</span>
-                      </div>
-                    </button>
+                    </div>
                   ))}
                 </div>
                 {!sortedOperationsPromptTemplates.length ? (
@@ -6054,6 +6231,14 @@ export default function AdminPage() {
                   <div className="admin-skill-form-actions">
                     <button
                       type="button"
+                      className="ghost-danger-button"
+                      onClick={() => void handleDeleteOperationsPrompt(selectedOperationsPrompt.id)}
+                      disabled={deletingOperationsPromptId === selectedOperationsPrompt.id}
+                    >
+                      {deletingOperationsPromptId === selectedOperationsPrompt.id ? "删除中..." : "删除运营提示词"}
+                    </button>
+                    <button
+                      type="button"
                       className="primary-button"
                       onClick={() => void handleSaveOperationsPrompt(selectedOperationsPrompt.id)}
                       disabled={updatingOperationsPromptId === selectedOperationsPrompt.id}
@@ -6125,6 +6310,14 @@ export default function AdminPage() {
                   <button
                     type="button"
                     className="primary-button"
+                    onClick={() => void handleCreateImagePrompt()}
+                    disabled={isCreatingImagePrompt}
+                  >
+                    {isCreatingImagePrompt ? "新增中..." : "新增生图提示词"}
+                  </button>
+                  <button
+                    type="button"
+                    className="secondary-button"
                     onClick={() => imagePromptImportInputRef.current?.click()}
                     disabled={isImportingImagePrompts}
                   >
@@ -6171,23 +6364,34 @@ export default function AdminPage() {
                 />
                 <div className="admin-ops-prompt-list">
                   {filteredImagePromptTemplates.map((item) => (
-                    <button
-                      type="button"
-                      key={item.id}
-                      className={`admin-ops-prompt-list-item${selectedImagePrompt?.id === item.id ? " is-selected" : ""}`}
-                      onClick={() => setSelectedImagePromptId(item.id)}
-                    >
-                      <div className="admin-ops-prompt-list-head">
-                        <strong>{item.title}</strong>
-                        <span className={`archive-pill ${getStatusClassName(item.status)}`}>{getStatusLabel(item.status)}</span>
+                    <div key={item.id} style={{ display: "grid", gap: 8 }}>
+                      <button
+                        type="button"
+                        className={`admin-ops-prompt-list-item${selectedImagePrompt?.id === item.id ? " is-selected" : ""}`}
+                        onClick={() => setSelectedImagePromptId(item.id)}
+                      >
+                        <div className="admin-ops-prompt-list-head">
+                          <strong>{item.title}</strong>
+                          <span className={`archive-pill ${getStatusClassName(item.status)}`}>{getStatusLabel(item.status)}</span>
+                        </div>
+                        <p>{item.preview || "当前还没有预览摘要，可直接在右侧补充。"}</p>
+                        <div className="admin-ops-prompt-list-meta">
+                          <span>{item.categoryLabel || "未分类"}</span>
+                          <span>{item.sourceCategory}</span>
+                          <span>{item.previewImageFileName || "未记录预览图"}</span>
+                        </div>
+                      </button>
+                      <div className="personal-actions" style={{ justifyContent: "flex-end", marginTop: -2 }}>
+                        <button
+                          type="button"
+                          className="ghost-danger-button"
+                          onClick={() => void handleDeleteImagePrompt(item.id)}
+                          disabled={deletingImagePromptId === item.id}
+                        >
+                          {deletingImagePromptId === item.id ? "删除中..." : "删除"}
+                        </button>
                       </div>
-                      <p>{item.preview || "当前还没有预览摘要，可直接在右侧补充。"}</p>
-                      <div className="admin-ops-prompt-list-meta">
-                        <span>{item.categoryLabel || "未分类"}</span>
-                        <span>{item.sourceCategory}</span>
-                        <span>{item.previewImageFileName || "未记录预览图"}</span>
-                      </div>
-                    </button>
+                    </div>
                   ))}
                 </div>
                 {!sortedImagePromptTemplates.length ? (
@@ -6311,6 +6515,14 @@ export default function AdminPage() {
                   </section>
 
                   <div className="admin-skill-form-actions">
+                    <button
+                      type="button"
+                      className="ghost-danger-button"
+                      onClick={() => void handleDeleteImagePrompt(selectedImagePrompt.id)}
+                      disabled={deletingImagePromptId === selectedImagePrompt.id}
+                    >
+                      {deletingImagePromptId === selectedImagePrompt.id ? "删除中..." : "删除生图提示词"}
+                    </button>
                     <button
                       type="button"
                       className="primary-button"

@@ -65,6 +65,7 @@ const WORKS_KNOWLEDGE_TOP_K = 4;
 const DOUYIN_AD_PRE_AUDIT_TASK_TYPE = "DOUYIN_AD_PRE_AUDIT";
 const OPERATIONS_PROMPT_CENTER_TASK_TYPE = "OPERATIONS_PROMPT_CENTER";
 const IMAGE_PROMPT_CENTER_TASK_TYPE = "IMAGE_PROMPT_CENTER";
+const DELETED_PROMPT_TEMPLATE_STATUS = "DELETED";
 const IMAGE_PROMPT_CENTER_PROVIDER_ID = "provider_runtime_image_generation_right_codes";
 const IMAGE_PROMPT_CENTER_MODEL_NAME = "gpt-image-2";
 const VOLCENGINE_VOD_OPENAPI_DEFAULT_REGION = "cn-north-1";
@@ -114,6 +115,10 @@ function isGenericOperationsPromptTemplateTitle(value: string) {
   return GENERIC_OPERATIONS_PROMPT_TEMPLATE_TITLES.has(normalized)
     || /^执行指令[：: -]*$/i.test(normalized)
     || /^角色[：: -]*$/i.test(normalized);
+}
+
+function isDeletedPromptTemplateStatus(value: string) {
+  return String(value || "").trim().toUpperCase() === DELETED_PROMPT_TEMPLATE_STATUS;
 }
 
 const DESIGN_MODULE_TYPES: Record<DesignWorkModuleKey, string[]> = {
@@ -888,6 +893,23 @@ export type UpdateOperationsPromptTemplatePayload = {
   sortOrder?: number;
 };
 
+export type CreateOperationsPromptTemplatePayload = {
+  title?: string;
+  preview?: string;
+  content?: string;
+  status?: "ACTIVE" | "DISABLED" | "DRAFT";
+  sourceCategory?: string;
+  businessStage?: string;
+  outputType?: string;
+  scenarioLabel?: string;
+  sortOrder?: number;
+};
+
+export type DeleteOperationsPromptTemplateResult = {
+  id: string;
+  title: string;
+};
+
 export type OperationsPromptCenterOptionsRecord = {
   brandId: string;
   brandName: string;
@@ -986,6 +1008,24 @@ export type UpdateImagePromptTemplatePayload = {
   status?: "ACTIVE" | "DISABLED" | "DRAFT";
   categoryLabel?: string;
   sortOrder?: number;
+};
+
+export type CreateImagePromptTemplatePayload = {
+  title?: string;
+  preview?: string;
+  content?: string;
+  status?: "ACTIVE" | "DISABLED" | "DRAFT";
+  sourceCategory?: string;
+  categoryLabel?: string;
+  tagsJson?: string[];
+  sortOrder?: number;
+  previewImage?: UploadFilePayload;
+};
+
+export type DeleteImagePromptTemplateResult = {
+  id: string;
+  title: string;
+  deletedPreviewStorageKey?: string;
 };
 
 export type ImportImagePromptTemplatePayload = {
@@ -3284,7 +3324,63 @@ export class WorksService {
   async listOperationsPromptTemplatesForAdmin(): Promise<OperationsPromptTemplateAdminRecord[]> {
     await this.ensureOperationsPromptTemplatesBootstrapped();
     const items = await this.listOperationsPromptTemplateStoreItems();
-    return items.map((item) => this.mapOperationsPromptTemplateToAdmin(item));
+    return items
+      .filter((item) => !isDeletedPromptTemplateStatus(item.status))
+      .map((item) => this.mapOperationsPromptTemplateToAdmin(item));
+  }
+
+  async createOperationsPromptTemplateForAdmin(
+    payload: CreateOperationsPromptTemplatePayload,
+  ): Promise<OperationsPromptTemplateAdminRecord> {
+    await this.ensureOperationsPromptTemplatesBootstrapped();
+    const now = new Date().toISOString();
+    const record = this.normalizeOperationsPromptTemplateCreatePayload(payload, now);
+    if (await this.canUseOperationsPromptTemplateTable()) {
+      await this.prismaService.$executeRawUnsafe(
+        `INSERT INTO "OperationsPromptTemplate" (
+          "id",
+          "slug",
+          "title",
+          "preview",
+          "content",
+          "status",
+          "sourceFilePath",
+          "sourceCategory",
+          "sourceFileName",
+          "businessStage",
+          "outputType",
+          "scenarioLabel",
+          "tagsJson",
+          "sortOrder",
+          "createdAt",
+          "updatedAt"
+        ) VALUES (
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, CAST($13 AS jsonb), $14, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+        )`,
+        record.id,
+        record.slug,
+        record.title,
+        record.preview,
+        record.content,
+        record.status,
+        record.sourceFilePath,
+        record.sourceCategory,
+        record.sourceFileName,
+        record.businessStage,
+        record.outputType,
+        record.scenarioLabel,
+        JSON.stringify(record.tagsJson || []),
+        record.sortOrder,
+      );
+      const created = await this.findOperationsPromptTemplateStoreItem(record.id);
+      if (!created) {
+        throw new NotFoundException("运营提示词模板创建失败");
+      }
+      return this.mapOperationsPromptTemplateToAdmin(created);
+    }
+
+    operationsPromptTemplateMockStore.unshift(record);
+    return this.mapOperationsPromptTemplateToAdmin(record);
   }
 
   async updateOperationsPromptTemplateForAdmin(
@@ -3342,6 +3438,40 @@ export class WorksService {
     } satisfies OperationsPromptTemplateStoreRecord;
     operationsPromptTemplateMockStore.splice(index, 1, updated);
     return this.mapOperationsPromptTemplateToAdmin(updated);
+  }
+
+  async deleteOperationsPromptTemplateForAdmin(templateId: string): Promise<DeleteOperationsPromptTemplateResult> {
+    await this.ensureOperationsPromptTemplatesBootstrapped();
+    const existing = await this.findOperationsPromptTemplateStoreItem(templateId);
+    if (!existing) {
+      throw new NotFoundException("运营提示词模板不存在");
+    }
+
+    if (await this.canUseOperationsPromptTemplateTable()) {
+      await this.prismaService.$executeRawUnsafe(
+        `UPDATE "OperationsPromptTemplate"
+        SET
+          "status" = $2,
+          "updatedAt" = CURRENT_TIMESTAMP
+        WHERE "id" = $1 OR "slug" = $1`,
+        existing.id,
+        DELETED_PROMPT_TEMPLATE_STATUS,
+      );
+    } else {
+      const index = operationsPromptTemplateMockStore.findIndex((item) => item.id === existing.id || item.slug === templateId);
+      if (index >= 0) {
+        operationsPromptTemplateMockStore.splice(index, 1, {
+          ...existing,
+          status: DELETED_PROMPT_TEMPLATE_STATUS,
+          updatedAt: new Date().toISOString(),
+        });
+      }
+    }
+
+    return {
+      id: existing.id,
+      title: existing.title,
+    };
   }
 
   async listOperationsPromptWorks(brandId: string): Promise<OperationsPromptWorkHistoryRecord> {
@@ -3503,9 +3633,9 @@ export class WorksService {
       return;
     }
 
-    const existingById = new Map(operationsPromptTemplateMockStore.map((item) => [item.id, item]));
+    const existingBySourceFilePath = new Map(operationsPromptTemplateMockStore.map((item) => [item.sourceFilePath, item]));
     const nextRecords = seeds.map((seed) => {
-      const existing = existingById.get(seed.id);
+      const existing = existingBySourceFilePath.get(seed.sourceFilePath);
       const preservedTitle = String(existing?.title || "").trim();
       const preservedPreview = String(existing?.preview || "").trim();
       const preservedContent = String(existing?.content || "").trim();
@@ -3519,7 +3649,9 @@ export class WorksService {
         updatedAt: existing?.updatedAt || new Date().toISOString(),
       } satisfies OperationsPromptTemplateStoreRecord;
     });
-    operationsPromptTemplateMockStore.splice(0, operationsPromptTemplateMockStore.length, ...nextRecords);
+    const seededPaths = new Set(seeds.map((item) => item.sourceFilePath));
+    const extraRecords = operationsPromptTemplateMockStore.filter((item) => !seededPaths.has(item.sourceFilePath));
+    operationsPromptTemplateMockStore.splice(0, operationsPromptTemplateMockStore.length, ...nextRecords, ...extraRecords);
   }
 
   private async canUseOperationsPromptTemplateTable() {
@@ -3541,6 +3673,17 @@ export class WorksService {
   }
 
   private async upsertOperationsPromptTemplate(seed: OperationsPromptSeedRecord) {
+    const existingRows = await this.prismaService.$queryRawUnsafe<Array<Record<string, unknown>>>(
+      `SELECT "status"
+      FROM "OperationsPromptTemplate"
+      WHERE "sourceFilePath" = $1
+      LIMIT 1`,
+      seed.sourceFilePath,
+    ).catch(() => []);
+    const existingStatus = this.readOptionalString(existingRows[0]?.status);
+    if (isDeletedPromptTemplateStatus(existingStatus || "")) {
+      return;
+    }
     await this.prismaService.$executeRawUnsafe(
       `INSERT INTO "OperationsPromptTemplate" (
         "id",
@@ -3638,10 +3781,14 @@ export class WorksService {
         FROM "OperationsPromptTemplate"
         ORDER BY "sortOrder" ASC, "updatedAt" DESC`,
       );
-      return rows.map((row) => this.mapOperationsPromptTemplateRow(row));
+      return rows
+        .map((row) => this.mapOperationsPromptTemplateRow(row))
+        .filter((item) => !isDeletedPromptTemplateStatus(item.status));
     }
 
-    return [...operationsPromptTemplateMockStore].sort((left, right) => left.sortOrder - right.sortOrder);
+    return [...operationsPromptTemplateMockStore]
+      .filter((item) => !isDeletedPromptTemplateStatus(item.status))
+      .sort((left, right) => left.sortOrder - right.sortOrder);
   }
 
   private async findOperationsPromptTemplateStoreItem(templateId: string) {
@@ -3674,12 +3821,14 @@ export class WorksService {
         LIMIT 1`,
         normalizedTemplateId,
       );
-      return rows[0] ? this.mapOperationsPromptTemplateRow(rows[0]) : null;
+      const record = rows[0] ? this.mapOperationsPromptTemplateRow(rows[0]) : null;
+      return record && !isDeletedPromptTemplateStatus(record.status) ? record : null;
     }
 
-    return operationsPromptTemplateMockStore.find((item) =>
+    const record = operationsPromptTemplateMockStore.find((item) =>
       item.id === normalizedTemplateId || item.slug === normalizedTemplateId
     ) || null;
+    return record && !isDeletedPromptTemplateStatus(record.status) ? record : null;
   }
 
   private mapOperationsPromptTemplateRow(row: Record<string, unknown>): OperationsPromptTemplateStoreRecord {
@@ -3768,6 +3917,57 @@ export class WorksService {
       tagsJson: [nextBusinessStage || existing.businessStage, nextOutputType || existing.outputType, nextScenarioLabel || existing.scenarioLabel].filter(Boolean),
       sortOrder: nextSortOrder,
     };
+  }
+
+  private normalizeOperationsPromptTemplateCreatePayload(
+    payload: CreateOperationsPromptTemplatePayload,
+    now: string,
+  ): OperationsPromptTemplateStoreRecord {
+    const title = String(payload?.title || "").trim();
+    const content = String(payload?.content || "").replace(/\r\n/g, "\n").trim();
+    const sourceCategory = String(payload?.sourceCategory || "").trim() || "手动新增";
+    const businessStage = String(payload?.businessStage || "").trim() || "通用经营";
+    const outputType = String(payload?.outputType || "").trim() || "策略方案";
+    const scenarioLabel = String(payload?.scenarioLabel || "").trim() || sourceCategory;
+    const preview = String(payload?.preview || "").trim() || title;
+    const status = payload?.status && ["ACTIVE", "DISABLED", "DRAFT"].includes(payload.status) ? payload.status : "ACTIVE";
+    const sortOrder = Math.max(1, Number(payload?.sortOrder || 100) || 100);
+    if (!title) {
+      throw new BadRequestException("标题不能为空");
+    }
+    if (!content) {
+      throw new BadRequestException("提示词内容不能为空");
+    }
+    const slugBase = this.slugifyPromptTemplateTitle(title, "ops-prompt");
+    const suffix = randomUUID().slice(0, 8);
+    return {
+      id: `ops_prompt_manual_${suffix}`,
+      slug: `${slugBase}-${suffix}`,
+      title,
+      preview,
+      content,
+      status,
+      sourceFilePath: `manual/admin/${slugBase}-${suffix}.md`,
+      sourceCategory,
+      sourceFileName: `${slugBase}.md`,
+      businessStage,
+      outputType,
+      scenarioLabel,
+      tagsJson: [businessStage, outputType, scenarioLabel].filter(Boolean),
+      sortOrder,
+      createdAt: now,
+      updatedAt: now,
+    };
+  }
+
+  private slugifyPromptTemplateTitle(title: string, fallback: string) {
+    const normalized = String(title || "")
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+    return normalized || fallback;
   }
 
   private buildOperationsPromptFilterOptions(
@@ -4159,7 +4359,72 @@ export class WorksService {
   async listImagePromptTemplatesForAdmin(): Promise<ImagePromptTemplateAdminRecord[]> {
     await this.ensureImagePromptTemplatesBootstrapped();
     const items = await this.listImagePromptTemplateStoreItems();
-    return items.map((item) => this.mapImagePromptTemplateToAdmin(item));
+    return items
+      .filter((item) => !isDeletedPromptTemplateStatus(item.status))
+      .map((item) => this.mapImagePromptTemplateToAdmin(item));
+  }
+
+  async createImagePromptTemplateForAdmin(
+    payload: CreateImagePromptTemplatePayload,
+  ): Promise<ImagePromptTemplateAdminRecord> {
+    await this.ensureImagePromptTemplatesBootstrapped();
+    const now = new Date().toISOString();
+    const record = this.normalizeImagePromptTemplateCreatePayload(payload, now);
+    const storedPreview = await this.ensureImagePromptTemplatePreviewStored(record, undefined, payload.previewImage);
+    const nextRecord = {
+      ...record,
+      previewImageStorageKey: storedPreview.storageKey,
+      previewImageFileName: storedPreview.fileName || record.previewImageFileName,
+      previewImageContentType: storedPreview.contentType || record.previewImageContentType,
+    } satisfies ImagePromptTemplateStoreRecord;
+    if (await this.canUseImagePromptTemplateTable()) {
+      await this.prismaService.$executeRawUnsafe(
+        `INSERT INTO "ImagePromptTemplate" (
+          "id",
+          "slug",
+          "title",
+          "preview",
+          "content",
+          "status",
+          "sourceFilePath",
+          "sourceCategory",
+          "sourceFileName",
+          "categoryLabel",
+          "tagsJson",
+          "previewImageStorageKey",
+          "previewImageFileName",
+          "previewImageContentType",
+          "sortOrder",
+          "createdAt",
+          "updatedAt"
+        ) VALUES (
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, CAST($11 AS jsonb), $12, $13, $14, $15, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+        )`,
+        nextRecord.id,
+        nextRecord.slug,
+        nextRecord.title,
+        nextRecord.preview,
+        nextRecord.content,
+        nextRecord.status,
+        nextRecord.sourceFilePath,
+        nextRecord.sourceCategory,
+        nextRecord.sourceFileName,
+        nextRecord.categoryLabel,
+        JSON.stringify(nextRecord.tagsJson || []),
+        nextRecord.previewImageStorageKey || null,
+        nextRecord.previewImageFileName || null,
+        nextRecord.previewImageContentType || null,
+        nextRecord.sortOrder,
+      );
+      const created = await this.findImagePromptTemplateStoreItem(nextRecord.id);
+      if (!created) {
+        throw new NotFoundException("生图提示词模板创建失败");
+      }
+      return this.mapImagePromptTemplateToAdmin(created);
+    }
+
+    imagePromptTemplateMockStore.unshift(nextRecord);
+    return this.mapImagePromptTemplateToAdmin(nextRecord);
   }
 
   async importImagePromptTemplatesForAdmin(
@@ -4235,6 +4500,52 @@ export class WorksService {
     } satisfies ImagePromptTemplateStoreRecord;
     imagePromptTemplateMockStore.splice(index, 1, updated);
     return this.mapImagePromptTemplateToAdmin(updated);
+  }
+
+  async deleteImagePromptTemplateForAdmin(templateId: string): Promise<DeleteImagePromptTemplateResult> {
+    await this.ensureImagePromptTemplatesBootstrapped();
+    const existing = await this.findImagePromptTemplateStoreItem(templateId);
+    if (!existing) {
+      throw new NotFoundException("生图提示词模板不存在");
+    }
+
+    const deletedPreviewStorageKey = existing.previewImageStorageKey || undefined;
+    if (deletedPreviewStorageKey) {
+      await this.ossStorageService.deleteObject(deletedPreviewStorageKey);
+    }
+
+    if (await this.canUseImagePromptTemplateTable()) {
+      await this.prismaService.$executeRawUnsafe(
+        `UPDATE "ImagePromptTemplate"
+        SET
+          "status" = $2,
+          "previewImageStorageKey" = NULL,
+          "previewImageFileName" = NULL,
+          "previewImageContentType" = NULL,
+          "updatedAt" = CURRENT_TIMESTAMP
+        WHERE "id" = $1 OR "slug" = $1`,
+        existing.id,
+        DELETED_PROMPT_TEMPLATE_STATUS,
+      );
+    } else {
+      const index = imagePromptTemplateMockStore.findIndex((item) => item.id === existing.id || item.slug === templateId);
+      if (index >= 0) {
+        imagePromptTemplateMockStore.splice(index, 1, {
+          ...existing,
+          status: DELETED_PROMPT_TEMPLATE_STATUS,
+          previewImageStorageKey: "",
+          previewImageFileName: "",
+          previewImageContentType: "",
+          updatedAt: new Date().toISOString(),
+        });
+      }
+    }
+
+    return {
+      id: existing.id,
+      title: existing.title,
+      deletedPreviewStorageKey,
+    };
   }
 
   async listImagePromptWorks(brandId: string): Promise<ImagePromptWorkHistoryRecord> {
@@ -4428,10 +4739,14 @@ export class WorksService {
       return;
     }
 
-    const existingById = new Map(imagePromptTemplateMockStore.map((item) => [item.id, item]));
+    const existingBySourceFilePath = new Map(imagePromptTemplateMockStore.map((item) => [item.sourceFilePath, item]));
     const nextRecords: ImagePromptTemplateStoreRecord[] = [];
     for (const seed of seeds) {
-      const existing = existingById.get(seed.id);
+      const existing = existingBySourceFilePath.get(seed.sourceFilePath);
+      if (existing && isDeletedPromptTemplateStatus(existing.status)) {
+        nextRecords.push(existing);
+        continue;
+      }
       const storedPreview = await this.ensureImagePromptTemplatePreviewStored(seed, existing);
       nextRecords.push({
         ...seed,
@@ -4448,7 +4763,9 @@ export class WorksService {
         updatedAt: existing?.updatedAt || new Date().toISOString(),
       });
     }
-    imagePromptTemplateMockStore.splice(0, imagePromptTemplateMockStore.length, ...nextRecords);
+    const seededPaths = new Set(seeds.map((item) => item.sourceFilePath));
+    const extraRecords = imagePromptTemplateMockStore.filter((item) => !seededPaths.has(item.sourceFilePath));
+    imagePromptTemplateMockStore.splice(0, imagePromptTemplateMockStore.length, ...nextRecords, ...extraRecords);
   }
 
   private async canUseImagePromptTemplateTable() {
@@ -4473,6 +4790,7 @@ export class WorksService {
     const existingRows = await this.prismaService.$queryRawUnsafe<Array<Record<string, unknown>>>(
       `SELECT
         "id",
+        "status",
         "previewImageStorageKey",
         "previewImageFileName",
         "previewImageContentType"
@@ -4481,6 +4799,10 @@ export class WorksService {
       LIMIT 1`,
       seed.sourceFilePath,
     ).catch(() => []);
+    const existingStatus = this.readOptionalString(existingRows[0]?.status);
+    if (isDeletedPromptTemplateStatus(existingStatus || "")) {
+      return;
+    }
     const existing = existingRows[0] ? this.mapImagePromptTemplatePreviewOnlyRow(existingRows[0]) : null;
     const storedPreview = await this.ensureImagePromptTemplatePreviewStored(seed, existing || undefined, previewImage);
     await this.prismaService.$executeRawUnsafe(
@@ -4593,10 +4915,14 @@ export class WorksService {
         FROM "ImagePromptTemplate"
         ORDER BY "sortOrder" ASC, "updatedAt" DESC`,
       );
-      return rows.map((row) => this.mapImagePromptTemplateRow(row));
+      return rows
+        .map((row) => this.mapImagePromptTemplateRow(row))
+        .filter((item) => !isDeletedPromptTemplateStatus(item.status));
     }
 
-    return [...imagePromptTemplateMockStore].sort((left, right) => left.sortOrder - right.sortOrder);
+    return [...imagePromptTemplateMockStore]
+      .filter((item) => !isDeletedPromptTemplateStatus(item.status))
+      .sort((left, right) => left.sortOrder - right.sortOrder);
   }
 
   private async findImagePromptTemplateStoreItem(templateId: string) {
@@ -4630,12 +4956,14 @@ export class WorksService {
         LIMIT 1`,
         normalizedTemplateId,
       );
-      return rows[0] ? this.mapImagePromptTemplateRow(rows[0]) : null;
+      const record = rows[0] ? this.mapImagePromptTemplateRow(rows[0]) : null;
+      return record && !isDeletedPromptTemplateStatus(record.status) ? record : null;
     }
 
-    return imagePromptTemplateMockStore.find((item) =>
+    const record = imagePromptTemplateMockStore.find((item) =>
       item.id === normalizedTemplateId || item.slug === normalizedTemplateId
     ) || null;
+    return record && !isDeletedPromptTemplateStatus(record.status) ? record : null;
   }
 
   private mapImagePromptTemplatePreviewOnlyRow(row: Record<string, unknown>) {
@@ -4776,6 +5104,48 @@ export class WorksService {
         8,
       ),
       sortOrder: nextSortOrder,
+    };
+  }
+
+  private normalizeImagePromptTemplateCreatePayload(
+    payload: CreateImagePromptTemplatePayload,
+    now: string,
+  ): ImagePromptTemplateStoreRecord {
+    const title = String(payload?.title || "").trim();
+    const content = String(payload?.content || "").replace(/\r\n/g, "\n").trim();
+    const sourceCategory = String(payload?.sourceCategory || "").trim() || "手动新增";
+    const categoryLabel = String(payload?.categoryLabel || "").trim() || sourceCategory;
+    const preview = String(payload?.preview || "").trim() || title;
+    const status = payload?.status && ["ACTIVE", "DISABLED", "DRAFT"].includes(payload.status) ? payload.status : "ACTIVE";
+    const sortOrder = Math.max(1, Number(payload?.sortOrder || 100) || 100);
+    const slugBase = this.slugifyPromptTemplateTitle(title || "生图提示词", "img-prompt");
+    const suffix = randomUUID().slice(0, 8);
+    if (!title) {
+      throw new BadRequestException("标题不能为空");
+    }
+    if (!content) {
+      throw new BadRequestException("提示词内容不能为空");
+    }
+
+    return {
+      id: `img_prompt_manual_${suffix}`,
+      slug: `${slugBase}-${suffix}`,
+      title,
+      preview,
+      content,
+      status,
+      sourceFilePath: `manual/admin/${slugBase}-${suffix}.md`,
+      sourceCategory,
+      sourceFileName: `${slugBase}.md`,
+      categoryLabel,
+      tagsJson: this.normalizeStringArray([categoryLabel, sourceCategory, ...(payload?.tagsJson || [])], [categoryLabel, sourceCategory], 8),
+      previewImageFilePath: "",
+      previewImageFileName: payload?.previewImage?.fileName || "",
+      previewImageContentType: payload?.previewImage?.contentType || "",
+      previewImageStorageKey: "",
+      sortOrder,
+      createdAt: now,
+      updatedAt: now,
     };
   }
 

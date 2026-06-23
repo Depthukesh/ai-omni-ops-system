@@ -266,6 +266,23 @@ export type OperationsPromptTemplateAdminRecord = {
   updatedAt: string;
 };
 
+export type CreateOperationsPromptTemplatePayload = {
+  title?: string;
+  preview?: string;
+  content?: string;
+  status?: "ACTIVE" | "DISABLED" | "DRAFT";
+  sourceCategory?: string;
+  businessStage?: string;
+  outputType?: string;
+  scenarioLabel?: string;
+  sortOrder?: number;
+};
+
+export type DeleteOperationsPromptTemplateResult = {
+  id: string;
+  title: string;
+};
+
 export type ImagePromptTemplateAdminRecord = {
   id: string;
   slug: string;
@@ -283,6 +300,28 @@ export type ImagePromptTemplateAdminRecord = {
   sortOrder: number;
   createdAt: string;
   updatedAt: string;
+};
+
+export type CreateImagePromptTemplatePayload = {
+  title?: string;
+  preview?: string;
+  content?: string;
+  status?: "ACTIVE" | "DISABLED" | "DRAFT";
+  sourceCategory?: string;
+  categoryLabel?: string;
+  tagsJson?: string[];
+  sortOrder?: number;
+  previewImage?: {
+    fileName: string;
+    contentType: string;
+    dataBase64: string;
+  };
+};
+
+export type DeleteImagePromptTemplateResult = {
+  id: string;
+  title: string;
+  deletedPreviewStorageKey?: string;
 };
 
 export type ImportImagePromptTemplateItem = {
@@ -3471,6 +3510,10 @@ export async function getOperationsPromptTemplates() {
   return request<OperationsPromptTemplateAdminRecord[]>("/admin/operations-prompts");
 }
 
+export async function createOperationsPromptTemplate(payload: CreateOperationsPromptTemplatePayload) {
+  return jsonRequest<OperationsPromptTemplateAdminRecord>("/admin/operations-prompts", "POST", payload);
+}
+
 export async function updateOperationsPromptTemplate(
   templateId: string,
   payload: Partial<
@@ -3483,8 +3526,18 @@ export async function updateOperationsPromptTemplate(
   return jsonRequest<OperationsPromptTemplateAdminRecord>(`/admin/operations-prompts/${templateId}`, "PATCH", payload);
 }
 
+export async function deleteOperationsPromptTemplate(templateId: string) {
+  return request<DeleteOperationsPromptTemplateResult>(`/admin/operations-prompts/${templateId}`, {
+    method: "DELETE",
+  });
+}
+
 export async function getImagePromptTemplates() {
   return request<ImagePromptTemplateAdminRecord[]>("/admin/image-prompts");
+}
+
+export async function createImagePromptTemplate(payload: CreateImagePromptTemplatePayload) {
+  return jsonRequest<ImagePromptTemplateAdminRecord>("/admin/image-prompts", "POST", payload);
 }
 
 export async function importImagePromptTemplates(items: ImportImagePromptTemplateItem[]) {
@@ -3503,6 +3556,12 @@ export async function updateImagePromptTemplate(
   >,
 ) {
   return jsonRequest<ImagePromptTemplateAdminRecord>(`/admin/image-prompts/${templateId}`, "PATCH", payload);
+}
+
+export async function deleteImagePromptTemplate(templateId: string) {
+  return request<DeleteImagePromptTemplateResult>(`/admin/image-prompts/${templateId}`, {
+    method: "DELETE",
+  });
 }
 
 export async function getKnowledgeBases() {

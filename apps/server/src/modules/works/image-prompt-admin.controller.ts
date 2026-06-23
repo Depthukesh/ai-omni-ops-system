@@ -1,7 +1,8 @@
-import { Body, Controller, Get, Headers, Param, Patch, Post } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Headers, Param, Patch, Post } from "@nestjs/common";
 import { ADMIN_ROLE_GROUPS, requireAdminRoles } from "../admin/admin-access";
 import { AuthService } from "../auth/auth.service";
 import {
+  type CreateImagePromptTemplatePayload,
   type ImportImagePromptTemplatesPayload,
   type UpdateImagePromptTemplatePayload,
   WorksService,
@@ -18,6 +19,15 @@ export class ImagePromptAdminController {
   async listImagePrompts(@Headers() headers: Record<string, string | string[] | undefined>) {
     await requireAdminRoles(this.authService, headers, ADMIN_ROLE_GROUPS.allAdmin);
     return this.worksService.listImagePromptTemplatesForAdmin();
+  }
+
+  @Post()
+  async createImagePrompt(
+    @Body() payload: CreateImagePromptTemplatePayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    await requireAdminRoles(this.authService, headers, ADMIN_ROLE_GROUPS.operatorWrite);
+    return this.worksService.createImagePromptTemplateForAdmin(payload);
   }
 
   @Post("import")
@@ -37,5 +47,14 @@ export class ImagePromptAdminController {
   ) {
     await requireAdminRoles(this.authService, headers, ADMIN_ROLE_GROUPS.operatorWrite);
     return this.worksService.updateImagePromptTemplateForAdmin(id, payload);
+  }
+
+  @Delete(":id")
+  async deleteImagePrompt(
+    @Param("id") id: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    await requireAdminRoles(this.authService, headers, ADMIN_ROLE_GROUPS.operatorWrite);
+    return this.worksService.deleteImagePromptTemplateForAdmin(id);
   }
 }
