@@ -4384,18 +4384,51 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
 
     const requestedCursor = String(request.cursor || "").trim();
     const requestedIndex = Number.isFinite(request.index) ? Number(request.index) : 0;
-    const raw = await this.fetchTikHub(
-      "/api/v1/xiaohongshu/app_v2/get_note_comments",
-      {
-        note_id: noteQuery.noteId,
-        share_text: noteQuery.shareText,
-        cursor: requestedCursor,
-        index: String(requestedIndex),
-        sort_strategy: "default",
-      },
-      brandId,
-    );
-    const items = this.extractXhsCommentItems(raw);
+    const fallbackQuery = this.resolveXhsShareTextFallbackQuery(normalizedSourceUrl, noteQuery);
+    let raw: unknown;
+    try {
+      raw = await this.fetchTikHub(
+        "/api/v1/xiaohongshu/app_v2/get_note_comments",
+        {
+          note_id: noteQuery.noteId,
+          share_text: noteQuery.shareText,
+          cursor: requestedCursor,
+          index: String(requestedIndex),
+          sort_strategy: "default",
+        },
+        brandId,
+      );
+    } catch (error) {
+      if (!fallbackQuery) {
+        throw error;
+      }
+      raw = await this.fetchTikHub(
+        "/api/v1/xiaohongshu/app_v2/get_note_comments",
+        {
+          note_id: fallbackQuery.noteId,
+          share_text: fallbackQuery.shareText,
+          cursor: requestedCursor,
+          index: String(requestedIndex),
+          sort_strategy: "default",
+        },
+        brandId,
+      );
+    }
+    let items = this.extractXhsCommentItems(raw);
+    if (!items.length && fallbackQuery) {
+      raw = await this.fetchTikHub(
+        "/api/v1/xiaohongshu/app_v2/get_note_comments",
+        {
+          note_id: fallbackQuery.noteId,
+          share_text: fallbackQuery.shareText,
+          cursor: requestedCursor,
+          index: String(requestedIndex),
+          sort_strategy: "default",
+        },
+        brandId,
+      );
+      items = this.extractXhsCommentItems(raw);
+    }
     const pageState = this.extractXhsCommentPageState(raw, requestedCursor, requestedIndex);
     const noteId = this.pickString(raw, ["note_id", "noteId", "id"]) || noteQuery.noteId || this.extractNoteIdFromUrl(normalizedSourceUrl);
     const noteUrl =
@@ -4532,24 +4565,57 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
 
     const requestedCursor = String(input.cursor || "").trim();
     const requestedIndex = Number.isFinite(input.index) ? Number(input.index) : 1;
-    const raw = await this.fetchTikHub(
-      "/api/v1/xiaohongshu/app_v2/get_note_sub_comments",
-      {
-        note_id: noteQuery.noteId,
-        share_text: noteQuery.shareText,
-        comment_id: commentId,
-        cursor: requestedCursor,
-        index: String(requestedIndex),
-      },
-      brandId,
-    );
+    const fallbackQuery = this.resolveXhsShareTextFallbackQuery(sourceUrl, noteQuery);
+    let raw: unknown;
+    try {
+      raw = await this.fetchTikHub(
+        "/api/v1/xiaohongshu/app_v2/get_note_sub_comments",
+        {
+          note_id: noteQuery.noteId,
+          share_text: noteQuery.shareText,
+          comment_id: commentId,
+          cursor: requestedCursor,
+          index: String(requestedIndex),
+        },
+        brandId,
+      );
+    } catch (error) {
+      if (!fallbackQuery) {
+        throw error;
+      }
+      raw = await this.fetchTikHub(
+        "/api/v1/xiaohongshu/app_v2/get_note_sub_comments",
+        {
+          note_id: fallbackQuery.noteId,
+          share_text: fallbackQuery.shareText,
+          comment_id: commentId,
+          cursor: requestedCursor,
+          index: String(requestedIndex),
+        },
+        brandId,
+      );
+    }
     const noteId = this.pickString(raw, ["note_id", "noteId", "id"]) || noteQuery.noteId || this.extractNoteIdFromUrl(sourceUrl);
     const noteUrl =
       this.pickString(raw, ["note_url", "noteUrl", "share_url", "shareUrl"])
       || this.extractShareUrl(raw)
       || sourceUrl
       || (noteId ? `https://www.xiaohongshu.com/explore/${noteId}` : "");
-    const items = this.extractXhsCommentItems(raw);
+    let items = this.extractXhsCommentItems(raw);
+    if (!items.length && fallbackQuery) {
+      raw = await this.fetchTikHub(
+        "/api/v1/xiaohongshu/app_v2/get_note_sub_comments",
+        {
+          note_id: fallbackQuery.noteId,
+          share_text: fallbackQuery.shareText,
+          comment_id: commentId,
+          cursor: requestedCursor,
+          index: String(requestedIndex),
+        },
+        brandId,
+      );
+      items = this.extractXhsCommentItems(raw);
+    }
     const pageState = this.extractXhsCommentPageState(raw, requestedCursor, requestedIndex);
     return {
       items: items
@@ -6762,6 +6828,19 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       return { noteId: normalized, shareText: "" };
     }
     return { noteId: "", shareText: normalized };
+  }
+
+  private resolveXhsShareTextFallbackQuery(
+    sourceUrl: string,
+    noteQuery: { noteId: string; shareText: string },
+  ) {
+    if (!/^https?:\/\//i.test(sourceUrl) || !noteQuery.noteId || noteQuery.shareText) {
+      return null;
+    }
+    return {
+      noteId: "",
+      shareText: sourceUrl,
+    };
   }
 
   private normalizeDouyinNoteUrl(workId: string, workType: string) {
