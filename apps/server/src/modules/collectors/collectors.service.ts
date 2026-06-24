@@ -4541,6 +4541,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     const hasMore =
       this.pickBoolean(nested, ["has_more", "hasMore"])
       ?? this.pickBoolean(data, ["has_more", "hasMore"])
+      ?? (nextIndex > fallbackIndex)
       ?? Boolean(nextCursor && nextCursor !== fallbackCursor);
     return {
       nextCursor,
