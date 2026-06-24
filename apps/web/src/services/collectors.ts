@@ -82,6 +82,7 @@ export type XhsCollectionWorkspace = {
   brandNotes: XhsCollectedNoteRecord[];
   benchmarkNotes: XhsCollectedNoteRecord[];
   searchNotes: XhsCollectedNoteRecord[];
+  commentData: XhsCommentRecord[];
   targetUsers: XhsCollectedTargetUserRecord[];
 };
 
@@ -89,6 +90,64 @@ export type XhsSyncPayload = {
   accountLocators?: string[];
   accountEntries?: XhsSyncAccountEntry[];
   sourceUrls?: string[];
+  pageRequests?: XhsCommentPageRequest[];
+};
+
+export type XhsCommentRecord = {
+  id: string;
+  kind: "XHS_NOTE_COMMENT";
+  noteId: string;
+  noteUrl: string;
+  sourceUrl: string;
+  commentId: string;
+  commentText: string;
+  commentTime?: string;
+  commentUserName?: string;
+  commentUserId?: string;
+  likeCount?: number;
+  replyCount?: number;
+  collectedAt: string;
+};
+
+export type XhsCommentPageRequest = {
+  sourceUrl: string;
+  cursor?: string;
+  index?: number;
+};
+
+export type XhsCommentPaginationState = {
+  sourceUrl: string;
+  noteId: string;
+  requestedCursor: string;
+  requestedIndex: number;
+  nextCursor: string;
+  nextIndex: number;
+  hasMore: boolean;
+  fetchedCount: number;
+};
+
+export type XhsSubCommentRecord = {
+  id: string;
+  kind: "XHS_NOTE_SUB_COMMENT";
+  noteId: string;
+  noteUrl: string;
+  sourceUrl: string;
+  parentCommentId: string;
+  commentId: string;
+  commentText: string;
+  commentTime?: string;
+  commentUserName?: string;
+  commentUserId?: string;
+  likeCount?: number;
+  collectedAt: string;
+};
+
+export type XhsSubCommentPaginationState = {
+  parentCommentId: string;
+  nextCursor: string;
+  nextIndex: number;
+  hasMore: boolean;
+  fetchedCount: number;
 };
 
 export type DouyinCollectedAccountRecord = {
@@ -360,6 +419,7 @@ export const xhsCollectionSeed: XhsCollectionWorkspace = {
   ],
   benchmarkNotes: [],
   searchNotes: [],
+  commentData: [],
   targetUsers: [],
 };
 
@@ -578,6 +638,38 @@ export async function syncXiaohongshuSearchNotes(keyword: string, brandId?: stri
     `/collectors/xiaohongshu/brands/${resolveBrandId(brandId)}/search-notes/sync`,
     "POST",
     { keyword },
+  );
+}
+
+export async function syncXiaohongshuCommentData(payload: XhsSyncPayload = {}, brandId?: string) {
+  return jsonRequest<{
+    syncedCount: number;
+    commentPagination: XhsCommentPaginationState[];
+    warnings?: string[];
+    workspace: XhsCollectionWorkspace;
+  }>(
+    `/collectors/xiaohongshu/brands/${resolveBrandId(brandId)}/comment-data/sync`,
+    "POST",
+    payload,
+  );
+}
+
+export async function getXiaohongshuCommentReplies(
+  payload: {
+    sourceUrl: string;
+    commentId: string;
+    cursor?: string;
+    index?: number;
+  },
+  brandId?: string,
+) {
+  return jsonRequest<{
+    items: XhsSubCommentRecord[];
+    pagination: XhsSubCommentPaginationState;
+  }>(
+    `/collectors/xiaohongshu/brands/${resolveBrandId(brandId)}/comment-data/sub-comments`,
+    "POST",
+    payload,
   );
 }
 

@@ -71,6 +71,28 @@ export class CollectorsController {
     return this.collectorsService.syncSearchNotes(brandId, payload.keyword ?? "");
   }
 
+  @Post("brands/:brandId/comment-data/sync")
+  async syncCommentData(
+    @Param("brandId") brandId: string,
+    @Body() payload: { sourceUrls?: string[]; pageRequests?: Array<{ sourceUrl: string; cursor?: string; index?: number }> },
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(brandId, auth);
+    return this.collectorsService.syncXhsCommentData(brandId, payload ?? {});
+  }
+
+  @Post("brands/:brandId/comment-data/sub-comments")
+  async syncSubComments(
+    @Param("brandId") brandId: string,
+    @Body() payload: { sourceUrl?: string; commentId?: string; cursor?: string; index?: number },
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(brandId, auth);
+    return this.collectorsService.getXhsSubComments(brandId, payload ?? {});
+  }
+
   @Post("brands/:brandId/material-library")
   async addBenchmarkNoteToMaterialLibrary(
     @Param("brandId") brandId: string,

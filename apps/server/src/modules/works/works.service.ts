@@ -1008,6 +1008,7 @@ export type UpdateImagePromptTemplatePayload = {
   status?: "ACTIVE" | "DISABLED" | "DRAFT";
   categoryLabel?: string;
   sortOrder?: number;
+  previewImage?: UploadFilePayload;
 };
 
 export type CreateImagePromptTemplatePayload = {
@@ -4460,6 +4461,13 @@ export class WorksService {
     }
 
     const nextRecord = this.normalizeImagePromptTemplateUpdatePayload(existing, payload);
+    const storedPreview = await this.ensureImagePromptTemplatePreviewStored(nextRecord, existing, payload.previewImage);
+    const persistedRecord = {
+      ...nextRecord,
+      previewImageStorageKey: storedPreview.storageKey,
+      previewImageFileName: storedPreview.fileName || nextRecord.previewImageFileName,
+      previewImageContentType: storedPreview.contentType || nextRecord.previewImageContentType,
+    } satisfies ImagePromptTemplateStoreRecord;
     if (await this.canUseImagePromptTemplateTable()) {
       await this.prismaService.$executeRawUnsafe(
         `UPDATE "ImagePromptTemplate"
@@ -4471,16 +4479,22 @@ export class WorksService {
           "categoryLabel" = $6,
           "tagsJson" = CAST($7 AS jsonb),
           "sortOrder" = $8,
+          "previewImageStorageKey" = $9,
+          "previewImageFileName" = $10,
+          "previewImageContentType" = $11,
           "updatedAt" = CURRENT_TIMESTAMP
         WHERE "id" = $1 OR "slug" = $1`,
         existing.id,
-        nextRecord.title,
-        nextRecord.preview,
-        nextRecord.content,
-        nextRecord.status,
-        nextRecord.categoryLabel,
-        JSON.stringify(nextRecord.tagsJson || []),
-        nextRecord.sortOrder,
+        persistedRecord.title,
+        persistedRecord.preview,
+        persistedRecord.content,
+        persistedRecord.status,
+        persistedRecord.categoryLabel,
+        JSON.stringify(persistedRecord.tagsJson || []),
+        persistedRecord.sortOrder,
+        persistedRecord.previewImageStorageKey || null,
+        persistedRecord.previewImageFileName || null,
+        persistedRecord.previewImageContentType || null,
       );
       const updated = await this.findImagePromptTemplateStoreItem(existing.id);
       if (!updated) {
@@ -4495,7 +4509,7 @@ export class WorksService {
     }
     const updated = {
       ...existing,
-      ...nextRecord,
+      ...persistedRecord,
       updatedAt: new Date().toISOString(),
     } satisfies ImagePromptTemplateStoreRecord;
     imagePromptTemplateMockStore.splice(index, 1, updated);

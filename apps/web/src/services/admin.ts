@@ -3553,7 +3553,13 @@ export async function updateImagePromptTemplate(
       ImagePromptTemplateAdminRecord,
       "title" | "preview" | "content" | "status" | "categoryLabel" | "sortOrder"
     >
-  >,
+  > & {
+    previewImage?: {
+      fileName: string;
+      contentType: string;
+      dataBase64: string;
+    };
+  },
 ) {
   return jsonRequest<ImagePromptTemplateAdminRecord>(`/admin/image-prompts/${templateId}`, "PATCH", payload);
 }

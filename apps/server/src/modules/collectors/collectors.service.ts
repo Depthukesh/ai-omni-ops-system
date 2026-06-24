@@ -30,6 +30,7 @@ type DouyinWorkKind =
 type DouyinKeywordRecommendationKind = "DOUYIN_KEYWORD_RECOMMENDATION";
 type DouyinCommentKind = "DOUYIN_COMMENT";
 type DouyinCityHotspotKind = "DOUYIN_CITY_HOTSPOT";
+type XhsCommentKind = "XHS_NOTE_COMMENT";
 type CollectorNoteKind =
   | "XHS_BRAND_NOTE"
   | "XHS_BENCHMARK_NOTE"
@@ -38,6 +39,7 @@ type CollectorTargetKind = "XHS_TARGET_USER";
 type CollectorAssetKind =
   | CollectorAccountKind
   | CollectorNoteKind
+  | XhsCommentKind
   | DouyinWorkKind
   | DouyinKeywordRecommendationKind
   | DouyinCommentKind
@@ -102,6 +104,11 @@ type XhsSyncInput = {
   accountLocators?: string[];
   accountEntries?: XhsSyncAccountEntry[];
   sourceUrls?: string[];
+  pageRequests?: Array<{
+    sourceUrl: string;
+    cursor?: string;
+    index?: number;
+  }>;
 };
 export type DouyinContentTagOption = {
   label: string;
@@ -259,12 +266,69 @@ export type XhsCollectedTargetUserRecord = {
   lastError?: string;
 };
 
+export type XhsCollectedCommentRecord = {
+  id: string;
+  kind: XhsCommentKind;
+  noteId: string;
+  noteUrl: string;
+  sourceUrl: string;
+  commentId: string;
+  commentText: string;
+  commentTime?: string;
+  commentUserName?: string;
+  commentUserId?: string;
+  likeCount?: number;
+  replyCount?: number;
+  collectedAt: string;
+};
+
+type XhsCommentPageState = {
+  sourceUrl: string;
+  noteId: string;
+  requestedCursor: string;
+  requestedIndex: number;
+  nextCursor: string;
+  nextIndex: number;
+  hasMore: boolean;
+  fetchedCount: number;
+};
+
+type XhsCommentCollectionResult = {
+  rows: XhsCollectedCommentRecord[];
+  page: XhsCommentPageState;
+};
+
+export type XhsSubCommentRecord = {
+  id: string;
+  kind: "XHS_NOTE_SUB_COMMENT";
+  noteId: string;
+  noteUrl: string;
+  sourceUrl: string;
+  parentCommentId: string;
+  commentId: string;
+  commentText: string;
+  commentTime?: string;
+  commentUserName?: string;
+  commentUserId?: string;
+  likeCount?: number;
+  collectedAt: string;
+};
+
+export type XhsSubCommentPageState = {
+  parentCommentId: string;
+  nextCursor: string;
+  nextIndex: number;
+  hasMore: boolean;
+  fetchedCount: number;
+};
+
 export type XhsCollectionWorkspace = {
   brandAccounts: XhsCollectedAccountRecord[];
   competitorAccounts: XhsCollectedAccountRecord[];
   brandNotes: XhsCollectedNoteRecord[];
   benchmarkNotes: XhsCollectedNoteRecord[];
   searchNotes: XhsCollectedNoteRecord[];
+  commentData: XhsCollectedCommentRecord[];
   targetUsers: XhsCollectedTargetUserRecord[];
 };
 
@@ -746,6 +810,37 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
+  async syncXhsCommentData(brandId: string, input: XhsSyncInput = {}) {
+    this.ensureBrandExistsInMockOrDatabase(brandId);
+    const pageRequests = this.normalizeXhsCommentPageRequests(input);
+    const manualCommentResults = await Promise.allSettled(
+      pageRequests.map((request) => this.collectAndStoreSingleXhsCommentData(brandId, request)),
+    );
+    const rows = manualCommentResults
+      .filter((item): item is PromiseFulfilledResult<XhsCommentCollectionResult> => item.status === "fulfilled")
+      .flatMap((item) => item.value.rows);
+    const commentPagination = manualCommentResults
+      .filter((item): item is PromiseFulfilledResult<XhsCommentCollectionResult> => item.status === "fulfilled")
+      .map((item) => item.value.page);
+    const warnings = manualCommentResults
+      .filter((item): item is PromiseRejectedResult => item.status === "rejected")
+      .map((item) => (item.reason instanceof Error ? item.reason.message : "小红书评论数据采集失败"));
+    return {
+      syncedCount: rows.length,
+      commentPagination,
+      warnings,
+      workspace: await this.getXiaohongshuWorkspace(brandId),
+    };
+  }
+
+  async getXhsSubComments(
+    brandId: string,
+    input: { sourceUrl?: string; commentId?: string; cursor?: string; index?: number } = {},
+  ) {
+    this.ensureBrandExistsInMockOrDatabase(brandId);
+    return this.collectXhsSubComments(brandId, input);
+  }
+
   async syncTargetUsers(brandId: string, sourceUrls: string[]) {
     this.ensureBrandExistsInMockOrDatabase(brandId);
     const rows = await Promise.all(sourceUrls.filter(Boolean).map((url) => this.collectAndStoreTargetUser(brandId, url)));
@@ -1217,11 +1312,14 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     const searchNotes = assets
       .filter((item) => item.metadataJson?.kind === "XHS_SEARCH_NOTE")
       .map((item) => this.mapCollectedNote(item));
+    const commentData = assets
+      .filter((item) => item.metadataJson?.kind === "XHS_NOTE_COMMENT")
+      .map((item) => this.mapXhsComment(item));
     const targetUsers = assets
       .filter((item) => item.metadataJson?.kind === "XHS_TARGET_USER")
       .map((item) => this.mapCollectedTargetUser(item));
 
-    return { brandAccounts, competitorAccounts, brandNotes, benchmarkNotes, searchNotes, targetUsers };
+    return { brandAccounts, competitorAccounts, brandNotes, benchmarkNotes, searchNotes, commentData, targetUsers };
   }
 
   private buildDouyinWorkspaceFromAssets(
@@ -1758,6 +1856,62 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       retryCount: this.readMetaNumber(meta, "retryCount") ?? 0,
       nextRetryAt: this.readMetaString(meta, "nextRetryAt") || undefined,
       lastError: this.readMetaString(meta, "lastError") || undefined,
+    };
+  }
+
+  private mapXhsComment(asset: AssetRecord): XhsCollectedCommentRecord {
+    const meta = this.asMeta(asset.metadataJson);
+    return {
+      id: asset.id,
+      kind: "XHS_NOTE_COMMENT",
+      noteId: this.readMetaString(meta, "noteId"),
+      noteUrl: this.readMetaString(meta, "noteUrl") || asset.fileUrl || "",
+      sourceUrl: this.readMetaString(meta, "sourceUrl") || asset.fileUrl || "",
+      commentId: this.readMetaString(meta, "commentId"),
+      commentText: this.readMetaString(meta, "commentText") || asset.title,
+      commentTime: this.readMetaString(meta, "commentTime") || undefined,
+      commentUserName: this.readMetaString(meta, "commentUserName") || undefined,
+      commentUserId: this.readMetaString(meta, "commentUserId") || undefined,
+      likeCount: this.readMetaNumber(meta, "likeCount"),
+      replyCount: this.readMetaNumber(meta, "replyCount"),
+      collectedAt: this.readMetaString(meta, "collectedAt") || new Date().toISOString(),
+    };
+  }
+
+  private mapXhsSubCommentItem(
+    item: Record<string, unknown>,
+    context: { parentCommentId: string; noteId: string; noteUrl: string; sourceUrl: string; fallbackIndex: number },
+  ): XhsSubCommentRecord | null {
+    const commentId =
+      this.pickString(item, ["comment_id", "commentId", "id"])
+      || `${context.parentCommentId}-${context.fallbackIndex + 1}`;
+    const user = this.asMeta(item.user_info);
+    const commentText = this.pickString(item, ["content", "text", "comment_content"]) || "";
+    if (!commentId || !commentText) {
+      return null;
+    }
+    return {
+      id: `${context.parentCommentId}:${commentId}`,
+      kind: "XHS_NOTE_SUB_COMMENT",
+      noteId: context.noteId,
+      noteUrl: context.noteUrl,
+      sourceUrl: context.sourceUrl,
+      parentCommentId: context.parentCommentId,
+      commentId,
+      commentText,
+      commentTime:
+        this.formatUnixTimestampText(this.pickNumber(item, ["create_time", "comment_time", "time"]))
+        || this.pickString(item, ["create_time_text", "time", "create_time"]),
+      commentUserName:
+        this.pickString(user, ["nickname", "name"])
+        || this.pickString(item, ["nickname", "user_name"])
+        || undefined,
+      commentUserId:
+        this.pickString(user, ["user_id", "userid", "id"])
+        || this.pickString(item, ["user_id", "userid"])
+        || undefined,
+      likeCount: this.pickNumber(item, ["like_count", "liked_count", "likes"]),
+      collectedAt: new Date().toISOString(),
     };
   }
 
@@ -4218,6 +4372,205 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
+  private async collectAndStoreSingleXhsCommentData(
+    brandId: string,
+    request: { sourceUrl: string; cursor?: string; index?: number },
+  ): Promise<XhsCommentCollectionResult> {
+    const normalizedSourceUrl = this.normalizeXhsShareText(String(request.sourceUrl || "").trim());
+    const noteQuery = this.resolveXhsNoteQuery(normalizedSourceUrl);
+    if (!noteQuery.noteId && !noteQuery.shareText) {
+      throw new BadRequestException(`小红书作品链接或 note_id 无效：${request.sourceUrl}`);
+    }
+
+    const requestedCursor = String(request.cursor || "").trim();
+    const requestedIndex = Number.isFinite(request.index) ? Number(request.index) : 0;
+    const raw = await this.fetchTikHub(
+      "/api/v1/xiaohongshu/app_v2/get_note_comments",
+      {
+        note_id: noteQuery.noteId,
+        share_text: noteQuery.shareText,
+        cursor: requestedCursor,
+        index: String(requestedIndex),
+        sort_strategy: "default",
+      },
+      brandId,
+    );
+    const items = this.extractXhsCommentItems(raw);
+    const pageState = this.extractXhsCommentPageState(raw, requestedCursor, requestedIndex);
+    const noteId = this.pickString(raw, ["note_id", "noteId", "id"]) || noteQuery.noteId || this.extractNoteIdFromUrl(normalizedSourceUrl);
+    const noteUrl =
+      this.pickString(raw, ["note_url", "noteUrl", "share_url", "shareUrl"])
+      || this.extractShareUrl(raw)
+      || normalizedSourceUrl
+      || (noteId ? `https://www.xiaohongshu.com/explore/${noteId}` : request.sourceUrl);
+    const rows: XhsCollectedCommentRecord[] = [];
+    const collectedAt = new Date().toISOString();
+
+    for (const item of items) {
+      const commentId = this.pickString(item, ["comment_id", "commentId", "id"]);
+      if (!commentId) {
+        continue;
+      }
+      const user = this.asMeta(item.user_info);
+      const commentText = this.pickString(item, ["content", "text", "comment_content"]) || "";
+      const metadata = {
+        kind: "XHS_NOTE_COMMENT" as const,
+        sourceAccountId: `${noteId}:${commentId}`,
+        noteId,
+        noteUrl,
+        sourceUrl: normalizedSourceUrl || noteUrl,
+        commentId,
+        commentText,
+        commentTime:
+          this.formatUnixTimestampText(this.pickNumber(item, ["create_time", "comment_time", "time"]))
+          || this.pickString(item, ["create_time_text", "time", "create_time"]),
+        commentUserName:
+          this.pickString(user, ["nickname", "name"])
+          || this.pickString(item, ["nickname", "user_name"])
+          || undefined,
+        commentUserId:
+          this.pickString(user, ["user_id", "userid", "id"])
+          || this.pickString(item, ["user_id", "userid"])
+          || undefined,
+        likeCount: this.pickNumber(item, ["like_count", "liked_count", "likes"]),
+        replyCount: this.pickNumber(item, ["sub_comment_count", "reply_count", "replyCount"]),
+        collectedAt,
+        rawFields: item,
+      };
+      const asset = await this.upsertCollectorAsset({
+        brandId,
+        kind: "XHS_NOTE_COMMENT",
+        matchValue: `${noteId}:${commentId}`,
+        title: commentText || `小红书评论 ${commentId}`,
+        description: metadata.commentUserName || "小红书评论采集",
+        fileUrl: noteUrl,
+        metadata,
+      });
+      rows.push(this.mapXhsComment(asset));
+    }
+
+    if (!rows.length) {
+      throw new BadRequestException(`评论接口未返回有效评论数据：${request.sourceUrl}`);
+    }
+
+    return {
+      rows,
+      page: {
+        sourceUrl: normalizedSourceUrl || noteUrl,
+        noteId,
+        requestedCursor,
+        requestedIndex,
+        nextCursor: pageState.nextCursor,
+        nextIndex: pageState.nextIndex,
+        hasMore: pageState.hasMore,
+        fetchedCount: rows.length,
+      },
+    };
+  }
+
+  private normalizeXhsCommentPageRequests(input: XhsSyncInput) {
+    const pageRequests = Array.isArray(input.pageRequests) ? input.pageRequests : [];
+    if (pageRequests.length) {
+      return pageRequests
+        .map((item) => ({
+          sourceUrl: this.normalizeXhsShareText(String(item?.sourceUrl || "").trim()),
+          cursor: String(item?.cursor || "").trim(),
+          index: Number.isFinite(item?.index) ? Number(item?.index) : 0,
+        }))
+        .filter((item) => Boolean(item.sourceUrl));
+    }
+
+    return (input.sourceUrls ?? [])
+      .map((item) => this.normalizeXhsShareText(String(item || "").trim()))
+      .filter(Boolean)
+      .map((sourceUrl) => ({
+        sourceUrl,
+        cursor: "",
+        index: 0,
+      }));
+  }
+
+  private extractXhsCommentPageState(raw: unknown, fallbackCursor: string, fallbackIndex: number) {
+    const payload = this.asMeta(raw);
+    const data = this.asMeta(payload.data);
+    const nested = this.asMeta(data.data);
+    const cursorRecord = this.asMeta(nested.cursor);
+    const nextCursor =
+      this.readMetaString(nested, "cursor")
+      || this.readMetaString(data, "cursor")
+      || this.readMetaString(cursorRecord, "cursor")
+      || fallbackCursor;
+    const nextIndex =
+      this.readMetaNumber(nested, "index")
+      ?? this.readMetaNumber(data, "index")
+      ?? this.readMetaNumber(cursorRecord, "index")
+      ?? fallbackIndex;
+    const hasMore =
+      this.pickBoolean(nested, ["has_more", "hasMore"])
+      ?? this.pickBoolean(data, ["has_more", "hasMore"])
+      ?? Boolean(nextCursor && nextCursor !== fallbackCursor);
+    return {
+      nextCursor,
+      nextIndex,
+      hasMore,
+    };
+  }
+
+  private async collectXhsSubComments(
+    brandId: string,
+    input: { sourceUrl?: string; commentId?: string; cursor?: string; index?: number },
+  ) {
+    const sourceUrl = this.normalizeXhsShareText(String(input.sourceUrl || "").trim());
+    const commentId = String(input.commentId || "").trim();
+    if (!commentId) {
+      throw new BadRequestException("一级评论 ID 不能为空");
+    }
+    const noteQuery = this.resolveXhsNoteQuery(sourceUrl);
+    if (!noteQuery.noteId && !noteQuery.shareText) {
+      throw new BadRequestException(`小红书作品链接或 note_id 无效：${input.sourceUrl}`);
+    }
+
+    const requestedCursor = String(input.cursor || "").trim();
+    const requestedIndex = Number.isFinite(input.index) ? Number(input.index) : 1;
+    const raw = await this.fetchTikHub(
+      "/api/v1/xiaohongshu/app_v2/get_note_sub_comments",
+      {
+        note_id: noteQuery.noteId,
+        share_text: noteQuery.shareText,
+        comment_id: commentId,
+        cursor: requestedCursor,
+        index: String(requestedIndex),
+      },
+      brandId,
+    );
+    const noteId = this.pickString(raw, ["note_id", "noteId", "id"]) || noteQuery.noteId || this.extractNoteIdFromUrl(sourceUrl);
+    const noteUrl =
+      this.pickString(raw, ["note_url", "noteUrl", "share_url", "shareUrl"])
+      || this.extractShareUrl(raw)
+      || sourceUrl
+      || (noteId ? `https://www.xiaohongshu.com/explore/${noteId}` : "");
+    const items = this.extractXhsCommentItems(raw);
+    const pageState = this.extractXhsCommentPageState(raw, requestedCursor, requestedIndex);
+    return {
+      items: items
+        .map((item, index) => this.mapXhsSubCommentItem(item, {
+          parentCommentId: commentId,
+          noteId,
+          noteUrl,
+          sourceUrl: sourceUrl || noteUrl,
+          fallbackIndex: index,
+        }))
+        .filter((item): item is XhsSubCommentRecord => item !== null),
+      pagination: {
+        parentCommentId: commentId,
+        nextCursor: pageState.nextCursor,
+        nextIndex: pageState.nextIndex,
+        hasMore: pageState.hasMore,
+        fetchedCount: items.length,
+      },
+    };
+  }
+
   private async collectAndStoreBenchmarkNote(brandId: string, sourceUrl: string): Promise<XhsCollectedNoteRecord> {
     const collectedAt = new Date().toISOString();
     const noteQuery = this.resolveXhsNoteQuery(sourceUrl);
@@ -6095,6 +6448,34 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     return list
       .map((item) => this.asMeta(item))
       .filter((item) => Boolean(this.pickString(item, ["cid", "comment_id", "commentId"])));
+  }
+
+  private extractXhsCommentItems(raw: unknown): Record<string, unknown>[] {
+    const queue: unknown[] = [raw];
+
+    while (queue.length) {
+      const current = queue.shift();
+      if (Array.isArray(current)) {
+        const normalized = current
+          .map((item) => this.asMeta(item))
+          .filter((item) =>
+            Boolean(
+              this.pickString(item, ["comment_id", "commentId", "id"])
+              || this.pickString(item, ["content", "text", "comment_content"]),
+            ));
+        if (normalized.length) {
+          return normalized;
+        }
+        queue.push(...current);
+        continue;
+      }
+
+      if (current && typeof current === "object") {
+        queue.push(...Object.values(current));
+      }
+    }
+
+    return [];
   }
 
   private extractDouyinStatisticsMap(raw: unknown) {

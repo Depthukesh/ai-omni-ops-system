@@ -47,12 +47,18 @@ import {
   addDouyinBenchmarkWorkToMaterialLibrary,
   addBenchmarkNoteToMaterialLibrary,
   getDouyinCollectionWorkspace,
+  getXiaohongshuCommentReplies,
   getXiaohongshuCollectionWorkspace,
   type DouyinCommentPaginationState,
   type DouyinCommentRecord,
+  type XhsCommentPaginationState,
+  type XhsCommentRecord,
+  type XhsSubCommentPaginationState,
+  type XhsSubCommentRecord,
   removeDouyinKeywordRecommendation,
   removeDouyinBenchmarkWorkFromMaterialLibrary,
   syncDouyinCollectionWorkspace,
+  syncXiaohongshuCommentData,
   syncXiaohongshuFromFeishu,
   syncXiaohongshuBenchmarkNotes,
   syncXiaohongshuBrandAccounts,
@@ -310,6 +316,7 @@ function createEmptyCollectionWorkspace(): XhsCollectionWorkspace {
     brandNotes: [],
     benchmarkNotes: [],
     searchNotes: [],
+    commentData: [],
     targetUsers: [],
   };
 }
@@ -644,6 +651,7 @@ type XhsSyncForm = {
   brandWorkLocators: string;
   benchmarkNoteLocators: string;
   searchKeyword: string;
+  commentSourceUrls: string;
 };
 
 function createEmptyXhsSyncForm(): XhsSyncForm {
@@ -653,6 +661,7 @@ function createEmptyXhsSyncForm(): XhsSyncForm {
     brandWorkLocators: "",
     benchmarkNoteLocators: "",
     searchKeyword: "",
+    commentSourceUrls: "",
   };
 }
 
@@ -880,6 +889,18 @@ function buildXhsSyncAccountEntries(entries: XhsAccountBindingEntry[]): XhsSyncA
     .filter((entry) => Boolean(entry.locator));
 }
 
+function dedupeXhsSubComments(items: XhsSubCommentRecord[]) {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    const key = item.commentId || item.id;
+    if (!key || seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+}
+
 export function BrandGrowthWorkspace() {
   const [archive, setArchive] = useState<BrandArchiveBundle>(createEmptyArchiveBundle);
   const [collectionWorkspace, setCollectionWorkspace] = useState<XhsCollectionWorkspace>(createEmptyCollectionWorkspace);
@@ -904,6 +925,7 @@ export function BrandGrowthWorkspace() {
   const [feishuAppConfigForm, setFeishuAppConfigForm] = useState(createEmptyFeishuAppConfigForm);
   const [xhsSyncForm, setXhsSyncForm] = useState<XhsSyncForm>(createEmptyXhsSyncForm);
   const [douyinSyncForm, setDouyinSyncForm] = useState<DouyinSyncForm>(createEmptyDouyinSyncForm);
+  const [xhsCommentPagination, setXhsCommentPagination] = useState<XhsCommentPaginationState[]>([]);
   const [douyinCommentPagination, setDouyinCommentPagination] = useState<DouyinCommentPaginationState[]>([]);
   const [brandNotesPage, setBrandNotesPage] = useState(1);
   const [brandNotesPageSize, setBrandNotesPageSize] = useState(10);
@@ -926,7 +948,13 @@ export function BrandGrowthWorkspace() {
   const [isSyncingFeishuWorkspace, setIsSyncingFeishuWorkspace] = useState(false);
   const [isSyncingXhsWorkspace, setIsSyncingXhsWorkspace] = useState(false);
   const [isSyncingDouyinWorkspace, setIsSyncingDouyinWorkspace] = useState(false);
+  const [isLoadingMoreXhsComments, setIsLoadingMoreXhsComments] = useState(false);
   const [isLoadingMoreDouyinComments, setIsLoadingMoreDouyinComments] = useState(false);
+  const [expandedXhsCommentIds, setExpandedXhsCommentIds] = useState<string[]>([]);
+  const [loadingXhsSubCommentIds, setLoadingXhsSubCommentIds] = useState<string[]>([]);
+  const [loadingMoreXhsSubCommentIds, setLoadingMoreXhsSubCommentIds] = useState<string[]>([]);
+  const [xhsSubCommentsByParent, setXhsSubCommentsByParent] = useState<Record<string, XhsSubCommentRecord[]>>({});
+  const [xhsSubCommentPaginationMap, setXhsSubCommentPaginationMap] = useState<Record<string, XhsSubCommentPaginationState>>({});
   const [isSyncingDailyHotspots, setIsSyncingDailyHotspots] = useState(false);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [isGeneratingOpportunityInsight, setIsGeneratingOpportunityInsight] = useState(false);
@@ -1057,6 +1085,10 @@ export function BrandGrowthWorkspace() {
   const sortedSearchNotes = useMemo(
     () => sortByCollectedAtDesc(collectionWorkspace.searchNotes),
     [collectionWorkspace.searchNotes],
+  );
+  const sortedXhsCommentData = useMemo(
+    () => sortByCollectedAtDesc(collectionWorkspace.commentData as XhsCommentRecord[]),
+    [collectionWorkspace.commentData],
   );
   const sortedDouyinBrandAccounts = useMemo(
     () => sortByCollectedAtDesc(douyinCollectionWorkspace.brandAccounts),
@@ -1517,6 +1549,10 @@ export function BrandGrowthWorkspace() {
 
         if (collectionResult.status === "fulfilled") {
           setCollectionWorkspace(collectionResult.value);
+          setXhsCommentPagination([]);
+          setExpandedXhsCommentIds([]);
+          setXhsSubCommentsByParent({});
+          setXhsSubCommentPaginationMap({});
         } else {
           partialFailures.push("小红书收集数据");
         }
@@ -2459,6 +2495,154 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     }
   }
 
+  async function handleSyncXhsCommentData() {
+    if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.collection.xiaohongshuCollection"]?.edit) {
+      setErrorMessage("当前账号没有同步小红书收集数据的编辑权限。");
+      return;
+    }
+
+    const sourceUrls = parseDouyinSyncLines(xhsSyncForm.commentSourceUrls);
+    if (!sourceUrls.length) {
+      setErrorMessage("请先输入至少一个小红书笔记链接或 note_id。");
+      return;
+    }
+
+    setIsSyncingXhsWorkspace(true);
+    clearMessages();
+
+    try {
+      const response = await syncXiaohongshuCommentData(
+        { sourceUrls },
+        activeBrandId || archive.brand.id,
+      );
+      setCollectionWorkspace(response.workspace);
+      setXhsCommentPagination(response.commentPagination ?? []);
+      setExpandedXhsCommentIds([]);
+      setXhsSubCommentsByParent({});
+      setXhsSubCommentPaginationMap({});
+      const continueCount = (response.commentPagination ?? []).filter((item) => item.hasMore).length;
+      const summary = `小红书评论数据采集完成，已更新 ${response.syncedCount} 条评论，可继续翻页的笔记 ${continueCount} 个。`;
+      const warningText = response.warnings?.filter(Boolean).join("；");
+      setNotice(warningText ? `${summary} 部分请求未完全成功：${warningText}` : summary);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "采集失败";
+      setErrorMessage(`小红书评论数据采集失败：${message}`);
+    } finally {
+      setIsSyncingXhsWorkspace(false);
+    }
+  }
+
+  async function handleLoadMoreXhsComments() {
+    if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.collection.xiaohongshuCollection"]?.edit) {
+      setErrorMessage("当前账号没有同步小红书收集数据的编辑权限。");
+      return;
+    }
+
+    const pageRequests = xhsCommentPagination
+      .filter((item) => item.hasMore)
+      .map((item) => ({
+        sourceUrl: item.sourceUrl,
+        cursor: item.nextCursor,
+        index: item.nextIndex,
+      }));
+
+    if (!pageRequests.length) {
+      setNotice("当前小红书评论已经没有更多可加载内容。");
+      return;
+    }
+
+    setIsLoadingMoreXhsComments(true);
+    clearMessages();
+
+    try {
+      const response = await syncXiaohongshuCommentData(
+        { pageRequests },
+        activeBrandId || archive.brand.id,
+      );
+      setCollectionWorkspace(response.workspace);
+      setXhsCommentPagination(response.commentPagination ?? []);
+      const continueCount = (response.commentPagination ?? []).filter((item) => item.hasMore).length;
+      const summary = `小红书评论数据已继续加载 ${response.syncedCount} 条，仍可继续翻页的笔记 ${continueCount} 个。`;
+      const warningText = response.warnings?.filter(Boolean).join("；");
+      setNotice(warningText ? `${summary} 部分请求未完全成功：${warningText}` : summary);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "加载失败";
+      setErrorMessage(`小红书评论加载更多失败：${message}`);
+    } finally {
+      setIsLoadingMoreXhsComments(false);
+    }
+  }
+
+  function handleToggleXhsCommentReplies(commentId: string) {
+    setExpandedXhsCommentIds((current) =>
+      current.includes(commentId)
+        ? current.filter((item) => item !== commentId)
+        : [...current, commentId],
+    );
+  }
+
+  async function handleLoadXhsCommentReplies(comment: XhsCommentRecord, loadMore = false) {
+    if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.collection.xiaohongshuCollection"]?.edit) {
+      setErrorMessage("当前账号没有同步小红书收集数据的编辑权限。");
+      return;
+    }
+
+    const commentId = comment.commentId;
+    const currentPagination = xhsSubCommentPaginationMap[commentId];
+    const isMore = loadMore === true;
+    if (
+      isMore
+      && (!currentPagination || !currentPagination.hasMore)
+    ) {
+      setNotice("当前一级评论已经没有更多二级评论可加载。");
+      return;
+    }
+
+    if (isMore) {
+      setLoadingMoreXhsSubCommentIds((current) => [...current, commentId]);
+    } else {
+      setLoadingXhsSubCommentIds((current) => [...current, commentId]);
+    }
+    clearMessages();
+
+    try {
+      const response = await getXiaohongshuCommentReplies(
+        {
+          sourceUrl: comment.sourceUrl || comment.noteUrl,
+          commentId,
+          cursor: isMore ? currentPagination?.nextCursor : undefined,
+          index: isMore ? currentPagination?.nextIndex : undefined,
+        },
+        activeBrandId || archive.brand.id,
+      );
+      setXhsSubCommentsByParent((current) => ({
+        ...current,
+        [commentId]: isMore
+          ? dedupeXhsSubComments([...(current[commentId] ?? []), ...(response.items ?? [])])
+          : (response.items ?? []),
+      }));
+      setXhsSubCommentPaginationMap((current) => ({
+        ...current,
+        [commentId]: response.pagination,
+      }));
+      setExpandedXhsCommentIds((current) => (current.includes(commentId) ? current : [...current, commentId]));
+      setNotice(
+        isMore
+          ? `已继续加载一级评论 ${commentId} 的二级评论 ${response.items.length} 条。`
+          : `已加载一级评论 ${commentId} 的二级评论 ${response.items.length} 条。`,
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "加载失败";
+      setErrorMessage(`二级评论加载失败：${message}`);
+    } finally {
+      if (isMore) {
+        setLoadingMoreXhsSubCommentIds((current) => current.filter((item) => item !== commentId));
+      } else {
+        setLoadingXhsSubCommentIds((current) => current.filter((item) => item !== commentId));
+      }
+    }
+  }
+
   async function handleSyncSingleXhsBrandAccount(entry: XhsAccountBindingEntry) {
     if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.collection.xiaohongshuCollection"]?.edit) {
       setErrorMessage("当前账号没有同步小红书收集数据的编辑权限。");
@@ -3336,9 +3520,13 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
         onSyncFeishuWorkspace={handleSyncFeishuWorkspace}
         onSyncXhsWorkspace={handleSyncXhsWorkspace}
         onSyncXhsSearchNotes={handleSyncXhsSearchNotes}
+        onSyncXhsCommentData={handleSyncXhsCommentData}
         onSyncAllXhsBrandAccounts={handleSyncAllXhsBrandAccounts}
         onSyncSingleXhsBrandAccount={handleSyncSingleXhsBrandAccount}
         onSyncSingleXhsCompetitorAccount={handleSyncSingleXhsCompetitorAccount}
+        onLoadMoreXhsComments={handleLoadMoreXhsComments}
+        onToggleXhsCommentReplies={handleToggleXhsCommentReplies}
+        onLoadXhsCommentReplies={handleLoadXhsCommentReplies}
         onSyncDouyinWorkspace={handleSyncDouyinWorkspace}
         onSyncAllDouyinBrandAccounts={handleSyncAllDouyinBrandAccounts}
         onSyncAllDouyinCompetitorAccounts={handleSyncAllDouyinCompetitorAccounts}
@@ -3351,6 +3539,14 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
         sortedBrandNotes={sortedBrandNotes}
         sortedBenchmarkNotes={sortedBenchmarkNotes}
         sortedSearchNotes={sortedSearchNotes}
+        sortedXhsCommentData={sortedXhsCommentData}
+        xhsCommentPagination={xhsCommentPagination}
+        isLoadingMoreXhsComments={isLoadingMoreXhsComments}
+        expandedXhsCommentIds={expandedXhsCommentIds}
+        xhsSubCommentsByParent={xhsSubCommentsByParent}
+        xhsSubCommentPaginationMap={xhsSubCommentPaginationMap}
+        loadingXhsSubCommentIds={loadingXhsSubCommentIds}
+        loadingMoreXhsSubCommentIds={loadingMoreXhsSubCommentIds}
         sortedDouyinBrandAccounts={sortedDouyinBrandAccounts}
         sortedDouyinCompetitorAccounts={sortedDouyinCompetitorAccounts}
         sortedDouyinBrandWorks={sortedDouyinBrandWorks}

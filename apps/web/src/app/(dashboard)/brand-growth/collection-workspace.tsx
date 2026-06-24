@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import type {
   AsyncAction,
   FeishuAppConfigForm,
@@ -22,7 +22,11 @@ import type {
   DouyinCollectedWorkRecord,
   XhsAccountRole,
   XhsCollectedAccountRecord,
+  XhsCommentPaginationState,
+  XhsCommentRecord,
   XhsCollectedNoteRecord,
+  XhsSubCommentPaginationState,
+  XhsSubCommentRecord,
 } from "../../../services/collectors";
 import type {
   FeishuAppConfigRecord,
@@ -37,7 +41,8 @@ export type XiaohongshuCollectionCardKey =
   | "competitorAccount"
   | "brandWorks"
   | "benchmarkWorks"
-  | "searchNotes";
+  | "searchNotes"
+  | "commentData";
 
 export const xiaohongshuCollectionCards: Array<{
   key: XiaohongshuCollectionCardKey;
@@ -48,6 +53,7 @@ export const xiaohongshuCollectionCards: Array<{
   { key: "brandWorks", label: "品牌作品信息及数据" },
   { key: "benchmarkWorks", label: "对标作品信息及数据" },
   { key: "searchNotes", label: "搜索笔记" },
+  { key: "commentData", label: "评论数据" },
 ];
 
 export type XhsAccountBindingEntry = {
@@ -304,6 +310,7 @@ export interface BrandGrowthCollectionWorkspaceProps {
     brandWorkLocators: string;
     benchmarkNoteLocators: string;
     searchKeyword: string;
+    commentSourceUrls: string;
   };
   setXhsSyncForm: Dispatch<SetStateAction<{
     brandAccountEntries: XhsAccountBindingEntry[];
@@ -311,6 +318,7 @@ export interface BrandGrowthCollectionWorkspaceProps {
     brandWorkLocators: string;
     benchmarkNoteLocators: string;
     searchKeyword: string;
+    commentSourceUrls: string;
   }>>;
   activeDouyinCollectionCard: DouyinCollectionCardKey;
   onDouyinCollectionCardChange: ValueAction<DouyinCollectionCardKey>;
@@ -389,9 +397,13 @@ export interface BrandGrowthCollectionWorkspaceProps {
   onSyncFeishuWorkspace: AsyncAction;
   onSyncXhsWorkspace: AsyncAction;
   onSyncXhsSearchNotes: AsyncAction;
+  onSyncXhsCommentData: AsyncAction;
   onSyncAllXhsBrandAccounts: AsyncAction;
   onSyncSingleXhsBrandAccount: ValueAction<XhsAccountBindingEntry>;
   onSyncSingleXhsCompetitorAccount: ValueAction<XhsAccountBindingEntry>;
+  onLoadMoreXhsComments: AsyncAction;
+  onToggleXhsCommentReplies: ValueAction<string>;
+  onLoadXhsCommentReplies: (comment: XhsCommentRecord, loadMore?: boolean) => void | Promise<void>;
   onSyncDouyinWorkspace: AsyncAction;
   onSyncAllDouyinBrandAccounts: AsyncAction;
   onSyncAllDouyinCompetitorAccounts: AsyncAction;
@@ -404,6 +416,14 @@ export interface BrandGrowthCollectionWorkspaceProps {
   sortedBrandNotes: XhsCollectedNoteRecord[];
   sortedBenchmarkNotes: XhsCollectedNoteRecord[];
   sortedSearchNotes: XhsCollectedNoteRecord[];
+  sortedXhsCommentData: XhsCommentRecord[];
+  xhsCommentPagination: XhsCommentPaginationState[];
+  isLoadingMoreXhsComments: boolean;
+  expandedXhsCommentIds: string[];
+  xhsSubCommentsByParent: Record<string, XhsSubCommentRecord[]>;
+  xhsSubCommentPaginationMap: Record<string, XhsSubCommentPaginationState>;
+  loadingXhsSubCommentIds: string[];
+  loadingMoreXhsSubCommentIds: string[];
   sortedDouyinBrandAccounts: DouyinCollectedAccountRecord[];
   sortedDouyinCompetitorAccounts: DouyinCollectedAccountRecord[];
   sortedDouyinBrandWorks: DouyinCollectedWorkRecord[];
@@ -2533,6 +2553,179 @@ function DouyinCommentTable(props: {
   );
 }
 
+function XhsCommentTable(props: {
+  items: XhsCommentRecord[];
+  formatDateTime: OptionalDateFormatter;
+  formatCount: OptionalNumberFormatter;
+  expandedCommentIds: string[];
+  subCommentsByParent: Record<string, XhsSubCommentRecord[]>;
+  subCommentPaginationMap: Record<string, XhsSubCommentPaginationState>;
+  loadingCommentIds: string[];
+  loadingMoreCommentIds: string[];
+  onToggleReplies: ValueAction<string>;
+  onLoadReplies: (comment: XhsCommentRecord, loadMore?: boolean) => void | Promise<void>;
+}) {
+  return (
+    <ScrollableTableShell>
+      <table className="soft-table douyin-data-table">
+        <thead>
+          <tr>
+            <th>笔记 ID</th>
+            <th>笔记链接</th>
+            <th>评论 ID</th>
+            <th>评论内容</th>
+            <th>评论时间</th>
+            <th>评论用户昵称</th>
+            <th>评论用户 ID</th>
+            <th>评论点赞数</th>
+            <th>二级评论数</th>
+            <th>采集时间</th>
+            <th>二级评论</th>
+          </tr>
+        </thead>
+        <tbody>
+          {props.items.map((item) => {
+            const commentId = item.commentId;
+            const subComments = props.subCommentsByParent[commentId] ?? [];
+            const subPagination = props.subCommentPaginationMap[commentId];
+            const isExpanded = props.expandedCommentIds.includes(commentId);
+            const isLoading = props.loadingCommentIds.includes(commentId);
+            const isLoadingMore = props.loadingMoreCommentIds.includes(commentId);
+            const canLoadReplies = (item.replyCount || 0) > 0;
+            const canToggleReplies = subComments.length > 0;
+
+            return (
+              <Fragment key={item.id}>
+                <tr
+                  onClick={canToggleReplies ? () => props.onToggleReplies(commentId) : undefined}
+                  style={canToggleReplies ? { cursor: "pointer" } : undefined}
+                  title={canToggleReplies ? (isExpanded ? "点击收起二级评论" : "点击展开二级评论") : undefined}
+                >
+                  <td><CopyableCell value={item.noteId} /></td>
+                  <td>
+                    {item.noteUrl || item.sourceUrl ? (
+                      <a href={item.noteUrl || item.sourceUrl} target="_blank" rel="noreferrer" className="note-data-link">
+                        打开笔记
+                      </a>
+                    ) : "-"}
+                  </td>
+                  <td><CopyableCell value={commentId} /></td>
+                  <td className="table-cell-wide">
+                    <ExpandableTextCell value={item.commentText} emptyText="暂无评论内容" compactRows={3} />
+                  </td>
+                  <td>{item.commentTime || "-"}</td>
+                  <td className="table-cell-wide">
+                    <ExpandableTextCell value={item.commentUserName} emptyText="-" compactRows={2} />
+                  </td>
+                  <td><CopyableCell value={item.commentUserId} /></td>
+                  <td>{props.formatCount(item.likeCount)}</td>
+                  <td>{props.formatCount(item.replyCount)}</td>
+                  <td>{props.formatDateTime(item.collectedAt)}</td>
+                  <td>
+                    <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                      {canLoadReplies ? (
+                        <button
+                          type="button"
+                          className="secondary-button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            void props.onLoadReplies(item);
+                          }}
+                          disabled={isLoading || isLoadingMore}
+                        >
+                          {isLoading ? "加载中..." : "查看二级评论"}
+                        </button>
+                      ) : (
+                        <span className="table-cell-empty">-</span>
+                      )}
+                      {canToggleReplies ? (
+                        <button
+                          type="button"
+                          className="note-inline-button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            props.onToggleReplies(commentId);
+                          }}
+                        >
+                          {isExpanded ? "收起" : "展开"}
+                        </button>
+                      ) : null}
+                    </div>
+                  </td>
+                </tr>
+                {isExpanded ? (
+                  <tr>
+                    <td colSpan={11} style={{ background: "rgba(15, 23, 42, 0.03)" }}>
+                      <div style={{ display: "grid", gap: 10, padding: "12px 0" }}>
+                        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                          <strong>二级评论列表</strong>
+                          <span className={`archive-pill ${subComments.length ? "status-ready" : "status-pending"}`}>
+                            已加载 {subComments.length} 条
+                          </span>
+                          <span className={`archive-pill ${subPagination?.hasMore ? "status-ready" : "status-pending"}`}>
+                            {subPagination?.hasMore ? "还有更多" : "已无更多"}
+                          </span>
+                          {subPagination ? (
+                            <span className="archive-pill status-pending">当前游标 {subPagination.fetchedCount} 条</span>
+                          ) : null}
+                          {subPagination?.hasMore ? (
+                            <button
+                              type="button"
+                              className="secondary-button"
+                              onClick={() => void props.onLoadReplies(item, true)}
+                              disabled={isLoading || isLoadingMore}
+                            >
+                              {isLoadingMore ? "加载中..." : "加载更多二级评论"}
+                            </button>
+                          ) : null}
+                        </div>
+                        {subComments.length ? (
+                          <div style={{ display: "grid", gap: 10 }}>
+                            {subComments.map((reply) => (
+                              <div
+                                key={reply.id}
+                                style={{
+                                  display: "grid",
+                                  gap: 8,
+                                  padding: 12,
+                                  borderRadius: 12,
+                                  border: "1px solid rgba(148, 163, 184, 0.25)",
+                                  background: "#fff",
+                                }}
+                              >
+                                <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                                  <strong>{reply.commentUserName || "匿名用户"}</strong>
+                                  <span className="personal-meta">{reply.commentTime || props.formatDateTime(reply.collectedAt)}</span>
+                                </div>
+                                <div style={{ color: "var(--text-color, #0f172a)", whiteSpace: "pre-wrap", lineHeight: 1.65 }}>
+                                  {reply.commentText || "暂无二级评论内容"}
+                                </div>
+                                <div style={{ display: "flex", gap: 12, flexWrap: "wrap", color: "var(--muted-text-color, #64748b)" }}>
+                                  <span>评论 ID：{reply.commentId || "-"}</span>
+                                  <span>用户 ID：{reply.commentUserId || "-"}</span>
+                                  <span>点赞：{formatOptionalCount(reply.likeCount)}</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="note-empty-state" style={{ margin: 0 }}>
+                            该一级评论下暂未加载到二级评论，可再次点击“查看二级评论”重试。
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ) : null}
+              </Fragment>
+            );
+          })}
+        </tbody>
+      </table>
+    </ScrollableTableShell>
+  );
+}
+
 function DouyinCityHotspotTable(props: {
   items: DouyinCityHotspotRecord[];
   formatDateTime: OptionalDateFormatter;
@@ -2877,7 +3070,8 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
     props.sortedCompetitorAccounts.length +
     props.sortedBrandNotes.length +
     props.sortedBenchmarkNotes.length +
-    props.sortedSearchNotes.length;
+    props.sortedSearchNotes.length +
+    props.sortedXhsCommentData.length;
   const douyinSyncedCount =
     props.sortedDouyinBrandAccounts.length +
     props.sortedDouyinCompetitorAccounts.length +
@@ -2895,6 +3089,8 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
   const feishuBindingReady = Boolean(props.feishuBinding?.wikiUrl || props.feishuBindingForm.wikiUrl.trim());
   const douyinContentTags = props.douyinWorkspace.contentTags ?? [];
   const douyinCityOptions = props.douyinWorkspace.cityOptions ?? [];
+  const xhsCommentHasMoreCount = props.xhsCommentPagination.filter((item) => item.hasMore).length;
+  const xhsCommentRequestCount = props.xhsCommentPagination.length;
   const douyinCommentHasMoreCount = props.douyinCommentPagination.filter((item) => item.hasMore).length;
   const douyinCommentRequestCount = props.douyinCommentPagination.length;
   const douyinPreviewItems =
@@ -3542,6 +3738,66 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                   />
                 ) : (
                   <div className="note-empty-state">当前还没有搜索笔记结果，先输入关键词并提交。</div>
+                )}
+              </article>
+            </>
+          ) : null}
+          {props.activeXhsCollectionCard === "commentData" ? (
+            <>
+              <DouyinSubmitPanel
+                title="评论数据"
+                value={props.xhsSyncForm.commentSourceUrls}
+                onChange={(value) => props.setXhsSyncForm((current) => ({ ...current, commentSourceUrls: value }))}
+                placeholder="每行一个小红书笔记链接、分享链接或 note_id"
+                isSubmitting={props.isHydrating || props.isSyncingXhsWorkspace}
+                onSubmit={props.onSyncXhsCommentData}
+              />
+              <article className="light-data-panel">
+                <div className="collection-result-head">
+                  <div>
+                    <h3>评论数据</h3>
+                    <p>调用 Tikhub 小红书笔记评论接口采集一级评论，并支持按一级评论展开采集二级评论。</p>
+                  </div>
+                  <div className="strategy-inline-actions">
+                    <span className={`archive-pill ${props.sortedXhsCommentData.length ? "status-ready" : "status-pending"}`}>
+                      已采集 {props.sortedXhsCommentData.length} 条
+                    </span>
+                    <span className={`archive-pill ${xhsCommentHasMoreCount ? "status-ready" : "status-pending"}`}>
+                      可继续翻页 {xhsCommentHasMoreCount} 个笔记
+                    </span>
+                    {xhsCommentRequestCount ? (
+                      <span className="archive-pill status-pending">当前游标 {xhsCommentRequestCount} 个笔记</span>
+                    ) : null}
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      onClick={() => void props.onLoadMoreXhsComments()}
+                      disabled={
+                        props.isHydrating
+                        || props.isSyncingXhsWorkspace
+                        || props.isLoadingMoreXhsComments
+                        || !xhsCommentHasMoreCount
+                      }
+                    >
+                      {props.isLoadingMoreXhsComments ? "加载中..." : "加载更多"}
+                    </button>
+                  </div>
+                </div>
+                {props.sortedXhsCommentData.length ? (
+                  <XhsCommentTable
+                    items={props.sortedXhsCommentData}
+                    formatDateTime={props.formatDateTime}
+                    formatCount={props.formatCount}
+                    expandedCommentIds={props.expandedXhsCommentIds}
+                    subCommentsByParent={props.xhsSubCommentsByParent}
+                    subCommentPaginationMap={props.xhsSubCommentPaginationMap}
+                    loadingCommentIds={props.loadingXhsSubCommentIds}
+                    loadingMoreCommentIds={props.loadingMoreXhsSubCommentIds}
+                    onToggleReplies={props.onToggleXhsCommentReplies}
+                    onLoadReplies={props.onLoadXhsCommentReplies}
+                  />
+                ) : (
+                  <div className="note-empty-state">当前还没有评论数据结果，请先输入小红书笔记链接并提交。</div>
                 )}
               </article>
             </>

@@ -283,6 +283,13 @@ type ImagePromptEditDraft = {
   status: ImagePromptTemplateAdminRecord["status"];
   categoryLabel: string;
   sortOrder: string;
+  previewImageFileName: string;
+  previewImageUpload?: {
+    fileName: string;
+    contentType: string;
+    dataBase64: string;
+    previewDataUrl: string;
+  };
 };
 type ImagePromptAdminFilters = {
   sourceCategory: string;
@@ -1367,6 +1374,29 @@ export default function AdminPage() {
     }));
   }
 
+  async function handleImagePromptPreviewFileChange(templateId: string, file?: File | null) {
+    if (!file) {
+      const fallbackTemplate = imagePromptTemplates.find((item) => item.id === templateId);
+      handleImagePromptDraftChange(templateId, {
+        previewImageFileName: fallbackTemplate?.previewImageFileName || "",
+        previewImageUpload: undefined,
+      });
+      return;
+    }
+
+    const contentType = file.type || resolveImagePromptPreviewContentType(file.name);
+    const dataBase64 = await readFileAsBase64(file);
+    handleImagePromptDraftChange(templateId, {
+      previewImageFileName: file.name,
+      previewImageUpload: {
+        fileName: file.name,
+        contentType,
+        dataBase64,
+        previewDataUrl: `data:${contentType};base64,${dataBase64}`,
+      },
+    });
+  }
+
   function handleSkillCenterStatusChange(status: SkillConfigRecord["status"]) {
     if (activeSkillConfig) {
       handleSkillDraftChange(activeSkillConfig.id, { status });
@@ -1749,6 +1779,13 @@ export default function AdminPage() {
         status: draft.status,
         categoryLabel: draft.categoryLabel,
         sortOrder: Number(draft.sortOrder || 0),
+        previewImage: draft.previewImageUpload
+          ? {
+              fileName: draft.previewImageUpload.fileName,
+              contentType: draft.previewImageUpload.contentType,
+              dataBase64: draft.previewImageUpload.dataBase64,
+            }
+          : undefined,
       });
 
       setImagePromptTemplates((current) => current.map((item) => (item.id === templateId ? updated : item)));
@@ -3697,6 +3734,9 @@ export default function AdminPage() {
   const selectedImagePromptDraft = selectedImagePrompt
     ? imagePromptDrafts[selectedImagePrompt.id] || buildImagePromptDraft(selectedImagePrompt)
     : undefined;
+  const selectedImagePromptPreviewUrl = selectedImagePromptDraft?.previewImageUpload?.previewDataUrl
+    || selectedImagePrompt?.previewImageUrl
+    || "";
   const isSkillPrimaryExpanded = (primaryId: string) => !collapsedSkillPrimaryMap[primaryId];
   const isSkillSectionExpanded = (primaryId: string, sectionId: string) =>
     !collapsedSkillSectionMap[buildAdminSkillSectionCollapseKey(primaryId, sectionId)];
@@ -6424,16 +6464,16 @@ export default function AdminPage() {
                     <div className="personal-meta">更新于 {formatDateTime(selectedImagePrompt.updatedAt)}</div>
                   </div>
 
-                  {selectedImagePrompt.previewImageUrl ? (
+                  {selectedImagePromptPreviewUrl ? (
                     <section className="entity-card admin-skill-section-card">
                       <div className="entity-card-head">
                         <div>
                           <strong>模板预览图</strong>
-                          <p className="personal-meta">这里显示当前模板同步到 OSS 后提供给前后台共用的缩略图。</p>
+                          <p className="personal-meta">这里显示当前模板预览图；选择新文件后会先展示本地预览，保存后再同步到 OSS。</p>
                         </div>
                       </div>
                       <div className="image-prompt-preview-card">
-                        <img src={selectedImagePrompt.previewImageUrl} alt={selectedImagePrompt.title} />
+                        <img src={selectedImagePromptPreviewUrl} alt={selectedImagePrompt.title} />
                       </div>
                     </section>
                   ) : null}
@@ -6494,7 +6534,33 @@ export default function AdminPage() {
                       </label>
                       <label className="admin-skill-field admin-skill-field--wide">
                         <span>预览图文件</span>
-                        <input value={selectedImagePrompt.previewImageFileName || ""} readOnly />
+                        <input value={selectedImagePromptDraft.previewImageFileName || ""} readOnly />
+                      </label>
+                      <label className="admin-skill-field admin-skill-field--wide">
+                        <span>上传新预览图</span>
+                        <input
+                          type="file"
+                          accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+                          onChange={(event) =>
+                            void handleImagePromptPreviewFileChange(selectedImagePrompt.id, event.target.files?.[0] || null)}
+                        />
+                      </label>
+                      <label className="admin-skill-field admin-skill-field--wide">
+                        <span>上传状态</span>
+                        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                          <span className={`archive-pill ${selectedImagePromptDraft.previewImageUpload ? "status-ready" : "status-pending"}`}>
+                            {selectedImagePromptDraft.previewImageUpload ? "待保存新图片" : "沿用当前预览图"}
+                          </span>
+                          {selectedImagePromptDraft.previewImageUpload ? (
+                            <button
+                              type="button"
+                              className="secondary-button"
+                              onClick={() => void handleImagePromptPreviewFileChange(selectedImagePrompt.id, null)}
+                            >
+                              清除待上传
+                            </button>
+                          ) : null}
+                        </div>
                       </label>
                       <label className="admin-skill-field admin-skill-field--full">
                         <span>预览摘要</span>
@@ -8899,6 +8965,7 @@ function buildImagePromptDraft(item: ImagePromptTemplateAdminRecord): ImagePromp
     status: item.status,
     categoryLabel: item.categoryLabel,
     sortOrder: String(item.sortOrder),
+    previewImageFileName: item.previewImageFileName || "",
   };
 }
 
