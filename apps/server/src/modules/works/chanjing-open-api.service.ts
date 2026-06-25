@@ -1,8 +1,11 @@
 import { Buffer } from "node:buffer";
-import { Injectable, ServiceUnavailableException } from "@nestjs/common";
+import { Injectable, Logger, ServiceUnavailableException } from "@nestjs/common";
 
 const CHANJING_BASE_URL = "https://open-api.chanjing.cc";
 const CHANJING_WEB_API_BASE_URL = "https://www.chanjing.cc/api";
+const CHANJING_RETRYABLE_STATUSES = new Set([502, 503, 504, 524]);
+const CHANJING_REQUEST_MAX_RETRIES = 2;
+const CHANJING_REQUEST_RETRY_DELAY_MS = 1_500;
 
 export type ChanjingTemplateFigure = {
   type: "whole_body" | "sit_body" | "circle_view";
@@ -252,6 +255,7 @@ type ChanjingResponse<T> = {
 @Injectable()
 export class ChanjingOpenApiService {
   private readonly tokenCache = new Map<string, { accessToken: string; expireAtMs: number }>();
+  private readonly logger = new Logger(ChanjingOpenApiService.name);
 
   async listTemplateTags(credential: string) {
     try {
@@ -719,50 +723,75 @@ export class ChanjingOpenApiService {
       baseUrl?: string;
     },
   ) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), options.timeoutMs ?? 60_000);
-    try {
-      const response = await fetch(`${options.baseUrl || CHANJING_BASE_URL}${requestPath}`, {
-        method: options.method,
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-          ...(options.accessToken ? { access_token: options.accessToken } : {}),
-        },
-        body: options.method === "POST" ? JSON.stringify(options.body || {}) : undefined,
-        signal: controller.signal,
-      });
-      const rawText = await response.text();
-      const payload = this.tryParseResponsePayload<T>(rawText, response.headers.get("content-type"));
-      if (!response.ok) {
-        throw new ServiceUnavailableException(
-          `蝉镜接口请求失败：${options.method} ${requestPath} ${response.status}${
-            this.buildResponseMessage(payload?.msg, rawText) ? `，${this.buildResponseMessage(payload?.msg, rawText)}` : ""
-          }`,
-        );
+    for (let attempt = 0; attempt <= CHANJING_REQUEST_MAX_RETRIES; attempt += 1) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), options.timeoutMs ?? 60_000);
+      try {
+        const response = await fetch(`${options.baseUrl || CHANJING_BASE_URL}${requestPath}`, {
+          method: options.method,
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+            ...(options.accessToken ? { access_token: options.accessToken } : {}),
+          },
+          body: options.method === "POST" ? JSON.stringify(options.body || {}) : undefined,
+          signal: controller.signal,
+        });
+        const rawText = await response.text();
+        const payload = this.tryParseResponsePayload<T>(rawText, response.headers.get("content-type"));
+        const responseMessage = this.buildResponseMessage(payload?.msg, rawText);
+
+        if (!response.ok) {
+          if (this.shouldRetryGatewayFailure(response.status, responseMessage, rawText) && attempt < CHANJING_REQUEST_MAX_RETRIES) {
+            await this.waitBeforeRetry(options.method, requestPath, attempt + 1, response.status, responseMessage);
+            continue;
+          }
+          throw new ServiceUnavailableException(
+            `蝉镜接口请求失败：${options.method} ${requestPath} ${response.status}${responseMessage ? `，${responseMessage}` : ""}`,
+          );
+        }
+        if (!payload) {
+          if (this.shouldRetryGatewayFailure(undefined, "", rawText) && attempt < CHANJING_REQUEST_MAX_RETRIES) {
+            await this.waitBeforeRetry(options.method, requestPath, attempt + 1, undefined, this.buildPlainTextSummary(rawText));
+            continue;
+          }
+          throw new ServiceUnavailableException(
+            `蝉镜接口返回非 JSON：${options.method} ${requestPath}${rawText ? `，${this.buildPlainTextSummary(rawText)}` : ""}`,
+          );
+        }
+        if (Number(payload?.code || 0) !== 0) {
+          const apiMessage = String(payload?.msg || "未知错误").trim();
+          if (this.shouldRetryGatewayFailure(undefined, apiMessage, rawText) && attempt < CHANJING_REQUEST_MAX_RETRIES) {
+            await this.waitBeforeRetry(options.method, requestPath, attempt + 1, undefined, apiMessage);
+            continue;
+          }
+          throw new ServiceUnavailableException(`蝉镜接口返回异常：${apiMessage || "未知错误"}`);
+        }
+        return payload.data as T;
+      } catch (error) {
+        if (error instanceof ServiceUnavailableException) {
+          if (this.shouldRetryGatewayFailure(undefined, error.message, "") && attempt < CHANJING_REQUEST_MAX_RETRIES) {
+            await this.waitBeforeRetry(options.method, requestPath, attempt + 1, undefined, error.message);
+            continue;
+          }
+          throw error;
+        }
+        const message = error instanceof Error && error.name === "AbortError"
+          ? "请求超时"
+          : error instanceof Error
+            ? error.message
+            : "未知错误";
+        if (this.shouldRetryGatewayFailure(undefined, message, "") && attempt < CHANJING_REQUEST_MAX_RETRIES) {
+          await this.waitBeforeRetry(options.method, requestPath, attempt + 1, undefined, message);
+          continue;
+        }
+        throw new ServiceUnavailableException(`蝉镜接口请求失败：${message}`);
+      } finally {
+        clearTimeout(timer);
       }
-      if (!payload) {
-        throw new ServiceUnavailableException(
-          `蝉镜接口返回非 JSON：${options.method} ${requestPath}${rawText ? `，${this.buildPlainTextSummary(rawText)}` : ""}`,
-        );
-      }
-      if (Number(payload?.code || 0) !== 0) {
-        throw new ServiceUnavailableException(`蝉镜接口返回异常：${payload?.msg || "未知错误"}`);
-      }
-      return payload.data as T;
-    } catch (error) {
-      if (error instanceof ServiceUnavailableException) {
-        throw error;
-      }
-      const message = error instanceof Error && error.name === "AbortError"
-        ? "请求超时"
-        : error instanceof Error
-          ? error.message
-          : "未知错误";
-      throw new ServiceUnavailableException(`蝉镜接口请求失败：${message}`);
-    } finally {
-      clearTimeout(timer);
     }
+
+    throw new ServiceUnavailableException(`蝉镜接口请求失败：${options.method} ${requestPath} 超过重试次数`);
   }
 
   private tryParseResponsePayload<T>(rawText: string, contentType: string | null) {
@@ -798,6 +827,36 @@ export class ChanjingOpenApiService {
       return "";
     }
     return normalized.length > 160 ? `${normalized.slice(0, 160)}...` : normalized;
+  }
+
+  private shouldRetryGatewayFailure(status?: number, message?: string, rawText?: string) {
+    if (typeof status === "number" && CHANJING_RETRYABLE_STATUSES.has(status)) {
+      return true;
+    }
+    const normalized = `${message || ""} ${rawText || ""}`.toLowerCase();
+    return normalized.includes("502 bad gateway")
+      || normalized.includes("503 service unavailable")
+      || normalized.includes("504 gateway timeout")
+      || normalized.includes("524")
+      || normalized.includes("upstream")
+      || normalized.includes("fetch failed")
+      || normalized.includes("socket hang up")
+      || normalized.includes("econnreset")
+      || normalized.includes("request timeout")
+      || normalized.includes("请求超时");
+  }
+
+  private async waitBeforeRetry(
+    method: string,
+    requestPath: string,
+    attemptNumber: number,
+    status?: number,
+    message?: string,
+  ) {
+    this.logger.warn(
+      `蝉镜接口重试第 ${attemptNumber} 次：${method} ${requestPath}${status ? ` ${status}` : ""}${message ? `，${message}` : ""}`,
+    );
+    await new Promise((resolve) => setTimeout(resolve, CHANJING_REQUEST_RETRY_DELAY_MS * attemptNumber));
   }
 
   private normalizeTemplateTagGroup(input: unknown): ChanjingTemplateTagGroup {

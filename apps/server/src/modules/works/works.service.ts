@@ -8398,27 +8398,48 @@ export class WorksService {
       metadata: localMetaBase,
     });
     try {
-      const upload = await this.uploadChanjingCustomPersonTrainingVideo(credential, payload.trainingVideo);
+      let upload: Awaited<ReturnType<typeof this.uploadChanjingCustomPersonTrainingVideo>>;
+      try {
+        upload = await this.uploadChanjingCustomPersonTrainingVideo(credential, payload.trainingVideo);
+      } catch (error) {
+        throw new ServiceUnavailableException(
+          `数字人训练视频上传失败：${error instanceof Error ? error.message : "请稍后重试"}`,
+        );
+      }
       await this.saveDigitalHumanCustomPersonMetadataSnapshot(brandId, workMedia.id, workMedia.storageKey || `${workMedia.id}.html`, {
         ...localMetaBase,
         trainingVideoFileId: upload.fileId,
         updatedAt: new Date().toISOString(),
       });
-      const personId = await this.chanjingOpenApiService.createCustomisedPerson(credential, {
-        name: normalizedName,
-        trainType: payload.trainType || "figure",
-        language: payload.language || "cn",
-        fileId: upload.fileId,
-        errorSkip: Boolean(payload.errorSkip),
-        resolutionRate: payload.resolutionRate === "4K" ? 1 : 0,
-      });
-      const detail = await this.waitForChanjingCustomPersonReady(credential, personId, {
-        name: normalizedName,
-        trainType: payload.trainType || "figure",
-        language: payload.language || "cn",
-        resolutionRate: payload.resolutionRate || "1080p",
-        errorSkip: Boolean(payload.errorSkip),
-      });
+      let personId = "";
+      try {
+        personId = await this.chanjingOpenApiService.createCustomisedPerson(credential, {
+          name: normalizedName,
+          trainType: payload.trainType || "figure",
+          language: payload.language || "cn",
+          fileId: upload.fileId,
+          errorSkip: Boolean(payload.errorSkip),
+          resolutionRate: payload.resolutionRate === "4K" ? 1 : 0,
+        });
+      } catch (error) {
+        throw new ServiceUnavailableException(
+          `数字人训练任务创建失败：${error instanceof Error ? error.message : "请稍后重试"}`,
+        );
+      }
+      let detail: ReturnType<typeof this.mapChanjingCustomPersonRecord>;
+      try {
+        detail = await this.waitForChanjingCustomPersonReady(credential, personId, {
+          name: normalizedName,
+          trainType: payload.trainType || "figure",
+          language: payload.language || "cn",
+          resolutionRate: payload.resolutionRate || "1080p",
+          errorSkip: Boolean(payload.errorSkip),
+        });
+      } catch (error) {
+        throw new ServiceUnavailableException(
+          `数字人训练结果同步失败：${error instanceof Error ? error.message : "请稍后在列表中刷新查看"}`,
+        );
+      }
       await this.saveDigitalHumanCustomPersonMetadataSnapshot(brandId, workMedia.id, workMedia.storageKey || `${workMedia.id}.html`, {
         ...localMetaBase,
         personId,
@@ -20548,16 +20569,39 @@ export class WorksService {
   }
 
   private async uploadChanjingCustomPersonTrainingVideo(credential: string, payload: UploadFilePayload) {
-    const upload = await this.chanjingOpenApiService.createUploadUrl(credential, {
-      service: "customised_person",
-      name: payload.fileName || `custom-person${this.resolveVideoExtensionFromMimeType(payload.contentType, ".mp4")}`,
-    });
-    await this.chanjingOpenApiService.uploadSignedFile(
-      upload.signUrl,
-      payload,
-      upload.mimeType || payload.contentType || "application/octet-stream",
-    );
-    const fileDetail = await this.waitForChanjingFileReady(credential, upload.fileId);
+    let upload: Awaited<ReturnType<typeof this.chanjingOpenApiService.createUploadUrl>>;
+    try {
+      upload = await this.chanjingOpenApiService.createUploadUrl(credential, {
+        service: "customised_person",
+        name: payload.fileName || `custom-person${this.resolveVideoExtensionFromMimeType(payload.contentType, ".mp4")}`,
+      });
+    } catch (error) {
+      throw new ServiceUnavailableException(
+        `获取蝉镜训练视频上传地址失败：${error instanceof Error ? error.message : "请稍后重试"}`,
+      );
+    }
+
+    try {
+      await this.chanjingOpenApiService.uploadSignedFile(
+        upload.signUrl,
+        payload,
+        upload.mimeType || payload.contentType || "application/octet-stream",
+      );
+    } catch (error) {
+      throw new ServiceUnavailableException(
+        `上传训练视频到蝉镜失败：${error instanceof Error ? error.message : "请稍后重试"}`,
+      );
+    }
+
+    let fileDetail: Awaited<ReturnType<typeof this.waitForChanjingFileReady>>;
+    try {
+      fileDetail = await this.waitForChanjingFileReady(credential, upload.fileId);
+    } catch (error) {
+      throw new ServiceUnavailableException(
+        `等待蝉镜训练视频同步完成失败：${error instanceof Error ? error.message : "请稍后重试"}`,
+      );
+    }
+
     return {
       ...upload,
       fileDetail,
