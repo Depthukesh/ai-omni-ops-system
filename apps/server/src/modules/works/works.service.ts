@@ -8469,13 +8469,33 @@ export class WorksService {
         ...this.mergeCustomPersonMetaWithRecord(localMetaBase, detail),
         updatedAt: new Date().toISOString(),
       });
-      await this.markTaskSuccess(task.id, {
-        workId: workMedia.id,
-        personId,
-        status: detail.status,
-        progress: detail.progress,
-        stage: "CUSTOM_PERSON_READY",
-      });
+      if (detail.status === "SUCCESS") {
+        await this.markTaskSuccess(task.id, {
+          workId: workMedia.id,
+          personId,
+          status: detail.status,
+          progress: detail.progress,
+          stage: "CUSTOM_PERSON_READY",
+        });
+      } else if (detail.status === "FAILED") {
+        await this.markTaskFailed(task.id, detail.errorReason || "数字人训练失败", {
+          outputJson: {
+            workId: workMedia.id,
+            personId,
+            status: detail.status,
+            progress: detail.progress,
+            stage: "CUSTOM_PERSON_FAILED",
+          },
+        });
+      } else {
+        await this.updateTaskRunningOutput(task.id, {
+          workId: workMedia.id,
+          personId,
+          status: detail.status,
+          progress: detail.progress,
+          stage: "CUSTOM_PERSON_TRAINING",
+        });
+      }
       return {
         item: detail,
       };
@@ -20663,16 +20683,23 @@ export class WorksService {
     },
   ) {
     let latestError = "";
+    let latestDetail: DouyinDigitalHumanCustomPersonRecord | undefined;
     for (let attempt = 0; attempt < 5; attempt += 1) {
       try {
         const detail = await this.chanjingOpenApiService.getCustomisedPersonDetail(credential, personId);
-        return this.mapChanjingCustomPersonRecord(detail, fallback);
+        latestDetail = this.mapChanjingCustomPersonRecord(detail, fallback);
+        if (latestDetail.status === "SUCCESS" || latestDetail.status === "FAILED") {
+          return latestDetail;
+        }
       } catch (error) {
         latestError = error instanceof Error ? error.message : "蝉镜定制数字人详情查询失败";
-        if (attempt < 4) {
-          await wait(2_000);
-        }
       }
+      if (attempt < 4) {
+        await wait(2_000);
+      }
+    }
+    if (latestDetail) {
+      return latestDetail;
     }
     const now = new Date().toISOString();
     return {
