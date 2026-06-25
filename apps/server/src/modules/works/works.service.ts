@@ -8418,17 +8418,52 @@ export class WorksService {
       sourceUrl: htmlFile.url,
       metadata: localMetaBase,
     });
+    await this.saveDigitalHumanCustomPersonMetadataSnapshot(brandId, workMedia.id, workMedia.storageKey || `${workMedia.id}.html`, {
+      ...localMetaBase,
+      updatedAt: new Date().toISOString(),
+    });
+    await this.markTaskRunning(task.id);
+    await this.updateTaskRunningOutput(task.id, {
+      workId: workMedia.id,
+      status: localMetaBase.status,
+      progress: localMetaBase.progress,
+      stage: "CUSTOM_PERSON_UPLOADING",
+    });
+    void this.processDouyinDigitalHumanCustomPersonCreation({
+      brandId,
+      payload,
+      normalizedName,
+      taskId: task.id,
+      workMediaId: workMedia.id,
+      storageKey: workMedia.storageKey || `${workMedia.id}.html`,
+      localMetaBase,
+    });
+    return {
+      item: this.mapLocalCustomPersonMeta(localMetaBase, workMedia.id),
+    };
+  }
+
+  private async processDouyinDigitalHumanCustomPersonCreation(params: {
+    brandId: string;
+    payload: CreateDouyinDigitalHumanCustomPersonPayload;
+    normalizedName: string;
+    taskId: string;
+    workMediaId: string;
+    storageKey: string;
+    localMetaBase: DigitalHumanCustomPersonWorkAssetMeta;
+  }) {
+    const { brandId, payload, normalizedName, taskId, workMediaId, storageKey, localMetaBase } = params;
     try {
       const credential = await this.resolveChanjingCredential(brandId);
       let upload: Awaited<ReturnType<typeof this.uploadChanjingCustomPersonTrainingVideo>>;
       try {
-        upload = await this.uploadChanjingCustomPersonTrainingVideo(credential, payload.trainingVideo);
+        upload = await this.uploadChanjingCustomPersonTrainingVideo(credential, payload.trainingVideo!);
       } catch (error) {
         throw new ServiceUnavailableException(
           `数字人训练视频上传失败：${error instanceof Error ? error.message : "请稍后重试"}`,
         );
       }
-      await this.saveDigitalHumanCustomPersonMetadataSnapshot(brandId, workMedia.id, workMedia.storageKey || `${workMedia.id}.html`, {
+      await this.saveDigitalHumanCustomPersonMetadataSnapshot(brandId, workMediaId, storageKey, {
         ...localMetaBase,
         trainingVideoFileId: upload.fileId,
         updatedAt: new Date().toISOString(),
@@ -8462,7 +8497,7 @@ export class WorksService {
           `数字人训练结果同步失败：${error instanceof Error ? error.message : "请稍后在列表中刷新查看"}`,
         );
       }
-      await this.saveDigitalHumanCustomPersonMetadataSnapshot(brandId, workMedia.id, workMedia.storageKey || `${workMedia.id}.html`, {
+      await this.saveDigitalHumanCustomPersonMetadataSnapshot(brandId, workMediaId, storageKey, {
         ...localMetaBase,
         personId,
         trainingVideoFileId: upload.fileId,
@@ -8470,17 +8505,17 @@ export class WorksService {
         updatedAt: new Date().toISOString(),
       });
       if (detail.status === "SUCCESS") {
-        await this.markTaskSuccess(task.id, {
-          workId: workMedia.id,
+        await this.markTaskSuccess(taskId, {
+          workId: workMediaId,
           personId,
           status: detail.status,
           progress: detail.progress,
           stage: "CUSTOM_PERSON_READY",
         });
       } else if (detail.status === "FAILED") {
-        await this.markTaskFailed(task.id, detail.errorReason || "数字人训练失败", {
+        await this.markTaskFailed(taskId, detail.errorReason || "数字人训练失败", {
           outputJson: {
-            workId: workMedia.id,
+            workId: workMediaId,
             personId,
             status: detail.status,
             progress: detail.progress,
@@ -8488,27 +8523,23 @@ export class WorksService {
           },
         });
       } else {
-        await this.updateTaskRunningOutput(task.id, {
-          workId: workMedia.id,
+        await this.updateTaskRunningOutput(taskId, {
+          workId: workMediaId,
           personId,
           status: detail.status,
           progress: detail.progress,
           stage: "CUSTOM_PERSON_TRAINING",
         });
       }
-      return {
-        item: detail,
-      };
     } catch (error) {
       const message = error instanceof Error ? error.message : "定制数字人创建失败";
-      await this.saveDigitalHumanCustomPersonMetadataSnapshot(brandId, workMedia.id, workMedia.storageKey || `${workMedia.id}.html`, {
+      await this.saveDigitalHumanCustomPersonMetadataSnapshot(brandId, workMediaId, storageKey, {
         ...localMetaBase,
         status: "FAILED",
         errorReason: message,
         updatedAt: new Date().toISOString(),
       });
-      await this.markTaskFailed(task.id, message);
-      throw error;
+      await this.markTaskFailed(taskId, message);
     }
   }
 

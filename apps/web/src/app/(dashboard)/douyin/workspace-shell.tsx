@@ -935,6 +935,7 @@ export function DouyinWorkspaceShell() {
 
 
     if (digitalHumanCustomPersonsResult.status === "fulfilled") {
+      setDigitalHumanCustomPersons(digitalHumanCustomPersonsResult.value.items || []);
     } else {
       hasFallback = true;
       failedInterfaceNames.push("我的数字人");

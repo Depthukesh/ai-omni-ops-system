@@ -14,7 +14,13 @@
   - `create_customised_person` 只代表训练任务已提交，不代表训练已完成
   - 若详情接口返回仍在制作中，则本地任务保持 `RUNNING`，不再误标记为 `SUCCESS`
   - 只有蝉镜详情明确返回成功/失败状态时，本地任务才收口为成功/失败
+- 进一步将“创建定制数字人”改成真正的后台异步任务流：
+  - 接口先创建任务和本地待处理快照，并立即返回
+  - 蝉镜凭证解析、训练视频上传、创建定制数字人、同步结果改为后台继续执行
+  - 避免长链路请求被生产网关提前切断后，用户只看到 `502` 却没有任何任务记录
+- 修复 `apps/web/src/app/(dashboard)/douyin/workspace-shell.tsx` 首屏加载时“我的数字人”分支漏掉 `setDigitalHumanCustomPersons(...)` 的问题，避免明明接口成功却仍然显示 `0 个我的数字人`
 
 ## 验证
 
 - `pnpm build:server`
+- `pnpm build:web`
