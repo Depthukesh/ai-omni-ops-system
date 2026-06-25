@@ -17,7 +17,6 @@ export const DECOMMISSIONED_PLATFORM_HOSTS = new Set([
   "hk-api.gptbest.vip",
   "api.gptbest.vip",
   "api.bltcy.ai",
-  ["www.", "running", "hub.cn"].join(""),
 ]);
 
 const PLATFORM_NAME_BY_HOST: Record<string, string> = {
@@ -31,6 +30,7 @@ const PLATFORM_NAME_BY_HOST: Record<string, string> = {
   "api.tikhub.io": "Tikhub 平台",
   "agent.mathmind.cn": "MathMind 平台",
   "api.mathmind.cn": "MathMind 平台",
+  "www.runninghub.cn": "RunningHub 平台",
 };
 
 export const THIRD_PARTY_PLATFORM_SEEDS: ThirdPartyPlatformRecord[] = buildThirdPartyPlatformSeeds();
@@ -151,6 +151,18 @@ function buildThirdPartyPlatformSeeds() {
         defaultModel: "",
         remark: "用于抖音广告预审。当前品牌 Owner 请在个人中心按 `accessKeyId::secretAccessKey` 形式填写凭证；如需自定义地域，可追加 `::cn-north-1`。",
         updatedAt: "2026-06-16T00:00:00.000Z",
+      },
+      {
+        id: "platform_https_www_runninghub_cn",
+        name: "RunningHub 平台",
+        providerType: "CUSTOM" as const,
+        status: "ACTIVE" as const,
+        baseUrl: "https://www.runninghub.cn",
+        tutorialUrl: "https://www.runninghub.cn/runninghub-api-doc-cn/api-425749010",
+        modelIds: [],
+        defaultModel: "",
+        remark: "用于抖音 RunningHub 应用工作台。当前品牌 Owner 请在个人中心填写 RunningHub API Key，后续即可调用 AI 应用任务、查询结果并查看作品中心历史记录。",
+        updatedAt: "2026-06-25T00:00:00.000Z",
       },
     ])
     .sort((a, b) => a.name.localeCompare(b.name, "zh-CN"));

@@ -14,6 +14,7 @@ import {
   type GenerateDesignWorkPayload,
   type GenerateImagePromptWorkPayload,
   type GenerateOperationsPromptWorkPayload,
+  type GenerateDouyinRunningHubWorkPayload,
   type CreateWechatWorkflowPayload,
   type GenerateWechatWorkflowHtmlPayload,
   type UpdateWechatWorkflowHtmlStylePayload,
@@ -766,6 +767,62 @@ export class WorksController {
     const auth = await this.authService.resolveRequestAuthContext(headers);
     await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "view", auth);
     return this.worksService.listDouyinDigitalHumanCustomPersons(brandId);
+  }
+
+  @Get("brands/:brandId/douyin/runninghub/apps")
+  async listDouyinRunningHubApps(
+    @Param("brandId") brandId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "douyin.runningHub", "view", auth);
+    return this.worksService.listDouyinRunningHubApps(brandId);
+  }
+
+  @Get("brands/:brandId/douyin/runninghub/apps/:appKey")
+  async getDouyinRunningHubAppDetail(
+    @Param("brandId") brandId: string,
+    @Param("appKey") appKey: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "douyin.runningHub", "view", auth);
+    return this.worksService.getDouyinRunningHubAppDetail(brandId, appKey);
+  }
+
+  @Get("brands/:brandId/douyin/runninghub/works")
+  async listDouyinRunningHubWorks(
+    @Param("brandId") brandId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "douyin.runningHub", "view", auth);
+    return this.worksService.listDouyinRunningHubWorks(brandId);
+  }
+
+  @Post("brands/:brandId/douyin/runninghub/apps/:appKey/generate")
+  createDouyinRunningHubWork(
+    @Param("brandId") brandId: string,
+    @Param("appKey") appKey: string,
+    @Body() payload: GenerateDouyinRunningHubWorkPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
+      await this.authService.assertBrandPermission(brandId, "douyin.runningHub", "edit", auth);
+      return this.worksService.createDouyinRunningHubWork(brandId, appKey, payload, auth);
+    });
+  }
+
+  @Delete("brands/:brandId/douyin/runninghub/works/:workId")
+  deleteDouyinRunningHubWork(
+    @Param("brandId") brandId: string,
+    @Param("workId") workId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
+      await this.authService.assertBrandPermission(brandId, "douyin.runningHub", "edit", auth);
+      return this.worksService.deleteDouyinRunningHubWork(brandId, workId, auth);
+    });
   }
 
   @Post("brands/:brandId/douyin/digital-human/custom-person/create")

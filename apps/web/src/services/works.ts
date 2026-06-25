@@ -538,6 +538,75 @@ export type DouyinDigitalHumanVideoWorkRecord = {
   updatedAt: string;
 };
 
+export type DouyinRunningHubAppFieldRecord = {
+  nodeId?: string;
+  nodeName?: string;
+  fieldName?: string;
+  fieldValue?: string;
+  fieldData?: string;
+  fieldType?: string;
+  description?: string;
+  descriptionEn?: string;
+};
+
+export type DouyinRunningHubAppCardRecord = {
+  key: string;
+  name: string;
+  summary: string;
+  description?: string;
+  tutorialUrl?: string;
+  webappId: string;
+  tags: string[];
+  statusHint?: string;
+  estimatedDuration?: string;
+};
+
+export type DouyinRunningHubAppDetailRecord = DouyinRunningHubAppCardRecord & {
+  configured: boolean;
+  configHint?: string;
+  nodeInfoList: DouyinRunningHubAppFieldRecord[];
+};
+
+export type DouyinRunningHubWorkResultRecord = {
+  url?: string;
+  sourceUrl?: string;
+  outputType?: string;
+  nodeId?: string;
+  text?: string;
+};
+
+export type DouyinRunningHubWorkRecord = {
+  id: string;
+  taskId: string;
+  brandId?: string;
+  appKey: string;
+  appName: string;
+  title: string;
+  summary: string;
+  status: "PENDING" | "RUNNING" | "SUCCESS" | "FAILED";
+  progress: number;
+  providerTaskId?: string;
+  promptTips?: string;
+  errorReason?: string;
+  sourceImageUrl?: string;
+  sourceVideoUrl?: string;
+  primaryResultUrl?: string;
+  previewImageUrl?: string;
+  taskStatus?: "PENDING" | "QUEUED" | "RUNNING" | "SUCCESS" | "FAILED" | "CANCELLED";
+  results: DouyinRunningHubWorkResultRecord[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CreateDouyinRunningHubWorkForm = {
+  title?: string;
+  nodeInfoList: Array<
+    DouyinRunningHubAppFieldRecord & {
+      uploadFile?: File | null;
+    }
+  >;
+};
+
 export type WechatCommentMode = "open" | "fans" | "close";
 export type WechatCoverMode = "ai" | "upload" | "asset";
 export type WechatImageMode = "cover-and-body" | "cover-only" | "body-only";
@@ -1848,6 +1917,54 @@ export async function generateDouyinDigitalHumanScript(
 
 export async function getDouyinDigitalHumanVideoWorks(brandId: string) {
   return request<{ items: DouyinDigitalHumanVideoWorkRecord[] }>(`/works/brands/${brandId}/douyin/digital-human/video`);
+}
+
+export async function getDouyinRunningHubApps(brandId: string) {
+  return request<{ items: DouyinRunningHubAppCardRecord[] }>(`/works/brands/${brandId}/douyin/runninghub/apps`);
+}
+
+export async function getDouyinRunningHubAppDetail(brandId: string, appKey: string) {
+  return request<{ item: DouyinRunningHubAppDetailRecord }>(
+    `/works/brands/${brandId}/douyin/runninghub/apps/${encodeURIComponent(appKey)}`,
+  );
+}
+
+export async function getDouyinRunningHubWorks(brandId: string) {
+  return request<{ items: DouyinRunningHubWorkRecord[] }>(`/works/brands/${brandId}/douyin/runninghub/works`);
+}
+
+export async function createDouyinRunningHubWork(
+  brandId: string,
+  appKey: string,
+  form: CreateDouyinRunningHubWorkForm,
+) {
+  const nodeInfoList = await Promise.all(
+    form.nodeInfoList.map(async (item) => ({
+      nodeId: item.nodeId,
+      nodeName: item.nodeName,
+      fieldName: item.fieldName,
+      fieldValue: item.fieldValue,
+      fieldData: item.fieldData,
+      fieldType: item.fieldType,
+      description: item.description,
+      descriptionEn: item.descriptionEn,
+      upload: item.uploadFile ? await toUploadPayload(item.uploadFile) : undefined,
+    })),
+  );
+  return jsonRequest<{ item: DouyinRunningHubWorkRecord }>(
+    `/works/brands/${brandId}/douyin/runninghub/apps/${encodeURIComponent(appKey)}/generate`,
+    "POST",
+    {
+      title: form.title,
+      nodeInfoList,
+    },
+  );
+}
+
+export async function deleteDouyinRunningHubWork(brandId: string, workId: string) {
+  return request<{ success: boolean }>(`/works/brands/${brandId}/douyin/runninghub/works/${workId}`, {
+    method: "DELETE",
+  });
 }
 
 export async function getDouyinDigitalHumanCustomPersons(brandId: string) {

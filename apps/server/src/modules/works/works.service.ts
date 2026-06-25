@@ -251,6 +251,24 @@ type DigitalHumanFigureType = "whole_body" | "sit_body" | "circle_view";
 type DigitalHumanSource = "COMMON" | "CUSTOM";
 type DigitalHumanVideoStage = "QUEUED" | "GENERATING" | "SUCCESS" | "FAILED";
 
+const RUNNING_HUB_WEBAPP_KEYS = {
+  animateMotionTransferV8: "animate-motion-transfer-v8",
+} as const;
+
+const DOUYIN_RUNNING_HUB_APPS: DouyinRunningHubAppCardRecord[] = [
+  {
+    key: RUNNING_HUB_WEBAPP_KEYS.animateMotionTransferV8,
+    name: "Animate动作迁移V8（自动尺寸）",
+    summary: "上传角色参考图和动作视频，让角色沿用原动作完成视频迁移，适合数字人、IP 和角色演绎场景。",
+    description: "当前版本对应 RunningHub 应用页 `Wan2.2 Animate动作迁移V8（自动尺寸）`。提交后会进入后台异步运行，结果会写入本地作品中心。",
+    tutorialUrl: "https://www.runninghub.cn/call-api/api-detail/1975951975441412098?apiType=4",
+    webappId: "1975951975441412098",
+    tags: ["动作迁移", "视频生成", "RunningHub"],
+    statusHint: "建议 50 秒内素材，输出链接有效期 24 小时，系统会自动回写本地作品记录。",
+    estimatedDuration: "通常数分钟到数十分钟",
+  },
+];
+
 const XHS_ORIGINAL_NOTE_MODE_PROFILES: Record<
   XiaohongshuOriginalNoteMode,
   {
@@ -2203,6 +2221,37 @@ type DigitalHumanCustomPersonLocalEntry = {
   meta: DigitalHumanCustomPersonWorkAssetMeta;
 };
 
+type RunningHubWorkAssetResultEntry = {
+  url?: string;
+  sourceUrl?: string;
+  outputType?: string;
+  nodeId?: string;
+  text?: string;
+};
+
+type RunningHubWorkAssetMeta = {
+  kind: "DOUYIN_RUNNINGHUB_APP";
+  taskId: string;
+  htmlContent: string;
+  appKey: string;
+  appName: string;
+  appSummary: string;
+  title: string;
+  status: "PENDING" | "RUNNING" | "SUCCESS" | "FAILED";
+  progress: number;
+  providerTaskId?: string;
+  promptTips?: string;
+  errorReason?: string;
+  sourceImageUrl?: string;
+  sourceVideoUrl?: string;
+  primaryResultUrl?: string;
+  previewImageUrl?: string;
+  results: RunningHubWorkAssetResultEntry[];
+  nodeInfoList: DouyinRunningHubAppFieldRecord[];
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type DouyinDigitalHumanVideoWorkRecord = {
   id: string;
   taskId: string;
@@ -2253,6 +2302,79 @@ export type DouyinDigitalHumanVideoWorkRecord = {
   taskStatus?: WorkTaskStatus;
   createdAt: string;
   updatedAt: string;
+};
+
+export type DouyinRunningHubAppFieldRecord = {
+  nodeId?: string;
+  nodeName?: string;
+  fieldName?: string;
+  fieldValue?: string;
+  fieldData?: string;
+  fieldType?: string;
+  description?: string;
+  descriptionEn?: string;
+};
+
+export type DouyinRunningHubAppCardRecord = {
+  key: string;
+  name: string;
+  summary: string;
+  description?: string;
+  tutorialUrl?: string;
+  webappId: string;
+  tags: string[];
+  statusHint?: string;
+  estimatedDuration?: string;
+};
+
+export type DouyinRunningHubAppDetailRecord = DouyinRunningHubAppCardRecord & {
+  configured: boolean;
+  configHint?: string;
+  nodeInfoList: DouyinRunningHubAppFieldRecord[];
+};
+
+export type DouyinRunningHubWorkResultRecord = {
+  url?: string;
+  sourceUrl?: string;
+  outputType?: string;
+  nodeId?: string;
+  text?: string;
+};
+
+export type DouyinRunningHubWorkRecord = {
+  id: string;
+  taskId: string;
+  brandId?: string;
+  appKey: string;
+  appName: string;
+  title: string;
+  summary: string;
+  status: "PENDING" | "RUNNING" | "SUCCESS" | "FAILED";
+  progress: number;
+  providerTaskId?: string;
+  promptTips?: string;
+  errorReason?: string;
+  sourceImageUrl?: string;
+  sourceVideoUrl?: string;
+  primaryResultUrl?: string;
+  previewImageUrl?: string;
+  taskStatus?: WorkTaskStatus;
+  results: DouyinRunningHubWorkResultRecord[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type GenerateDouyinRunningHubWorkPayload = {
+  title?: string;
+  nodeInfoList?: Array<
+    DouyinRunningHubAppFieldRecord & {
+      upload?: UploadFilePayload;
+    }
+  >;
+};
+
+type RunningHubNodeSubmissionEntry = DouyinRunningHubAppFieldRecord & {
+  upload?: UploadFilePayload;
 };
 
 type DouyinAdPreAuditExecutionStatus = "PendingStart" | "Running" | "Success" | "Failed" | "Terminated" | "Unknown";
@@ -8783,6 +8905,163 @@ export class WorksService {
     return { items: refreshedItems };
   }
 
+  async listDouyinRunningHubApps(_brandId: string) {
+    return {
+      items: DOUYIN_RUNNING_HUB_APPS,
+    };
+  }
+
+  async getDouyinRunningHubAppDetail(brandId: string, appKey: string) {
+    const app = this.getDouyinRunningHubAppConfig(appKey);
+    try {
+      const apiKey = await this.resolveRunningHubApiKey(brandId);
+      const nodeInfoList = await this.fetchRunningHubAppNodeInfoList(apiKey, app.webappId);
+      return {
+        item: {
+          ...app,
+          configured: true,
+          nodeInfoList,
+        } satisfies DouyinRunningHubAppDetailRecord,
+      };
+    } catch (error) {
+      return {
+        item: {
+          ...app,
+          configured: false,
+          configHint: error instanceof Error ? error.message : "RunningHub 配置暂不可用",
+          nodeInfoList: [],
+        } satisfies DouyinRunningHubAppDetailRecord,
+      };
+    }
+  }
+
+  async listDouyinRunningHubWorks(brandId: string) {
+    const rows = await this.listRunningHubWorkRows(brandId);
+    const activeRows = rows.slice(0, 10);
+    if (activeRows.length) {
+      await Promise.allSettled(activeRows.map((item) => this.refreshRunningHubWorkSnapshot(brandId, item.id)));
+    }
+    const refreshedRows = await this.listRunningHubWorkRows(brandId);
+    return {
+      items: refreshedRows
+        .map((item) => this.mapRunningHubWorkRecord(item))
+        .filter(Boolean) as DouyinRunningHubWorkRecord[],
+    };
+  }
+
+  async createDouyinRunningHubWork(
+    brandId: string,
+    appKey: string,
+    payload: GenerateDouyinRunningHubWorkPayload,
+    auth?: RequestAuthContext,
+  ) {
+    const app = this.getDouyinRunningHubAppConfig(appKey);
+    const apiKey = await this.resolveRunningHubApiKey(brandId);
+    const normalizedNodeInfoList = this.normalizeRunningHubNodeInfoList(payload.nodeInfoList);
+    if (!normalizedNodeInfoList.length) {
+      throw new BadRequestException("RunningHub 应用参数不能为空");
+    }
+    const userId = await this.resolveTaskUserId(brandId, auth);
+    const title = String(payload.title || "").trim() || `${app.name} - ${new Date().toLocaleString("zh-CN", { hour12: false })}`;
+    const localSourceAssets = await this.persistRunningHubSourceAssets(brandId, normalizedNodeInfoList);
+    const localMetaBase = this.buildRunningHubWorkMeta({
+      taskId: "",
+      app,
+      title,
+      status: "PENDING",
+      progress: 5,
+      nodeInfoList: normalizedNodeInfoList.map(({ upload, ...item }) => item),
+      sourceImageUrl: localSourceAssets.sourceImageUrl,
+      sourceVideoUrl: localSourceAssets.sourceVideoUrl,
+    });
+    const task = await this.createVideoTask({
+      userId,
+      brandId,
+      taskType: "DOUYIN_RUNNINGHUB_APP",
+      taskTitle: title,
+      requestedVideoProvider: "RunningHub",
+      modelName: app.name,
+    });
+    const taskMeta = {
+      ...localMetaBase,
+      taskId: task.id,
+    };
+    const htmlFile = await this.writeGeneratedTextFile(brandId, `${task.id}-runninghub.html`, this.renderRunningHubWorkHtml(taskMeta));
+    const workMedia = await this.createWorkHtmlMedia({
+      userId,
+      brandId,
+      taskId: task.id,
+      title: `RunningHub应用 - ${title}`,
+      storageKey: htmlFile.storageKey,
+      sourceUrl: htmlFile.url,
+      metadata: taskMeta,
+    });
+    await this.saveRunningHubWorkMetadataSnapshot(brandId, workMedia.id, workMedia.storageKey || `${workMedia.id}.html`, taskMeta);
+    await this.markTaskRunning(task.id);
+    await this.updateTaskRunningOutput(task.id, {
+      workId: workMedia.id,
+      provider: "RunningHub",
+      appKey: app.key,
+      appName: app.name,
+      status: "PENDING",
+      progress: 5,
+    }, {
+      modelName: `RunningHub + ${app.name}`,
+    });
+    void this.processDouyinRunningHubWorkCreation({
+      brandId,
+      apiKey,
+      app,
+      taskId: task.id,
+      workMediaId: workMedia.id,
+      storageKey: workMedia.storageKey || `${workMedia.id}.html`,
+      nodeInfoList: normalizedNodeInfoList,
+      localMetaBase: taskMeta,
+    });
+    return {
+      item: this.mapRunningHubWorkRecord(workMedia),
+    };
+  }
+
+  async deleteDouyinRunningHubWork(brandId: string, workId: string, _auth?: RequestAuthContext) {
+    const target = await this.getRunningHubWorkRowById(brandId, workId);
+    const meta = this.readRunningHubWorkMeta(this.getMediaMetadata(target));
+    const taskId = meta.taskId || target.taskId || undefined;
+
+    if (await this.prismaService.canUseDatabase()) {
+      const relatedRows = await this.prismaService.mediaAsset.findMany({
+        where: {
+          OR: [{ id: workId }, ...(taskId ? [{ taskId }] : [])],
+        },
+      });
+      if (relatedRows.length) {
+        await this.prismaService.mediaAsset.deleteMany({
+          where: {
+            id: { in: relatedRows.map((item) => item.id) },
+          },
+        });
+      }
+      if (taskId) {
+        await this.prismaService.task.deleteMany({
+          where: { id: taskId },
+        });
+      }
+    } else {
+      database.media = database.media.filter((item) => item.id !== workId && item.taskId !== taskId);
+      if (taskId) {
+        database.tasks = database.tasks.filter((item) => item.id !== taskId);
+      }
+    }
+    for (const item of meta.results) {
+      const fileName = this.extractLocalAssetFileName(item.url || "", brandId);
+      await this.deleteGeneratedFileIfExists(brandId, fileName);
+    }
+    await this.deleteGeneratedFileIfExists(brandId, this.extractLocalAssetFileName(meta.sourceImageUrl || "", brandId));
+    await this.deleteGeneratedFileIfExists(brandId, this.extractLocalAssetFileName(meta.sourceVideoUrl || "", brandId));
+    await this.deleteGeneratedFileIfExists(brandId, this.extractFileName(target.storageKey || ""));
+    return { success: true };
+  }
+
   async getXiaohongshuPublishableWork(brandId: string, workId: string): Promise<XiaohongshuPublishableWorkRecord> {
     try {
       const target = await this.getOriginalWorkRowById(brandId, workId);
@@ -12942,7 +13221,14 @@ export class WorksService {
     title: string;
     storageKey: string;
     sourceUrl: string;
-    metadata: OriginalWorkAssetMeta | RewriteWorkAssetMeta | VideoWorkAssetMeta | DigitalHumanVideoWorkAssetMeta | DigitalHumanCustomPersonWorkAssetMeta | DouyinLipSyncWorkAssetMeta;
+    metadata:
+      | OriginalWorkAssetMeta
+      | RewriteWorkAssetMeta
+      | VideoWorkAssetMeta
+      | DigitalHumanVideoWorkAssetMeta
+      | DigitalHumanCustomPersonWorkAssetMeta
+      | DouyinLipSyncWorkAssetMeta
+      | RunningHubWorkAssetMeta;
   }) {
     if (await this.prismaService.canUseDatabase()) {
       return this.prismaService.mediaAsset.create({
@@ -13291,7 +13577,14 @@ export class WorksService {
   private async updateWorkHtmlMetadata(
     workId: string,
     brandId: string,
-    metadata: OriginalWorkAssetMeta | RewriteWorkAssetMeta | VideoWorkAssetMeta | DigitalHumanVideoWorkAssetMeta | DigitalHumanCustomPersonWorkAssetMeta | DouyinLipSyncWorkAssetMeta,
+    metadata:
+      | OriginalWorkAssetMeta
+      | RewriteWorkAssetMeta
+      | VideoWorkAssetMeta
+      | DigitalHumanVideoWorkAssetMeta
+      | DigitalHumanCustomPersonWorkAssetMeta
+      | DouyinLipSyncWorkAssetMeta
+      | RunningHubWorkAssetMeta,
     title: string,
   ) {
     if (await this.prismaService.canUseDatabase()) {
@@ -20440,6 +20733,745 @@ export class WorksService {
     await this.writeGeneratedTextFile(brandId, this.extractFileName(storageKey), nextMeta.htmlContent);
     await this.updateWorkHtmlMetadata(workId, brandId, nextMeta, `抖音定制数字人 - ${nextMeta.name}`);
     return nextMeta;
+  }
+
+  private getDouyinRunningHubAppConfig(appKey: string) {
+    const target = DOUYIN_RUNNING_HUB_APPS.find((item) => item.key === appKey);
+    if (!target) {
+      throw new NotFoundException("RunningHub 应用不存在");
+    }
+    return target;
+  }
+
+  private normalizeRunningHubNodeInfoList(nodeInfoList?: RunningHubNodeSubmissionEntry[]) {
+    return (nodeInfoList || [])
+      .map((item) => ({
+        nodeId: String(item?.nodeId || "").trim(),
+        nodeName: String(item?.nodeName || "").trim() || undefined,
+        fieldName: String(item?.fieldName || "").trim(),
+        fieldValue: typeof item?.fieldValue === "string" ? item.fieldValue : item?.fieldValue == null ? undefined : String(item.fieldValue),
+        fieldData: typeof item?.fieldData === "string" ? item.fieldData : item?.fieldData == null ? undefined : String(item.fieldData),
+        fieldType: String(item?.fieldType || "").trim().toUpperCase() || undefined,
+        description: String(item?.description || "").trim() || undefined,
+        descriptionEn: String(item?.descriptionEn || "").trim() || undefined,
+        upload: item?.upload,
+      }))
+      .filter((item) => item.nodeId && item.fieldName);
+  }
+
+  private buildRunningHubWorkMeta(params: {
+    taskId: string;
+    app: DouyinRunningHubAppCardRecord;
+    title: string;
+    status: RunningHubWorkAssetMeta["status"];
+    progress: number;
+    nodeInfoList: DouyinRunningHubAppFieldRecord[];
+    sourceImageUrl?: string;
+    sourceVideoUrl?: string;
+    providerTaskId?: string;
+    promptTips?: string;
+    errorReason?: string;
+    primaryResultUrl?: string;
+    previewImageUrl?: string;
+    results?: RunningHubWorkAssetResultEntry[];
+  }): RunningHubWorkAssetMeta {
+    const now = new Date().toISOString();
+    return {
+      kind: "DOUYIN_RUNNINGHUB_APP",
+      taskId: params.taskId,
+      htmlContent: "",
+      appKey: params.app.key,
+      appName: params.app.name,
+      appSummary: params.app.summary,
+      title: params.title,
+      status: params.status,
+      progress: params.progress,
+      providerTaskId: params.providerTaskId,
+      promptTips: params.promptTips,
+      errorReason: params.errorReason,
+      sourceImageUrl: params.sourceImageUrl,
+      sourceVideoUrl: params.sourceVideoUrl,
+      primaryResultUrl: params.primaryResultUrl,
+      previewImageUrl: params.previewImageUrl,
+      results: params.results || [],
+      nodeInfoList: params.nodeInfoList,
+      createdAt: now,
+      updatedAt: now,
+    };
+  }
+
+  private renderRunningHubWorkHtml(meta: RunningHubWorkAssetMeta) {
+    const resultItems = meta.results.map((item, index) => {
+      const href = item.url || item.sourceUrl || "";
+      const label = item.outputType ? `${item.outputType.toUpperCase()} 结果 ${index + 1}` : `结果 ${index + 1}`;
+      if (!href) {
+        return `<li>${this.escapeHtml(label)}${item.text ? `：${this.escapeHtml(item.text)}` : ""}</li>`;
+      }
+      return `<li><a href="${this.escapeHtml(href)}" target="_blank" rel="noreferrer">${this.escapeHtml(label)}</a></li>`;
+    }).join("");
+    return `<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>${this.escapeHtml(meta.title)}</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 32px; color: #0f172a; }
+      .pill { display: inline-block; padding: 4px 10px; border-radius: 999px; background: #e2e8f0; margin-right: 8px; font-size: 12px; }
+      img, video { max-width: 100%; border-radius: 12px; margin-top: 16px; }
+      ul { padding-left: 18px; }
+    </style>
+  </head>
+  <body>
+    <h1>${this.escapeHtml(meta.title)}</h1>
+    <p>${this.escapeHtml(meta.appName)} · ${this.escapeHtml(meta.appSummary)}</p>
+    <div>
+      <span class="pill">状态：${this.escapeHtml(meta.status)}</span>
+      <span class="pill">进度：${meta.progress}%</span>
+      ${meta.providerTaskId ? `<span class="pill">任务ID：${this.escapeHtml(meta.providerTaskId)}</span>` : ""}
+    </div>
+    ${meta.errorReason ? `<p>失败原因：${this.escapeHtml(meta.errorReason)}</p>` : ""}
+    ${meta.sourceImageUrl ? `<img src="${this.escapeHtml(meta.sourceImageUrl)}" alt="source-image" />` : ""}
+    ${meta.sourceVideoUrl ? `<video src="${this.escapeHtml(meta.sourceVideoUrl)}" controls></video>` : ""}
+    ${meta.primaryResultUrl ? `<video src="${this.escapeHtml(meta.primaryResultUrl)}" controls></video>` : ""}
+    ${resultItems ? `<h2>结果列表</h2><ul>${resultItems}</ul>` : "<p>作品仍在生成中，请稍后刷新查看结果。</p>"}
+  </body>
+</html>`;
+  }
+
+  private async saveRunningHubWorkMetadataSnapshot(
+    brandId: string,
+    workId: string,
+    storageKey: string,
+    meta: RunningHubWorkAssetMeta,
+  ) {
+    const nextMeta: RunningHubWorkAssetMeta = {
+      ...meta,
+      htmlContent: this.renderRunningHubWorkHtml(meta),
+      updatedAt: new Date().toISOString(),
+    };
+    await this.writeGeneratedTextFile(brandId, this.extractFileName(storageKey), nextMeta.htmlContent);
+    await this.updateWorkHtmlMetadata(workId, brandId, nextMeta, `RunningHub应用 - ${nextMeta.title}`);
+    return nextMeta;
+  }
+
+  private isRunningHubWorkMeta(metadataJson: unknown) {
+    return this.asRecord(metadataJson)?.kind === "DOUYIN_RUNNINGHUB_APP";
+  }
+
+  private readRunningHubWorkMeta(metadataJson: unknown): RunningHubWorkAssetMeta {
+    const meta = this.asRecord(metadataJson);
+    return {
+      kind: "DOUYIN_RUNNINGHUB_APP",
+      taskId: String(meta?.taskId || "").trim(),
+      htmlContent: String(meta?.htmlContent || ""),
+      appKey: String(meta?.appKey || "").trim(),
+      appName: String(meta?.appName || "").trim(),
+      appSummary: String(meta?.appSummary || "").trim(),
+      title: String(meta?.title || "RunningHub 作品"),
+      status: this.normalizeRunningHubStatus(meta?.status),
+      progress: Number.isFinite(Number(meta?.progress)) ? Number(meta?.progress) : 0,
+      providerTaskId: String(meta?.providerTaskId || "").trim() || undefined,
+      promptTips: String(meta?.promptTips || "").trim() || undefined,
+      errorReason: String(meta?.errorReason || "").trim() || undefined,
+      sourceImageUrl: String(meta?.sourceImageUrl || "").trim() || undefined,
+      sourceVideoUrl: String(meta?.sourceVideoUrl || "").trim() || undefined,
+      primaryResultUrl: String(meta?.primaryResultUrl || "").trim() || undefined,
+      previewImageUrl: String(meta?.previewImageUrl || "").trim() || undefined,
+      results: Array.isArray(meta?.results)
+        ? meta.results.map((item) => {
+          const next = this.asRecord(item);
+          return {
+            url: String(next?.url || "").trim() || undefined,
+            sourceUrl: String(next?.sourceUrl || "").trim() || undefined,
+            outputType: String(next?.outputType || "").trim() || undefined,
+            nodeId: String(next?.nodeId || "").trim() || undefined,
+            text: typeof next?.text === "string" ? next.text : next?.text == null ? undefined : String(next.text),
+          } satisfies RunningHubWorkAssetResultEntry;
+        })
+        : [],
+      nodeInfoList: Array.isArray(meta?.nodeInfoList)
+        ? meta.nodeInfoList.map((item) => {
+          const next = this.asRecord(item);
+          return {
+            nodeId: String(next?.nodeId || "").trim() || undefined,
+            nodeName: String(next?.nodeName || "").trim() || undefined,
+            fieldName: String(next?.fieldName || "").trim() || undefined,
+            fieldValue: typeof next?.fieldValue === "string" ? next.fieldValue : next?.fieldValue == null ? undefined : String(next.fieldValue),
+            fieldData: typeof next?.fieldData === "string" ? next.fieldData : next?.fieldData == null ? undefined : String(next.fieldData),
+            fieldType: String(next?.fieldType || "").trim() || undefined,
+            description: String(next?.description || "").trim() || undefined,
+            descriptionEn: String(next?.descriptionEn || "").trim() || undefined,
+          } satisfies DouyinRunningHubAppFieldRecord;
+        })
+        : [],
+      createdAt: String(meta?.createdAt || new Date().toISOString()),
+      updatedAt: String(meta?.updatedAt || meta?.createdAt || new Date().toISOString()),
+    };
+  }
+
+  private async listRunningHubWorkRows(brandId: string) {
+    if (await this.prismaService.canUseDatabase()) {
+      const rows = await this.prismaService.mediaAsset.findMany({
+        where: {
+          brandId,
+          mediaType: MediaType.HTML,
+        },
+        orderBy: { createdAt: "desc" },
+      });
+      return rows.filter((item) => this.isRunningHubWorkMeta(item.metadataJson));
+    }
+    return database.media
+      .filter((item) => item.brandId === brandId && item.mediaType === "HTML")
+      .filter((item) => this.isRunningHubWorkMeta((item as { metadataJson?: unknown }).metadataJson));
+  }
+
+  private mapRunningHubWorkRecord(item: {
+    id: string;
+    taskId?: string | null;
+    brandId?: string | null;
+    metadataJson?: unknown;
+    createdAt: Date | string;
+    updatedAt?: Date | string | null;
+  }) {
+    if (!this.isRunningHubWorkMeta(item.metadataJson)) {
+      return null;
+    }
+    const meta = this.readRunningHubWorkMeta(item.metadataJson);
+    return {
+      id: item.id,
+      taskId: String(item.taskId || meta.taskId || "").trim(),
+      brandId: item.brandId ?? undefined,
+      appKey: meta.appKey,
+      appName: meta.appName,
+      title: meta.title,
+      summary: meta.appSummary,
+      status: meta.status,
+      progress: meta.progress,
+      providerTaskId: meta.providerTaskId,
+      promptTips: meta.promptTips,
+      errorReason: meta.errorReason,
+      sourceImageUrl: meta.sourceImageUrl,
+      sourceVideoUrl: meta.sourceVideoUrl,
+      primaryResultUrl: meta.primaryResultUrl,
+      previewImageUrl: meta.previewImageUrl,
+      taskStatus: targetTaskStatus(item),
+      results: meta.results.map((result) => ({
+        url: result.url,
+        sourceUrl: result.sourceUrl,
+        outputType: result.outputType,
+        nodeId: result.nodeId,
+        text: result.text,
+      })),
+      createdAt: normalizeMaybeDate(item.createdAt) || meta.createdAt,
+      updatedAt: normalizeMaybeDate(item.updatedAt) || meta.updatedAt,
+    } satisfies DouyinRunningHubWorkRecord;
+  }
+
+  private async getRunningHubWorkRowById(brandId: string, workId: string) {
+    if (await this.prismaService.canUseDatabase()) {
+      const row = await this.prismaService.mediaAsset.findUnique({
+        where: { id: workId },
+      });
+      if (!row || row.brandId !== brandId || !this.isRunningHubWorkMeta(row.metadataJson)) {
+        throw new NotFoundException("RunningHub 作品不存在");
+      }
+      return row;
+    }
+    const row = database.media.find((item) => item.id === workId && item.brandId === brandId);
+    if (!row || !this.isRunningHubWorkMeta((row as { metadataJson?: unknown }).metadataJson)) {
+      throw new NotFoundException("RunningHub 作品不存在");
+    }
+    return row;
+  }
+
+  private async resolveRunningHubApiKey(brandId: string) {
+    const resolution = await this.thirdPartyPlatformsService.resolveBrandRuntimeApiKeys(brandId, [
+      "https://www.runninghub.cn",
+    ]);
+    if (resolution.status === "resolved") {
+      const apiKey = String(resolution.apiKeys[0] || "").trim();
+      if (apiKey) {
+        return apiKey;
+      }
+    }
+    throw new ServiceUnavailableException("当前品牌尚未配置 RunningHub API Key，请先前往个人中心-第三方接口配置完成品牌共享设置。");
+  }
+
+  private async fetchRunningHubAppNodeInfoList(apiKey: string, webappId: string) {
+    const query = new URLSearchParams({
+      apiKey,
+      webappId,
+    });
+    const response = await fetch(`https://www.runninghub.cn/api/webapp/apiCallDemo?${query.toString()}`, {
+      method: "GET",
+    });
+    if (!response.ok) {
+      throw new ServiceUnavailableException(`读取 RunningHub 应用参数失败：${response.status}`);
+    }
+    const payload = await response.json().catch(() => ({}));
+    const envelope = this.unwrapRunningHubEnvelope(payload);
+    const nodeInfoList = Array.isArray(this.asRecord(envelope.data)?.nodeInfoList)
+      ? (this.asRecord(envelope.data)?.nodeInfoList as unknown[])
+      : Array.isArray((payload as { nodeInfoList?: unknown[] })?.nodeInfoList)
+        ? (payload as { nodeInfoList?: unknown[] }).nodeInfoList || []
+        : [];
+    return nodeInfoList.map((item) => {
+      const next = this.asRecord(item);
+      return {
+        nodeId: String(next?.nodeId || "").trim() || undefined,
+        nodeName: String(next?.nodeName || "").trim() || undefined,
+        fieldName: String(next?.fieldName || "").trim() || undefined,
+        fieldValue: typeof next?.fieldValue === "string" ? next.fieldValue : next?.fieldValue == null ? undefined : String(next.fieldValue),
+        fieldData: typeof next?.fieldData === "string" ? next.fieldData : next?.fieldData == null ? undefined : String(next.fieldData),
+        fieldType: String(next?.fieldType || "").trim() || undefined,
+        description: String(next?.description || "").trim() || undefined,
+        descriptionEn: String(next?.descriptionEn || "").trim() || undefined,
+      } satisfies DouyinRunningHubAppFieldRecord;
+    }).filter((item) => item.nodeId && item.fieldName);
+  }
+
+  private async persistRunningHubSourceAssets(brandId: string, nodeInfoList: RunningHubNodeSubmissionEntry[]) {
+    let sourceImageUrl = "";
+    let sourceVideoUrl = "";
+    for (const item of nodeInfoList) {
+      if (!item.upload) {
+        continue;
+      }
+      const extensionMatch = String(item.upload.fileName || "").match(/\.[a-z0-9]+$/i);
+      const fallbackExtension = String(item.upload.contentType || "").includes("video") ? ".mp4" : ".png";
+      const targetFileName = `runninghub-input-${Date.now()}-${Math.random().toString(36).slice(2, 8)}${extensionMatch?.[0] || fallbackExtension}`;
+      const saved = await this.persistUploadFile(brandId, targetFileName, item.upload);
+      if (!sourceVideoUrl && String(item.upload.contentType || "").includes("video")) {
+        sourceVideoUrl = saved.url;
+      } else if (!sourceImageUrl && String(item.upload.contentType || "").includes("image")) {
+        sourceImageUrl = saved.url;
+      }
+    }
+    return {
+      sourceImageUrl: sourceImageUrl || undefined,
+      sourceVideoUrl: sourceVideoUrl || undefined,
+    };
+  }
+
+  private async processDouyinRunningHubWorkCreation(params: {
+    brandId: string;
+    apiKey: string;
+    app: DouyinRunningHubAppCardRecord;
+    taskId: string;
+    workMediaId: string;
+    storageKey: string;
+    nodeInfoList: RunningHubNodeSubmissionEntry[];
+    localMetaBase: RunningHubWorkAssetMeta;
+  }) {
+    const { brandId, apiKey, app, taskId, workMediaId, storageKey } = params;
+    try {
+      const preparedNodeInfoList = await this.prepareRunningHubTaskNodeInfoList(brandId, apiKey, params.nodeInfoList);
+      let meta = await this.saveRunningHubWorkMetadataSnapshot(brandId, workMediaId, storageKey, {
+        ...params.localMetaBase,
+        status: "RUNNING",
+        progress: 20,
+        nodeInfoList: preparedNodeInfoList,
+      });
+      const submit = await this.submitRunningHubTask(apiKey, app.webappId, preparedNodeInfoList);
+      meta = await this.saveRunningHubWorkMetadataSnapshot(brandId, workMediaId, storageKey, {
+        ...meta,
+        status: this.normalizeRunningHubStatus(submit.status),
+        progress: this.normalizeRunningHubStatus(submit.status) === "SUCCESS" ? 100 : 45,
+        providerTaskId: submit.taskId,
+        promptTips: submit.promptTips,
+      });
+      await this.updateTaskRunningOutput(taskId, {
+        workId: workMediaId,
+        provider: "RunningHub",
+        providerTaskId: submit.taskId,
+        appKey: app.key,
+        appName: app.name,
+        status: meta.status,
+        progress: meta.progress,
+      }, {
+        modelName: `RunningHub + ${app.name}`,
+      });
+      await this.refreshRunningHubWorkSnapshot(brandId, workMediaId);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "RunningHub 任务提交失败";
+      await this.saveRunningHubWorkMetadataSnapshot(brandId, workMediaId, storageKey, {
+        ...params.localMetaBase,
+        status: "FAILED",
+        progress: 100,
+        errorReason: message,
+      });
+      await this.markTaskFailed(taskId, message, {
+        modelName: `RunningHub + ${app.name}`,
+        outputJson: {
+          workId: workMediaId,
+          appKey: app.key,
+          appName: app.name,
+          status: "FAILED",
+          progress: 100,
+          errorReason: message,
+        },
+      });
+    }
+  }
+
+  private async prepareRunningHubTaskNodeInfoList(brandId: string, apiKey: string, nodeInfoList: RunningHubNodeSubmissionEntry[]) {
+    const prepared: DouyinRunningHubAppFieldRecord[] = [];
+    for (const item of nodeInfoList) {
+      let fieldValue = item.fieldValue;
+      if (item.upload) {
+        const uploadResult = await this.uploadRunningHubMedia(apiKey, item.upload);
+        fieldValue = uploadResult.downloadUrl || uploadResult.fileName || fieldValue;
+      }
+      prepared.push({
+        nodeId: item.nodeId,
+        nodeName: item.nodeName,
+        fieldName: item.fieldName,
+        fieldValue,
+        fieldData: item.fieldData,
+        fieldType: item.fieldType,
+        description: item.description,
+        descriptionEn: item.descriptionEn,
+      });
+    }
+    return prepared;
+  }
+
+  private async uploadRunningHubMedia(apiKey: string, upload: UploadFilePayload) {
+    const form = new FormData();
+    form.append(
+      "file",
+      new Blob([Buffer.from(upload.dataBase64, "base64")], {
+        type: upload.contentType || "application/octet-stream",
+      }),
+      upload.fileName || "runninghub-upload.bin",
+    );
+    const response = await fetch("https://www.runninghub.cn/openapi/v2/media/upload/binary", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: form,
+    });
+    if (!response.ok) {
+      throw new ServiceUnavailableException(`RunningHub 文件上传失败：${response.status}`);
+    }
+    const payload = await response.json().catch(() => ({}));
+    const envelope = this.unwrapRunningHubEnvelope(payload);
+    const data = this.asRecord(envelope.data);
+    return {
+      downloadUrl: String(data?.download_url || data?.url || "").trim() || undefined,
+      fileName: String(data?.fileName || "").trim() || undefined,
+    };
+  }
+
+  private async submitRunningHubTask(apiKey: string, webappId: string, nodeInfoList: DouyinRunningHubAppFieldRecord[]) {
+    const response = await fetch("https://www.runninghub.cn/task/openapi/ai-app/run", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        apiKey,
+        webappId: Number(webappId),
+        nodeInfoList,
+      }),
+    });
+    if (!response.ok) {
+      throw new ServiceUnavailableException(`RunningHub 提交任务失败：${response.status}`);
+    }
+    const payload = await response.json().catch(() => ({}));
+    const envelope = this.unwrapRunningHubEnvelope(payload);
+    const data = this.asRecord(envelope.data);
+    const taskId = String(data?.taskId || "").trim();
+    if (!taskId) {
+      throw new ServiceUnavailableException(envelope.message || "RunningHub 未返回任务 ID");
+    }
+    return {
+      taskId,
+      status: String(data?.taskStatus || data?.status || "RUNNING"),
+      promptTips: String(data?.promptTips || "").trim() || undefined,
+    };
+  }
+
+  private async queryRunningHubTask(apiKey: string, providerTaskId: string) {
+    const response = await fetch("https://www.runninghub.cn/openapi/v2/query", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        taskId: providerTaskId,
+      }),
+    });
+    if (!response.ok) {
+      throw new ServiceUnavailableException(`RunningHub 查询任务失败：${response.status}`);
+    }
+    const payload = await response.json().catch(() => ({}));
+    const envelope = this.unwrapRunningHubEnvelope(payload);
+    const data = this.asRecord(envelope.data) || this.asRecord(payload) || {};
+    return {
+      taskId: String(data.taskId || providerTaskId),
+      status: String(data.status || "RUNNING"),
+      promptTips: String(data.promptTips || "").trim() || undefined,
+      errorMessage: String(data.errorMessage || envelope.message || "").trim() || undefined,
+      results: Array.isArray(data.results)
+        ? data.results.map((item) => {
+          const next = this.asRecord(item);
+          return {
+            url: String(next?.url || "").trim() || undefined,
+            outputType: String(next?.outputType || "").trim() || undefined,
+            nodeId: String(next?.nodeId || "").trim() || undefined,
+            text: typeof next?.text === "string" ? next.text : next?.text == null ? undefined : String(next.text),
+          };
+        })
+        : [],
+    };
+  }
+
+  private async refreshRunningHubWorkSnapshot(brandId: string, workId: string) {
+    const target = await this.getRunningHubWorkRowById(brandId, workId);
+    const meta = this.readRunningHubWorkMeta(this.getMediaMetadata(target));
+    if (!meta.providerTaskId || meta.status === "SUCCESS" || meta.status === "FAILED") {
+      return meta;
+    }
+    try {
+      const apiKey = await this.resolveRunningHubApiKey(brandId);
+      const snapshot = await this.queryRunningHubTask(apiKey, meta.providerTaskId);
+      return await this.persistRunningHubQueryResult(
+        brandId,
+        workId,
+        target.storageKey || `${workId}.html`,
+        meta.taskId || String(target.taskId || "").trim(),
+        meta,
+        snapshot,
+      );
+    } catch {
+      return meta;
+    }
+  }
+
+  private async persistRunningHubQueryResult(
+    brandId: string,
+    workId: string,
+    storageKey: string,
+    taskId: string,
+    meta: RunningHubWorkAssetMeta,
+    snapshot: {
+      taskId: string;
+      status: string;
+      promptTips?: string;
+      errorMessage?: string;
+      results: Array<{ url?: string; outputType?: string; nodeId?: string; text?: string }>;
+    },
+  ) {
+    const normalizedStatus = this.normalizeRunningHubStatus(snapshot.status);
+    if (normalizedStatus === "FAILED") {
+      const nextMeta = await this.saveRunningHubWorkMetadataSnapshot(brandId, workId, storageKey, {
+        ...meta,
+        status: "FAILED",
+        progress: 100,
+        errorReason: snapshot.errorMessage || "RunningHub 任务失败",
+        promptTips: snapshot.promptTips || meta.promptTips,
+      });
+      if (taskId) {
+        await this.markTaskFailed(taskId, nextMeta.errorReason || "RunningHub 任务失败", {
+          modelName: `RunningHub + ${meta.appName}`,
+          outputJson: {
+            workId,
+            providerTaskId: meta.providerTaskId,
+            appKey: meta.appKey,
+            appName: meta.appName,
+            status: "FAILED",
+            progress: 100,
+            errorReason: nextMeta.errorReason,
+          },
+        });
+      }
+      return nextMeta;
+    }
+    if (normalizedStatus === "SUCCESS") {
+      const cachedResults = await Promise.all(snapshot.results.map((item, index) => this.cacheRunningHubResult(brandId, workId, index, item)));
+      const primaryVideo = cachedResults.find((item) => this.isRunningHubVideoOutput(item.outputType, item.url || item.sourceUrl));
+      const previewImage = cachedResults.find((item) => this.isRunningHubImageOutput(item.outputType, item.url || item.sourceUrl));
+      const nextMeta = await this.saveRunningHubWorkMetadataSnapshot(brandId, workId, storageKey, {
+        ...meta,
+        status: "SUCCESS",
+        progress: 100,
+        promptTips: snapshot.promptTips || meta.promptTips,
+        errorReason: undefined,
+        primaryResultUrl: primaryVideo?.url || previewImage?.url || cachedResults[0]?.url,
+        previewImageUrl: previewImage?.url || meta.previewImageUrl,
+        results: cachedResults,
+      });
+      if (taskId) {
+        await this.markTaskSuccess(taskId, {
+          workId,
+          providerTaskId: meta.providerTaskId,
+          appKey: meta.appKey,
+          appName: meta.appName,
+          status: "SUCCESS",
+          progress: 100,
+          primaryResultUrl: nextMeta.primaryResultUrl,
+        }, {
+          modelName: `RunningHub + ${meta.appName}`,
+        });
+      }
+      return nextMeta;
+    }
+    const nextMeta = await this.saveRunningHubWorkMetadataSnapshot(brandId, workId, storageKey, {
+      ...meta,
+      status: normalizedStatus,
+      progress: normalizedStatus === "RUNNING" ? 70 : 40,
+      promptTips: snapshot.promptTips || meta.promptTips,
+    });
+    if (taskId) {
+      await this.updateTaskRunningOutput(taskId, {
+        workId,
+        providerTaskId: meta.providerTaskId,
+        appKey: meta.appKey,
+        appName: meta.appName,
+        status: normalizedStatus,
+        progress: nextMeta.progress,
+      }, {
+        modelName: `RunningHub + ${meta.appName}`,
+      });
+    }
+    return nextMeta;
+  }
+
+  private async cacheRunningHubResult(
+    brandId: string,
+    workId: string,
+    index: number,
+    item: { url?: string; outputType?: string; nodeId?: string; text?: string },
+  ): Promise<RunningHubWorkAssetResultEntry> {
+    const sourceUrl = String(item.url || "").trim();
+    const outputType = String(item.outputType || "").trim().toLowerCase();
+    if (!sourceUrl) {
+      return {
+        url: undefined,
+        sourceUrl: undefined,
+        outputType: outputType || undefined,
+        nodeId: item.nodeId,
+        text: item.text,
+      };
+    }
+    const localUrl = await this.cacheRemoteGeneratedFile({
+      brandId,
+      fileName: `runninghub-${workId}-${index + 1}.${outputType || "bin"}`,
+      remoteUrl: sourceUrl,
+      fallbackContentType: this.resolveRunningHubResultContentType(outputType),
+      resolveExtension: (contentType, fileName) => this.resolveRunningHubResultExtension(contentType, fileName, outputType),
+      requestLabel: `缓存 RunningHub 结果 ${index + 1}`,
+      fetchTimeoutMs: 180000,
+    });
+    return {
+      url: localUrl,
+      sourceUrl,
+      outputType: outputType || undefined,
+      nodeId: item.nodeId,
+      text: item.text,
+    };
+  }
+
+  private normalizeRunningHubStatus(status: unknown): RunningHubWorkAssetMeta["status"] {
+    const normalized = String(status || "").trim().toUpperCase();
+    if (normalized === "SUCCESS") {
+      return "SUCCESS";
+    }
+    if (normalized === "FAILED") {
+      return "FAILED";
+    }
+    if (normalized === "RUNNING") {
+      return "RUNNING";
+    }
+    return "PENDING";
+  }
+
+  private unwrapRunningHubEnvelope(payload: unknown) {
+    const root = this.asRecord(payload) || {};
+    const data = this.asRecord(root.data) || root;
+    const rawCode = root.code;
+    const code = typeof rawCode === "number" ? rawCode : Number(rawCode || 0);
+    const message = String(root.msg || root.message || "").trim();
+    if (Number.isFinite(code) && code !== 0) {
+      throw new ServiceUnavailableException(message || "RunningHub 请求失败");
+    }
+    return {
+      data,
+      message,
+    };
+  }
+
+  private resolveRunningHubResultContentType(outputType: string) {
+    switch (outputType) {
+      case "png":
+        return "image/png";
+      case "jpg":
+      case "jpeg":
+        return "image/jpeg";
+      case "webp":
+        return "image/webp";
+      case "gif":
+        return "image/gif";
+      case "mp4":
+        return "video/mp4";
+      case "mov":
+        return "video/quicktime";
+      case "webm":
+        return "video/webm";
+      case "zip":
+        return "application/zip";
+      default:
+        return "application/octet-stream";
+    }
+  }
+
+  private resolveRunningHubResultExtension(contentType: string, fileName: string, fallbackOutputType: string) {
+    const normalizedType = String(contentType || "").toLowerCase();
+    if (normalizedType.includes("png")) {
+      return ".png";
+    }
+    if (normalizedType.includes("jpeg") || normalizedType.includes("jpg")) {
+      return ".jpg";
+    }
+    if (normalizedType.includes("webp")) {
+      return ".webp";
+    }
+    if (normalizedType.includes("gif")) {
+      return ".gif";
+    }
+    if (normalizedType.includes("mp4")) {
+      return ".mp4";
+    }
+    if (normalizedType.includes("quicktime")) {
+      return ".mov";
+    }
+    if (normalizedType.includes("webm")) {
+      return ".webm";
+    }
+    if (normalizedType.includes("zip")) {
+      return ".zip";
+    }
+    const fileExtension = String(fileName || "").match(/\.[a-z0-9]+$/i)?.[0];
+    if (fileExtension) {
+      return fileExtension.toLowerCase();
+    }
+    return fallbackOutputType ? `.${fallbackOutputType.replace(/^\./, "")}` : ".bin";
+  }
+
+  private isRunningHubVideoOutput(outputType?: string, url?: string) {
+    const normalizedType = String(outputType || "").toLowerCase();
+    const normalizedUrl = String(url || "").toLowerCase();
+    return ["mp4", "mov", "webm"].some((item) => normalizedType === item || normalizedUrl.includes(`.${item}`));
+  }
+
+  private isRunningHubImageOutput(outputType?: string, url?: string) {
+    const normalizedType = String(outputType || "").toLowerCase();
+    const normalizedUrl = String(url || "").toLowerCase();
+    return ["png", "jpg", "jpeg", "webp", "gif"].some((item) => normalizedType === item || normalizedUrl.includes(`.${item}`));
   }
 
   private async syncDigitalHumanCustomPersonLocalSnapshot(
