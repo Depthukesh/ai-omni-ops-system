@@ -13187,7 +13187,7 @@ button {
   border: 1px solid var(--site-hero-border);
   background:
     radial-gradient(circle at top right, rgba(116, 136, 255, 0.12), transparent 26%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(245, 248, 255, 0.92) 100%);
+    color-mix(in srgb, var(--card-surface) 94%, transparent);
 }
 
 .ops-prompt-hero-copy {
@@ -13298,8 +13298,8 @@ button {
   gap: 16px;
   padding: 16px 18px;
   border-radius: 22px;
-  border: 1px solid rgba(212, 220, 236, 0.92);
-  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid var(--site-hero-border);
+  background: color-mix(in srgb, var(--card-surface) 88%, transparent);
 }
 
 .ops-prompt-pagination-bar.is-footer {
@@ -13336,7 +13336,7 @@ button {
   padding: 0 12px;
   border-radius: 999px;
   border: 1px solid rgba(140, 157, 255, 0.2);
-  background: rgba(255, 255, 255, 0.74);
+  background: color-mix(in srgb, var(--subtle-surface-strong) 92%, transparent);
   color: var(--site-hero-text);
   cursor: pointer;
   transition: border-color 0.2s ease, background-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
@@ -13384,8 +13384,8 @@ button {
 .image-prompt-work-preview {
   overflow: hidden;
   border-radius: 20px;
-  border: 1px solid rgba(216, 224, 238, 0.9);
-  background: rgba(246, 248, 252, 0.92);
+  border: 1px solid var(--site-hero-border);
+  background: color-mix(in srgb, var(--card-surface) 90%, transparent);
 }
 
 .image-prompt-card-preview {
@@ -13508,10 +13508,9 @@ button {
 .ops-works-dialog__summary-card {
   padding: 16px 18px;
   border-radius: 20px;
-  border: 1px solid rgba(212, 220, 236, 0.9);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(246, 249, 255, 0.92) 100%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  border: 1px solid var(--site-hero-border);
+  background: color-mix(in srgb, var(--card-surface) 90%, transparent);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 .ops-works-dialog__summary-card span {
@@ -13532,8 +13531,8 @@ button {
 .ops-works-table-shell,
 .ops-works-detail-panel {
   border-radius: 22px;
-  border: 1px solid rgba(212, 220, 236, 0.9);
-  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid var(--site-hero-border);
+  background: color-mix(in srgb, var(--card-surface) 88%, transparent);
 }
 
 .ops-works-table-shell {
@@ -13554,7 +13553,7 @@ button {
 
 .ops-works-table--head {
   padding: 0 12px 8px;
-  border-bottom: 1px solid rgba(216, 224, 238, 0.92);
+  border-bottom: 1px solid var(--site-hero-border);
 }
 
 .ops-works-table--head span {
@@ -13580,8 +13579,8 @@ button {
   align-items: center;
   padding: 14px 12px;
   border-radius: 18px;
-  border: 1px solid rgba(216, 224, 238, 0.92);
-  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid var(--site-hero-border);
+  background: color-mix(in srgb, var(--subtle-surface-strong) 92%, transparent);
 }
 
 .ops-works-row.is-selected {
@@ -13633,8 +13632,8 @@ button {
 .ops-work-detail-block {
   padding: 16px;
   border-radius: 18px;
-  border: 1px solid rgba(216, 224, 238, 0.88);
-  background: rgba(255, 255, 255, 0.76);
+  border: 1px solid var(--site-hero-border);
+  background: color-mix(in srgb, var(--card-surface) 84%, transparent);
   min-width: 0;
 }
 
