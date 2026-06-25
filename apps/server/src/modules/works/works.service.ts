@@ -8384,7 +8384,6 @@ export class WorksService {
       throw new BadRequestException("请先上传训练视频，再提交定制数字人任务。");
     }
     this.validateCustomPersonTrainingVideo(payload.trainingVideo);
-    const credential = await this.resolveChanjingCredential(brandId);
     const userId = await this.resolveTaskUserId(brandId, auth);
     const normalizedName = this.normalizeCustomPersonName(payload.name, payload.trainingVideo.fileName);
     const task = await this.createVideoTask({
@@ -8420,6 +8419,7 @@ export class WorksService {
       metadata: localMetaBase,
     });
     try {
+      const credential = await this.resolveChanjingCredential(brandId);
       let upload: Awaited<ReturnType<typeof this.uploadChanjingCustomPersonTrainingVideo>>;
       try {
         upload = await this.uploadChanjingCustomPersonTrainingVideo(credential, payload.trainingVideo);
