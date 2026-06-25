@@ -8270,12 +8270,19 @@ export class WorksService {
       size?: number;
     },
   ) {
-    const credential = await this.resolveChanjingCredential(brandId);
-    const response = await this.chanjingOpenApiService.listCommonAudios(credential, options);
-    return {
-      list: response.list,
-      pageInfo: response.pageInfo,
-    };
+    try {
+      const credential = await this.resolveChanjingCredential(brandId);
+      const response = await this.chanjingOpenApiService.listCommonAudios(credential, options);
+      return {
+        list: response.list,
+        pageInfo: response.pageInfo,
+      };
+    } catch {
+      return {
+        list: [],
+        pageInfo: undefined,
+      };
+    }
   }
 
   async listDouyinCustomVoices(
@@ -8285,12 +8292,19 @@ export class WorksService {
       pageSize?: number;
     },
   ) {
-    const credential = await this.resolveChanjingCredential(brandId);
-    const response = await this.chanjingOpenApiService.listCustomisedAudios(credential, options);
-    return {
-      list: response.list,
-      pageInfo: response.pageInfo,
-    };
+    try {
+      const credential = await this.resolveChanjingCredential(brandId);
+      const response = await this.chanjingOpenApiService.listCustomisedAudios(credential, options);
+      return {
+        list: response.list,
+        pageInfo: response.pageInfo,
+      };
+    } catch {
+      return {
+        list: [],
+        pageInfo: undefined,
+      };
+    }
   }
 
   async createDouyinCustomVoice(
@@ -8505,9 +8519,6 @@ export class WorksService {
         pageSize: 50,
       });
     } catch (error) {
-      if (!localEntries.length) {
-        throw error;
-      }
       return {
         items: localEntries
           .map((entry) => this.mapLocalCustomPersonMeta(entry.meta, entry.meta.personId || entry.workId))

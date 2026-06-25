@@ -36,6 +36,7 @@ export class TasksService {
 
   async listTasks(auth?: RequestAuthContext) {
     const userId = this.requireUserId(auth);
+    const brandId = String(auth?.brandId || "").trim() || undefined;
     // #region debug-point C:list-tasks-enter
     fetch("http://127.0.0.1:7777/event",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:"digital-human-silent-upload",runId:"pre-fix",hypothesisId:"C",location:"tasks.service.ts:37",msg:"[DEBUG] list tasks enter",data:{userId,brandId:auth?.brandId||null},ts:Date.now()})}).catch(()=>{});
     // #endregion
@@ -51,7 +52,7 @@ export class TasksService {
         msg: "[DEBUG] TasksService 开始查询任务中心",
         data: {
           userId,
-          brandId: auth?.brandId || null,
+          brandId: brandId || null,
           authSource: auth?.source || null,
         },
         ts: Date.now(),
@@ -60,7 +61,14 @@ export class TasksService {
     // #endregion
     if (await this.prismaService.canUseDatabase()) {
       const tasks = await this.prismaService.task.findMany({
-        where: { userId },
+        where: brandId
+          ? {
+              OR: [
+                { userId },
+                { brandId },
+              ],
+            }
+          : { userId },
         orderBy: { createdAt: "desc" },
       });
       const normalizedTasks = await Promise.all(tasks.map((task) => this.normalizeDatabaseTaskStatus(task)));
@@ -79,6 +87,7 @@ export class TasksService {
           msg: "[DEBUG] TasksService 返回任务中心结果",
           data: {
             userId,
+            brandId: brandId || null,
             totalCount: normalizedTasks.length,
             digitalHumanCount: normalizedTasks.filter((task) => task.taskType === "DOUYIN_DIGITAL_HUMAN_CUSTOM").length,
             latestDigitalHumanTaskIds: normalizedTasks
@@ -111,7 +120,7 @@ export class TasksService {
     }
 
     return [...database.tasks]
-      .filter((item) => item.userId === userId)
+      .filter((item) => item.userId === userId || Boolean(brandId && item.brandId === brandId))
       .map((item) => this.normalizeMockTaskStatus(item))
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
