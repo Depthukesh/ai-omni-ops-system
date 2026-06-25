@@ -1736,10 +1736,42 @@ export async function getDouyinDigitalHumanTemplates(
   const path = searchParams.toString()
     ? `/works/brands/${brandId}/douyin/digital-human/templates?${searchParams.toString()}`
     : `/works/brands/${brandId}/douyin/digital-human/templates`;
-  return request<{
-    list: DigitalHumanTemplateRecord[];
-    pageInfo?: DigitalHumanTemplatePageInfo;
-  }>(path);
+  // #region debug-point A:digital-human-template-request
+  fetch("http://127.0.0.1:7777/event", {
+    method: "POST",
+    body: JSON.stringify({
+      sessionId: "digital-human-502-list",
+      runId: "pre-fix",
+      hypothesisId: "A",
+      location: "apps/web/src/services/works.ts:getDouyinDigitalHumanTemplates",
+      msg: "[DEBUG] 浏览器发起数字人模板请求",
+      data: { brandId, path, query },
+      ts: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
+  try {
+    return await request<{
+      list: DigitalHumanTemplateRecord[];
+      pageInfo?: DigitalHumanTemplatePageInfo;
+    }>(path);
+  } catch (error) {
+    // #region debug-point A:digital-human-template-error
+    fetch("http://127.0.0.1:7777/event", {
+      method: "POST",
+      body: JSON.stringify({
+        sessionId: "digital-human-502-list",
+        runId: "pre-fix",
+        hypothesisId: "A",
+        location: "apps/web/src/services/works.ts:getDouyinDigitalHumanTemplates",
+        msg: "[DEBUG] 浏览器数字人模板请求失败",
+        data: { brandId, path, message: error instanceof Error ? error.message : String(error) },
+        ts: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
+    throw error;
+  }
 }
 
 export async function getDouyinVoiceLibrary(

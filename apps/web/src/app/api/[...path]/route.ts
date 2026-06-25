@@ -61,7 +61,41 @@ async function proxyToBackend(request: NextRequest, context: RouteContext) {
       upstreamInit.duplex = "half";
     }
 
+    // #region debug-point B:digital-human-template-proxy-request
+    if (targetUrl.includes("/douyin/digital-human/templates")) {
+      fetch("http://127.0.0.1:7777/event", {
+        method: "POST",
+        body: JSON.stringify({
+          sessionId: "digital-human-502-list",
+          runId: "pre-fix",
+          hypothesisId: "B",
+          location: "apps/web/src/app/api/[...path]/route.ts:proxyToBackend",
+          msg: "[DEBUG] Next 代理准备转发数字人模板请求",
+          data: { method: request.method, targetUrl },
+          ts: Date.now(),
+        }),
+      }).catch(() => {});
+    }
+    // #endregion
+
     const upstreamResponse = await fetch(targetUrl, upstreamInit);
+
+    // #region debug-point B:digital-human-template-proxy-response
+    if (targetUrl.includes("/douyin/digital-human/templates")) {
+      fetch("http://127.0.0.1:7777/event", {
+        method: "POST",
+        body: JSON.stringify({
+          sessionId: "digital-human-502-list",
+          runId: "pre-fix",
+          hypothesisId: "B",
+          location: "apps/web/src/app/api/[...path]/route.ts:proxyToBackend",
+          msg: "[DEBUG] Next 代理收到数字人模板响应",
+          data: { targetUrl, status: upstreamResponse.status, statusText: upstreamResponse.statusText },
+          ts: Date.now(),
+        }),
+      }).catch(() => {});
+    }
+    // #endregion
 
     const responseHeaders = new Headers(upstreamResponse.headers);
     responseHeaders.delete("content-length");
@@ -74,6 +108,22 @@ async function proxyToBackend(request: NextRequest, context: RouteContext) {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "上游接口代理失败";
+    // #region debug-point B:digital-human-template-proxy-error
+    if (targetUrl.includes("/douyin/digital-human/templates")) {
+      fetch("http://127.0.0.1:7777/event", {
+        method: "POST",
+        body: JSON.stringify({
+          sessionId: "digital-human-502-list",
+          runId: "pre-fix",
+          hypothesisId: "B",
+          location: "apps/web/src/app/api/[...path]/route.ts:proxyToBackend",
+          msg: "[DEBUG] Next 代理抛出数字人模板异常",
+          data: { targetUrl, message },
+          ts: Date.now(),
+        }),
+      }).catch(() => {});
+    }
+    // #endregion
     return NextResponse.json(
       {
         message: `上游服务暂时不可用（API 代理失败）：${message}`,

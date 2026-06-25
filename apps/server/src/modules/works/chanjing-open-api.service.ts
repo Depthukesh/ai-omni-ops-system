@@ -300,17 +300,66 @@ export class ChanjingOpenApiService {
     if (options?.tagIds?.length) {
       searchParams.set("tag_ids", options.tagIds.join(","));
     }
-    const response = await this.requestCredentialJson<{ list?: unknown[]; page_info?: unknown }>(
-      credential,
-      `/open/v1/list_common_dp?${searchParams.toString()}`,
-      {
-        method: "GET",
-      },
-    );
-    return {
-      list: (Array.isArray(response.list) ? response.list : []).map((item) => this.normalizeTemplate(item)),
-      pageInfo: this.normalizePageInfo(response.page_info),
-    };
+    const requestPath = `/open/v1/list_common_dp?${searchParams.toString()}`;
+    // #region debug-point C:chanjing-template-request
+    fetch("http://127.0.0.1:7777/event", {
+      method: "POST",
+      body: JSON.stringify({
+        sessionId: "digital-human-502-list",
+        runId: "pre-fix",
+        hypothesisId: "C",
+        location: "apps/server/src/modules/works/chanjing-open-api.service.ts:listCommonDigitalPersons",
+        msg: "[DEBUG] 蝉镜模板列表请求开始",
+        data: { requestPath, options },
+        ts: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
+    try {
+      const response = await this.requestCredentialJson<{ list?: unknown[]; page_info?: unknown }>(
+        credential,
+        requestPath,
+        {
+          method: "GET",
+        },
+      );
+      const normalizedList = (Array.isArray(response.list) ? response.list : []).map((item) => this.normalizeTemplate(item));
+      const normalizedPageInfo = this.normalizePageInfo(response.page_info);
+      // #region debug-point C:chanjing-template-success
+      fetch("http://127.0.0.1:7777/event", {
+        method: "POST",
+        body: JSON.stringify({
+          sessionId: "digital-human-502-list",
+          runId: "pre-fix",
+          hypothesisId: "C",
+          location: "apps/server/src/modules/works/chanjing-open-api.service.ts:listCommonDigitalPersons",
+          msg: "[DEBUG] 蝉镜模板列表请求成功",
+          data: { requestPath, count: normalizedList.length, pageInfo: normalizedPageInfo },
+          ts: Date.now(),
+        }),
+      }).catch(() => {});
+      // #endregion
+      return {
+        list: normalizedList,
+        pageInfo: normalizedPageInfo,
+      };
+    } catch (error) {
+      // #region debug-point C:chanjing-template-error
+      fetch("http://127.0.0.1:7777/event", {
+        method: "POST",
+        body: JSON.stringify({
+          sessionId: "digital-human-502-list",
+          runId: "pre-fix",
+          hypothesisId: "C",
+          location: "apps/server/src/modules/works/chanjing-open-api.service.ts:listCommonDigitalPersons",
+          msg: "[DEBUG] 蝉镜模板列表请求失败",
+          data: { requestPath, message: error instanceof Error ? error.message : String(error) },
+          ts: Date.now(),
+        }),
+      }).catch(() => {});
+      // #endregion
+      throw error;
+    }
   }
 
   private normalizeCommonDigitalPersonSort(sort?: string) {

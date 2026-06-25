@@ -666,6 +666,20 @@ export class WorksController {
     @Query("sort") sort?: string,
     @Query("tagIds") tagIds?: string,
   ) {
+    // #region debug-point C:digital-human-template-controller-entry
+    fetch("http://127.0.0.1:7777/event", {
+      method: "POST",
+      body: JSON.stringify({
+        sessionId: "digital-human-502-list",
+        runId: "pre-fix",
+        hypothesisId: "C",
+        location: "apps/server/src/modules/works/works.controller.ts:listDouyinDigitalHumanTemplates",
+        msg: "[DEBUG] Nest 收到数字人模板列表请求",
+        data: { brandId, page, size, sort, tagIds },
+        ts: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
     const auth = await this.authService.resolveRequestAuthContext(headers);
     await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "view", auth);
     return this.worksService.listDouyinDigitalHumanTemplates(brandId, {

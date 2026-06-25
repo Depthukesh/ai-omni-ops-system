@@ -8210,11 +8210,57 @@ export class WorksService {
     },
   ) {
     const credential = await this.resolveChanjingCredential(brandId);
-    const response = await this.chanjingOpenApiService.listCommonDigitalPersons(credential, options);
-    return {
-      list: response.list,
-      pageInfo: response.pageInfo,
-    };
+    // #region debug-point D:digital-human-template-service-entry
+    fetch("http://127.0.0.1:7777/event", {
+      method: "POST",
+      body: JSON.stringify({
+        sessionId: "digital-human-502-list",
+        runId: "pre-fix",
+        hypothesisId: "D",
+        location: "apps/server/src/modules/works/works.service.ts:listDouyinDigitalHumanTemplates",
+        msg: "[DEBUG] WorksService 开始读取数字人模板",
+        data: { brandId, options, hasCredential: Boolean(String(credential || "").trim()), credentialLength: String(credential || "").length },
+        ts: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
+    try {
+      const response = await this.chanjingOpenApiService.listCommonDigitalPersons(credential, options);
+      // #region debug-point D:digital-human-template-service-success
+      fetch("http://127.0.0.1:7777/event", {
+        method: "POST",
+        body: JSON.stringify({
+          sessionId: "digital-human-502-list",
+          runId: "pre-fix",
+          hypothesisId: "D",
+          location: "apps/server/src/modules/works/works.service.ts:listDouyinDigitalHumanTemplates",
+          msg: "[DEBUG] WorksService 成功拿到数字人模板",
+          data: { brandId, count: Array.isArray(response.list) ? response.list.length : -1, pageInfo: response.pageInfo },
+          ts: Date.now(),
+        }),
+      }).catch(() => {});
+      // #endregion
+      return {
+        list: response.list,
+        pageInfo: response.pageInfo,
+      };
+    } catch (error) {
+      // #region debug-point D:digital-human-template-service-error
+      fetch("http://127.0.0.1:7777/event", {
+        method: "POST",
+        body: JSON.stringify({
+          sessionId: "digital-human-502-list",
+          runId: "pre-fix",
+          hypothesisId: "D",
+          location: "apps/server/src/modules/works/works.service.ts:listDouyinDigitalHumanTemplates",
+          msg: "[DEBUG] WorksService 读取数字人模板失败",
+          data: { brandId, options, message: error instanceof Error ? error.message : String(error) },
+          ts: Date.now(),
+        }),
+      }).catch(() => {});
+      // #endregion
+      throw error;
+    }
   }
 
   async listDouyinVoiceLibrary(

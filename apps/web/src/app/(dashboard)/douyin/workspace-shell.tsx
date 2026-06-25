@@ -608,6 +608,26 @@ export function DouyinWorkspaceShell() {
       });
       return templates.list || [];
     } catch (error) {
+      // #region debug-point E:digital-human-template-ui-error
+      fetch("http://127.0.0.1:7777/event", {
+        method: "POST",
+        body: JSON.stringify({
+          sessionId: "digital-human-502-list",
+          runId: "pre-fix",
+          hypothesisId: "E",
+          location: "apps/web/src/app/(dashboard)/douyin/workspace-shell.tsx:loadDigitalHumanTemplates",
+          msg: "[DEBUG] 数字人模板错误写入 UI 状态",
+          data: {
+            brandId: activeBrandId,
+            page: nextPage,
+            size: nextSize,
+            tagId: nextTagId,
+            message: error instanceof Error ? error.message : String(error),
+          },
+          ts: Date.now(),
+        }),
+      }).catch(() => {});
+      // #endregion
       setDigitalHumanTemplateError(readRequestErrorMessage(error, "数字人模板读取失败，请检查蝉镜配置或稍后重试。"));
       throw error;
     } finally {
@@ -661,6 +681,23 @@ export function DouyinWorkspaceShell() {
       setDigitalHumanTemplatePageInfo(templates.value.pageInfo);
       setDigitalHumanTemplateError("");
     } else {
+      // #region debug-point E:digital-human-template-refresh-error
+      fetch("http://127.0.0.1:7777/event", {
+        method: "POST",
+        body: JSON.stringify({
+          sessionId: "digital-human-502-list",
+          runId: "pre-fix",
+          hypothesisId: "E",
+          location: "apps/web/src/app/(dashboard)/douyin/workspace-shell.tsx:refreshDigitalHumanWorkspace",
+          msg: "[DEBUG] 首屏刷新阶段数字人模板请求失败",
+          data: {
+            brandId: activeBrandId,
+            message: templates.reason instanceof Error ? templates.reason.message : String(templates.reason),
+          },
+          ts: Date.now(),
+        }),
+      }).catch(() => {});
+      // #endregion
       setDigitalHumanTemplates([]);
       setDigitalHumanTemplatePageInfo(undefined);
       setDigitalHumanTemplateError(readRequestErrorMessage(templates.reason, "数字人模板读取失败，请检查蝉镜配置或稍后重试。"));
