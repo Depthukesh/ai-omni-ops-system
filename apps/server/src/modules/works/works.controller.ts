@@ -865,6 +865,28 @@ export class WorksController {
     },
   ) {
     return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
+      // #region debug-point F:digital-human-custom-create-controller
+      fetch("http://127.0.0.1:7777/event", {
+        method: "POST",
+        body: JSON.stringify({
+          sessionId: "digital-human-502-list",
+          runId: "pre-fix",
+          hypothesisId: "F",
+          location: "apps/server/src/modules/works/works.controller.ts:createDouyinDigitalHumanCustomPerson",
+          msg: "[DEBUG] Nest 收到定制数字人创建请求",
+          data: {
+            brandId,
+            authUserId: auth?.userId || null,
+            authBrandId: auth?.brandId || null,
+            authSource: auth?.source || null,
+            hasUploadedFile: Boolean(uploadedFile?.path),
+            uploadedFileName: uploadedFile?.originalname || null,
+            uploadedFileSize: typeof uploadedFile?.size === "number" ? uploadedFile.size : null,
+          },
+          ts: Date.now(),
+        }),
+      }).catch(() => {});
+      // #endregion
       await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "edit", auth);
       return this.worksService.createDouyinDigitalHumanCustomPerson(
         brandId,

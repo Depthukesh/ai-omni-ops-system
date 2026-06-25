@@ -8556,6 +8556,29 @@ export class WorksService {
     this.validateCustomPersonTrainingVideo(payload.trainingVideo);
     const userId = await this.resolveTaskUserId(brandId, auth);
     const normalizedName = this.normalizeCustomPersonName(payload.name, payload.trainingVideo.fileName);
+    // #region debug-point F:digital-human-custom-create-service
+    fetch("http://127.0.0.1:7777/event", {
+      method: "POST",
+      body: JSON.stringify({
+        sessionId: "digital-human-502-list",
+        runId: "pre-fix",
+        hypothesisId: "F",
+        location: "apps/server/src/modules/works/works.service.ts:createDouyinDigitalHumanCustomPerson",
+        msg: "[DEBUG] WorksService 准备创建定制数字人任务",
+        data: {
+          brandId,
+          authUserId: auth?.userId || null,
+          authBrandId: auth?.brandId || null,
+          authSource: auth?.source || null,
+          resolvedTaskUserId: userId,
+          normalizedName,
+          trainingVideoFileName: payload.trainingVideo.fileName,
+          trainingVideoSizeBytes: payload.trainingVideo.sizeBytes ?? null,
+        },
+        ts: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
     const task = await this.createVideoTask({
       userId,
       brandId,
@@ -13085,7 +13108,7 @@ export class WorksService {
       ? `${params.modelName} + ${params.requestedVideoProvider}`
       : `deepseek-v4-pro + ${params.requestedVideoProvider}`;
     if (await this.prismaService.canUseDatabase()) {
-      return this.prismaService.task.create({
+      const createdTask = await this.prismaService.task.create({
         data: {
           userId: params.userId,
           brandId: params.brandId,
@@ -13096,6 +13119,28 @@ export class WorksService {
           pointsCost: 360,
         },
       });
+      // #region debug-point F:digital-human-video-task-db
+      fetch("http://127.0.0.1:7777/event", {
+        method: "POST",
+        body: JSON.stringify({
+          sessionId: "digital-human-502-list",
+          runId: "pre-fix",
+          hypothesisId: "F",
+          location: "apps/server/src/modules/works/works.service.ts:createVideoTask",
+          msg: "[DEBUG] WorksService 已写入视频任务",
+          data: {
+            taskId: createdTask.id,
+            userId: createdTask.userId,
+            brandId: createdTask.brandId || null,
+            taskType: createdTask.taskType,
+            taskStatus: createdTask.taskStatus,
+            taskTitle: createdTask.taskTitle || "",
+          },
+          ts: Date.now(),
+        }),
+      }).catch(() => {});
+      // #endregion
+      return createdTask;
     }
 
     const now = new Date().toISOString();
@@ -13112,6 +13157,27 @@ export class WorksService {
       updatedAt: now,
     };
     database.tasks.unshift(task);
+    // #region debug-point F:digital-human-video-task-mock
+    fetch("http://127.0.0.1:7777/event", {
+      method: "POST",
+      body: JSON.stringify({
+        sessionId: "digital-human-502-list",
+        runId: "pre-fix",
+        hypothesisId: "F",
+        location: "apps/server/src/modules/works/works.service.ts:createVideoTask",
+        msg: "[DEBUG] WorksService 已写入视频任务(mock)",
+        data: {
+          taskId: task.id,
+          userId: task.userId,
+          brandId: task.brandId || null,
+          taskType: task.taskType,
+          taskStatus: task.taskStatus,
+          taskTitle: task.taskTitle,
+        },
+        ts: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
     return task;
   }
 
@@ -13682,7 +13748,25 @@ export class WorksService {
       return auth.userId;
     }
 
-    return this.getBrandOwnerUserId(brandId);
+    const ownerUserId = await this.getBrandOwnerUserId(brandId);
+    // #region debug-point F:digital-human-task-owner-fallback
+    fetch("http://127.0.0.1:7777/event", {
+      method: "POST",
+      body: JSON.stringify({
+        sessionId: "digital-human-502-list",
+        runId: "pre-fix",
+        hypothesisId: "F",
+        location: "apps/server/src/modules/works/works.service.ts:resolveTaskUserId",
+        msg: "[DEBUG] 任务归属回退到品牌拥有者",
+        data: {
+          brandId,
+          ownerUserId,
+        },
+        ts: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
+    return ownerUserId;
   }
 
   private async canUseDouyinAdPreAuditPersistenceDatabase() {
