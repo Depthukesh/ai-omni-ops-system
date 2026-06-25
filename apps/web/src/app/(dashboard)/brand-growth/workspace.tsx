@@ -393,6 +393,7 @@ function emptyProduct(): BrandProduct {
     marketPosition: "",
     detailDescription: "",
     imageUrl: "",
+    imageUrls: [],
   };
 }
 
@@ -3170,12 +3171,13 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     });
   }
 
-  async function handleUploadProductImage(productId: string, file?: File | null) {
-    if (!file) {
+  async function handleUploadProductImage(productId: string, files?: File[] | null) {
+    if (!files?.length) {
       return;
     }
 
-    if (!file.type.startsWith("image/")) {
+    const invalidFile = files.find((file) => !file.type.startsWith("image/"));
+    if (invalidFile) {
       setErrorMessage("请上传图片格式文件。");
       return;
     }
@@ -3184,14 +3186,24 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     clearMessages();
 
     try {
-      const uploaded = await uploadBrandProductImage(archive.brand.id, file);
+      const uploadedUrls: string[] = [];
+      for (const file of files) {
+        const uploaded = await uploadBrandProductImage(archive.brand.id, file);
+        uploadedUrls.push(uploaded.imageUrl);
+      }
       setArchive((current) => ({
         ...current,
         products: current.products.map((item) => (
-          item.id === productId ? { ...item, imageUrl: uploaded.imageUrl } : item
+          item.id === productId
+            ? {
+                ...item,
+                imageUrl: [...item.imageUrls, ...uploadedUrls][0] ?? item.imageUrl,
+                imageUrls: Array.from(new Set([...item.imageUrls, ...uploadedUrls])),
+              }
+            : item
         )),
       }));
-      setNotice("产品图片上传成功，请继续保存页面。");
+      setNotice(`产品图片上传成功，已追加 ${uploadedUrls.length} 张图片，请继续保存页面。`);
     } catch (error) {
       const message = error instanceof Error ? error.message : "上传失败";
       setErrorMessage(`产品图片上传失败：${message}`);
@@ -3404,6 +3416,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
             marketPosition: product.marketPosition,
             detailDescription: product.detailDescription,
             imageUrl: product.imageUrl,
+            imageUrls: product.imageUrls,
           };
 
           if (product.id.startsWith("prd_local_")) {

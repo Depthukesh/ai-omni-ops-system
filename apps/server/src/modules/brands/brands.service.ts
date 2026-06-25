@@ -262,6 +262,7 @@ export type CreateProductPayload = {
   marketPosition?: string;
   detailDescription?: string;
   imageUrl?: string;
+  imageUrls?: string[];
 };
 
 export type UpdateProductPayload = CreateProductPayload;
@@ -1435,6 +1436,7 @@ export class BrandsService {
             marketPosition: payload.marketPosition ?? "",
             detailDescription: payload.detailDescription ?? "",
             imageUrl: payload.imageUrl ?? "",
+            imageUrlsJson: payload.imageUrls ?? (payload.imageUrl ? [payload.imageUrl] : []),
           },
         }),
       );
@@ -1463,6 +1465,7 @@ export class BrandsService {
             marketPosition: payload.marketPosition,
             detailDescription: payload.detailDescription,
             imageUrl: payload.imageUrl,
+            imageUrlsJson: payload.imageUrls,
           },
         }),
       );
@@ -3226,6 +3229,7 @@ export class BrandsService {
       marketPosition: payload.marketPosition ?? "",
       detailDescription: payload.detailDescription ?? "",
       imageUrl: payload.imageUrl ?? "",
+      imageUrlsJson: payload.imageUrls ?? (payload.imageUrl ? [payload.imageUrl] : []),
     };
 
     database.products.unshift(product);
@@ -3252,6 +3256,7 @@ export class BrandsService {
       marketPosition: payload.marketPosition ?? product.marketPosition,
       detailDescription: payload.detailDescription ?? product.detailDescription,
       imageUrl: payload.imageUrl ?? product.imageUrl,
+      imageUrlsJson: payload.imageUrls ?? product.imageUrlsJson ?? (product.imageUrl ? [product.imageUrl] : []),
     });
 
     return product;
@@ -5376,7 +5381,9 @@ export class BrandsService {
     marketPosition?: string | null;
     detailDescription?: string | null;
     imageUrl?: string | null;
+    imageUrlsJson?: Prisma.JsonValue | null;
   }) {
+    const imageUrls = this.parseStringArrayJson(item.imageUrlsJson);
     return {
       id: item.id,
       productName: item.productName,
@@ -5390,6 +5397,7 @@ export class BrandsService {
       marketPosition: item.marketPosition ?? "",
       detailDescription: item.detailDescription ?? "",
       imageUrl: item.imageUrl ?? "",
+      imageUrls: imageUrls.length ? imageUrls : item.imageUrl ? [item.imageUrl] : [],
     };
   }
 
@@ -5432,6 +5440,14 @@ export class BrandsService {
         value: typeof row.value === "string" ? row.value : "",
       };
     });
+  }
+
+  private parseStringArrayJson(value: Prisma.JsonValue | null | undefined) {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+
+    return value.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
   }
 
   private extractSourceName(value: Prisma.JsonValue | null | undefined) {

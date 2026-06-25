@@ -41,6 +41,7 @@ export type ProductRecord = {
   marketPosition?: string;
   detailDescription?: string;
   imageUrl?: string;
+  imageUrlsJson?: string[];
 };
 
 export type PlatformAccountRecord = {

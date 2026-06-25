@@ -2436,6 +2436,12 @@ button {
   background: var(--subtle-surface);
 }
 
+.product-image-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+}
+
 .product-image-preview {
   display: block;
   width: 100%;

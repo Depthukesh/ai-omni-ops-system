@@ -92,6 +92,7 @@ export type BrandProduct = {
   marketPosition: string;
   detailDescription: string;
   imageUrl: string;
+  imageUrls: string[];
 };
 
 export type BrandSurveyAnswer = {
@@ -700,6 +701,11 @@ export function normalizeBrandArchiveBundle(bundle: BrandArchiveBundle): BrandAr
       marketPosition: item.marketPosition ?? "",
       detailDescription: item.detailDescription ?? "",
       imageUrl: item.imageUrl ?? "",
+      imageUrls: Array.isArray(item.imageUrls)
+        ? item.imageUrls.filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+        : item.imageUrl
+          ? [item.imageUrl]
+          : [],
     })),
     survey: normalizeBrandSurveyAnswers(bundle.survey),
   };
@@ -735,6 +741,7 @@ export const brandArchiveSeed: BrandArchiveBundle = {
       marketPosition: "节日蛋糕核心引流款",
       detailDescription: "主打节日礼赠与庆生场景，强调颜值、口感和分享属性。",
       imageUrl: "https://oss.example.com/products/tiramisu-cake.jpg",
+      imageUrls: ["https://oss.example.com/products/tiramisu-cake.jpg"],
     },
     {
       id: "prd_demo_002",
@@ -749,6 +756,7 @@ export const brandArchiveSeed: BrandArchiveBundle = {
       marketPosition: "门店高频销量款",
       detailDescription: "适合作为门店高频到店产品，承担日常复购与连带销售任务。",
       imageUrl: "https://oss.example.com/products/croissant.jpg",
+      imageUrls: ["https://oss.example.com/products/croissant.jpg"],
     },
   ],
   survey: createDefaultBrandSurveyAnswers({

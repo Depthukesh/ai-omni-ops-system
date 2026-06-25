@@ -370,6 +370,7 @@ model Product {
   marketPosition       String?
   detailDescription    String?
   imageUrl             String?
+  imageUrlsJson        Json?
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 

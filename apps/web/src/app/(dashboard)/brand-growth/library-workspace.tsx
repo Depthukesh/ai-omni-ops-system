@@ -48,7 +48,7 @@ export interface BrandGrowthLibraryWorkspaceProps {
   onAddProduct: () => void;
   onUpdateProduct: (index: number, key: keyof BrandProduct, value: string | number) => void;
   onRemoveProduct: (productId: string) => void;
-  onUploadProductImage: (productId: string, file?: File | null) => void | Promise<void>;
+  onUploadProductImage: (productId: string, files?: File[] | null) => void | Promise<void>;
   uploadingProductId: string;
   onUpdateSurvey: (key: string, value: string) => void;
   onCreateAssets: (target: LibraryAssetTarget, drafts: LibraryAssetModalDraft[]) => void | Promise<void>;
@@ -391,30 +391,35 @@ export function BrandGrowthLibraryWorkspace(props: BrandGrowthLibraryWorkspacePr
                       <input
                         type="file"
                         accept="image/*"
+                        multiple
                         className="sr-only-file-input"
                         onChange={(event) => {
-                          void props.onUploadProductImage(product.id, event.target.files?.[0] ?? null);
+                          void props.onUploadProductImage(product.id, Array.from(event.target.files || []));
                           event.currentTarget.value = "";
                         }}
                       />
                       {props.uploadingProductId === product.id ? "上传中..." : "上传图片"}
                     </label>
-                    {product.imageUrl ? (
-                      <a href={product.imageUrl} target="_blank" rel="noreferrer" className="secondary-button">
-                        查看原图
+                    {product.imageUrls.length ? (
+                      <a href={product.imageUrls[0]} target="_blank" rel="noreferrer" className="secondary-button">
+                        查看首图
                       </a>
                     ) : null}
                   </div>
-                  {product.imageUrl ? (
-                    <div className="product-image-preview-shell">
-                      <img
-                        src={product.imageUrl}
-                        alt={`${product.productName || `产品 ${index + 1}`} 图片`}
-                        className="product-image-preview"
-                      />
+                  {product.imageUrls.length ? (
+                    <div className="product-image-preview-grid">
+                      {product.imageUrls.map((imageUrl, imageIndex) => (
+                        <div className="product-image-preview-shell" key={`${product.id}-${imageIndex}`}>
+                          <img
+                            src={imageUrl}
+                            alt={`${product.productName || `产品 ${index + 1}`} 图片 ${imageIndex + 1}`}
+                            className="product-image-preview"
+                          />
+                        </div>
+                      ))}
                     </div>
                   ) : (
-                    <span className="field-hint">支持上传图片文件，上传后会自动回填并在保存时写入数据库。</span>
+                    <span className="field-hint">支持一次选择多张图片，上传后会自动追加到当前产品并在保存时写入数据库。</span>
                   )}
                 </label>
               </div>

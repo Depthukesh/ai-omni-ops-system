@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import type {
   DigitalHumanFigureType,
   DigitalHumanTemplateRecord,
@@ -96,6 +96,7 @@ export function DigitalHumanHomePanel(props: DigitalHumanHomePanelProps) {
   const [customPersonName, setCustomPersonName] = useState("");
   const [trainingVideoFile, setTrainingVideoFile] = useState<File | null>(null);
   const [agreedToCreate, setAgreedToCreate] = useState(true);
+  const trainingVideoInputRef = useRef<HTMLInputElement | null>(null);
 
   const favoriteTemplateIdSet = useMemo(() => new Set(props.favoriteTemplateIds), [props.favoriteTemplateIds]);
   const myDigitalHumans = useMemo(
@@ -312,17 +313,39 @@ export function DigitalHumanHomePanel(props: DigitalHumanHomePanelProps) {
               </div>
             </div>
 
-            <label className="digital-human-home-v2-dialog__upload">
-              <input
-                type="file"
-                accept="video/mp4,video/quicktime,video/*"
-                className="reference-upload-input"
-                onChange={(event) => setTrainingVideoFile(event.target.files?.[0] || null)}
-              />
+            <input
+              ref={trainingVideoInputRef}
+              type="file"
+              accept="video/mp4,video/quicktime,video/*"
+              className="reference-upload-input"
+              onChange={(event) => setTrainingVideoFile(event.target.files?.[0] || null)}
+              disabled={!props.canEdit || props.isSubmitting}
+            />
+            <div
+              className="digital-human-home-v2-dialog__upload"
+              role="button"
+              tabIndex={props.canEdit && !props.isSubmitting ? 0 : -1}
+              aria-disabled={!props.canEdit || props.isSubmitting}
+              onClick={() => {
+                if (!props.canEdit || props.isSubmitting) {
+                  return;
+                }
+                trainingVideoInputRef.current?.click();
+              }}
+              onKeyDown={(event) => {
+                if (!props.canEdit || props.isSubmitting) {
+                  return;
+                }
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  trainingVideoInputRef.current?.click();
+                }
+              }}
+            >
               <span className="digital-human-home-v2-dialog__upload-icon">↑</span>
               <strong>请上传一段视频，作为驱动数字人的底版视频</strong>
               <small>{trainingVideoFile ? `已选择：${trainingVideoFile.name}` : "将文件拖到此处，或点击此区域上传"}</small>
-            </label>
+            </div>
 
             <label className="field">
               <span>数字人名称</span>
