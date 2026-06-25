@@ -13056,7 +13056,7 @@ button {
 }
 
 .design-v3-dialog__header {
-  border-bottom: 1px solid #edf1f7;
+  border-bottom: 1px solid var(--site-hero-border);
 }
 
 .design-v3-dialog__header strong {
@@ -13076,7 +13076,7 @@ button {
 }
 
 .design-v3-dialog__footer {
-  border-top: 1px solid #edf1f7;
+  border-top: 1px solid var(--site-hero-border);
 }
 
 .design-v3-text-button {
@@ -13224,8 +13224,8 @@ button {
 .ops-prompt-summary-card {
   padding: 16px 18px;
   border-radius: 20px;
-  border: 1px solid rgba(212, 220, 236, 0.92);
-  background: rgba(255, 255, 255, 0.84);
+  border: 1px solid var(--site-hero-border);
+  background: color-mix(in srgb, var(--card-surface) 88%, transparent);
 }
 
 .ops-prompt-stat-card strong,
@@ -13241,6 +13241,43 @@ button {
   color: var(--site-hero-muted);
   font-size: 12px;
   line-height: 1.7;
+}
+
+.runninghub-source-stack {
+  display: grid;
+  gap: 14px;
+}
+
+.runninghub-source-preview {
+  display: grid;
+  gap: 12px;
+  padding: 16px 18px;
+  border-radius: 18px;
+  border: 1px solid var(--site-hero-border);
+  background: color-mix(in srgb, var(--card-surface) 92%, transparent);
+}
+
+.runninghub-source-preview strong {
+  color: var(--site-hero-text);
+  font-size: 14px;
+}
+
+.runninghub-source-preview p {
+  margin: 6px 0 0;
+  color: var(--site-hero-muted);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.runninghub-source-preview video {
+  width: 100%;
+  border-radius: 16px;
+  background: #0f1525;
+}
+
+:root:not([data-theme="light"]) .ops-prompt-summary-card,
+:root:not([data-theme="light"]) .runninghub-source-preview {
+  background: color-mix(in srgb, var(--card-surface) 82%, rgba(255, 255, 255, 0.04));
 }
 
 .ops-prompt-filters {

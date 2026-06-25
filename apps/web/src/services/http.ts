@@ -39,7 +39,8 @@ async function performRequestUrl(url: string, init?: RequestInit) {
   const headers = new Headers(init?.headers);
   const resolvedPathname = readPathname(url);
   const isAuthRoute = resolvedPathname.startsWith("/auth/");
-  if (!headers.has("Content-Type")) {
+  const isFormDataBody = typeof FormData !== "undefined" && init?.body instanceof FormData;
+  if (!headers.has("Content-Type") && !isFormDataBody) {
     headers.set("Content-Type", "application/json");
   }
   if (!headers.has("Authorization") && session?.accessToken) {

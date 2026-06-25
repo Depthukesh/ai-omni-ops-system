@@ -1,4 +1,8 @@
-import { Body, Controller, Delete, Get, Headers, Inject, Param, Patch, Post, Query, Res } from "@nestjs/common";
+import { mkdirSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { Body, Controller, Delete, Get, Headers, Inject, Param, Patch, Post, Query, Res, UploadedFile, UseInterceptors } from "@nestjs/common";
+import { FileInterceptor } from "@nestjs/platform-express";
 import { AuthService } from "../auth/auth.service";
 import {
   type CreateDouyinDigitalHumanCustomPersonPayload,
@@ -51,6 +55,9 @@ import {
   type UpdateXiaohongshuRewriteNotePayload,
   type UpdateXiaohongshuVideoNotePayload,
 } from "./works.service";
+
+const DIGITAL_HUMAN_TRAINING_UPLOAD_TEMP_DIR = join(tmpdir(), "ai-omni-digital-human-training");
+mkdirSync(DIGITAL_HUMAN_TRAINING_UPLOAD_TEMP_DIR, { recursive: true });
 
 @Controller("works")
 export class WorksController {
@@ -826,14 +833,30 @@ export class WorksController {
   }
 
   @Post("brands/:brandId/douyin/digital-human/custom-person/create")
+  @UseInterceptors(FileInterceptor("trainingVideoFile", {
+    dest: DIGITAL_HUMAN_TRAINING_UPLOAD_TEMP_DIR,
+    limits: {
+      fileSize: 550 * 1024 * 1024,
+    },
+  }))
   createDouyinDigitalHumanCustomPerson(
     @Param("brandId") brandId: string,
-    @Body() payload: CreateDouyinDigitalHumanCustomPersonPayload,
+    @Body() payload: Record<string, unknown>,
     @Headers() headers: Record<string, string | string[] | undefined>,
+    @UploadedFile() uploadedFile?: {
+      path?: string;
+      originalname?: string;
+      mimetype?: string;
+      size?: number;
+    },
   ) {
     return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
       await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "edit", auth);
-      return this.worksService.createDouyinDigitalHumanCustomPerson(brandId, payload, auth);
+      return this.worksService.createDouyinDigitalHumanCustomPerson(
+        brandId,
+        normalizeDigitalHumanCustomPersonPayload(payload, uploadedFile),
+        auth,
+      );
     });
   }
 
@@ -1424,4 +1447,60 @@ export class WorksController {
     response.setHeader("Content-Type", file.contentType);
     return response.send(file.buffer);
   }
+}
+
+function normalizeDigitalHumanCustomPersonPayload(
+  payload: Record<string, unknown>,
+  uploadedFile?: {
+    path?: string;
+    originalname?: string;
+    mimetype?: string;
+    size?: number;
+  },
+): CreateDouyinDigitalHumanCustomPersonPayload {
+  const trainingVideoFromBody = readRecord(payload.trainingVideo);
+  return {
+    name: readOptionalString(payload.name),
+    trainType: payload.trainType === "both" ? "both" : payload.trainType === "figure" ? "figure" : undefined,
+    language: readOptionalString(payload.language),
+    resolutionRate: payload.resolutionRate === "4K" ? "4K" : payload.resolutionRate === "1080p" ? "1080p" : undefined,
+    errorSkip: readOptionalBoolean(payload.errorSkip),
+    trainingVideo: uploadedFile?.path
+      ? {
+          fileName: uploadedFile.originalname || "training-video.mp4",
+          contentType: uploadedFile.mimetype || "application/octet-stream",
+          tempFilePath: uploadedFile.path,
+          sizeBytes: typeof uploadedFile.size === "number" ? uploadedFile.size : undefined,
+        }
+      : trainingVideoFromBody
+        ? {
+            fileName: readOptionalString(trainingVideoFromBody.fileName) || "training-video.mp4",
+            contentType: readOptionalString(trainingVideoFromBody.contentType) || "application/octet-stream",
+            dataBase64: readOptionalString(trainingVideoFromBody.dataBase64),
+          }
+        : undefined,
+  };
+}
+
+function readRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
+}
+
+function readOptionalString(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function readOptionalBoolean(value: unknown) {
+  if (typeof value === "boolean") {
+    return value;
+  }
+  if (typeof value === "string") {
+    if (value === "true" || value === "1") {
+      return true;
+    }
+    if (value === "false" || value === "0") {
+      return false;
+    }
+  }
+  return undefined;
 }

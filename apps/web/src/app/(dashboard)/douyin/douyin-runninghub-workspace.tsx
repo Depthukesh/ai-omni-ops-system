@@ -22,12 +22,22 @@ type RunningHubFieldFormEntry = DouyinRunningHubAppFieldRecord & {
   uploadFile: File | null;
 };
 
+type RunningHubMaterialLibraryItem = {
+  id: string;
+  label: string;
+  videoUrl?: string;
+  coverUrl?: string;
+  workUrl?: string;
+  sourceLabel?: string;
+};
+
 export interface DouyinRunningHubWorkspaceProps {
   brandId: string;
   sectionLabel: string;
   sectionDescription: string;
   canEdit: boolean;
   formatDateTime: OptionalDateFormatter;
+  materialLibraryItems: RunningHubMaterialLibraryItem[];
 }
 
 function normalizeErrorMessage(error: unknown) {
@@ -137,6 +147,7 @@ function RunningHubCreateDialog(props: {
   detail: DouyinRunningHubAppDetailRecord | null;
   title: string;
   fields: RunningHubFieldFormEntry[];
+  materialVideoOptions: RunningHubMaterialLibraryItem[];
   submitError: string;
   submitting: boolean;
   onTitleChange: (value: string) => void;
@@ -148,6 +159,8 @@ function RunningHubCreateDialog(props: {
   if (!props.open) {
     return null;
   }
+
+  const materialVideoOptions = props.materialVideoOptions.filter((item) => Boolean(item.videoUrl));
 
   return (
     <div className="design-v3-dialog-backdrop" role="presentation" onClick={props.onClose}>
@@ -216,20 +229,88 @@ function RunningHubCreateDialog(props: {
                   const helperText = getFieldDescription(field);
                   const fieldKey = `${field.nodeId || "node"}-${field.fieldName || "field"}-${index}`;
                   if (uploadKind) {
+                    const selectedMaterial = uploadKind === "video"
+                      ? materialVideoOptions.find((item) => item.videoUrl === field.value)
+                      : null;
                     return (
-                      <label key={fieldKey} className="design-v3-field design-v3-field--full">
+                      <div key={fieldKey} className="design-v3-field design-v3-field--full">
                         <span>{getFieldLabel(field)}</span>
-                        <input
-                          type="file"
-                          accept={uploadKind === "image" ? "image/png,image/jpeg,image/webp,image/*" : "video/mp4,video/quicktime,video/webm,video/*"}
-                          onChange={(event) => props.onFieldFileChange(index, event.target.files?.[0] || null)}
-                        />
+                        {uploadKind === "video" ? (
+                          <div className="runninghub-source-stack">
+                            <label className="design-v3-field design-v3-field--full">
+                              <span>素材库视频</span>
+                              <select
+                                value={selectedMaterial?.id || ""}
+                                onChange={(event) => {
+                                  const nextItem = materialVideoOptions.find((item) => item.id === event.target.value) || null;
+                                  props.onFieldFileChange(index, null);
+                                  props.onFieldValueChange(index, nextItem?.videoUrl || "");
+                                }}
+                              >
+                                <option value="">不选素材库，改为自行上传视频</option>
+                                {materialVideoOptions.map((item) => (
+                                  <option key={item.id} value={item.id}>
+                                    {item.label}
+                                    {item.sourceLabel ? `｜${item.sourceLabel}` : ""}
+                                  </option>
+                                ))}
+                              </select>
+                              <small className="personal-meta">
+                                默认同步抖音素材库及已沉淀的视频作品；选择后会自动把视频链接作为参考视频参数提交。
+                              </small>
+                            </label>
+                            {selectedMaterial ? (
+                              <div className="runninghub-source-preview">
+                                <div>
+                                  <strong>{selectedMaterial.label}</strong>
+                                  <p>
+                                    {selectedMaterial.sourceLabel || "素材中心视频"}
+                                    {selectedMaterial.videoUrl ? "已就绪" : "待补充链接"}
+                                  </p>
+                                </div>
+                                {selectedMaterial.videoUrl ? (
+                                  <video controls preload="metadata" src={selectedMaterial.videoUrl} />
+                                ) : null}
+                              </div>
+                            ) : null}
+                            <label className="design-v3-field design-v3-field--full">
+                              <span>自行上传视频</span>
+                              <input
+                                type="file"
+                                accept="video/mp4,video/quicktime,video/webm,video/*"
+                                onChange={(event) => {
+                                  const nextFile = event.target.files?.[0] || null;
+                                  props.onFieldValueChange(index, "");
+                                  props.onFieldFileChange(index, nextFile);
+                                }}
+                              />
+                              <small className="personal-meta">
+                                {field.uploadFile
+                                  ? `已选择本地视频：${field.uploadFile.name}`
+                                  : "如果不使用素材库视频，也可以在这里直接上传本地动作视频。"}
+                              </small>
+                            </label>
+                          </div>
+                        ) : (
+                          <>
+                            <input
+                              type="file"
+                              accept="image/png,image/jpeg,image/webp,image/*"
+                              onChange={(event) => props.onFieldFileChange(index, event.target.files?.[0] || null)}
+                            />
+                            <small className="personal-meta">
+                              {field.uploadFile
+                                ? `已选择：${field.uploadFile.name}`
+                                : helperText || "请上传角色参考图或图片素材。"}
+                            </small>
+                          </>
+                        )}
                         <small className="personal-meta">
-                          {field.uploadFile
-                            ? `已选择：${field.uploadFile.name}`
-                            : helperText || (uploadKind === "image" ? "请上传角色参考图或图片素材。" : "请上传动作视频或视频素材。")}
+                          {uploadKind === "video"
+                            ? (helperText || "优先支持从素材中心复用参考视频，也支持直接上传本地视频文件。")
+                            : null}
                         </small>
-                      </label>
+                      </div>
                     );
                   }
                   if (shouldUseTextarea(field)) {
@@ -622,17 +703,6 @@ export function DouyinRunningHubWorkspace(props: DouyinRunningHubWorkspaceProps)
         </div>
 
         {inlineError ? <div className="report-inline-tip report-inline-tip--error">{inlineError}</div> : null}
-
-        <div className="strategy-grid" style={{ marginTop: 20 }}>
-          <div className="entity-card personal-card">
-            <strong>模块定位</strong>
-            <p className="panel-subtext">RunningHub 现已作为抖音左侧菜单中的独立一级板块，和数字人同级展示，不再塞进数字人内部。</p>
-          </div>
-          <div className="entity-card personal-card">
-            <strong>当前能力</strong>
-            <p className="panel-subtext">首期先接入 Animate 动作迁移应用，支持上传素材、提交异步任务、查询结果并写回站内作品中心。</p>
-          </div>
-        </div>
       </article>
 
       <article className="light-data-panel report-editor-panel report-editor-panel--compact" style={{ marginTop: 20 }}>
@@ -723,6 +793,7 @@ export function DouyinRunningHubWorkspace(props: DouyinRunningHubWorkspaceProps)
         detail={detail || (selectedApp ? { ...selectedApp, configured: false, nodeInfoList: [], configHint: "" } : null)}
         title={title}
         fields={fields}
+        materialVideoOptions={props.materialLibraryItems}
         submitError={submitError}
         submitting={submitting}
         onTitleChange={setTitle}

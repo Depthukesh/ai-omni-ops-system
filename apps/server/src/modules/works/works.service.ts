@@ -1,6 +1,6 @@
 import { createHash, createHmac, randomUUID } from "node:crypto";
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { createReadStream, existsSync, readFileSync } from "node:fs";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, extname, join, resolve } from "node:path";
@@ -231,7 +231,9 @@ function resolveFfmpegBinary() {
 type UploadFilePayload = {
   fileName: string;
   contentType: string;
-  dataBase64: string;
+  dataBase64?: string;
+  tempFilePath?: string;
+  sizeBytes?: number;
 };
 
 type OriginalAccountRole = "BRAND" | "STAFF" | "TALENT";
@@ -8662,6 +8664,10 @@ export class WorksService {
         updatedAt: new Date().toISOString(),
       });
       await this.markTaskFailed(taskId, message);
+    } finally {
+      if (payload.trainingVideo?.tempFilePath) {
+        await rm(payload.trainingVideo.tempFilePath, { force: true }).catch(() => undefined);
+      }
     }
   }
 
@@ -21140,7 +21146,7 @@ export class WorksService {
     const form = new FormData();
     form.append(
       "file",
-      new Blob([Buffer.from(upload.dataBase64, "base64")], {
+      new Blob([Buffer.from(String(upload.dataBase64 || ""), "base64")], {
         type: upload.contentType || "application/octet-stream",
       }),
       upload.fileName || "runninghub-upload.bin",
@@ -21653,8 +21659,11 @@ export class WorksService {
   }
 
   private validateCustomPersonTrainingVideo(payload: UploadFilePayload) {
-    if (!String(payload.dataBase64 || "").trim()) {
+    if (!String(payload.dataBase64 || "").trim() && !String(payload.tempFilePath || "").trim()) {
       throw new BadRequestException("训练视频内容为空，请重新上传。");
+    }
+    if (typeof payload.sizeBytes === "number" && payload.sizeBytes > 500 * 1024 * 1024) {
+      throw new BadRequestException("训练视频大小不能超过 500MB。");
     }
     const extension = this.resolveVideoExtensionFromMimeType(payload.contentType, payload.fileName);
     if (![".mp4", ".webm", ".mov"].includes(extension)) {
@@ -21689,7 +21698,11 @@ export class WorksService {
     try {
       await this.chanjingOpenApiService.uploadSignedFile(
         upload.signUrl,
-        payload,
+        payload.tempFilePath
+          ? {
+              stream: createReadStream(payload.tempFilePath),
+            }
+          : payload,
         upload.mimeType || payload.contentType || "application/octet-stream",
       );
     } catch (error) {
@@ -21968,7 +21981,12 @@ export class WorksService {
         : this.resolveVideoExtensionFromMimeType("video/mp4", params.sourceUrl || "source.mp4");
       const filePath = join(tempRoot, `source${extension}`);
       if (params.upload) {
-        await writeFile(filePath, Buffer.from(params.upload.dataBase64, "base64"));
+        if (params.upload.tempFilePath) {
+          const tempBuffer = await readFile(params.upload.tempFilePath);
+          await writeFile(filePath, tempBuffer);
+        } else {
+          await writeFile(filePath, Buffer.from(String(params.upload.dataBase64 || ""), "base64"));
+        }
       } else if (params.sourceUrl) {
         const response = await fetch(params.sourceUrl);
         if (!response.ok) {
@@ -27140,8 +27158,22 @@ export class WorksService {
     };
   }
 
-  private persistUploadFile(brandId: string, fileName: string, payload: UploadFilePayload) {
-    return this.writeGeneratedBinaryFile(brandId, fileName, payload.dataBase64, payload.contentType || "application/octet-stream");
+  private async persistUploadFile(brandId: string, fileName: string, payload: UploadFilePayload) {
+    if (payload.tempFilePath) {
+      const buffer = await readFile(payload.tempFilePath);
+      const storageKey = this.buildGeneratedAssetStorageKey(brandId, fileName);
+      await this.persistGeneratedObject(storageKey, buffer, payload.contentType || "application/octet-stream");
+      return {
+        storageKey,
+        url: this.resolveGeneratedAssetUrl(brandId, fileName),
+      };
+    }
+    return this.writeGeneratedBinaryFile(
+      brandId,
+      fileName,
+      String(payload.dataBase64 || ""),
+      payload.contentType || "application/octet-stream",
+    );
   }
 
   private async deleteGeneratedFileIfExists(brandId: string, fileName: string) {

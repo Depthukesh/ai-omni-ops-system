@@ -1,4 +1,5 @@
 import { Buffer } from "node:buffer";
+import type { ReadStream } from "node:fs";
 import { Injectable, Logger, ServiceUnavailableException } from "@nestjs/common";
 
 const CHANJING_BASE_URL = "https://open-api.chanjing.cc";
@@ -366,18 +367,27 @@ export class ChanjingOpenApiService {
     return this.normalizeUploadUrlRecord(response);
   }
 
-  async uploadSignedFile(signUrl: string, payload: { dataBase64: string }, contentType: string) {
+  async uploadSignedFile(
+    signUrl: string,
+    payload: { dataBase64?: string } | { stream: ReadStream },
+    contentType: string,
+  ) {
     const normalizedUrl = String(signUrl || "").trim();
     if (!/^https?:\/\//i.test(normalizedUrl)) {
       throw new ServiceUnavailableException("蝉镜上传文件失败：未返回有效的签名上传地址。");
     }
-    const response = await fetch(normalizedUrl, {
+    const body = "stream" in payload
+      ? payload.stream
+      : Buffer.from(String(payload?.dataBase64 || ""), "base64");
+    const requestInit: RequestInit & { duplex?: "half" } = {
       method: "PUT",
       headers: {
         "Content-Type": contentType || "application/octet-stream",
       },
-      body: Buffer.from(String(payload?.dataBase64 || ""), "base64"),
-    });
+      body: body as BodyInit,
+      duplex: "half",
+    };
+    const response = await fetch(normalizedUrl, requestInit);
     if (!response.ok) {
       throw new ServiceUnavailableException(`蝉镜上传文件失败：${response.status}`);
     }

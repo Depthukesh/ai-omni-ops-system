@@ -3047,6 +3047,7 @@ export function DouyinWorkspaceShell() {
                     sectionDescription={currentSection.description}
                     canEdit={Boolean(permissionMap?.["douyin.runningHub"]?.edit)}
                     formatDateTime={formatDateTime}
+                    materialLibraryItems={materialLibraryItems}
                   />
                 ) : activeSection === "adPreAudit" ? (
                   <DouyinAdPreAuditWorkspace

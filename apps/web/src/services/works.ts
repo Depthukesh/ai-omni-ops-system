@@ -122,8 +122,8 @@ export type XiaohongshuOriginalWorkRecord = {
   content: string;
   coverImageUrl?: string;
   imageUrls: string[];
-  noteCategory: "原创";
-  noteType: "图文";
+  noteCategory: "鍘熷垱";
+  noteType: "鍥炬枃";
   calendarItemId?: string;
   calendarLabel?: string;
   customTopicName?: string;
@@ -155,8 +155,8 @@ export type XiaohongshuRewriteWorkRecord = {
   content: string;
   coverImageUrl?: string;
   imageUrls: string[];
-  noteCategory: "二创";
-  noteType: "图文";
+  noteCategory: "浜屽垱";
+  noteType: "鍥炬枃";
   sourceMaterialId: string;
   sourceMaterialTitle: string;
   sourceMaterialDescription?: string;
@@ -198,8 +198,8 @@ export type XiaohongshuVideoWorkRecord = {
   coverImageUrl?: string;
   storyboardImageUrl?: string;
   videoUrl?: string;
-  noteCategory: "原创";
-  noteType: "视频";
+  noteCategory: "鍘熷垱";
+  noteType: "瑙嗛";
   calendarItemId?: string;
   calendarLabel?: string;
   customTopicName?: string;
@@ -1977,17 +1977,30 @@ export async function createDouyinDigitalHumanCustomPerson(
   brandId: string,
   form: CreateDouyinDigitalHumanCustomPersonForm,
 ) {
-  const trainingVideo = form.trainingVideoFile ? await toUploadPayload(form.trainingVideoFile) : undefined;
-  return jsonRequest<{ item: DouyinDigitalHumanCustomPersonRecord }>(
+  const payload = new FormData();
+  if (form.name) {
+    payload.append("name", form.name);
+  }
+  if (form.trainType) {
+    payload.append("trainType", form.trainType);
+  }
+  if (form.language) {
+    payload.append("language", form.language);
+  }
+  if (form.resolutionRate) {
+    payload.append("resolutionRate", form.resolutionRate);
+  }
+  if (typeof form.errorSkip === "boolean") {
+    payload.append("errorSkip", String(form.errorSkip));
+  }
+  if (form.trainingVideoFile) {
+    payload.append("trainingVideoFile", form.trainingVideoFile, form.trainingVideoFile.name);
+  }
+  return request<{ item: DouyinDigitalHumanCustomPersonRecord }>(
     `/works/brands/${brandId}/douyin/digital-human/custom-person/create`,
-    "POST",
     {
-      name: form.name,
-      trainingVideo,
-      trainType: form.trainType,
-      language: form.language,
-      resolutionRate: form.resolutionRate,
-      errorSkip: form.errorSkip,
+      method: "POST",
+      body: payload,
     },
   );
 }
@@ -2128,7 +2141,7 @@ function readFileAsBase64(file: File) {
       const [, base64 = ""] = result.split(",");
       resolve(base64);
     };
-    reader.onerror = () => reject(reader.error || new Error("文件读取失败"));
+    reader.onerror = () => reject(reader.error || new Error("鏂囦欢璇诲彇澶辫触"));
     reader.readAsDataURL(file);
   });
 }
