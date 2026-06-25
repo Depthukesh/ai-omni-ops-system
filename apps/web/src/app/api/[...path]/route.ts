@@ -46,18 +46,22 @@ async function proxyToBackend(request: NextRequest, context: RouteContext) {
   const timeout = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
 
   try {
-    const body = request.method === "GET" || request.method === "HEAD"
-      ? undefined
-      : Buffer.from(await request.arrayBuffer());
-
-    const upstreamResponse = await fetch(targetUrl, {
+    const hasRequestBody = request.method !== "GET" && request.method !== "HEAD";
+    const upstreamInit: RequestInit & { duplex?: "half" } = {
       method: request.method,
       headers,
-      body,
       cache: "no-store",
       redirect: "manual",
       signal: controller.signal,
-    });
+    };
+
+    if (hasRequestBody && request.body) {
+      // Stream large uploads through the Next proxy instead of buffering the whole body in memory.
+      upstreamInit.body = request.body;
+      upstreamInit.duplex = "half";
+    }
+
+    const upstreamResponse = await fetch(targetUrl, upstreamInit);
 
     const responseHeaders = new Headers(upstreamResponse.headers);
     responseHeaders.delete("content-length");
