@@ -8322,12 +8322,33 @@ export class WorksService {
   }
 
   async listDouyinDigitalHumanCustomPersons(brandId: string) {
-    const credential = await this.resolveChanjingCredential(brandId);
-    const response = await this.chanjingOpenApiService.listCustomisedPersons(credential, {
-      page: 1,
-      pageSize: 50,
-    });
     const localConfigMap = await this.loadDigitalHumanCustomPersonLocalConfigMap(brandId);
+    const localEntries = Array.from(new Map(
+      Array.from(localConfigMap.values()).map((entry) => [entry.workId, entry]),
+    ).values()).filter((entry) => entry.workId);
+    let response: Awaited<ReturnType<typeof this.chanjingOpenApiService.listCustomisedPersons>> | null = null;
+
+    try {
+      const credential = await this.resolveChanjingCredential(brandId);
+      response = await this.chanjingOpenApiService.listCustomisedPersons(credential, {
+        page: 1,
+        pageSize: 50,
+      });
+    } catch (error) {
+      if (!localEntries.length) {
+        throw error;
+      }
+      return {
+        items: localEntries
+          .map((entry) => this.mapLocalCustomPersonMeta(entry.meta, entry.meta.personId || entry.workId))
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
+      };
+    }
+
+    if (!response) {
+      return { items: [] };
+    }
+
     const remoteIds = new Set(response.list.map((item) => item.id).filter(Boolean));
     const merged: DouyinDigitalHumanCustomPersonRecord[] = [];
     const syncedWorkIds = new Set<string>();
@@ -8340,11 +8361,12 @@ export class WorksService {
         await this.syncDigitalHumanCustomPersonLocalSnapshot(brandId, entry, record);
       }
     }
-    for (const [personId, entry] of localConfigMap.entries()) {
-      if (!personId || syncedWorkIds.has(entry.workId) || remoteIds.has(personId) || entry.meta.personId !== personId) {
+    for (const entry of localEntries) {
+      const localPersonId = String(entry.meta.personId || "").trim();
+      if (syncedWorkIds.has(entry.workId) || (localPersonId && remoteIds.has(localPersonId))) {
         continue;
       }
-      merged.push(this.mapLocalCustomPersonMeta(entry.meta, personId));
+      merged.push(this.mapLocalCustomPersonMeta(entry.meta, localPersonId || entry.workId));
       syncedWorkIds.add(entry.workId);
     }
     return {
