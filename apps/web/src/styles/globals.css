@@ -13450,7 +13450,8 @@ button {
 .ops-works-dialog__body {
   min-height: 0;
   overflow-y: auto;
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 18px;
   padding: 0 20px 20px;
 }
@@ -13494,9 +13495,11 @@ button {
 
 .ops-works-table-shell {
   padding: 16px;
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 12px;
   overflow: hidden;
+  flex: 0 0 auto;
 }
 
 .ops-works-table {
@@ -13520,9 +13523,11 @@ button {
 .ops-works-table-body {
   display: grid;
   gap: 16px;
-  max-height: min(36vh, 420px);
+  min-height: 144px;
+  max-height: min(28vh, 280px);
   overflow-y: auto;
   padding-right: 4px;
+  flex: 0 0 auto;
 }
 
 .ops-works-row {
@@ -13567,6 +13572,7 @@ button {
   display: grid;
   gap: 16px;
   min-width: 0;
+  flex: 0 0 auto;
 }
 
 .ops-works-detail-panel-head {
@@ -13687,6 +13693,11 @@ button {
   .ops-works-row {
     grid-template-columns: 1fr;
     gap: 8px;
+  }
+
+  .ops-works-table-body {
+    min-height: 132px;
+    max-height: 220px;
   }
 
   .ops-works-table--head {
