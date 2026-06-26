@@ -585,8 +585,6 @@ export function DouyinRunningHubWorkspace(props: DouyinRunningHubWorkspaceProps)
     void refreshWorkspace();
   }, [refreshWorkspace]);
 
-  const latestWorks = useMemo(() => works.slice(0, 3), [works]);
-
   const selectedApp = useMemo(() => apps.find((item) => item.key === selectedAppKey) || null, [apps, selectedAppKey]);
 
   const openCreateDialog = useCallback(
@@ -683,8 +681,8 @@ export function DouyinRunningHubWorkspace(props: DouyinRunningHubWorkspaceProps)
       <article className="light-data-panel report-editor-panel report-editor-panel--compact" style={{ marginTop: 20 }}>
         <div className="report-editor-head">
           <div>
-            <strong>{props.sectionLabel}</strong>
-            <p>{props.sectionDescription}</p>
+            <strong>应用卡片</strong>
+            <p>每张卡片代表一个 RunningHub 功能，点击后会弹出参数填写窗口并发起后台生成。</p>
           </div>
           <div className="report-editor-actions">
             <span className={`archive-pill ${apps.length ? "status-ready" : "status-in_progress"}`}>
@@ -703,15 +701,6 @@ export function DouyinRunningHubWorkspace(props: DouyinRunningHubWorkspaceProps)
         </div>
 
         {inlineError ? <div className="report-inline-tip report-inline-tip--error">{inlineError}</div> : null}
-      </article>
-
-      <article className="light-data-panel report-editor-panel report-editor-panel--compact" style={{ marginTop: 20 }}>
-        <div className="report-editor-head">
-          <div>
-            <strong>应用卡片</strong>
-            <p>每张卡片代表一个 RunningHub 功能，点击后会弹出参数填写窗口并发起后台生成。</p>
-          </div>
-        </div>
 
         {!apps.length && !loading ? (
           <div className="empty-state" style={{ marginTop: 16 }}>
@@ -742,44 +731,6 @@ export function DouyinRunningHubWorkspace(props: DouyinRunningHubWorkspaceProps)
                       查看文档
                     </a>
                   ) : null}
-                </div>
-              </article>
-            ))}
-          </div>
-        )}
-      </article>
-
-      <article className="light-data-panel report-editor-panel report-editor-panel--compact" style={{ marginTop: 20 }}>
-        <div className="report-editor-head">
-          <div>
-            <strong>最近作品</strong>
-            <p>这里先展示最近 3 条 RunningHub 记录，完整历史请从作品中心查看。</p>
-          </div>
-        </div>
-
-        {!latestWorks.length ? (
-          <div className="empty-state" style={{ marginTop: 16 }}>
-            当前还没有 RunningHub 作品，先从上方应用卡片发起一次生成。
-          </div>
-        ) : (
-          <div className="xhs-material-card-grid" style={{ marginTop: 16 }}>
-            {latestWorks.map((item) => (
-              <article key={item.id} className="entity-card personal-card">
-                <strong>{item.title}</strong>
-                <p className="panel-subtext">{item.appName}</p>
-                <p className="panel-subtext">{props.formatDateTime(item.updatedAt)}</p>
-                <div className="strategy-inline-actions" style={{ marginTop: 16 }}>
-                  <span className={`archive-pill ${getWorkStatusClass(item.status)}`}>{getWorkStatusLabel(item.status)}</span>
-                  <button
-                    type="button"
-                    className="secondary-button"
-                    onClick={() => {
-                      setSelectedWorkId(item.id);
-                      setWorksOpen(true);
-                    }}
-                  >
-                    查看作品
-                  </button>
                 </div>
               </article>
             ))}

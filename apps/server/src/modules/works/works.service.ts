@@ -256,6 +256,11 @@ type DigitalHumanVideoStage = "QUEUED" | "GENERATING" | "SUCCESS" | "FAILED";
 
 const RUNNING_HUB_WEBAPP_KEYS = {
   animateMotionTransferV8: "animate-motion-transfer-v8",
+  scail2CharacterMotionReplace: "scail2-character-motion-replace",
+  scail2CharacterSwap: "scail2-character-swap",
+  ltx23LiconMsrVideo: "ltx23-licon-msr-video",
+  ecommerceTripleMainImage: "ecommerce-triple-main-image",
+  ecommerceDetailPage: "ecommerce-detail-page",
 } as const;
 
 const DOUYIN_RUNNING_HUB_APPS: DouyinRunningHubAppCardRecord[] = [
@@ -269,6 +274,61 @@ const DOUYIN_RUNNING_HUB_APPS: DouyinRunningHubAppCardRecord[] = [
     tags: ["动作迁移", "视频生成", "RunningHub"],
     statusHint: "建议 50 秒内素材，输出链接有效期 24 小时，系统会自动回写本地作品记录。",
     estimatedDuration: "通常数分钟到数十分钟",
+  },
+  {
+    key: RUNNING_HUB_WEBAPP_KEYS.scail2CharacterMotionReplace,
+    name: "SCAIL-2 影视级角色动作驱动与替换",
+    summary: "支持单张参考图驱动和视频角色替换两种模式，适合影视级动作迁移、真人换角与复杂交互场景。",
+    description: "对应 RunningHub 应用 `SCAIL-2 影视级角色动作驱动与替换`。适合真人、动物、二次元、机器人等多种角色形态的视频动作驱动与换人。",
+    tutorialUrl: "https://www.runninghub.cn/call-api/api-detail/2064610888811900929?apiType=4",
+    webappId: "2064610888811900929",
+    tags: ["角色驱动", "视频换人", "影视级", "RunningHub"],
+    statusHint: "适合高质量动作驱动与视频换人；复杂场景耗时更长，结果链接有效期 24 小时。",
+    estimatedDuration: "通常 8-15 分钟",
+  },
+  {
+    key: RUNNING_HUB_WEBAPP_KEYS.scail2CharacterSwap,
+    name: "Scail2角色替换+单人双人！视频换人！",
+    summary: "面向单人、双人视频换人场景，强调人物替换稳定性，适合搞笑二创、剧情换角和人物替身替换。",
+    description: "对应 RunningHub 应用 `Scail2角色替换+单人双人！视频换人！`。用于单人或双人视频的角色替换与换脸式演绎。",
+    tutorialUrl: "https://www.runninghub.cn/ai-detail/2064897402716381185?from=new-home&tab=ai-apps&sourcePath=/ai-apps",
+    webappId: "2064897402716381185",
+    tags: ["角色替换", "单人双人", "视频换人", "RunningHub"],
+    statusHint: "适合单人或双人视频的人物替换；建议准备主体清晰、动作稳定的原视频。",
+    estimatedDuration: "通常 8-12 分钟",
+  },
+  {
+    key: RUNNING_HUB_WEBAPP_KEYS.ltx23LiconMsrVideo,
+    name: "Ltx2.3 Licon-MSR-全能参考生视频",
+    summary: "以参考图或参考素材驱动生成视频，适合角色演绎、创意短片和风格化视频生成。",
+    description: "对应 RunningHub 应用 `Ltx2.3 Licon-MSR-全能参考生视频`。更适合参考图驱动的视频生成与创意短视频场景。",
+    tutorialUrl: "https://www.runninghub.cn/call-api/api-detail/2068966343763906562?apiType=4",
+    webappId: "2068966343763906562",
+    tags: ["参考生视频", "图生视频", "创意视频", "RunningHub"],
+    statusHint: "适合参考图驱动的视频生成；建议输入图主体明确、风格统一。",
+    estimatedDuration: "通常 6-12 分钟",
+  },
+  {
+    key: RUNNING_HUB_WEBAPP_KEYS.ecommerceTripleMainImage,
+    name: "电商三件套一键生成电商主图",
+    summary: "用于电商主图快速生成，适合商品图、卖点图和营销图批量出图场景。",
+    description: "对应 RunningHub 应用 `电商三件套一键生成电商主图`。适合电商商品主图、卖点图和营销物料生成。",
+    tutorialUrl: "https://www.runninghub.cn/call-api/api-detail/2053362327134715905?apiType=4",
+    webappId: "2053362327134715905",
+    tags: ["电商主图", "商品图", "营销出图", "RunningHub"],
+    statusHint: "更适合商品图和电商视觉素材生成；结果图片链接有效期 24 小时。",
+    estimatedDuration: "通常 2-6 分钟",
+  },
+  {
+    key: RUNNING_HUB_WEBAPP_KEYS.ecommerceDetailPage,
+    name: "电商一键详情页，自动文案，人物生成",
+    summary: "面向电商详情页场景，支持自动文案、人物生成与详情页内容包装。",
+    description: "对应 RunningHub 应用 `电商一键详情页，自动文案，人物生成`。适合商品详情页内容生成与电商视觉包装。",
+    tutorialUrl: "https://www.runninghub.cn/ai-detail/2009248572398637058?from=new-home&tab=ai-apps&sourcePath=/ai-apps",
+    webappId: "2009248572398637058",
+    tags: ["详情页", "自动文案", "电商设计", "RunningHub"],
+    statusHint: "适合电商详情页内容生成，生成结果可能同时包含图片与文案素材。",
+    estimatedDuration: "通常 3-8 分钟",
   },
 ];
 
