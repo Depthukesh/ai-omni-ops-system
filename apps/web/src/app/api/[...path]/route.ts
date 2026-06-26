@@ -6,6 +6,7 @@ export const maxDuration = 300;
 
 const BACKEND_API_BASE_URL = resolveBackendApiBaseUrl();
 const UPSTREAM_TIMEOUT_MS = 5 * 60 * 1000;
+const DOUYIN_WORKSPACE_DEBUG_SESSION_ID = "douyin-workspace-false-502";
 
 type RouteContext = {
   params: Promise<{
@@ -61,16 +62,17 @@ async function proxyToBackend(request: NextRequest, context: RouteContext) {
       upstreamInit.duplex = "half";
     }
 
-    // #region debug-point B:digital-human-template-proxy-request
-    if (targetUrl.includes("/douyin/digital-human/templates")) {
+    // #region debug-point I:digital-human-proxy-request
+    if (targetUrl.includes("/douyin/digital-human")) {
       fetch("http://127.0.0.1:7777/event", {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          sessionId: "digital-human-502-list",
+          sessionId: DOUYIN_WORKSPACE_DEBUG_SESSION_ID,
           runId: "pre-fix",
-          hypothesisId: "B",
+          hypothesisId: "I",
           location: "apps/web/src/app/api/[...path]/route.ts:proxyToBackend",
-          msg: "[DEBUG] Next 代理准备转发数字人模板请求",
+          msg: "[DEBUG] Next 代理准备转发数字人接口请求",
           data: { method: request.method, targetUrl },
           ts: Date.now(),
         }),
@@ -80,16 +82,17 @@ async function proxyToBackend(request: NextRequest, context: RouteContext) {
 
     const upstreamResponse = await fetch(targetUrl, upstreamInit);
 
-    // #region debug-point B:digital-human-template-proxy-response
-    if (targetUrl.includes("/douyin/digital-human/templates")) {
+    // #region debug-point I:digital-human-proxy-response
+    if (targetUrl.includes("/douyin/digital-human")) {
       fetch("http://127.0.0.1:7777/event", {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          sessionId: "digital-human-502-list",
+          sessionId: DOUYIN_WORKSPACE_DEBUG_SESSION_ID,
           runId: "pre-fix",
-          hypothesisId: "B",
+          hypothesisId: "I",
           location: "apps/web/src/app/api/[...path]/route.ts:proxyToBackend",
-          msg: "[DEBUG] Next 代理收到数字人模板响应",
+          msg: "[DEBUG] Next 代理收到数字人接口响应",
           data: { targetUrl, status: upstreamResponse.status, statusText: upstreamResponse.statusText },
           ts: Date.now(),
         }),
@@ -108,16 +111,17 @@ async function proxyToBackend(request: NextRequest, context: RouteContext) {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "上游接口代理失败";
-    // #region debug-point B:digital-human-template-proxy-error
-    if (targetUrl.includes("/douyin/digital-human/templates")) {
+    // #region debug-point I:digital-human-proxy-error
+    if (targetUrl.includes("/douyin/digital-human")) {
       fetch("http://127.0.0.1:7777/event", {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          sessionId: "digital-human-502-list",
+          sessionId: DOUYIN_WORKSPACE_DEBUG_SESSION_ID,
           runId: "pre-fix",
-          hypothesisId: "B",
+          hypothesisId: "I",
           location: "apps/web/src/app/api/[...path]/route.ts:proxyToBackend",
-          msg: "[DEBUG] Next 代理抛出数字人模板异常",
+          msg: "[DEBUG] Next 代理抛出数字人接口异常",
           data: { targetUrl, message },
           ts: Date.now(),
         }),

@@ -653,6 +653,21 @@ export class WorksController {
     @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
+    // #region debug-point J:digital-human-template-tags-controller-entry
+    fetch("http://127.0.0.1:7777/event", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sessionId: "douyin-workspace-false-502",
+        runId: "pre-fix",
+        hypothesisId: "J",
+        location: "apps/server/src/modules/works/works.controller.ts:listDouyinDigitalHumanTemplateTags",
+        msg: "[DEBUG] Nest 收到数字人模板标签请求",
+        data: { brandId, authUserId: auth?.userId || null, authBrandId: auth?.brandId || null },
+        ts: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
     await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "view", auth);
     return this.worksService.listDouyinDigitalHumanTemplateTags(brandId);
   }
@@ -666,13 +681,14 @@ export class WorksController {
     @Query("sort") sort?: string,
     @Query("tagIds") tagIds?: string,
   ) {
-    // #region debug-point C:digital-human-template-controller-entry
+    // #region debug-point J:digital-human-template-controller-entry
     fetch("http://127.0.0.1:7777/event", {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        sessionId: "digital-human-502-list",
+        sessionId: "douyin-workspace-false-502",
         runId: "pre-fix",
-        hypothesisId: "C",
+        hypothesisId: "J",
         location: "apps/server/src/modules/works/works.controller.ts:listDouyinDigitalHumanTemplates",
         msg: "[DEBUG] Nest 收到数字人模板列表请求",
         data: { brandId, page, size, sort, tagIds },
@@ -701,6 +717,21 @@ export class WorksController {
     @Query("size") size?: string,
   ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
+    // #region debug-point J:digital-human-voice-library-controller-entry
+    fetch("http://127.0.0.1:7777/event", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sessionId: "douyin-workspace-false-502",
+        runId: "pre-fix",
+        hypothesisId: "J",
+        location: "apps/server/src/modules/works/works.controller.ts:listDouyinVoiceLibrary",
+        msg: "[DEBUG] Nest 收到数字人公共声音请求",
+        data: { brandId, page, size, authUserId: auth?.userId || null },
+        ts: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
     await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "view", auth);
     return this.worksService.listDouyinVoiceLibrary(brandId, {
       page: Number(page || 1) || 1,
@@ -716,6 +747,21 @@ export class WorksController {
     @Query("pageSize") pageSize?: string,
   ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
+    // #region debug-point J:digital-human-custom-voices-controller-entry
+    fetch("http://127.0.0.1:7777/event", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sessionId: "douyin-workspace-false-502",
+        runId: "pre-fix",
+        hypothesisId: "J",
+        location: "apps/server/src/modules/works/works.controller.ts:listDouyinCustomVoices",
+        msg: "[DEBUG] Nest 收到数字人我的声音请求",
+        data: { brandId, page, pageSize, authUserId: auth?.userId || null },
+        ts: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
     await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "view", auth);
     return this.worksService.listDouyinCustomVoices(brandId, {
       page: Number(page || 1) || 1,
@@ -766,6 +812,21 @@ export class WorksController {
     @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
+    // #region debug-point J:digital-human-speech-detail-controller-entry
+    fetch("http://127.0.0.1:7777/event", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sessionId: "douyin-workspace-false-502",
+        runId: "pre-fix",
+        hypothesisId: "J",
+        location: "apps/server/src/modules/works/works.controller.ts:getDouyinSpeechTaskDetail",
+        msg: "[DEBUG] Nest 收到数字人试听任务详情请求",
+        data: { brandId, taskId, authUserId: auth?.userId || null },
+        ts: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
     await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "view", auth);
     return this.worksService.getDouyinSpeechTaskDetail(brandId, taskId);
   }
@@ -776,6 +837,21 @@ export class WorksController {
     @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
+    // #region debug-point J:digital-human-video-list-controller-entry
+    fetch("http://127.0.0.1:7777/event", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sessionId: "douyin-workspace-false-502",
+        runId: "pre-fix",
+        hypothesisId: "J",
+        location: "apps/server/src/modules/works/works.controller.ts:listDouyinDigitalHumanVideoWorks",
+        msg: "[DEBUG] Nest 收到数字人作品列表请求",
+        data: { brandId, authUserId: auth?.userId || null },
+        ts: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
     await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "view", auth);
     return this.worksService.listDouyinDigitalHumanVideoWorks(brandId);
   }
@@ -786,6 +862,21 @@ export class WorksController {
     @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
+    // #region debug-point J:digital-human-custom-persons-controller-entry
+    fetch("http://127.0.0.1:7777/event", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sessionId: "douyin-workspace-false-502",
+        runId: "pre-fix",
+        hypothesisId: "J",
+        location: "apps/server/src/modules/works/works.controller.ts:listDouyinDigitalHumanCustomPersons",
+        msg: "[DEBUG] Nest 收到我的数字人列表请求",
+        data: { brandId, authUserId: auth?.userId || null },
+        ts: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
     await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "view", auth);
     return this.worksService.listDouyinDigitalHumanCustomPersons(brandId);
   }
@@ -960,6 +1051,21 @@ export class WorksController {
     @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
+    // #region debug-point J:digital-human-favorites-controller-entry
+    fetch("http://127.0.0.1:7777/event", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sessionId: "douyin-workspace-false-502",
+        runId: "pre-fix",
+        hypothesisId: "J",
+        location: "apps/server/src/modules/works/works.controller.ts:listDouyinDigitalHumanFavorites",
+        msg: "[DEBUG] Nest 收到数字人收藏模板请求",
+        data: { brandId, authUserId: auth?.userId || null },
+        ts: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
     await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "view", auth);
     return this.worksService.listDouyinDigitalHumanFavoriteTemplates(brandId, auth);
   }
@@ -994,6 +1100,21 @@ export class WorksController {
     @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
+    // #region debug-point J:digital-human-script-templates-controller-entry
+    fetch("http://127.0.0.1:7777/event", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sessionId: "douyin-workspace-false-502",
+        runId: "pre-fix",
+        hypothesisId: "J",
+        location: "apps/server/src/modules/works/works.controller.ts:listDouyinDigitalHumanScriptTemplates",
+        msg: "[DEBUG] Nest 收到数字人脚本模板请求",
+        data: { brandId, authUserId: auth?.userId || null },
+        ts: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
     await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "view", auth);
     return this.worksService.listDouyinDigitalHumanScriptTemplates(brandId, auth);
   }

@@ -235,6 +235,7 @@ function getTaskStatusText(task?: DouyinMarketingPlanTaskRecord) {
 }
 
 export function DouyinWorkspaceShell() {
+  const debugBundleMarker = "douyin-workspace-false-502-a8a51d5";
   const activeBrandId = useMemo(() => getStoredCurrentBrandId(DEMO_BRAND_ID) || DEMO_BRAND_ID, []);
   const [isLoading, setIsLoading] = useState(true);
   const [loadState, setLoadState] = useState<LoadState>("loading");
@@ -1137,13 +1138,38 @@ export function DouyinWorkspaceShell() {
       }
     }
 
+    const nextWorkspaceError = currentSectionFailedInterfaceNames.length
+      ? `当前板块接口读取失败：${formatFailedInterfaceNames(currentSectionFailedInterfaceNames) || "请按需刷新重试"}。当前仅保留已成功加载的数据。`
+      : "";
+    // #region debug-point G:douyin-workspace-load-summary
+    fetch("http://127.0.0.1:7777/event", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sessionId: "douyin-workspace-false-502",
+        runId: "pre-fix",
+        hypothesisId: "G",
+        location: "apps/web/src/app/(dashboard)/douyin/workspace-shell.tsx:loadWorkspace",
+        msg: "[DEBUG] 抖音工作台完成加载并生成当前板块错误文案",
+        data: {
+          bundleMarker: debugBundleMarker,
+          brandId: activeBrandId,
+          activeSection,
+          hasFallback,
+          failedInterfaceNames,
+          currentSectionFailedInterfaceNames,
+          nextWorkspaceError,
+        },
+        ts: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
     setLoadState(hasFallback ? "partial" : "api");
-    if (currentSectionFailedInterfaceNames.length) {
-      const failedText = formatFailedInterfaceNames(currentSectionFailedInterfaceNames);
-      setErrorMessage(`当前板块接口读取失败：${failedText || "请按需刷新重试"}。当前仅保留已成功加载的数据。`);
+    if (nextWorkspaceError) {
+      setErrorMessage(nextWorkspaceError);
     }
     setIsLoading(false);
-  }, [activeBrandId, activeSection, digitalHumanCurrentSpeechTaskId, digitalHumanTemplateTagId]);
+  }, [activeBrandId, activeSection, debugBundleMarker, digitalHumanCurrentSpeechTaskId, digitalHumanTemplateTagId]);
 
   const refreshPublishingWorkspace = useCallback(async () => {
     await Promise.all([
@@ -1189,8 +1215,53 @@ export function DouyinWorkspaceShell() {
   } = useWechatChannelPublishFlow();
 
   useEffect(() => {
+    // #region debug-point G:douyin-workspace-bundle-marker
+    fetch("http://127.0.0.1:7777/event", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sessionId: "douyin-workspace-false-502",
+        runId: "pre-fix",
+        hypothesisId: "G",
+        location: "apps/web/src/app/(dashboard)/douyin/workspace-shell.tsx:mount",
+        msg: "[DEBUG] 抖音工作台前端 bundle 已挂载",
+        data: {
+          bundleMarker: debugBundleMarker,
+          brandId: activeBrandId,
+        },
+        ts: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
+  }, [activeBrandId, debugBundleMarker]);
+
+  useEffect(() => {
     void loadWorkspace();
   }, [loadWorkspace]);
+
+  useEffect(() => {
+    // #region debug-point G:douyin-workspace-error-message-change
+    fetch("http://127.0.0.1:7777/event", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sessionId: "douyin-workspace-false-502",
+        runId: "pre-fix",
+        hypothesisId: "G",
+        location: "apps/web/src/app/(dashboard)/douyin/workspace-shell.tsx:errorMessage",
+        msg: "[DEBUG] 抖音工作台错误文案发生变化",
+        data: {
+          bundleMarker: debugBundleMarker,
+          brandId: activeBrandId,
+          activeSection,
+          loadState,
+          errorMessage,
+        },
+        ts: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
+  }, [activeBrandId, activeSection, debugBundleMarker, errorMessage, loadState]);
 
   useEffect(() => {
     let cancelled = false;
