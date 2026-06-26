@@ -758,6 +758,7 @@ export function DouyinWorkspaceShell() {
     setErrorMessage("");
     setNotice("");
     const failedInterfaceNames: string[] = [];
+    const currentSectionFailedInterfaceNames: string[] = [];
 
     const [permissionResult, collectionResult, growthResult, annualResult, opportunityInsightResult] = await Promise.allSettled([
       getBrandPermissionSettings(activeBrandId),
@@ -1062,13 +1063,87 @@ export function DouyinWorkspaceShell() {
       failedInterfaceNames.push("数字人试听任务");
     }
 
+    if (activeSection === "assets" && collectionResult.status !== "fulfilled") {
+      currentSectionFailedInterfaceNames.push("素材库工作台");
+    }
+    if (activeSection === "plan") {
+      if (growthResult.status !== "fulfilled") {
+        currentSectionFailedInterfaceNames.push("品牌增长报告");
+      }
+      if (annualResult.status !== "fulfilled") {
+        currentSectionFailedInterfaceNames.push("年度营销计划");
+      }
+      if (opportunityInsightResult.status !== "fulfilled") {
+        currentSectionFailedInterfaceNames.push("机会洞察总报告");
+      }
+      if (planResult.status !== "fulfilled") {
+        currentSectionFailedInterfaceNames.push("营销策划方案");
+      }
+    }
+    if ((activeSection === "hotTopics" || activeSection === "topicLibrary") && hotTopicResult.status !== "fulfilled") {
+      currentSectionFailedInterfaceNames.push("热点找选题");
+    }
+    if (activeSection === "originalCopy" && originalCopyResult.status !== "fulfilled") {
+      currentSectionFailedInterfaceNames.push("原创文案");
+    }
+    if (activeSection === "remixCopy" && remixCopyResult.status !== "fulfilled") {
+      currentSectionFailedInterfaceNames.push("二创文案");
+    }
+    if (activeSection === "remixShortVideo" && remixShortVideoResult.status !== "fulfilled") {
+      currentSectionFailedInterfaceNames.push("复刻短视频作品");
+    }
+    if (activeSection === "video") {
+      if (videoResult.status !== "fulfilled") {
+        currentSectionFailedInterfaceNames.push("AI 生视频作品");
+      }
+      if (videoProvidersResult.status !== "fulfilled") {
+        currentSectionFailedInterfaceNames.push("AI 生视频服务商");
+      }
+      if (storyboardModelsResult.status !== "fulfilled") {
+        currentSectionFailedInterfaceNames.push("故事板模型");
+      }
+    }
+    if (activeSection === "videoDirect") {
+      if (directVideoResult.status !== "fulfilled") {
+        currentSectionFailedInterfaceNames.push("AI 生视频直出作品");
+      }
+      if (directVideoProvidersResult.status !== "fulfilled") {
+        currentSectionFailedInterfaceNames.push("AI 生视频直出服务商");
+      }
+    }
+    if (activeSection === "digitalHuman") {
+      if (digitalHumanResult.status !== "fulfilled") {
+        currentSectionFailedInterfaceNames.push("数字人作品列表");
+      }
+      if (digitalHumanCustomPersonsResult.status !== "fulfilled") {
+        currentSectionFailedInterfaceNames.push("我的数字人");
+      }
+      if (digitalHumanLipSyncResult.status !== "fulfilled") {
+        currentSectionFailedInterfaceNames.push("口型驱动作品");
+      }
+      if (digitalHumanTemplatesResult.status !== "fulfilled") {
+        currentSectionFailedInterfaceNames.push("公共数字人模板");
+      }
+    }
+    if (activeSection === "adPreAudit") {
+      if (adPreAuditResult.status !== "fulfilled") {
+        currentSectionFailedInterfaceNames.push("广告预审记录");
+      }
+      if (adPreAuditConfigResult.status !== "fulfilled") {
+        currentSectionFailedInterfaceNames.push("广告预审默认配置");
+      }
+      if (adPreAuditMediaResult.status !== "fulfilled") {
+        currentSectionFailedInterfaceNames.push("广告预审可选视频");
+      }
+    }
+
     setLoadState(hasFallback ? "partial" : "api");
-    if (hasFallback) {
-      const failedText = formatFailedInterfaceNames(failedInterfaceNames);
-      setErrorMessage(`部分抖音工作台接口读取失败：${failedText || "请按需刷新重试"}。当前仅保留已成功加载的数据。`);
+    if (currentSectionFailedInterfaceNames.length) {
+      const failedText = formatFailedInterfaceNames(currentSectionFailedInterfaceNames);
+      setErrorMessage(`当前板块接口读取失败：${failedText || "请按需刷新重试"}。当前仅保留已成功加载的数据。`);
     }
     setIsLoading(false);
-  }, [activeBrandId, digitalHumanCurrentSpeechTaskId, digitalHumanTemplateTagId]);
+  }, [activeBrandId, activeSection, digitalHumanCurrentSpeechTaskId, digitalHumanTemplateTagId]);
 
   const refreshPublishingWorkspace = useCallback(async () => {
     await Promise.all([
