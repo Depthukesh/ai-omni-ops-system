@@ -2460,7 +2460,19 @@ export function DouyinWorkspaceShell() {
       }).catch(() => {});
       // #endregion
       await refreshDigitalHumanWorkspace();
-      setNotice("数字人视频结果找回完成。");
+      if (recovered.recovered) {
+        setNotice("数字人视频结果找回完成。");
+      } else {
+        setNotice(recovered.item?.thirdPartyStatusDetail || "已发起找回，系统正在后台同步结果，请稍后刷新查看。");
+        if (typeof window !== "undefined") {
+          window.setTimeout(() => {
+            void refreshDigitalHumanWorkspace();
+          }, 3000);
+          window.setTimeout(() => {
+            void refreshDigitalHumanWorkspace();
+          }, 10000);
+        }
+      }
       return true;
     } catch (error) {
       // #region debug-point C:digital-human-recover-error

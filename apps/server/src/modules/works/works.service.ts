@@ -11199,6 +11199,7 @@ export class WorksService {
     const storageKey = target.storageKey || `${workId}.html`;
     const meta = this.readDigitalHumanVideoWorkMeta(this.getMediaMetadata(target));
     const taskId = meta.taskId || String(target.taskId || "").trim();
+    const effectiveProviderTaskId = providerTaskId || meta.providerTaskId || "";
     // #region debug-point E:digital-human-recover-target
     fetch("http://127.0.0.1:7777/event", {
       method: "POST",
@@ -11226,40 +11227,43 @@ export class WorksService {
     if (!taskId) {
       throw new BadRequestException("当前数字人作品缺少站内任务记录，暂无法恢复。");
     }
-    const snapshot = await this.queryDigitalHumanVideoSnapshot(brandId, providerTaskId || meta.providerTaskId || "");
-    // #region debug-point F:digital-human-recover-snapshot
-    fetch("http://127.0.0.1:7777/event", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        sessionId: "digital-human-recover-result",
-        runId: "pre-fix",
-        hypothesisId: "F",
-        location: "apps/server/src/modules/works/works.service.ts:recoverDouyinDigitalHumanVideo",
-        msg: "[DEBUG] 后端查询到数字人第三方快照",
-        data: {
-          brandId,
-          resolvedWorkId: workId,
-          snapshotId: snapshot.id,
-          snapshotStatus: snapshot.status,
-          hasSnapshotVideoUrl: Boolean(snapshot.videoUrl),
-          snapshotDetail: snapshot.detail,
-        },
-        ts: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
-    const nextMeta = await this.persistDigitalHumanSnapshot(brandId, workId, storageKey, taskId, meta, snapshot);
+    if (!effectiveProviderTaskId) {
+      throw new BadRequestException("当前数字人作品缺少蝉镜任务 ID，暂无法找回。");
+    }
+    const nextMeta = await this.saveDigitalHumanWorkMetadataSnapshot(brandId, workId, storageKey, {
+      ...meta,
+      providerTaskId: effectiveProviderTaskId,
+      thirdPartyStatus: meta.thirdPartyStatus || meta.stage,
+      thirdPartyStatusLabel: "找回中",
+      thirdPartyStatusDetail: "系统正在后台同步蝉镜结果，请稍后刷新查看。",
+      thirdPartyStatusUpdatedAt: new Date().toISOString(),
+    });
+    await this.markTaskRunning(taskId);
+    await this.updateTaskOutputJson(taskId, {
+      workId,
+      stage: nextMeta.stage,
+      title: nextMeta.title,
+      providerTaskId: effectiveProviderTaskId,
+      thirdPartyStatus: nextMeta.thirdPartyStatus || nextMeta.stage,
+      thirdPartyStatusLabel: nextMeta.thirdPartyStatusLabel,
+      thirdPartyStatusDetail: nextMeta.thirdPartyStatusDetail,
+    });
+    this.scheduleListSnapshotRefresh(
+      "digital-human-manual-recover",
+      brandId,
+      [workId],
+      () => this.runDigitalHumanRecoveryInBackground(brandId, workId, storageKey, taskId, nextMeta, effectiveProviderTaskId),
+    );
     return {
-      recovered: snapshot.status === "SUCCESS" && Boolean(snapshot.videoUrl),
-      providerTaskId: snapshot.id,
-      thirdPartyStatus: this.resolveDigitalHumanThirdPartyStatus(snapshot),
+      recovered: false,
+      providerTaskId: effectiveProviderTaskId,
+      thirdPartyStatus: nextMeta.thirdPartyStatus || nextMeta.stage,
       item: this.mapDigitalHumanVideoWorkRecord(
         workId,
         brandId,
         taskId,
         nextMeta,
-        snapshot.status === "SUCCESS" && snapshot.videoUrl ? "SUCCESS" : "RUNNING",
+        "RUNNING",
       ),
     };
   }
@@ -22750,6 +22754,50 @@ export class WorksService {
       thirdPartyStatusDetail: snapshot.detail,
     });
     return nextMeta;
+  }
+
+  private async runDigitalHumanRecoveryInBackground(
+    brandId: string,
+    workId: string,
+    storageKey: string,
+    taskId: string,
+    meta: DigitalHumanVideoWorkAssetMeta,
+    providerTaskId: string,
+  ) {
+    try {
+      const snapshot = await this.queryDigitalHumanVideoSnapshot(brandId, providerTaskId);
+      // #region debug-point F:digital-human-recover-snapshot
+      fetch("http://127.0.0.1:7777/event", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId: "digital-human-recover-result",
+          runId: "post-fix",
+          hypothesisId: "F",
+          location: "apps/server/src/modules/works/works.service.ts:runDigitalHumanRecoveryInBackground",
+          msg: "[DEBUG] 后端后台查询到数字人第三方快照",
+          data: {
+            brandId,
+            resolvedWorkId: workId,
+            snapshotId: snapshot.id,
+            snapshotStatus: snapshot.status,
+            hasSnapshotVideoUrl: Boolean(snapshot.videoUrl),
+            snapshotDetail: snapshot.detail,
+          },
+          ts: Date.now(),
+        }),
+      }).catch(() => {});
+      // #endregion
+      await this.persistDigitalHumanSnapshot(brandId, workId, storageKey, taskId, meta, snapshot);
+    } catch (error) {
+      await this.saveDigitalHumanWorkMetadataSnapshot(brandId, workId, storageKey, {
+        ...meta,
+        providerTaskId,
+        thirdPartyStatusLabel: "找回失败",
+        thirdPartyStatusDetail: error instanceof Error ? error.message : "蝉镜结果找回失败，请稍后重试。",
+        thirdPartyStatusUpdatedAt: new Date().toISOString(),
+      }).catch(() => undefined);
+    }
   }
 
   private mapDigitalHumanVideoWorkFromDatabase(
