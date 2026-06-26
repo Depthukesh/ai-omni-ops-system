@@ -140,6 +140,9 @@ export function DigitalHumanHomePanel(props: DigitalHumanHomePanelProps) {
     if (!trainingVideoFile) {
       return;
     }
+    // #region debug-point A:submit-create
+    fetch("http://127.0.0.1:7777/event",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:"digital-human-silent-upload",runId:"pre-fix",hypothesisId:"A",location:"digital-human-home-panel.tsx:139",msg:"[DEBUG] submit custom person from dialog",data:{name:customPersonName.trim()||null,fileName:trainingVideoFile.name,fileSize:trainingVideoFile.size,fileType:trainingVideoFile.type},ts:Date.now()})}).catch(()=>{});
+    // #endregion
     const success = await props.onCreateCustomPerson({
       name: customPersonName.trim() || undefined,
       trainingVideoFile,
@@ -148,6 +151,9 @@ export function DigitalHumanHomePanel(props: DigitalHumanHomePanelProps) {
       resolutionRate: "1080p",
       errorSkip: true,
     });
+    // #region debug-point A:submit-result
+    fetch("http://127.0.0.1:7777/event",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:"digital-human-silent-upload",runId:"pre-fix",hypothesisId:"A",location:"digital-human-home-panel.tsx:151",msg:"[DEBUG] custom person submit resolved",data:{success},ts:Date.now()})}).catch(()=>{});
+    // #endregion
     if (!success) {
       return;
     }
@@ -305,11 +311,11 @@ export function DigitalHumanHomePanel(props: DigitalHumanHomePanelProps) {
               </div>
               <div>
                 <span>视频时长</span>
-                <strong>5秒-30分钟</strong>
+                <strong>5秒-5分钟</strong>
               </div>
               <div>
                 <span>文件大小</span>
-                <strong>小于500MB</strong>
+                <strong>建议压缩到50MB内</strong>
               </div>
             </div>
 

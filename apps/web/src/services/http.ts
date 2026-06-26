@@ -231,6 +231,9 @@ async function readErrorMessage(response: Response) {
     const text = await response.text();
     if (text.trim()) {
       const trimmed = text.trim();
+      if (response.status === 413 || /Request Entity Too Large/i.test(trimmed)) {
+        return "上传文件过大，已超过当前线上上传网关限制，请先压缩视频后重试。";
+      }
       if (/<html[\s>]/i.test(trimmed) || /<body[\s>]/i.test(trimmed) || /502 Bad Gateway/i.test(trimmed)) {
         // #region debug-point H:http-html-502-translation
         if (readPathname(response.url).includes("/douyin/digital-human")) {

@@ -2465,6 +2465,10 @@ export function DouyinWorkspaceShell() {
       setErrorMessage("当前账号只有查看权限，不能创建定制数字人。");
       return false;
     }
+    if (payload.trainingVideoFile && payload.trainingVideoFile.size > 50 * 1024 * 1024) {
+      setErrorMessage("当前线上上传网关会拦截 50MB 以上训练视频，请先压缩视频后再提交。");
+      return false;
+    }
     setIsSubmittingDigitalHuman(true);
     setErrorMessage("");
     setNotice("");
