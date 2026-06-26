@@ -20586,15 +20586,36 @@ export class WorksService {
     ) {
       throw new BadRequestException(`当前定制数字人的 4K 推荐上限为 ${customPersonWidth4k} x ${customPersonHeight4k}，请调整画布后再提交。`);
     }
+    const subtitleFontSize = this.readPositiveInteger(payload.subtitleFontSize, Math.max(28, Math.floor(screenWidth * 0.034)));
     const subtitleWidth = Math.min(screenWidth, this.readPositiveInteger(payload.subtitleWidth, Math.floor(screenWidth * 0.84)));
-    const subtitleHeight = Math.min(screenHeight, this.readPositiveInteger(payload.subtitleHeight, Math.floor(screenHeight * 0.14)));
+    const requestedSubtitlePositionY = this.readPositiveInteger(payload.subtitlePositionY, Math.floor(screenHeight * 0.78));
+    const requestedSubtitleHeight = Math.min(
+      screenHeight,
+      this.readPositiveInteger(
+        payload.subtitleHeight,
+        Math.max(96, Math.floor(screenHeight * 0.06)),
+      ),
+    );
+    const compactBottomSubtitleHeight = Math.max(
+      96,
+      Math.min(
+        screenHeight,
+        Math.max(
+          Math.ceil(subtitleFontSize * 2.4),
+          Math.floor(screenHeight * 0.06),
+        ),
+      ),
+    );
+    const subtitleHeight = requestedSubtitlePositionY >= screenHeight * 0.8
+      ? Math.min(requestedSubtitleHeight, compactBottomSubtitleHeight)
+      : requestedSubtitleHeight;
     const subtitlePositionX = Math.max(
       0,
       Math.min(screenWidth - subtitleWidth, this.readPositiveInteger(payload.subtitlePositionX, Math.floor(screenWidth * 0.08))),
     );
     const subtitlePositionY = Math.max(
       0,
-      Math.min(screenHeight - subtitleHeight, this.readPositiveInteger(payload.subtitlePositionY, Math.floor(screenHeight * 0.78))),
+      Math.min(screenHeight - subtitleHeight, requestedSubtitlePositionY),
     );
     const backgroundImageUrl = payload.backgroundImage?.dataBase64
       ? (
@@ -20632,7 +20653,7 @@ export class WorksService {
       subtitlePositionY,
       subtitleWidth,
       subtitleHeight,
-      subtitleFontSize: this.readPositiveInteger(payload.subtitleFontSize, Math.max(28, Math.floor(screenWidth * 0.034))),
+      subtitleFontSize,
       subtitleTextColor: this.readOptionalString(payload.subtitleTextColor) || "#FFFFFF",
       subtitleStrokeColor: this.readOptionalString(payload.subtitleStrokeColor) || "#000000",
       subtitleStrokeWidth: this.readPositiveInteger(payload.subtitleStrokeWidth, 2),
@@ -25738,6 +25759,31 @@ export class WorksService {
           queryPath: params.config.queryPath,
           renderedDurationSec: normalizedDuration,
         };
+      case "agnes_video_v20": {
+        const aspectRatio = params.requestedAspectRatio || "9:16";
+        const size = aspectRatio === "16:9"
+          ? { width: 1152, height: 768 }
+          : aspectRatio === "4:3"
+            ? { width: 1024, height: 768 }
+            : aspectRatio === "3:4"
+              ? { width: 864, height: 1152 }
+              : { width: 768, height: 1152 };
+        return {
+          payload: {
+            model: params.modelName,
+            prompt: params.prompt,
+            width: size.width,
+            height: size.height,
+            num_frames: normalizedDuration * 24 + 1,
+            frame_rate: 24,
+            ...(negativePrompt ? { negative_prompt: negativePrompt } : {}),
+            ...(hasReferenceImage ? { image: requireReferenceImage() } : {}),
+          } as Record<string, unknown>,
+          createPath: params.config.createPath,
+          queryPath: params.config.queryPath,
+          renderedDurationSec: normalizedDuration,
+        };
+      }
       case "apiz_kling_i2v":
         return {
           payload: buildApizTaskPayload(
@@ -26399,6 +26445,7 @@ export class WorksService {
     const directVideoUrl = this.readUrlLikeValue(topLevelResult?.url)
       || this.readUrlLikeValue(topLevelResult?.fileUrl)
       || this.readUrlLikeValue(topLevelData?.output)
+      || this.readUrlLikeValue(topLevelData?.remixed_from_video_id)
       || this.readUrlLikeValue(topLevelData?.video_url)
       || this.readUrlLikeValue(topLevelResultData?.video_url)
       || this.readUrlLikeValue(topLevelOutputData?.video_url)

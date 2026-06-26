@@ -186,6 +186,37 @@ const SUBTITLE_OUTLINE_PRESETS: DigitalHumanSubtitleOutlinePreset[] = [
   { key: "outline-warm", name: "暖色描边", strokeColor: "#7C2D12", strokeWidth: "4" },
 ];
 
+function resolveBottomPinnedSubtitleMetrics(
+  screenWidth: number,
+  screenHeight: number,
+  positionX: number,
+  positionY: number,
+  width: number,
+  height: number,
+  fontSize: number,
+) {
+  const normalizedWidth = Math.max(100, Math.min(screenWidth, width));
+  const compactHeight = Math.max(
+    96,
+    Math.min(
+      screenHeight,
+      Math.max(
+        Math.ceil(fontSize * 2.4),
+        Math.floor(screenHeight * 0.06),
+      ),
+    ),
+  );
+  const normalizedHeight = positionY >= screenHeight * 0.8
+    ? Math.min(Math.max(60, height), compactHeight)
+    : Math.max(60, height);
+  return {
+    width: normalizedWidth,
+    height: normalizedHeight,
+    x: Math.max(0, Math.min(screenWidth - normalizedWidth, positionX)),
+    y: Math.max(0, Math.min(screenHeight - normalizedHeight, positionY)),
+  };
+}
+
 const DIGITAL_HUMAN_BACKGROUND_PRESETS: DigitalHumanBackgroundPreset[] = [
   {
     key: "office-living",
@@ -605,14 +636,23 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
   const subtitlePositionXNumber = Math.max(0, parseNumericValue(props.subtitlePositionX, 86));
   const subtitlePositionYNumber = Math.max(0, parseNumericValue(props.subtitlePositionY, 1498));
   const subtitleWidthNumber = Math.max(100, parseNumericValue(props.subtitleWidth, 907));
-  const subtitleHeightNumber = Math.max(60, parseNumericValue(props.subtitleHeight, 269));
+  const subtitleHeightNumber = Math.max(60, parseNumericValue(props.subtitleHeight, 120));
   const subtitleFontSizeNumber = Math.max(20, parseNumericValue(props.subtitleFontSize, 48));
   const subtitleStrokeWidthNumber = Math.max(0, parseNumericValue(props.subtitleStrokeWidth, 2));
+  const effectiveSubtitleMetrics = resolveBottomPinnedSubtitleMetrics(
+    screenWidthNumber,
+    screenHeightNumber,
+    subtitlePositionXNumber,
+    subtitlePositionYNumber,
+    subtitleWidthNumber,
+    subtitleHeightNumber,
+    subtitleFontSizeNumber,
+  );
   const subtitlePreviewStyle = {
-    left: `${Math.min(86, (subtitlePositionXNumber / screenWidthNumber) * 100)}%`,
-    top: `${Math.min(82, (subtitlePositionYNumber / screenHeightNumber) * 100)}%`,
-    width: `${Math.min(82, (subtitleWidthNumber / screenWidthNumber) * 100)}%`,
-    minHeight: `${Math.max(44, (subtitleHeightNumber / screenHeightNumber) * 320)}px`,
+    left: `${Math.min(86, (effectiveSubtitleMetrics.x / screenWidthNumber) * 100)}%`,
+    top: `${Math.min(88, (effectiveSubtitleMetrics.y / screenHeightNumber) * 100)}%`,
+    width: `${Math.min(82, (effectiveSubtitleMetrics.width / screenWidthNumber) * 100)}%`,
+    minHeight: `${Math.max(44, (effectiveSubtitleMetrics.height / screenHeightNumber) * 320)}px`,
     color: props.subtitleTextColor || "#FFFFFF",
     fontSize: `${Math.max(16, Math.min(34, subtitleFontSizeNumber / 1.6))}px`,
     WebkitTextStroke: `${Math.min(4, subtitleStrokeWidthNumber)}px ${props.subtitleStrokeColor || "#000000"}`,
@@ -1419,15 +1459,15 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
                     <label className="digital-human-creator-v2__slider-field">
                       <span>X 坐标</span>
                       <div>
-                        <input type="range" min="0" max={String(screenWidthNumber)} value={props.subtitlePositionX} onChange={(event) => props.onSubtitlePositionXChange(event.target.value)} />
-                        <strong>{props.subtitlePositionX}</strong>
+                        <input type="range" min="0" max={String(Math.max(0, screenWidthNumber - effectiveSubtitleMetrics.width))} value={String(effectiveSubtitleMetrics.x)} onChange={(event) => props.onSubtitlePositionXChange(event.target.value)} />
+                        <strong>{effectiveSubtitleMetrics.x}</strong>
                       </div>
                     </label>
                     <label className="digital-human-creator-v2__slider-field">
                       <span>Y 坐标</span>
                       <div>
-                        <input type="range" min="0" max={String(screenHeightNumber)} value={props.subtitlePositionY} onChange={(event) => props.onSubtitlePositionYChange(event.target.value)} />
-                        <strong>{props.subtitlePositionY}</strong>
+                        <input type="range" min="0" max={String(Math.max(0, screenHeightNumber - effectiveSubtitleMetrics.height))} value={String(effectiveSubtitleMetrics.y)} onChange={(event) => props.onSubtitlePositionYChange(event.target.value)} />
+                        <strong>{effectiveSubtitleMetrics.y}</strong>
                       </div>
                     </label>
                     <label className="digital-human-creator-v2__slider-field">
@@ -1440,8 +1480,8 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
                     <label className="digital-human-creator-v2__slider-field">
                       <span>高度</span>
                       <div>
-                        <input type="range" min="80" max={String(screenHeightNumber)} value={props.subtitleHeight} onChange={(event) => props.onSubtitleHeightChange(event.target.value)} />
-                        <strong>{props.subtitleHeight}</strong>
+                        <input type="range" min="80" max={String(screenHeightNumber)} value={String(effectiveSubtitleMetrics.height)} onChange={(event) => props.onSubtitleHeightChange(event.target.value)} />
+                        <strong>{effectiveSubtitleMetrics.height}</strong>
                       </div>
                     </label>
                     <label className="digital-human-creator-v2__slider-field">
@@ -1459,6 +1499,9 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
                       </div>
                     </label>
                   </div>
+                  <p className="panel-subtext" style={{ marginTop: 12 }}>
+                    当字幕拖到靠下区域时，系统会自动压缩字幕框高度，避免“框到底了但文字还悬在上面”。
+                  </p>
                   <div className="digital-human-creator-v2__color-grid">
                     <section className="digital-human-creator-v2__color-card">
                       <div className="digital-human-creator-v2__color-card-head">

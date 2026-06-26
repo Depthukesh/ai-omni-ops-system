@@ -36,6 +36,7 @@ export const APIZ_TASK_CREATE_PATH = "/api/v3/tasks/create";
 export const APIZ_TASK_QUERY_PATH = "/api/v3/tasks/query";
 export const MATHMIND_PLATFORM_BASE_URL = "https://agent.mathmind.cn";
 export const MATHMIND_API_BASE_URL = "https://api.mathmind.cn";
+export const AGNES_API_BASE_URL = "https://apihub.agnes-ai.com";
 
 function createSeed(input: Omit<ApiProviderSeedRecord, "successRate" | "requestCount24h" | "totalCostYuan" | "lastCalledAt" | "updatedAt">): ApiProviderSeedRecord {
   return {
@@ -57,6 +58,7 @@ type VolcengineArkVideoSeedInput = {
   displayLabel: string;
   displayOrder: number;
   remark: string;
+  status?: ProviderStatus;
   recommended?: boolean;
   durationOptions?: number[];
 };
@@ -105,12 +107,38 @@ type ApizTaskVideoSeedInput = {
   imageModel?: string;
 };
 
+type AgnesImageSeedInput = {
+  id: string;
+  name: string;
+  tutorialUrl: string;
+  modelId: string;
+  displayOrder: number;
+  remark: string;
+  supportsTextToImage: boolean;
+  supportsReferenceImages: boolean;
+  requiresReferenceImages?: boolean;
+};
+
+type AgnesVideoSeedInput = {
+  id: string;
+  name: string;
+  tutorialUrl: string;
+  modelId: string;
+  backendKey: string;
+  displayLabel: string;
+  displayOrder: number;
+  remark: string;
+  supportsTextToVideo: boolean;
+  supportsImageToVideo: boolean;
+  durationOptions?: number[];
+};
+
 function createVolcengineArkVideoSeed(input: VolcengineArkVideoSeedInput) {
   return createSeed({
     id: input.id,
     name: input.name,
     providerType: "DOUBAO",
-    status: "ACTIVE",
+    status: input.status || "ACTIVE",
     baseUrl: "https://ark.cn-beijing.volces.com/api/v3",
     tutorialUrl: input.tutorialUrl,
     modelWhitelist: [input.modelId],
@@ -259,6 +287,79 @@ function createApizTaskVideoSeed(input: ApizTaskVideoSeedInput) {
   });
 }
 
+function createAgnesImageSeed(input: AgnesImageSeedInput) {
+  return createSeed({
+    id: input.id,
+    name: input.name,
+    providerType: "CUSTOM",
+    status: "ACTIVE",
+    baseUrl: AGNES_API_BASE_URL,
+    tutorialUrl: input.tutorialUrl,
+    modelWhitelist: [input.modelId],
+    apiKey: "",
+    defaultModel: input.modelId,
+    organization: "",
+    project: "",
+    timeoutMs: 300000,
+    streamEnabled: false,
+    customHeaders: {},
+    extraParams: {
+      runtimeKey: "image-generation",
+      runtimeTags: ["image-generation", "works-runtime"],
+      baseUrls: [AGNES_API_BASE_URL],
+      platformBaseUrls: [AGNES_API_BASE_URL],
+      completionPath: "/v1/images/generations",
+      requestMode: "images-generations",
+      supportsTextToImage: input.supportsTextToImage,
+      supportsReferenceImages: input.supportsReferenceImages,
+      requiresReferenceImages: input.requiresReferenceImages === true,
+      displayOrder: input.displayOrder,
+      sourceFolder: "Agnes 图像生成",
+    },
+    remark: input.remark,
+  });
+}
+
+function createAgnesVideoSeed(input: AgnesVideoSeedInput) {
+  return createSeed({
+    id: input.id,
+    name: input.name,
+    providerType: "CUSTOM",
+    status: "ACTIVE",
+    baseUrl: AGNES_API_BASE_URL,
+    tutorialUrl: input.tutorialUrl,
+    modelWhitelist: [input.modelId],
+    apiKey: "",
+    defaultModel: input.modelId,
+    organization: "",
+    project: "",
+    timeoutMs: 300000,
+    streamEnabled: false,
+    customHeaders: {},
+    extraParams: {
+      runtimeKey: "video-generation",
+      runtimeTags: ["video-generation", "works-runtime"],
+      backendKey: input.backendKey,
+      displayLabel: input.displayLabel,
+      displayOrder: input.displayOrder,
+      baseUrls: [AGNES_API_BASE_URL],
+      platformBaseUrls: [AGNES_API_BASE_URL],
+      createPath: "/v1/videos",
+      queryPath: "/v1/videos/{task_id}",
+      queryMethod: "GET",
+      requestProfile: "agnes_video_v20",
+      taskModel: input.modelId,
+      textModel: input.modelId,
+      imageModel: input.modelId,
+      supportsTextToVideo: input.supportsTextToVideo,
+      supportsImageToVideo: input.supportsImageToVideo,
+      durationOptions: input.durationOptions || [5, 8, 10, 15],
+      sourceFolder: "Agnes 视频生成",
+    },
+    remark: input.remark,
+  });
+}
+
 const VOLCENGINE_ARK_VIDEO_PROVIDER_SEEDS: ApiProviderSeedRecord[] = [
   createVolcengineArkVideoSeed({
     id: "provider_runtime_video_volcengine_seedance_20",
@@ -282,6 +383,18 @@ const VOLCENGINE_ARK_VIDEO_PROVIDER_SEEDS: ApiProviderSeedRecord[] = [
     displayOrder: 61,
     recommended: true,
     remark: "火山方舟 Seedance 2.0 Fast 视频生成接口；平台 Key 由品牌 Owner 在个人中心第三方接口配置维护。",
+    durationOptions: [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+  }),
+  createVolcengineArkVideoSeed({
+    id: "provider_runtime_video_volcengine_seedance_20_mini_260615",
+    name: "火山方舟 · Seedance 2.0 Mini 260615",
+    tutorialUrl: "https://www.volcengine.com/docs/82379/1520757?lang=zh",
+    modelId: "doubao-seedance-2-0-mini-260615",
+    backendKey: "volcengine_seedance_20_mini_260615",
+    displayLabel: "Seedance 2.0 Mini 260615",
+    displayOrder: 62,
+    status: "DRAFT",
+    remark: "火山方舟 Seedance 2.0 Mini 260615 已登记到平台目录；按官方文档当前仅支持控制台体验，暂不支持 API 调用，待开放后再切为 ACTIVE。",
     durationOptions: [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
   }),
 ];
@@ -496,6 +609,35 @@ const APIZ_VIDEO_PROVIDER_SEEDS: ApiProviderSeedRecord[] = [
   }),
 ];
 
+const AGNES_IMAGE_PROVIDER_SEEDS: ApiProviderSeedRecord[] = [
+  createAgnesImageSeed({
+    id: "provider_runtime_image_agnes_image_21_flash",
+    name: "Agnes · Agnes Image 2.1 Flash",
+    tutorialUrl: "https://agnes-ai.com/zh-Hans/docs/agnes-image-21-flash",
+    modelId: "agnes-image-2.1-flash",
+    displayOrder: 230,
+    remark: "Agnes 平台的文生图/图生图模型；品牌 Owner 在个人中心第三方接口配置填写 Agnes API Key 后即可启用。",
+    supportsTextToImage: true,
+    supportsReferenceImages: true,
+  }),
+];
+
+const AGNES_VIDEO_PROVIDER_SEEDS: ApiProviderSeedRecord[] = [
+  createAgnesVideoSeed({
+    id: "provider_runtime_video_agnes_video_v20",
+    name: "Agnes · Agnes Video V2.0",
+    tutorialUrl: "https://agnes-ai.com/zh-Hans/docs/agnes-video-v20",
+    modelId: "agnes-video-v2.0",
+    backendKey: "agnes_video_v20",
+    displayLabel: "Agnes Video V2.0",
+    displayOrder: 95,
+    remark: "Agnes 平台的视频生成模型，支持文生视频与图生视频；品牌 Owner 在个人中心第三方接口配置填写 Agnes API Key 后即可启用。",
+    supportsTextToVideo: true,
+    supportsImageToVideo: true,
+    durationOptions: [5, 8, 10, 15],
+  }),
+];
+
 const MATHMIND_PROVIDER_SEEDS: ApiProviderSeedRecord[] = [
   createSeed({
     id: "provider_runtime_mathmind_video_tools",
@@ -638,6 +780,7 @@ export const SYSTEM_API_PROVIDER_SEEDS: ApiProviderSeedRecord[] = [
       "doubao-seed-1-8-251228",
       "doubao-seed-2-0-pro-260215",
       "doubao-seed-2-0-mini-260215",
+      "doubao-seed-2-1-pro-260628",
     ],
     apiKey: "ark-5042c849-c599-40e3-9074-b4c5b3c143af-35e56",
     defaultModel: "doubao-seed-2-0-pro-260215",
@@ -659,6 +802,31 @@ export const SYSTEM_API_PROVIDER_SEEDS: ApiProviderSeedRecord[] = [
       sourceFolder: "第三方api接口文生文国内.txt",
     },
     remark: "系统按用户提供的火山方舟接口资料初始化，兼容文生文与参考图分析场景。",
+  }),
+  createSeed({
+    id: "provider_runtime_text_agnes_20_flash",
+    name: "Agnes · Agnes 2.0 Flash",
+    providerType: "OPENAI",
+    status: "ACTIVE",
+    baseUrl: AGNES_API_BASE_URL,
+    tutorialUrl: "https://agnes-ai.com/zh-Hans/docs/agnes-20-flash",
+    modelWhitelist: ["agnes-2.0-flash"],
+    apiKey: "",
+    defaultModel: "agnes-2.0-flash",
+    organization: "",
+    project: "",
+    timeoutMs: 180000,
+    streamEnabled: false,
+    customHeaders: {},
+    extraParams: {
+      runtimeKey: "text-global",
+      runtimeTags: ["text-global", "works-runtime", "reports-runtime", "image-analysis"],
+      baseUrls: [AGNES_API_BASE_URL],
+      platformBaseUrls: [AGNES_API_BASE_URL],
+      completionPath: "/v1/chat/completions",
+      sourceFolder: "Agnes 文生文/图像理解",
+    },
+    remark: "Agnes 平台的文生文模型，兼容 OpenAI Chat Completions；品牌 Owner 在个人中心第三方接口配置填写 Agnes API Key 后即可启用。",
   }),
   ...VOLCENGINE_ARK_EMBEDDING_PROVIDER_SEEDS,
   createSeed({
@@ -747,7 +915,9 @@ export const SYSTEM_API_PROVIDER_SEEDS: ApiProviderSeedRecord[] = [
     remark: "Right Codes 平台支持文生图与图生图；运行时会使用 `/v1/images/generations`，并继续遵守品牌 Owner 私钥隔离规则。",
   }),
   ...APIZ_IMAGE_PROVIDER_SEEDS,
+  ...AGNES_IMAGE_PROVIDER_SEEDS,
   ...VOLCENGINE_ARK_VIDEO_PROVIDER_SEEDS,
+  ...AGNES_VIDEO_PROVIDER_SEEDS,
   ...APIZ_VIDEO_PROVIDER_SEEDS,
   ...MATHMIND_PROVIDER_SEEDS,
 ];

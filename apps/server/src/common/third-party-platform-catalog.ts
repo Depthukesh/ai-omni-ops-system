@@ -31,6 +31,7 @@ const PLATFORM_NAME_BY_HOST: Record<string, string> = {
   "agent.mathmind.cn": "MathMind 平台",
   "api.mathmind.cn": "MathMind 平台",
   "www.runninghub.cn": "RunningHub 平台",
+  "apihub.agnes-ai.com": "Agnes 平台",
 };
 
 export const THIRD_PARTY_PLATFORM_SEEDS: ThirdPartyPlatformRecord[] = buildThirdPartyPlatformSeeds();

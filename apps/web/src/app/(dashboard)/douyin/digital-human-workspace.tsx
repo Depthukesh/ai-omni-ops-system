@@ -393,7 +393,7 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
   const [subtitlePositionX, setSubtitlePositionX] = useState("86");
   const [subtitlePositionY, setSubtitlePositionY] = useState("1498");
   const [subtitleWidth, setSubtitleWidth] = useState("907");
-  const [subtitleHeight, setSubtitleHeight] = useState("269");
+  const [subtitleHeight, setSubtitleHeight] = useState("120");
   const [subtitleFontSize, setSubtitleFontSize] = useState("48");
   const [subtitleTextColor, setSubtitleTextColor] = useState("#FFFFFF");
   const [subtitleStrokeColor, setSubtitleStrokeColor] = useState("#000000");
@@ -444,7 +444,7 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
       subtitlePositionX: "86",
       subtitlePositionY: "1498",
       subtitleWidth: "907",
-      subtitleHeight: "269",
+      subtitleHeight: "120",
       subtitleFontSize: "48",
       subtitleTextColor: "#FFFFFF",
       subtitleStrokeColor: "#000000",
@@ -1614,7 +1614,7 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
     setSubtitlePositionX(String(selectedWork.subtitlePositionX ?? 86));
     setSubtitlePositionY(String(selectedWork.subtitlePositionY ?? 1498));
     setSubtitleWidth(String(selectedWork.subtitleWidth ?? 907));
-    setSubtitleHeight(String(selectedWork.subtitleHeight ?? 269));
+    setSubtitleHeight(String(selectedWork.subtitleHeight ?? 120));
     setSubtitleFontSize(String(selectedWork.subtitleFontSize ?? 48));
     setSubtitleTextColor(selectedWork.subtitleTextColor || "#FFFFFF");
     setSubtitleStrokeColor(selectedWork.subtitleStrokeColor || "#000000");
