@@ -8194,10 +8194,16 @@ export class WorksService {
   }
 
   async listDouyinDigitalHumanTemplateTags(brandId: string) {
-    const credential = await this.resolveChanjingCredential(brandId);
-    return {
-      list: await this.chanjingOpenApiService.listTemplateTags(credential),
-    };
+    try {
+      const credential = await this.resolveChanjingCredential(brandId);
+      return {
+        list: await this.chanjingOpenApiService.listTemplateTags(credential),
+      };
+    } catch {
+      return {
+        list: [],
+      };
+    }
   }
 
   async listDouyinDigitalHumanTemplates(
