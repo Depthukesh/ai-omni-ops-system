@@ -11170,6 +11170,25 @@ export class WorksService {
     payload: RecoverDouyinDigitalHumanVideoPayload,
   ) {
     const providerTaskId = payload.providerTaskId?.trim();
+    // #region debug-point D:digital-human-recover-enter
+    fetch("http://127.0.0.1:7777/event", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sessionId: "digital-human-recover-result",
+        runId: "pre-fix",
+        hypothesisId: "D",
+        location: "apps/server/src/modules/works/works.service.ts:recoverDouyinDigitalHumanVideo",
+        msg: "[DEBUG] 后端收到数字人结果找回请求",
+        data: {
+          brandId,
+          workId: payload.workId,
+          providerTaskId,
+        },
+        ts: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
     if (!providerTaskId && !payload.workId?.trim()) {
       throw new BadRequestException("请提供站内作品 ID 或蝉镜视频任务 ID。");
     }
@@ -11180,10 +11199,56 @@ export class WorksService {
     const storageKey = target.storageKey || `${workId}.html`;
     const meta = this.readDigitalHumanVideoWorkMeta(this.getMediaMetadata(target));
     const taskId = meta.taskId || String(target.taskId || "").trim();
+    // #region debug-point E:digital-human-recover-target
+    fetch("http://127.0.0.1:7777/event", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sessionId: "digital-human-recover-result",
+        runId: "pre-fix",
+        hypothesisId: "E",
+        location: "apps/server/src/modules/works/works.service.ts:recoverDouyinDigitalHumanVideo",
+        msg: "[DEBUG] 后端命中数字人找回目标作品",
+        data: {
+          brandId,
+          requestedWorkId: payload.workId,
+          requestedProviderTaskId: providerTaskId,
+          resolvedWorkId: workId,
+          resolvedTaskId: taskId,
+          metaProviderTaskId: meta.providerTaskId,
+          metaStage: meta.stage,
+          hasVideoUrl: Boolean(meta.videoUrl),
+        },
+        ts: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
     if (!taskId) {
       throw new BadRequestException("当前数字人作品缺少站内任务记录，暂无法恢复。");
     }
     const snapshot = await this.queryDigitalHumanVideoSnapshot(brandId, providerTaskId || meta.providerTaskId || "");
+    // #region debug-point F:digital-human-recover-snapshot
+    fetch("http://127.0.0.1:7777/event", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sessionId: "digital-human-recover-result",
+        runId: "pre-fix",
+        hypothesisId: "F",
+        location: "apps/server/src/modules/works/works.service.ts:recoverDouyinDigitalHumanVideo",
+        msg: "[DEBUG] 后端查询到数字人第三方快照",
+        data: {
+          brandId,
+          resolvedWorkId: workId,
+          snapshotId: snapshot.id,
+          snapshotStatus: snapshot.status,
+          hasSnapshotVideoUrl: Boolean(snapshot.videoUrl),
+          snapshotDetail: snapshot.detail,
+        },
+        ts: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
     const nextMeta = await this.persistDigitalHumanSnapshot(brandId, workId, storageKey, taskId, meta, snapshot);
     return {
       recovered: snapshot.status === "SUCCESS" && Boolean(snapshot.videoUrl),
@@ -22822,6 +22887,32 @@ export class WorksService {
       const candidates = rows
         .filter((item) => this.isDigitalHumanVideoWorkMeta(item.metadataJson))
         .map((item) => ({ row: item, meta: this.readDigitalHumanVideoWorkMeta(item.metadataJson) }));
+      // #region debug-point G:digital-human-recover-candidates
+      fetch("http://127.0.0.1:7777/event", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId: "digital-human-recover-result",
+          runId: "pre-fix",
+          hypothesisId: "G",
+          location: "apps/server/src/modules/works/works.service.ts:findRecoverableDigitalHumanWorkRow",
+          msg: "[DEBUG] 后端扫描可找回数字人作品候选",
+          data: {
+            brandId,
+            providerTaskId: normalizedTaskId,
+            candidateCount: candidates.length,
+            recoverableCount: candidates.filter((item) => !item.meta.videoUrl && isRecoverableStage(item.meta.stage)).length,
+            recentCandidates: candidates.slice(0, 5).map((item) => ({
+              id: item.row.id,
+              providerTaskId: item.meta.providerTaskId,
+              stage: item.meta.stage,
+              hasVideoUrl: Boolean(item.meta.videoUrl),
+            })),
+          },
+          ts: Date.now(),
+        }),
+      }).catch(() => {});
+      // #endregion
       const exact = candidates.find((item) => item.meta.providerTaskId === normalizedTaskId);
       if (exact) {
         return exact.row;

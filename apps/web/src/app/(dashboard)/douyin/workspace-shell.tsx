@@ -2412,6 +2412,25 @@ export function DouyinWorkspaceShell() {
     workId?: string;
     providerTaskId?: string;
   }) => {
+    // #region debug-point A:digital-human-recover-click
+    fetch("http://127.0.0.1:7777/event", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sessionId: "digital-human-recover-result",
+        runId: "pre-fix",
+        hypothesisId: "A",
+        location: "apps/web/src/app/(dashboard)/douyin/workspace-shell.tsx:handleRecoverDigitalHuman",
+        msg: "[DEBUG] 用户触发数字人结果找回",
+        data: {
+          brandId: activeBrandId,
+          canEditDigitalHuman,
+          payload,
+        },
+        ts: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
     if (!canEditDigitalHuman) {
       setErrorMessage("当前账号只有查看权限，不能找回数字人视频结果。");
       return false;
@@ -2420,11 +2439,49 @@ export function DouyinWorkspaceShell() {
     setErrorMessage("");
     setNotice("");
     try {
-      await recoverDouyinDigitalHumanVideo(activeBrandId, payload);
+      const recovered = await recoverDouyinDigitalHumanVideo(activeBrandId, payload);
+      // #region debug-point B:digital-human-recover-response
+      fetch("http://127.0.0.1:7777/event", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId: "digital-human-recover-result",
+          runId: "pre-fix",
+          hypothesisId: "B",
+          location: "apps/web/src/app/(dashboard)/douyin/workspace-shell.tsx:handleRecoverDigitalHuman",
+          msg: "[DEBUG] 前端收到数字人结果找回响应",
+          data: {
+            brandId: activeBrandId,
+            payload,
+            recovered,
+          },
+          ts: Date.now(),
+        }),
+      }).catch(() => {});
+      // #endregion
       await refreshDigitalHumanWorkspace();
       setNotice("数字人视频结果找回完成。");
       return true;
     } catch (error) {
+      // #region debug-point C:digital-human-recover-error
+      fetch("http://127.0.0.1:7777/event", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId: "digital-human-recover-result",
+          runId: "pre-fix",
+          hypothesisId: "C",
+          location: "apps/web/src/app/(dashboard)/douyin/workspace-shell.tsx:handleRecoverDigitalHuman",
+          msg: "[DEBUG] 前端数字人结果找回失败",
+          data: {
+            brandId: activeBrandId,
+            payload,
+            message: error instanceof Error ? error.message : String(error),
+          },
+          ts: Date.now(),
+        }),
+      }).catch(() => {});
+      // #endregion
       setErrorMessage(error instanceof Error ? error.message : "找回数字人视频结果失败。");
       return false;
     } finally {

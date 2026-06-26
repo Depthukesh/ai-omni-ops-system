@@ -190,26 +190,6 @@ export function DigitalHumanWorksCenterPanel(props: DigitalHumanWorksCenterPanel
             </div>
           ) : null}
 
-          {props.selectedWork && props.editorDiffs.length ? (
-            <div className="light-data-panel report-editor-panel report-editor-panel--compact" style={{ marginTop: 20 }}>
-              <div className="report-editor-head">
-                <div>
-                  <strong>参数差异提示</strong>
-                  <p>对比当前创建区与已选作品，方便确认是否已经完成必要修改。</p>
-                </div>
-              </div>
-              <div className="xhs-material-card-grid">
-                {props.editorDiffs.map((item) => (
-                  <article key={item.key} className="entity-card personal-card">
-                    <strong>{item.label}</strong>
-                    <p className="panel-subtext">当前：{item.currentValue || "未填写"}</p>
-                    <p className="panel-subtext">原作品：{item.selectedValue || "未填写"}</p>
-                  </article>
-                ))}
-              </div>
-            </div>
-          ) : null}
-
           {props.selectedWork ? (
             <article className="light-data-panel report-editor-panel" style={{ marginTop: 20 }}>
               <div className="report-editor-head">
