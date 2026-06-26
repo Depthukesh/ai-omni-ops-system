@@ -315,7 +315,7 @@ export function DigitalHumanHomePanel(props: DigitalHumanHomePanelProps) {
               </div>
               <div>
                 <span>文件大小</span>
-                <strong>建议压缩到50MB内</strong>
+                <strong>小于500MB</strong>
               </div>
             </div>
 
