@@ -344,21 +344,38 @@ export class ChanjingOpenApiService {
         pageInfo: normalizedPageInfo,
       };
     } catch (error) {
-      // #region debug-point C:chanjing-template-error
-      fetch("http://127.0.0.1:7777/event", {
-        method: "POST",
-        body: JSON.stringify({
-          sessionId: "digital-human-502-list",
-          runId: "pre-fix",
-          hypothesisId: "C",
-          location: "apps/server/src/modules/works/chanjing-open-api.service.ts:listCommonDigitalPersons",
-          msg: "[DEBUG] 蝉镜模板列表请求失败",
-          data: { requestPath, message: error instanceof Error ? error.message : String(error) },
-          ts: Date.now(),
-        }),
-      }).catch(() => {});
-      // #endregion
-      throw error;
+      try {
+        const fallbackResponse = await this.requestCredentialJson<{ list?: unknown[]; page_info?: unknown }>(
+          credential,
+          requestPath,
+          {
+            method: "GET",
+            baseUrl: CHANJING_WEB_API_BASE_URL,
+          },
+        );
+        const normalizedList = (Array.isArray(fallbackResponse.list) ? fallbackResponse.list : []).map((item) => this.normalizeTemplate(item));
+        const normalizedPageInfo = this.normalizePageInfo(fallbackResponse.page_info);
+        return {
+          list: normalizedList,
+          pageInfo: normalizedPageInfo,
+        };
+      } catch {
+        // #region debug-point C:chanjing-template-error
+        fetch("http://127.0.0.1:7777/event", {
+          method: "POST",
+          body: JSON.stringify({
+            sessionId: "digital-human-502-list",
+            runId: "pre-fix",
+            hypothesisId: "C",
+            location: "apps/server/src/modules/works/chanjing-open-api.service.ts:listCommonDigitalPersons",
+            msg: "[DEBUG] 蝉镜模板列表请求失败",
+            data: { requestPath, message: error instanceof Error ? error.message : String(error) },
+            ts: Date.now(),
+          }),
+        }).catch(() => {});
+        // #endregion
+        throw error;
+      }
     }
   }
 
