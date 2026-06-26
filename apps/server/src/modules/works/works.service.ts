@@ -5,7 +5,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, extname, join, resolve } from "node:path";
 import { BadRequestException, Inject, Injectable, NotFoundException, ServiceUnavailableException, UnauthorizedException } from "@nestjs/common";
-import { MediaType, TaskStatus, type Prisma } from "@prisma/client";
+import { MediaType, Prisma, TaskStatus } from "@prisma/client";
 import ffmpegInstaller from "@ffmpeg-installer/ffmpeg";
 import { createId, database, type ApiProviderRecord } from "../../common/mock-data";
 import { XHS_IMAGE_ANALYSIS_PROMPT_FALLBACK } from "../../common/prompt-fallbacks";
@@ -73,6 +73,7 @@ const VOLCENGINE_VOD_OPENAPI_DEFAULT_SERVICE = "vod";
 const VOLCENGINE_VOD_OPENAPI_DEFAULT_HOST = "vod.volcengineapi.com";
 const VOLCENGINE_VOD_OPENAPI_VERSION = "2023-01-01";
 const VOLCENGINE_VOD_UPLOAD_OPENAPI_VERSION = "2020-08-01";
+const LIST_SNAPSHOT_BACKGROUND_REFRESH_LIMIT = 5;
 
 type OperationsPromptTemplateStoreRecord = OperationsPromptSeedRecord & {
   status: string;
@@ -2914,6 +2915,7 @@ export class WorksService {
   private operationsPromptBootstrapAt = 0;
   private imagePromptBootstrapPromise?: Promise<void>;
   private imagePromptBootstrapAt = 0;
+  private readonly inFlightListSnapshotRefreshes = new Set<string>();
 
   constructor(
     @Inject(AppConfigService)
@@ -2978,6 +2980,69 @@ export class WorksService {
       return resolution.apiKeys;
     }
     return fallbackApiKeys;
+  }
+
+  private scheduleListSnapshotRefresh(
+    scope: string,
+    brandId: string,
+    workIds: string[],
+    refresh: (workId: string) => Promise<unknown>,
+  ) {
+    workIds
+      .filter((item, index, array) => Boolean(item) && array.indexOf(item) === index)
+      .slice(0, LIST_SNAPSHOT_BACKGROUND_REFRESH_LIMIT)
+      .forEach((workId) => {
+        const refreshKey = `${scope}:${brandId}:${workId}`;
+        if (this.inFlightListSnapshotRefreshes.has(refreshKey)) {
+          return;
+        }
+        this.inFlightListSnapshotRefreshes.add(refreshKey);
+        void refresh(workId)
+          .catch(() => undefined)
+          .finally(() => {
+            this.inFlightListSnapshotRefreshes.delete(refreshKey);
+          });
+      });
+  }
+
+  private async listBrandHtmlMediaRowsByKinds(brandId: string, kinds: string[]) {
+    const normalizedKinds = Array.from(new Set(
+      kinds
+        .map((item) => String(item || "").trim())
+        .filter(Boolean),
+    ));
+    if (!normalizedKinds.length) {
+      return [];
+    }
+    try {
+      return await this.prismaService.$queryRaw<Array<{
+        id: string;
+        brandId: string | null;
+        taskId: string | null;
+        metadataJson: Prisma.JsonValue | null;
+        createdAt: Date;
+        updatedAt: Date;
+      }>>(Prisma.sql`
+        SELECT "id", "brandId", "taskId", "metadataJson", "createdAt", "updatedAt"
+        FROM "MediaAsset"
+        WHERE "brandId" = ${brandId}
+          AND "mediaType" = CAST(${MediaType.HTML} AS "MediaType")
+          AND COALESCE("metadataJson"->>'kind', '') IN (${Prisma.join(normalizedKinds.map((item) => Prisma.sql`${item}`))})
+        ORDER BY "createdAt" DESC
+      `);
+    } catch {
+      const rows = await this.prismaService.mediaAsset.findMany({
+        where: {
+          brandId,
+          mediaType: MediaType.HTML,
+        },
+        orderBy: { createdAt: "desc" },
+      });
+      return rows.filter((item) => {
+        const kind = String(this.asRecord(item.metadataJson)?.kind || "").trim();
+        return normalizedKinds.includes(kind);
+      });
+    }
   }
 
   async listXiaohongshuVideoProviderOptions() {
@@ -6182,18 +6247,10 @@ export class WorksService {
 
   async listXiaohongshuVideoWorks(brandId: string) {
     if (await this.prismaService.canUseDatabase()) {
-      const workRows = await this.prismaService.mediaAsset.findMany({
-        where: {
-          brandId,
-          mediaType: MediaType.HTML,
-        },
-        orderBy: { createdAt: "desc" },
-      });
+      const workRows = await this.listBrandHtmlMediaRowsByKinds(brandId, ["XHS_VIDEO_NOTE"]);
 
       const items = await Promise.all(
-        workRows
-          .filter((item) => this.isVideoWorkMeta(item.metadataJson, "XHS_VIDEO_NOTE"))
-          .map(async (item) => this.mapVideoWorkFromDatabase(item)),
+        workRows.map(async (item) => this.mapVideoWorkFromDatabase(item)),
       );
 
       return {
@@ -6213,18 +6270,10 @@ export class WorksService {
 
   async listDouyinVideoWorks(brandId: string) {
     if (await this.prismaService.canUseDatabase()) {
-      const workRows = await this.prismaService.mediaAsset.findMany({
-        where: {
-          brandId,
-          mediaType: MediaType.HTML,
-        },
-        orderBy: { createdAt: "desc" },
-      });
+      const workRows = await this.listBrandHtmlMediaRowsByKinds(brandId, ["DOUYIN_VIDEO_NOTE"]);
 
       const items = await Promise.all(
-        workRows
-          .filter((item) => this.isVideoWorkMeta(item.metadataJson, "DOUYIN_VIDEO_NOTE"))
-          .map(async (item) => this.mapVideoWorkFromDatabase(item)),
+        workRows.map(async (item) => this.mapVideoWorkFromDatabase(item)),
       );
 
       return {
@@ -6244,18 +6293,10 @@ export class WorksService {
 
   async listDouyinDirectVideoWorks(brandId: string) {
     if (await this.prismaService.canUseDatabase()) {
-      const workRows = await this.prismaService.mediaAsset.findMany({
-        where: {
-          brandId,
-          mediaType: MediaType.HTML,
-        },
-        orderBy: { createdAt: "desc" },
-      });
+      const workRows = await this.listBrandHtmlMediaRowsByKinds(brandId, ["DOUYIN_DIRECT_VIDEO"]);
 
       const items = await Promise.all(
-        workRows
-          .filter((item) => this.isVideoWorkMeta(item.metadataJson, "DOUYIN_DIRECT_VIDEO"))
-          .map(async (item) => this.mapVideoWorkFromDatabase(item)),
+        workRows.map(async (item) => this.mapVideoWorkFromDatabase(item)),
       );
 
       return {
@@ -6275,18 +6316,10 @@ export class WorksService {
 
   async listDouyinRemixShortVideoWorks(brandId: string) {
     if (await this.prismaService.canUseDatabase()) {
-      const workRows = await this.prismaService.mediaAsset.findMany({
-        where: {
-          brandId,
-          mediaType: MediaType.HTML,
-        },
-        orderBy: { createdAt: "desc" },
-      });
+      const workRows = await this.listBrandHtmlMediaRowsByKinds(brandId, ["DOUYIN_REMIX_SHORT_VIDEO"]);
 
       const items = await Promise.all(
-        workRows
-          .filter((item) => this.isVideoWorkMeta(item.metadataJson, "DOUYIN_REMIX_SHORT_VIDEO"))
-          .map(async (item) => this.mapVideoWorkFromDatabase(item)),
+        workRows.map(async (item) => this.mapVideoWorkFromDatabase(item)),
       );
 
       return {
@@ -8766,29 +8799,17 @@ export class WorksService {
 
   async listDouyinLipSyncWorks(brandId: string) {
     if (await this.prismaService.canUseDatabase()) {
-      const workRows = await this.prismaService.mediaAsset.findMany({
-        where: {
-          brandId,
-          mediaType: MediaType.HTML,
-        },
-        orderBy: { createdAt: "desc" },
-      });
-      const activeRows = workRows
-        .filter((item) => this.isDouyinLipSyncWorkMeta(item.metadataJson))
-        .slice(0, 10);
-      if (activeRows.length) {
-        await Promise.allSettled(activeRows.map((item) => this.refreshDouyinLipSyncWorkSnapshot(brandId, item.id)));
-      }
-      const refreshedRows = await this.prismaService.mediaAsset.findMany({
-        where: {
-          brandId,
-          mediaType: MediaType.HTML,
-        },
-        orderBy: { createdAt: "desc" },
-      });
+      const activeRows = await this.listBrandHtmlMediaRowsByKinds(brandId, ["DOUYIN_LIP_SYNC_VIDEO"]);
+      this.scheduleListSnapshotRefresh(
+        "douyin-lip-sync",
+        brandId,
+        activeRows
+          .filter((item) => this.shouldRefreshDouyinLipSyncWorkMeta(this.readDouyinLipSyncWorkMeta(item.metadataJson)))
+          .map((item) => item.id),
+        (workId) => this.refreshDouyinLipSyncWorkSnapshot(brandId, workId),
+      );
       return {
-        items: refreshedRows
-          .filter((item) => this.isDouyinLipSyncWorkMeta(item.metadataJson))
+        items: activeRows
           .map((item) => this.mapDouyinLipSyncWorkFromDatabase(item))
           .filter((item): item is DouyinLipSyncWorkRecord => Boolean(item)),
       };
@@ -8800,14 +8821,16 @@ export class WorksService {
       .map((item) => this.mapDouyinLipSyncWorkFromMock(item))
       .filter((item): item is DouyinLipSyncWorkRecord => Boolean(item))
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    await Promise.allSettled(items.slice(0, 10).map((item) => this.refreshDouyinLipSyncWorkSnapshot(brandId, item.id)));
+    this.scheduleListSnapshotRefresh(
+      "douyin-lip-sync",
+      brandId,
+      items
+        .filter((item) => this.shouldRefreshDouyinLipSyncWorkRecord(item))
+        .map((item) => item.id),
+      (workId) => this.refreshDouyinLipSyncWorkSnapshot(brandId, workId),
+    );
     return {
-      items: database.media
-        .filter((item) => item.brandId === brandId && item.mediaType === "HTML")
-        .filter((item) => this.isDouyinLipSyncWorkMeta((item as { metadataJson?: unknown }).metadataJson))
-        .map((item) => this.mapDouyinLipSyncWorkFromMock(item))
-        .filter((item): item is DouyinLipSyncWorkRecord => Boolean(item))
-        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
+      items,
     };
   }
 
@@ -8954,28 +8977,16 @@ export class WorksService {
 
   async listDouyinDigitalHumanVideoWorks(brandId: string) {
     if (await this.prismaService.canUseDatabase()) {
-      const workRows = await this.prismaService.mediaAsset.findMany({
-        where: {
-          brandId,
-          mediaType: MediaType.HTML,
-        },
-        orderBy: { createdAt: "desc" },
-      });
-      const activeRows = workRows
-        .filter((item) => this.isDigitalHumanVideoWorkMeta(item.metadataJson))
-        .slice(0, 10);
-      if (activeRows.length) {
-        await Promise.allSettled(activeRows.map((item) => this.refreshDigitalHumanWorkSnapshot(brandId, item.id)));
-      }
-      const refreshedRows = await this.prismaService.mediaAsset.findMany({
-        where: {
-          brandId,
-          mediaType: MediaType.HTML,
-        },
-        orderBy: { createdAt: "desc" },
-      });
-      const items = refreshedRows
-        .filter((item) => this.isDigitalHumanVideoWorkMeta(item.metadataJson))
+      const activeRows = await this.listBrandHtmlMediaRowsByKinds(brandId, ["DOUYIN_DIGITAL_HUMAN_VIDEO"]);
+      this.scheduleListSnapshotRefresh(
+        "digital-human-video",
+        brandId,
+        activeRows
+          .filter((item) => this.shouldRefreshDigitalHumanVideoWorkMeta(this.readDigitalHumanVideoWorkMeta(item.metadataJson)))
+          .map((item) => item.id),
+        (workId) => this.refreshDigitalHumanWorkSnapshot(brandId, workId),
+      );
+      const items = activeRows
         .map((item) => this.mapDigitalHumanVideoWorkFromDatabase(item))
         .filter((item): item is DouyinDigitalHumanVideoWorkRecord => Boolean(item));
       return { items };
@@ -8987,14 +8998,15 @@ export class WorksService {
       .map((item) => this.mapDigitalHumanVideoWorkFromMock(item))
       .filter((item): item is DouyinDigitalHumanVideoWorkRecord => Boolean(item))
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    await Promise.allSettled(items.slice(0, 10).map((item) => this.refreshDigitalHumanWorkSnapshot(brandId, item.id)));
-    const refreshedItems = database.media
-      .filter((item) => item.brandId === brandId && item.mediaType === "HTML")
-      .filter((item) => this.isDigitalHumanVideoWorkMeta((item as { metadataJson?: unknown }).metadataJson))
-      .map((item) => this.mapDigitalHumanVideoWorkFromMock(item))
-      .filter((item): item is DouyinDigitalHumanVideoWorkRecord => Boolean(item))
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    return { items: refreshedItems };
+    this.scheduleListSnapshotRefresh(
+      "digital-human-video",
+      brandId,
+      items
+        .filter((item) => this.shouldRefreshDigitalHumanVideoWorkRecord(item))
+        .map((item) => item.id),
+      (workId) => this.refreshDigitalHumanWorkSnapshot(brandId, workId),
+    );
+    return { items };
   }
 
   async listDouyinRunningHubApps(_brandId: string) {
@@ -9029,13 +9041,16 @@ export class WorksService {
 
   async listDouyinRunningHubWorks(brandId: string) {
     const rows = await this.listRunningHubWorkRows(brandId);
-    const activeRows = rows.slice(0, 10);
-    if (activeRows.length) {
-      await Promise.allSettled(activeRows.map((item) => this.refreshRunningHubWorkSnapshot(brandId, item.id)));
-    }
-    const refreshedRows = await this.listRunningHubWorkRows(brandId);
+    this.scheduleListSnapshotRefresh(
+      "runninghub-work",
+      brandId,
+      rows
+        .filter((item) => this.shouldRefreshRunningHubWorkMeta(this.readRunningHubWorkMeta(item.metadataJson)))
+        .map((item) => item.id),
+      (workId) => this.refreshRunningHubWorkSnapshot(brandId, workId),
+    );
     return {
-      items: refreshedRows
+      items: rows
         .map((item) => this.mapRunningHubWorkRecord(item))
         .filter(Boolean) as DouyinRunningHubWorkRecord[],
     };
@@ -19712,6 +19727,14 @@ export class WorksService {
     }
   }
 
+  private shouldRefreshDouyinLipSyncWorkMeta(meta: DouyinLipSyncWorkAssetMeta) {
+    return Boolean(meta.providerTaskId) && meta.status !== "SUCCESS" && meta.status !== "FAILED";
+  }
+
+  private shouldRefreshDouyinLipSyncWorkRecord(item: DouyinLipSyncWorkRecord) {
+    return Boolean(item.providerTaskId) && item.status !== "SUCCESS" && item.status !== "FAILED";
+  }
+
   private normalizeDouyinLipSyncAudioType(value?: string): DouyinLipSyncWorkAssetMeta["audioType"] {
     return value === "AUDIO" ? "AUDIO" : "TEXT";
   }
@@ -20426,6 +20449,14 @@ export class WorksService {
     }
   }
 
+  private shouldRefreshDigitalHumanVideoWorkMeta(meta: DigitalHumanVideoWorkAssetMeta) {
+    return Boolean(meta.providerTaskId) && meta.stage !== "SUCCESS" && meta.stage !== "FAILED";
+  }
+
+  private shouldRefreshDigitalHumanVideoWorkRecord(item: DouyinDigitalHumanVideoWorkRecord) {
+    return Boolean(item.providerTaskId) && item.stage !== "SUCCESS" && item.stage !== "FAILED";
+  }
+
   private normalizeDigitalHumanSource(value?: string): DigitalHumanSource {
     return value === "CUSTOM" ? "CUSTOM" : "COMMON";
   }
@@ -21062,16 +21093,13 @@ export class WorksService {
     };
   }
 
+  private shouldRefreshRunningHubWorkMeta(meta: RunningHubWorkAssetMeta) {
+    return Boolean(meta.providerTaskId) && meta.status !== "SUCCESS" && meta.status !== "FAILED";
+  }
+
   private async listRunningHubWorkRows(brandId: string) {
     if (await this.prismaService.canUseDatabase()) {
-      const rows = await this.prismaService.mediaAsset.findMany({
-        where: {
-          brandId,
-          mediaType: MediaType.HTML,
-        },
-        orderBy: { createdAt: "desc" },
-      });
-      return rows.filter((item) => this.isRunningHubWorkMeta(item.metadataJson));
+      return this.listBrandHtmlMediaRowsByKinds(brandId, ["DOUYIN_RUNNINGHUB_APP"]);
     }
     return database.media
       .filter((item) => item.brandId === brandId && item.mediaType === "HTML")

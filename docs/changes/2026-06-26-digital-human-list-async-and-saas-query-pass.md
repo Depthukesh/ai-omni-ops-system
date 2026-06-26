@@ -1,0 +1,72 @@
+# 2026-06-26 数字人列表异步化与 SaaS 查询优化
+
+## 背景
+
+- 线上问题品牌打开抖音数字人页时，`/api/works/brands/:brandId/douyin/digital-human/video` 出现上游超时，页面提示“数字人作品列表读取失败”。
+- 现场日志表明服务器整体资源并未打满，真正超时的是数字人作品列表接口本身，而不是整站不可用。
+- 代码排查后确认，数字人作品、口型驱动作品、RunningHub 作品列表都存在相同模式：
+  - 列表接口先读取本地作品；
+  - 再在请求链路里同步刷新第三方任务状态；
+  - 还会二次查询本地数据后再返回。
+- 这类实现方式在单品牌、少量作品时勉强可用，但在 SaaS 场景下会随着品牌数、作品数和并发访问数增长而放大为稳定性问题。
+
+## 变更
+
+- 调整 `apps/server/src/modules/works/works.service.ts` 中作品列表读取策略。
+- 新增统一后台刷新调度器：
+  - 对列表里的“处理中作品”执行后台 `fire-and-forget` 刷新；
+  - 限制单次列表触发的后台刷新数，避免一次打开页面就扫太多第三方任务；
+  - 对同一作品增加进行中去重，避免并发请求重复轮询同一条第三方任务。
+- 将以下列表接口从“同步等待第三方刷新后再返回”改为“立即返回本地快照，后台异步刷新”：
+  - 数字人作品列表
+  - 口型驱动作品列表
+  - RunningHub 作品列表
+- 进一步把查询逻辑从“先查品牌下所有 `HTML` 资产，再在 Node 层按 `metadata.kind` 过滤”收口为“数据库优先按 `metadataJson->>'kind'` 直接过滤目标作品类型”。
+- 该数据库查询优化已应用到以下作品列表：
+  - 小红书视频作品
+  - 抖音 AI 生视频作品
+  - 抖音 AI 生视频直出作品
+  - 抖音 AI 混剪作品
+  - 抖音口型驱动作品
+  - 抖音数字人作品
+  - RunningHub 作品
+- 当数据库侧 JSON 过滤失败时，仍保留原有 `findMany + Node 过滤` 作为回退路径，避免因环境差异直接影响可用性。
+
+## 方案意图
+
+- 首要目标不是只修复某一个品牌，而是把“列表读取不能被第三方慢接口拖死”作为统一规则落下来。
+- 采用后台异步刷新而不是同步等待，有两个直接收益：
+  - 首屏列表返回时间更稳定，避免撞上 nginx / 代理超时；
+  - 第三方状态更新仍能继续进行，不牺牲任务可见性。
+- 采用数据库侧 `kind` 过滤而不是把整批 `HTML` 资产拉回应用层，有两个中长期收益：
+  - 减少单品牌作品量上来后的无效扫描和 JSON 反序列化成本；
+  - 为后续继续抽离结构化字段或建立 JSON 索引留出统一入口。
+
+## 影响范围
+
+- 后端文件：
+  - `apps/server/src/modules/works/works.service.ts`
+- 影响接口：
+  - `GET /api/works/brands/:brandId/douyin/digital-human/video`
+  - `GET /api/works/brands/:brandId/douyin/digital-human/lip-sync`
+  - `GET /api/works/brands/:brandId/douyin/runninghub/works`
+  - 以及同类视频作品列表读取逻辑
+- 不涉及数据库 schema 变更；
+- 不改变前端接口协议；
+- 不影响既有作品数据格式。
+
+## 验证
+
+- `GetDiagnostics`
+  - `apps/server/src/modules/works/works.service.ts`
+- `pnpm build:server`
+
+## 风险与后续
+
+- 当前只是第二层优化，尚未彻底完成 SaaS 级治理。
+- 目前数据库虽然已改成优先按 `metadataJson->>'kind'` 过滤，但 `MediaAsset.metadataJson` 还没有专门的 JSON 索引；当品牌和作品继续增长后，仍建议把高频查询字段结构化。
+- `listDouyinDigitalHumanCustomPersons(...)` 仍然直接依赖蝉镜远程列表，这类“首屏直接打第三方”的接口仍应继续梳理并按同样原则收口。
+- 后续建议继续推进：
+  - 把第三方状态刷新进一步迁移到后台 worker / 定时任务，而不是依赖用户打开页面触发；
+  - 为高频作品表补充结构化字段或索引，如 `kind`、`providerTaskId`、`status`、`brandId`、`updatedAt`；
+  - 为第三方查询增加品牌级限流、退避和观测指标，避免多品牌并发访问时互相放大。
