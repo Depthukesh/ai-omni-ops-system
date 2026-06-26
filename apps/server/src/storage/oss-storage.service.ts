@@ -10,6 +10,11 @@ type StoredObject = {
   contentType: string;
 };
 
+const OSS_UPLOAD_TIMEOUT_MS = 5 * 60 * 1000;
+const OSS_MULTIPART_THRESHOLD_BYTES = 8 * 1024 * 1024;
+const OSS_MULTIPART_PART_SIZE_BYTES = 4 * 1024 * 1024;
+const OSS_UPLOAD_RETRY_COUNT = 2;
+
 @Injectable()
 export class OssStorageService {
   private client: InstanceType<typeof OSS> | null = null;
@@ -28,13 +33,29 @@ export class OssStorageService {
       return this.putLocalObject(storageKey, buffer, contentType);
     }
     const client = this.getClient();
-    try {
+    const upload = async () => {
+      if (buffer.length >= OSS_MULTIPART_THRESHOLD_BYTES) {
+        await client.multipartUpload(storageKey, buffer, {
+          timeout: OSS_UPLOAD_TIMEOUT_MS,
+          partSize: OSS_MULTIPART_PART_SIZE_BYTES,
+          parallel: 4,
+          headers: {
+            "Content-Type": contentType,
+            "Cache-Control": "public, max-age=31536000",
+          },
+        });
+        return;
+      }
       await client.put(storageKey, buffer, {
+        timeout: OSS_UPLOAD_TIMEOUT_MS,
         headers: {
           "Content-Type": contentType,
           "Cache-Control": "public, max-age=31536000",
         },
       });
+    };
+    try {
+      await this.retryUploadOnTimeout(upload);
       return true;
     } catch (error) {
       throw this.toStorageError(error, `上传 OSS 文件失败：${storageKey}`);
@@ -195,6 +216,27 @@ export class OssStorageService {
     const status = "status" in error ? error.status : undefined;
     const code = "code" in error ? error.code : undefined;
     return status === 404 || code === "NoSuchKey";
+  }
+
+  private isTimeoutError(error: unknown) {
+    const message = error instanceof Error ? error.message : String(error || "");
+    return /timeout|timed out|response timeout|socket hang up|abort/i.test(message);
+  }
+
+  private async retryUploadOnTimeout(work: () => Promise<void>) {
+    let lastError: unknown;
+    for (let attempt = 0; attempt <= OSS_UPLOAD_RETRY_COUNT; attempt += 1) {
+      try {
+        await work();
+        return;
+      } catch (error) {
+        lastError = error;
+        if (!this.isTimeoutError(error) || attempt >= OSS_UPLOAD_RETRY_COUNT) {
+          throw error;
+        }
+      }
+    }
+    throw lastError;
   }
 
   private toStorageError(error: unknown, fallbackMessage: string) {
