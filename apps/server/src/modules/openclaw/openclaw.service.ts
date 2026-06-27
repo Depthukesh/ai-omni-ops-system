@@ -7,7 +7,12 @@ import {
   type BrandInviteListRecord,
   BrandsService,
 } from "../brands/brands.service";
-import { CollectorsService, type XhsAccountRole, type XhsCollectionWorkspace } from "../collectors/collectors.service";
+import {
+  CollectorsService,
+  type DouyinCollectionWorkspace,
+  type XhsAccountRole,
+  type XhsCollectionWorkspace,
+} from "../collectors/collectors.service";
 import { FeedbackService } from "../feedback/feedback.service";
 import { OpenClawInstallationService } from "./openclaw-installation.service";
 import { OrdersService } from "../orders/orders.service";
@@ -252,6 +257,28 @@ const OPENCLAW_WEBSITE_FUNCTION_CATALOG: OpenClawWebsiteFunctionCatalogItem[] = 
       "sync_xiaohongshu_target_users",
       "sync_xiaohongshu_feishu_workspace",
       "add_xiaohongshu_note_to_material_library",
+    ],
+  },
+  {
+    key: "douyin_collection_workspace",
+    domainKey: "brand_growth",
+    domainName: "品牌增长",
+    name: "查看并同步抖音搜集数据",
+    summary: "适合读取品牌资料库中的抖音搜集数据工作区，并直接触发品牌账号、竞品账号、对标作品、搜索结果和评论数据同步。",
+    pageUrl: "/brand-growth",
+    pageLabel: "打开品牌增长工作台",
+    riskLevel: "medium",
+    intentKeywords: ["品牌资料库", "搜集数据", "抖音板块", "抖音采集", "对标账号", "对标作品", "搜索结果", "评论数据"],
+    requiredInputKeys: ["brandId"],
+    requiredInputs: ["当前品牌"],
+    recommendedQuestions: ["帮我看品牌资料库里抖音搜集数据板块", "帮我同步一下抖音对标账号和对标作品"],
+    mcpTools: [
+      "get_douyin_collection_workspace",
+      "sync_douyin_brand_accounts",
+      "sync_douyin_competitor_accounts",
+      "sync_douyin_benchmark_works",
+      "sync_douyin_search_works",
+      "sync_douyin_comment_data",
     ],
   },
   {
@@ -590,6 +617,170 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
         assetId: { type: "string" },
       },
       required: ["assetId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_douyin_collection_workspace",
+    description: "查看当前品牌资料库中的抖音搜集数据工作区摘要。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        limit: { type: "integer", minimum: 1, maximum: 50 },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "sync_douyin_brand_accounts",
+    description: "同步品牌资料库里抖音品牌账号数据，可传账号链接或账号条目。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        accountLocators: { type: "array", items: { type: "string" } },
+        accountEntries: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              locator: { type: "string" },
+              accountRole: { type: "string", description: "可选：BRAND、STAFF、TALENT。" },
+            },
+            required: ["locator"],
+            additionalProperties: false,
+          },
+        },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "sync_douyin_competitor_accounts",
+    description: "同步品牌资料库里抖音竞品账号数据，可传账号链接或账号条目。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        accountLocators: { type: "array", items: { type: "string" } },
+        accountEntries: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              locator: { type: "string" },
+              accountRole: { type: "string", description: "可选：BRAND、STAFF、TALENT。" },
+            },
+            required: ["locator"],
+            additionalProperties: false,
+          },
+        },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "sync_douyin_benchmark_works",
+    description: "同步品牌资料库里抖音对标作品数据，需要提供作品 aweme_id。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        benchmarkAwemeIds: { type: "array", items: { type: "string" } },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "sync_douyin_search_works",
+    description: "同步品牌资料库里抖音搜索结果数据，需要提供搜索关键词。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        searchKeyword: { type: "string" },
+        searchSortType: { type: "string" },
+        searchPublishTime: { type: "string" },
+        searchFilterDuration: { type: "string" },
+        searchContentType: { type: "string" },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "sync_douyin_comment_data",
+    description: "同步品牌资料库里抖音评论数据，需要提供作品链接列表或分页请求。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        commentSourceUrls: { type: "array", items: { type: "string" } },
+        commentPageRequests: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              sourceUrl: { type: "string" },
+              cursor: { type: "string" },
+            },
+            required: ["sourceUrl"],
+            additionalProperties: false,
+          },
+        },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "sync_douyin_keyword_recommendations",
+    description: "同步品牌资料库里抖音关键词推荐数据，需要提供搜索关键词。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        searchKeyword: { type: "string" },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "sync_douyin_low_fan_explosive_works",
+    description: "同步品牌资料库里抖音低粉爆款榜数据，需要提供一级和二级内容标签 ID。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        primaryTagId: { type: "integer" },
+        secondaryTagId: { type: "integer" },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "sync_douyin_high_completion_rate_works",
+    description: "同步品牌资料库里抖音高完播率榜数据，需要提供一级和二级内容标签 ID。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        primaryTagId: { type: "integer" },
+        secondaryTagId: { type: "integer" },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "sync_douyin_high_like_rate_works",
+    description: "同步品牌资料库里抖音高点赞率榜数据，需要提供一级和二级内容标签 ID。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        primaryTagId: { type: "integer" },
+        secondaryTagId: { type: "integer" },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "sync_douyin_city_hotspots",
+    description: "同步品牌资料库里抖音同城热点榜数据，需要提供城市代码 cityCode。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        cityCode: { type: "integer" },
+      },
       additionalProperties: false,
     },
   },
@@ -1407,6 +1598,116 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
         author: { type: "string" },
         styleHint: { type: "string" },
       },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "manage_wechat_workflow",
+    description: "统一管理公众号工作流，支持草稿、偏好、工作流生成、排版、发布确认与正式发布等动作。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        action: { type: "string", description: "例如 list_drafts、save_preferences、create_workflow、generate_article、generate_images、generate_html、publish_workflow。" },
+        workflowId: { type: "string" },
+        draftId: { type: "string" },
+        historyId: { type: "string" },
+        limit: { type: "integer", minimum: 1, maximum: 50 },
+        payload: {
+          type: "object",
+          description: "对应动作的请求体，结构与网站原始接口保持一致。",
+          additionalProperties: true,
+        },
+      },
+      required: ["action"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "manage_brand_library",
+    description: "统一管理品牌资料库，支持品牌背景、产品、问卷、账号、行业资料、业务资产、知识库和飞书绑定。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        action: { type: "string", description: "例如 get_archive_summary、update_background、create_product、replace_platform_accounts、create_knowledge_base_files。" },
+        productId: { type: "string" },
+        knowledgeBaseId: { type: "string" },
+        fileId: { type: "string" },
+        limit: { type: "integer", minimum: 1, maximum: 100 },
+        platform: { type: "string", description: "可选：XIAOHONGSHU、DOUYIN、VIDEO_CHANNEL、WECHAT_OA。" },
+        payload: {
+          type: "object",
+          description: "对应动作的请求体，结构与网站原始接口保持一致。",
+          additionalProperties: true,
+        },
+      },
+      required: ["action"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "manage_growth_reports",
+    description: "统一管理品牌增长报告链路，支持增长报告、可视化增长报告、半年营销规划、小红书/抖音营销策划、热点选题和营销日历。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        action: { type: "string", description: "例如 get_growth_workspace、generate_visual_growth_report、update_douyin_topic_library、generate_xiaohongshu_marketing_calendar。" },
+        reportId: { type: "string" },
+        selectedDate: { type: "string", description: "热点选题候选日期，格式与原接口一致。" },
+        payload: {
+          type: "object",
+          description: "对应动作的请求体，结构与网站原始接口保持一致。",
+          additionalProperties: true,
+        },
+      },
+      required: ["action"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "manage_xiaohongshu_video",
+    description: "统一管理小红书视频笔记，支持列表、模型选项、生成、故事板重生、继续生成、找回结果、编辑和删除。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        action: { type: "string", description: "例如 list_works、list_providers、generate、regenerate_storyboard、continue_video、recover、update、delete。" },
+        workId: { type: "string" },
+        payload: {
+          type: "object",
+          description: "对应动作的请求体，结构与网站原始接口保持一致。",
+          additionalProperties: true,
+        },
+      },
+      required: ["action"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "manage_douyin_video_production",
+    description: "统一管理抖音视频生产，覆盖普通视频、直接生视频、混剪短视频、数字人、口型驱动、RunningHub 和广告预审。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        section: { type: "string", description: "可选：video、direct_video、remix_short_video、digital_human、lip_sync、runninghub、ad_preaudit。" },
+        action: { type: "string", description: "例如 list_works、generate、recover、create_custom_voice、list_apps、save_config 等。" },
+        workId: { type: "string" },
+        taskId: { type: "string" },
+        voiceId: { type: "string" },
+        templateId: { type: "string" },
+        customPersonId: { type: "string" },
+        appKey: { type: "string" },
+        mediaAssetId: { type: "string" },
+        limit: { type: "integer", minimum: 1, maximum: 100 },
+        page: { type: "integer", minimum: 1, maximum: 1000 },
+        size: { type: "integer", minimum: 1, maximum: 100 },
+        sort: { type: "string" },
+        tagIds: { type: "array", items: { type: "integer" } },
+        payload: {
+          type: "object",
+          description: "对应动作的请求体，结构与网站原始接口保持一致。",
+          additionalProperties: true,
+        },
+      },
+      required: ["section", "action"],
       additionalProperties: false,
     },
   },
@@ -2272,6 +2573,428 @@ export class OpenClawService {
       links: [{ label: "打开小红书工作区", url: "/xiaohongshu" }],
       resultStatus: "COMPLETED",
       resourceKind: "xiaohongshu_material",
+    });
+  }
+
+  async getDouyinCollectionWorkspace(
+    headers: HeadersMap,
+    options?: {
+      limit?: number;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.collection.douyinCollection", "view", auth);
+
+    const workspace = await this.collectorsService.getDouyinWorkspace(brandId);
+    const limit = this.normalizeLimit(options?.limit);
+    const counts = this.buildDouyinCollectionCounts(workspace);
+
+    return this.buildSummaryResponse({
+      title: "抖音搜集数据工作区",
+      summary: `当前品牌资料库中的抖音搜集数据已包含 ${counts.brandAccounts} 个品牌账号、${counts.competitorAccounts} 个竞品账号、${counts.benchmarkWorks} 条对标作品、${counts.searchWorks} 条搜索结果和 ${counts.commentData} 条评论数据。`,
+      highlights: [
+        `品牌账号：${counts.brandAccounts}`,
+        `竞品账号：${counts.competitorAccounts}`,
+        `品牌作品：${counts.brandWorks}`,
+        `竞品作品：${counts.competitorWorks}`,
+        `对标作品：${counts.benchmarkWorks}`,
+        `搜索结果：${counts.searchWorks}`,
+        `评论数据：${counts.commentData}`,
+      ],
+      data: {
+        counts,
+        brandAccounts: workspace.brandAccounts.slice(0, limit),
+        competitorAccounts: workspace.competitorAccounts.slice(0, limit),
+        brandWorks: workspace.brandWorks.slice(0, limit),
+        competitorWorks: workspace.competitorWorks.slice(0, limit),
+        benchmarkWorks: workspace.benchmarkWorks.slice(0, limit),
+        searchWorks: workspace.searchWorks.slice(0, limit),
+        commentData: workspace.commentData.slice(0, limit),
+        keywordRecommendations: workspace.keywordRecommendations.slice(0, limit),
+        lowFanExplosiveWorks: workspace.lowFanExplosiveWorks.slice(0, limit),
+        highCompletionRateWorks: workspace.highCompletionRateWorks.slice(0, limit),
+        highLikeRateWorks: workspace.highLikeRateWorks.slice(0, limit),
+        cityHotspots: workspace.cityHotspots.slice(0, limit),
+        contentTags: workspace.contentTags.slice(0, limit),
+        cityOptions: workspace.cityOptions.slice(0, limit),
+      },
+      links: [{ label: "打开品牌增长工作台", url: "/brand-growth" }],
+      resourceKind: "douyin_collection",
+    });
+  }
+
+  async syncDouyinBrandAccounts(
+    headers: HeadersMap,
+    options?: {
+      accountLocators?: string[];
+      accountEntries?: Array<{ locator?: string; accountRole?: string }>;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.collection.douyinCollection", "edit", auth);
+
+    const result = await this.collectorsService.syncDouyinWorkspace(brandId, {
+      scope: "brandAccount",
+      brandAccountLinks: this.normalizeStringArray(options?.accountLocators),
+      brandAccountEntries: this.normalizeXhsAccountEntries(options?.accountEntries),
+    });
+    const counts = this.buildDouyinCollectionCounts(result.workspace);
+
+    return this.buildSummaryResponse({
+      title: "抖音品牌账号已同步",
+      summary: `已同步 ${result.breakdown.brandAccounts} 条品牌账号数据，当前抖音搜集数据工作区里共有 ${counts.brandAccounts} 个品牌账号。`,
+      highlights: [
+        `本次同步：${result.breakdown.brandAccounts}`,
+        `工作区品牌账号：${counts.brandAccounts}`,
+      ],
+      data: result,
+      links: [{ label: "打开品牌增长工作台", url: "/brand-growth" }],
+      resultStatus: "COMPLETED",
+      resourceKind: "douyin_collection",
+    });
+  }
+
+  async syncDouyinCompetitorAccounts(
+    headers: HeadersMap,
+    options?: {
+      accountLocators?: string[];
+      accountEntries?: Array<{ locator?: string; accountRole?: string }>;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.collection.douyinCollection", "edit", auth);
+
+    const result = await this.collectorsService.syncDouyinWorkspace(brandId, {
+      scope: "competitorAccount",
+      competitorAccountLinks: this.normalizeStringArray(options?.accountLocators),
+      competitorAccountEntries: this.normalizeXhsAccountEntries(options?.accountEntries),
+    });
+    const counts = this.buildDouyinCollectionCounts(result.workspace);
+
+    return this.buildSummaryResponse({
+      title: "抖音竞品账号已同步",
+      summary: `已同步 ${result.breakdown.competitorAccounts} 条竞品账号数据，当前工作区里共有 ${counts.competitorAccounts} 个竞品账号。`,
+      highlights: [
+        `本次同步：${result.breakdown.competitorAccounts}`,
+        `工作区竞品账号：${counts.competitorAccounts}`,
+      ],
+      data: result,
+      links: [{ label: "打开品牌增长工作台", url: "/brand-growth" }],
+      resultStatus: "COMPLETED",
+      resourceKind: "douyin_collection",
+    });
+  }
+
+  async syncDouyinBenchmarkWorks(
+    headers: HeadersMap,
+    options?: {
+      benchmarkAwemeIds?: string[];
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.collection.douyinCollection", "edit", auth);
+
+    const benchmarkAwemeIds = this.normalizeStringArray(options?.benchmarkAwemeIds);
+    if (!benchmarkAwemeIds.length) {
+      throw new BadRequestException("请提供至少一个抖音作品 aweme_id");
+    }
+    const result = await this.collectorsService.syncDouyinWorkspace(brandId, {
+      scope: "benchmarkWorks",
+      benchmarkAwemeIds,
+    });
+    const counts = this.buildDouyinCollectionCounts(result.workspace);
+
+    return this.buildSummaryResponse({
+      title: "抖音对标作品已同步",
+      summary: `已同步 ${result.breakdown.benchmarkWorks} 条对标作品，当前工作区里共有 ${counts.benchmarkWorks} 条对标作品。`,
+      highlights: [
+        `本次同步：${result.breakdown.benchmarkWorks}`,
+        `工作区对标作品：${counts.benchmarkWorks}`,
+      ],
+      data: result,
+      links: [{ label: "打开品牌增长工作台", url: "/brand-growth" }],
+      resultStatus: "COMPLETED",
+      resourceKind: "douyin_collection",
+    });
+  }
+
+  async syncDouyinSearchWorks(
+    headers: HeadersMap,
+    options?: {
+      searchKeyword?: string;
+      searchSortType?: string;
+      searchPublishTime?: string;
+      searchFilterDuration?: string;
+      searchContentType?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.collection.douyinCollection", "edit", auth);
+
+    const searchKeyword = this.normalizeSafeInstruction(options?.searchKeyword, "抖音搜索关键词");
+    if (!searchKeyword) {
+      throw new BadRequestException("请提供 searchKeyword");
+    }
+    const searchSortType = this.normalizeSafeInstruction(options?.searchSortType, "抖音搜索排序") || undefined;
+    const searchPublishTime = this.normalizeSafeInstruction(options?.searchPublishTime, "抖音发布时间范围") || undefined;
+    const searchFilterDuration = this.normalizeSafeInstruction(options?.searchFilterDuration, "抖音视频时长范围") || undefined;
+    const searchContentType = this.normalizeSafeInstruction(options?.searchContentType, "抖音内容类型") || undefined;
+    const result = await this.collectorsService.syncDouyinWorkspace(brandId, {
+      scope: "searchWorks",
+      searchKeyword,
+      searchSortType,
+      searchPublishTime,
+      searchFilterDuration,
+      searchContentType,
+    });
+    const counts = this.buildDouyinCollectionCounts(result.workspace);
+
+    return this.buildSummaryResponse({
+      title: "抖音搜索结果已同步",
+      summary: `已按关键词“${searchKeyword}”同步 ${result.breakdown.searchWorks} 条搜索结果，当前工作区里共有 ${counts.searchWorks} 条搜索结果。`,
+      highlights: [
+        `关键词：${searchKeyword}`,
+        `本次同步：${result.breakdown.searchWorks}`,
+        `工作区搜索结果：${counts.searchWorks}`,
+      ],
+      data: result,
+      links: [{ label: "打开品牌增长工作台", url: "/brand-growth" }],
+      resultStatus: "COMPLETED",
+      resourceKind: "douyin_collection",
+    });
+  }
+
+  async syncDouyinCommentData(
+    headers: HeadersMap,
+    options?: {
+      commentSourceUrls?: string[];
+      commentPageRequests?: Array<{ sourceUrl?: string; cursor?: string }>;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.collection.douyinCollection", "edit", auth);
+
+    const commentSourceUrls = this.normalizeStringArray(options?.commentSourceUrls);
+    const commentPageRequests: Array<{ sourceUrl: string; cursor?: string }> = [];
+    for (const item of options?.commentPageRequests ?? []) {
+      const sourceUrl = this.normalizeSafeInstruction(item.sourceUrl, "抖音评论作品链接");
+      if (!sourceUrl) {
+        continue;
+      }
+      const cursor = this.normalizeSafeInstruction(item.cursor, "抖音评论游标") || undefined;
+      commentPageRequests.push({ sourceUrl, ...(cursor ? { cursor } : {}) });
+    }
+    if (!commentSourceUrls.length && !commentPageRequests.length) {
+      throw new BadRequestException("请提供 commentSourceUrls 或 commentPageRequests");
+    }
+    const result = await this.collectorsService.syncDouyinWorkspace(brandId, {
+      scope: "commentData",
+      commentSourceUrls,
+      commentPageRequests,
+    });
+    const counts = this.buildDouyinCollectionCounts(result.workspace);
+
+    return this.buildSummaryResponse({
+      title: "抖音评论数据已同步",
+      summary: `已同步 ${result.breakdown.commentData} 条评论数据，当前工作区里共有 ${counts.commentData} 条评论数据。`,
+      highlights: [
+        `本次同步：${result.breakdown.commentData}`,
+        `工作区评论数据：${counts.commentData}`,
+        `分页游标数：${result.commentPagination.length}`,
+      ],
+      data: result,
+      links: [{ label: "打开品牌增长工作台", url: "/brand-growth" }],
+      resultStatus: "COMPLETED",
+      resourceKind: "douyin_collection",
+    });
+  }
+
+  async syncDouyinKeywordRecommendations(
+    headers: HeadersMap,
+    options?: {
+      searchKeyword?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.collection.douyinCollection", "edit", auth);
+
+    const searchKeyword = this.normalizeSafeInstruction(options?.searchKeyword, "抖音关键词推荐搜索词");
+    if (!searchKeyword) {
+      throw new BadRequestException("请提供 searchKeyword");
+    }
+    const result = await this.collectorsService.syncDouyinWorkspace(brandId, {
+      scope: "keywordRecommendations",
+      searchKeyword,
+    });
+    const counts = this.buildDouyinCollectionCounts(result.workspace);
+
+    return this.buildSummaryResponse({
+      title: "抖音关键词推荐已同步",
+      summary: `已按关键词“${searchKeyword}”同步 ${result.breakdown.keywordRecommendations} 条推荐词，当前工作区里共有 ${counts.keywordRecommendations} 条关键词推荐。`,
+      highlights: [
+        `关键词：${searchKeyword}`,
+        `本次同步：${result.breakdown.keywordRecommendations}`,
+        `工作区关键词推荐：${counts.keywordRecommendations}`,
+      ],
+      data: result,
+      links: [{ label: "打开品牌增长工作台", url: "/brand-growth" }],
+      resultStatus: "COMPLETED",
+      resourceKind: "douyin_collection",
+    });
+  }
+
+  async syncDouyinLowFanExplosiveWorks(
+    headers: HeadersMap,
+    options?: {
+      primaryTagId?: number;
+      secondaryTagId?: number;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.collection.douyinCollection", "edit", auth);
+
+    const selection = this.normalizeDouyinContentTagSelection(options);
+    if (!selection) {
+      throw new BadRequestException("请同时提供 primaryTagId 和 secondaryTagId");
+    }
+    const result = await this.collectorsService.syncDouyinWorkspace(brandId, {
+      scope: "lowFanExplosiveWorks",
+      contentTagSelection: selection,
+    });
+    const counts = this.buildDouyinCollectionCounts(result.workspace);
+
+    return this.buildSummaryResponse({
+      title: "抖音低粉爆款榜已同步",
+      summary: `已同步 ${result.breakdown.lowFanExplosiveWorks} 条低粉爆款榜作品，当前工作区里共有 ${counts.lowFanExplosiveWorks} 条低粉爆款榜作品。`,
+      highlights: [
+        `一级标签：${selection.primaryTagId}`,
+        `二级标签：${selection.secondaryTagId}`,
+        `本次同步：${result.breakdown.lowFanExplosiveWorks}`,
+        `工作区低粉爆款榜：${counts.lowFanExplosiveWorks}`,
+      ],
+      data: result,
+      links: [{ label: "打开品牌增长工作台", url: "/brand-growth" }],
+      resultStatus: "COMPLETED",
+      resourceKind: "douyin_collection",
+    });
+  }
+
+  async syncDouyinHighCompletionRateWorks(
+    headers: HeadersMap,
+    options?: {
+      primaryTagId?: number;
+      secondaryTagId?: number;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.collection.douyinCollection", "edit", auth);
+
+    const selection = this.normalizeDouyinContentTagSelection(options);
+    if (!selection) {
+      throw new BadRequestException("请同时提供 primaryTagId 和 secondaryTagId");
+    }
+    const result = await this.collectorsService.syncDouyinWorkspace(brandId, {
+      scope: "highCompletionRateWorks",
+      contentTagSelection: selection,
+    });
+    const counts = this.buildDouyinCollectionCounts(result.workspace);
+
+    return this.buildSummaryResponse({
+      title: "抖音高完播率榜已同步",
+      summary: `已同步 ${result.breakdown.highCompletionRateWorks} 条高完播率榜作品，当前工作区里共有 ${counts.highCompletionRateWorks} 条高完播率榜作品。`,
+      highlights: [
+        `一级标签：${selection.primaryTagId}`,
+        `二级标签：${selection.secondaryTagId}`,
+        `本次同步：${result.breakdown.highCompletionRateWorks}`,
+        `工作区高完播率榜：${counts.highCompletionRateWorks}`,
+      ],
+      data: result,
+      links: [{ label: "打开品牌增长工作台", url: "/brand-growth" }],
+      resultStatus: "COMPLETED",
+      resourceKind: "douyin_collection",
+    });
+  }
+
+  async syncDouyinHighLikeRateWorks(
+    headers: HeadersMap,
+    options?: {
+      primaryTagId?: number;
+      secondaryTagId?: number;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.collection.douyinCollection", "edit", auth);
+
+    const selection = this.normalizeDouyinContentTagSelection(options);
+    if (!selection) {
+      throw new BadRequestException("请同时提供 primaryTagId 和 secondaryTagId");
+    }
+    const result = await this.collectorsService.syncDouyinWorkspace(brandId, {
+      scope: "highLikeRateWorks",
+      contentTagSelection: selection,
+    });
+    const counts = this.buildDouyinCollectionCounts(result.workspace);
+
+    return this.buildSummaryResponse({
+      title: "抖音高点赞率榜已同步",
+      summary: `已同步 ${result.breakdown.highLikeRateWorks} 条高点赞率榜作品，当前工作区里共有 ${counts.highLikeRateWorks} 条高点赞率榜作品。`,
+      highlights: [
+        `一级标签：${selection.primaryTagId}`,
+        `二级标签：${selection.secondaryTagId}`,
+        `本次同步：${result.breakdown.highLikeRateWorks}`,
+        `工作区高点赞率榜：${counts.highLikeRateWorks}`,
+      ],
+      data: result,
+      links: [{ label: "打开品牌增长工作台", url: "/brand-growth" }],
+      resultStatus: "COMPLETED",
+      resourceKind: "douyin_collection",
+    });
+  }
+
+  async syncDouyinCityHotspots(
+    headers: HeadersMap,
+    options?: {
+      cityCode?: number;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.collection.douyinCollection", "edit", auth);
+
+    const cityCode = typeof options?.cityCode === "number" && Number.isFinite(options.cityCode)
+      ? Math.trunc(options.cityCode)
+      : undefined;
+    if (!cityCode) {
+      throw new BadRequestException("请提供有效的 cityCode");
+    }
+    const result = await this.collectorsService.syncDouyinWorkspace(brandId, {
+      scope: "cityHotspots",
+      cityCode,
+    });
+    const counts = this.buildDouyinCollectionCounts(result.workspace);
+
+    return this.buildSummaryResponse({
+      title: "抖音同城热点已同步",
+      summary: `已同步 ${result.breakdown.cityHotspots} 条同城热点，当前工作区里共有 ${counts.cityHotspots} 条同城热点。`,
+      highlights: [
+        `城市代码：${cityCode}`,
+        `本次同步：${result.breakdown.cityHotspots}`,
+        `工作区同城热点：${counts.cityHotspots}`,
+      ],
+      data: result,
+      links: [{ label: "打开品牌增长工作台", url: "/brand-growth" }],
+      resultStatus: "COMPLETED",
+      resourceKind: "douyin_collection",
     });
   }
 
@@ -5209,6 +5932,2135 @@ export class OpenClawService {
     return timestamp >= since.getTime();
   }
 
+  async manageWechatWorkflow(
+    headers: HeadersMap,
+    options?: {
+      action?: string;
+      workflowId?: string;
+      draftId?: string;
+      historyId?: string;
+      limit?: number;
+      payload?: Record<string, unknown>;
+    },
+  ) {
+    const action = String(options?.action || "").trim().toLowerCase();
+    const payload = options?.payload ?? {};
+    if (!action) {
+      throw new BadRequestException("请提供 action");
+    }
+
+    switch (action) {
+      case "list_drafts":
+        return this.getWechatArticleDrafts(headers, { limit: options?.limit });
+      case "get_preferences":
+        return this.getWechatWorkflowPreferences(headers);
+      case "save_preferences": {
+        const auth = await this.requireAuth(headers);
+        const brandId = await this.requireCurrentBrandId(auth);
+        await this.authService.assertBrandPermission(brandId, "wechat.config", "edit", auth);
+        const result = await this.worksService.saveWechatWorkflowPreferences(
+          brandId,
+          payload as Parameters<WorksService["saveWechatWorkflowPreferences"]>[1],
+        );
+        return this.buildManagedOperationResponse({
+          title: "公众号工作流偏好已更新",
+          action,
+          data: result,
+          url: "/wechat",
+          label: "打开公众号工作台",
+          resourceKind: "wechat",
+        });
+      }
+      case "list_accounts":
+        return this.getWechatOfficialAccounts(headers);
+      case "list_workflows":
+        return this.getWechatWorkflowSessions(headers, { limit: options?.limit });
+      case "get_workflow":
+        return this.getWechatWorkflowSessionDetail(headers, { workflowId: options?.workflowId });
+      case "create_workflow": {
+        const auth = await this.requireAuth(headers);
+        const brandId = await this.requireCurrentBrandId(auth);
+        await this.authService.assertBrandPermission(brandId, "wechat.original", "edit", auth);
+        const result = await this.worksService.createWechatWorkflow(
+          brandId,
+          payload as Parameters<WorksService["createWechatWorkflow"]>[1],
+        );
+        return this.buildManagedOperationResponse({
+          title: "公众号工作流已创建",
+          action,
+          data: result,
+          url: "/wechat",
+          label: "打开公众号工作台",
+          resourceKind: "wechat",
+        });
+      }
+      case "update_input": {
+        const auth = await this.requireAuth(headers);
+        const brandId = await this.requireCurrentBrandId(auth);
+        const workflowId = String(options?.workflowId || "").trim();
+        if (!workflowId) {
+          throw new BadRequestException("请提供 workflowId");
+        }
+        await this.authService.assertBrandPermission(brandId, "wechat.original", "edit", auth);
+        const result = await this.worksService.updateWechatWorkflowInput(
+          brandId,
+          workflowId,
+          payload as Parameters<WorksService["updateWechatWorkflowInput"]>[2],
+        );
+        return this.buildManagedOperationResponse({
+          title: "公众号工作流输入已更新",
+          action,
+          data: result,
+          url: "/wechat",
+          label: "打开公众号工作台",
+          resourceKind: "wechat",
+        });
+      }
+      case "generate_article": {
+        const auth = await this.requireAuth(headers);
+        const brandId = await this.requireCurrentBrandId(auth);
+        const workflowId = String(options?.workflowId || "").trim();
+        if (!workflowId) {
+          throw new BadRequestException("请提供 workflowId");
+        }
+        await this.authService.assertBrandPermission(brandId, "wechat.original", "edit", auth);
+        const result = await this.worksService.generateWechatWorkflowArticle(brandId, workflowId, auth);
+        return this.buildManagedOperationResponse({
+          title: "公众号文章生成已触发",
+          action,
+          data: result,
+          url: "/wechat",
+          label: "打开公众号工作台",
+          resultStatus: "IN_PROGRESS",
+          resourceKind: "wechat",
+        });
+      }
+      case "update_article": {
+        const auth = await this.requireAuth(headers);
+        const brandId = await this.requireCurrentBrandId(auth);
+        const workflowId = String(options?.workflowId || "").trim();
+        if (!workflowId) {
+          throw new BadRequestException("请提供 workflowId");
+        }
+        await this.authService.assertBrandPermission(brandId, "wechat.original", "edit", auth);
+        const result = await this.worksService.updateWechatWorkflowArticle(
+          brandId,
+          workflowId,
+          payload as Parameters<WorksService["updateWechatWorkflowArticle"]>[2],
+        );
+        return this.buildManagedOperationResponse({
+          title: "公众号文章内容已更新",
+          action,
+          data: result,
+          url: "/wechat",
+          label: "打开公众号工作台",
+          resourceKind: "wechat",
+        });
+      }
+      case "generate_images": {
+        const auth = await this.requireAuth(headers);
+        const brandId = await this.requireCurrentBrandId(auth);
+        const workflowId = String(options?.workflowId || "").trim();
+        if (!workflowId) {
+          throw new BadRequestException("请提供 workflowId");
+        }
+        await this.authService.assertBrandPermission(brandId, "wechat.original", "edit", auth);
+        const result = await this.worksService.generateWechatWorkflowImages(brandId, workflowId, auth);
+        return this.buildManagedOperationResponse({
+          title: "公众号配图生成已触发",
+          action,
+          data: result,
+          url: "/wechat",
+          label: "打开公众号工作台",
+          resultStatus: "IN_PROGRESS",
+          resourceKind: "wechat",
+        });
+      }
+      case "generate_html": {
+        const auth = await this.requireAuth(headers);
+        const brandId = await this.requireCurrentBrandId(auth);
+        const workflowId = String(options?.workflowId || "").trim();
+        if (!workflowId) {
+          throw new BadRequestException("请提供 workflowId");
+        }
+        await this.authService.assertBrandPermission(brandId, "wechat.original", "edit", auth);
+        const result = await this.worksService.generateWechatWorkflowHtml(
+          brandId,
+          workflowId,
+          payload as Parameters<WorksService["generateWechatWorkflowHtml"]>[2],
+          auth,
+        );
+        return this.buildManagedOperationResponse({
+          title: "公众号 HTML 排版已生成",
+          action,
+          data: result,
+          url: "/wechat",
+          label: "打开公众号工作台",
+          resultStatus: "IN_PROGRESS",
+          resourceKind: "wechat",
+        });
+      }
+      case "update_html_style": {
+        const auth = await this.requireAuth(headers);
+        const brandId = await this.requireCurrentBrandId(auth);
+        const workflowId = String(options?.workflowId || "").trim();
+        if (!workflowId) {
+          throw new BadRequestException("请提供 workflowId");
+        }
+        await this.authService.assertBrandPermission(brandId, "wechat.original", "edit", auth);
+        const result = await this.worksService.updateWechatWorkflowHtmlStyle(
+          brandId,
+          workflowId,
+          payload as Parameters<WorksService["updateWechatWorkflowHtmlStyle"]>[2],
+        );
+        return this.buildManagedOperationResponse({
+          title: "公众号 HTML 样式已更新",
+          action,
+          data: result,
+          url: "/wechat",
+          label: "打开公众号工作台",
+          resourceKind: "wechat",
+        });
+      }
+      case "update_publish_confirm": {
+        const auth = await this.requireAuth(headers);
+        const brandId = await this.requireCurrentBrandId(auth);
+        const workflowId = String(options?.workflowId || "").trim();
+        if (!workflowId) {
+          throw new BadRequestException("请提供 workflowId");
+        }
+        await this.authService.assertBrandPermission(brandId, "wechat.original", "edit", auth);
+        const result = await this.worksService.updateWechatWorkflowPublishConfirm(
+          brandId,
+          workflowId,
+          payload as Parameters<WorksService["updateWechatWorkflowPublishConfirm"]>[2],
+        );
+        return this.buildManagedOperationResponse({
+          title: "公众号发布确认已更新",
+          action,
+          data: result,
+          url: "/wechat",
+          label: "打开公众号工作台",
+          resourceKind: "wechat",
+        });
+      }
+      case "check_publish":
+        return this.checkWechatWorkflowPublishReadiness(headers, { workflowId: options?.workflowId });
+      case "list_publish_history":
+        return this.getWechatPublishHistory(headers, { limit: options?.limit });
+      case "get_publish_history":
+        return this.getWechatPublishHistoryDetail(headers, { historyId: options?.historyId });
+      case "update_draft": {
+        const auth = await this.requireAuth(headers);
+        const brandId = await this.requireCurrentBrandId(auth);
+        const draftId = String(options?.draftId || "").trim();
+        if (!draftId) {
+          throw new BadRequestException("请提供 draftId");
+        }
+        await this.authService.assertBrandPermission(brandId, "wechat.original", "edit", auth);
+        const result = await this.worksService.updateWechatArticleDraft(
+          brandId,
+          draftId,
+          payload as Parameters<WorksService["updateWechatArticleDraft"]>[2],
+        );
+        return this.buildManagedOperationResponse({
+          title: "公众号草稿已更新",
+          action,
+          data: result,
+          url: "/wechat",
+          label: "打开公众号工作台",
+          resourceKind: "wechat",
+        });
+      }
+      case "publish_article":
+        return this.publishWechatArticle(headers, { draftId: options?.draftId });
+      case "publish_workflow":
+        return this.publishWechatWorkflow(headers, { workflowId: options?.workflowId });
+      case "retry_publish_history":
+        return this.retryWechatPublishHistory(headers, { historyId: options?.historyId });
+      default:
+        throw new BadRequestException(`不支持的 manage_wechat_workflow action: ${action}`);
+    }
+  }
+
+  async manageBrandLibrary(
+    headers: HeadersMap,
+    options?: {
+      action?: string;
+      productId?: string;
+      knowledgeBaseId?: string;
+      fileId?: string;
+      limit?: number;
+      platform?: string;
+      payload?: Record<string, unknown>;
+    },
+  ) {
+    const action = String(options?.action || "").trim().toLowerCase();
+    const payload = options?.payload ?? {};
+    if (!action) {
+      throw new BadRequestException("请提供 action");
+    }
+
+    switch (action) {
+      case "get_archive_summary":
+        return this.getBrandArchiveSummary(headers);
+      case "get_archive_survey":
+        return this.getBrandArchiveSurvey(headers, { limit: options?.limit });
+      case "get_competitor_accounts":
+        return this.getBrandCompetitorAccounts(headers, {
+          platform: options?.platform,
+          limit: options?.limit,
+        });
+      case "get_industry_feeds":
+        return this.getBrandIndustryFeeds(headers, { limit: options?.limit });
+      case "get_business_assets":
+        return this.getBrandBusinessAssets(headers, { limit: options?.limit });
+      default:
+        break;
+    }
+
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+
+    switch (action) {
+      case "update_background": {
+        await this.authService.assertBrandPermission(brandId, "brandGrowth.library.background", "edit", auth);
+        const result = await this.brandsService.updateBackground(
+          brandId,
+          payload as Parameters<BrandsService["updateBackground"]>[1],
+        );
+        return this.buildManagedOperationResponse({
+          title: "品牌背景已更新",
+          action,
+          data: result,
+          url: "/brand-growth",
+          label: "打开品牌增长工作台",
+          resourceKind: "brand_archive",
+        });
+      }
+      case "create_product": {
+        await this.authService.assertBrandPermission(brandId, "brandGrowth.library.products", "edit", auth);
+        const result = await this.brandsService.createProduct(
+          brandId,
+          payload as Parameters<BrandsService["createProduct"]>[1],
+        );
+        return this.buildManagedOperationResponse({
+          title: "产品资料已新增",
+          action,
+          data: result,
+          url: "/brand-growth",
+          label: "打开品牌增长工作台",
+          resourceKind: "brand_archive",
+        });
+      }
+      case "update_product": {
+        const productId = String(options?.productId || "").trim();
+        if (!productId) {
+          throw new BadRequestException("请提供 productId");
+        }
+        await this.authService.assertBrandPermission(brandId, "brandGrowth.library.products", "edit", auth);
+        const result = await this.brandsService.updateProduct(
+          brandId,
+          productId,
+          payload as Parameters<BrandsService["updateProduct"]>[2],
+        );
+        return this.buildManagedOperationResponse({
+          title: "产品资料已更新",
+          action,
+          data: result,
+          url: "/brand-growth",
+          label: "打开品牌增长工作台",
+          resourceKind: "brand_archive",
+        });
+      }
+      case "delete_product": {
+        const productId = String(options?.productId || "").trim();
+        if (!productId) {
+          throw new BadRequestException("请提供 productId");
+        }
+        await this.authService.assertBrandPermission(brandId, "brandGrowth.library.products", "edit", auth);
+        const result = await this.brandsService.deleteProduct(brandId, productId);
+        return this.buildManagedOperationResponse({
+          title: "产品资料已删除",
+          action,
+          data: result,
+          url: "/brand-growth",
+          label: "打开品牌增长工作台",
+          resourceKind: "brand_archive",
+        });
+      }
+      case "upsert_survey": {
+        await this.authService.assertBrandPermission(brandId, "brandGrowth.library.survey", "edit", auth);
+        const result = await this.brandsService.upsertSurvey(
+          brandId,
+          payload as Parameters<BrandsService["upsertSurvey"]>[1],
+        );
+        return this.buildManagedOperationResponse({
+          title: "品牌建档问卷已更新",
+          action,
+          data: result,
+          url: "/brand-growth",
+          label: "打开品牌增长工作台",
+          resourceKind: "brand_archive_survey",
+        });
+      }
+      case "replace_platform_accounts": {
+        await this.authService.assertBrandPermission(brandId, "brandGrowth.collection.xiaohongshuCollection", "edit", auth);
+        const result = await this.brandsService.replacePlatformAccounts(
+          brandId,
+          payload as Parameters<BrandsService["replacePlatformAccounts"]>[1],
+        );
+        return this.buildManagedOperationResponse({
+          title: "品牌平台账号已更新",
+          action,
+          data: result,
+          url: "/brand-growth",
+          label: "打开品牌增长工作台",
+          resourceKind: "brand_archive",
+        });
+      }
+      case "replace_competitor_accounts": {
+        await this.authService.assertBrandPermission(brandId, "brandGrowth.collection.xiaohongshuCollection", "edit", auth);
+        const result = await this.brandsService.replaceCompetitorAccounts(
+          brandId,
+          payload as Parameters<BrandsService["replaceCompetitorAccounts"]>[1],
+        );
+        return this.buildManagedOperationResponse({
+          title: "竞品账号已更新",
+          action,
+          data: result,
+          url: "/brand-growth",
+          label: "打开品牌增长工作台",
+          resourceKind: "competitor_account",
+        });
+      }
+      case "replace_industry_feeds": {
+        await this.authService.assertBrandPermission(brandId, "brandGrowth.library.industryFeeds", "edit", auth);
+        const result = await this.brandsService.replaceIndustryFeeds(
+          brandId,
+          payload as Parameters<BrandsService["replaceIndustryFeeds"]>[1],
+        );
+        return this.buildManagedOperationResponse({
+          title: "行业资料已更新",
+          action,
+          data: result,
+          url: "/brand-growth",
+          label: "打开品牌增长工作台",
+          resourceKind: "industry_feed",
+        });
+      }
+      case "replace_business_assets": {
+        await this.authService.assertBrandPermission(brandId, "brandGrowth.library.businessAssets", "edit", auth);
+        const result = await this.brandsService.replaceBusinessAssets(
+          brandId,
+          payload as Parameters<BrandsService["replaceBusinessAssets"]>[1],
+        );
+        return this.buildManagedOperationResponse({
+          title: "业务资产已更新",
+          action,
+          data: result,
+          url: "/brand-growth/business-assets",
+          label: "打开业务资产",
+          resourceKind: "business_asset",
+        });
+      }
+      case "list_knowledge_bases": {
+        await this.authService.assertBrandPermission(brandId, "brandGrowth.library.businessAssets", "view", auth);
+        const result = await this.brandsService.listBusinessKnowledgeBases(brandId);
+        return this.buildManagedOperationResponse({
+          title: "业务知识库列表",
+          action,
+          data: result,
+          url: "/brand-growth/business-assets",
+          label: "打开业务资产",
+          resourceKind: "knowledge_base",
+        });
+      }
+      case "create_knowledge_base": {
+        await this.authService.assertBrandPermission(brandId, "brandGrowth.library.businessAssets", "edit", auth);
+        const result = await this.brandsService.createBusinessKnowledgeBase(
+          brandId,
+          payload as Parameters<BrandsService["createBusinessKnowledgeBase"]>[1],
+        );
+        return this.buildManagedOperationResponse({
+          title: "业务知识库已创建",
+          action,
+          data: result,
+          url: "/brand-growth/business-assets",
+          label: "打开业务资产",
+          resourceKind: "knowledge_base",
+        });
+      }
+      case "update_knowledge_base": {
+        const knowledgeBaseId = String(options?.knowledgeBaseId || "").trim();
+        if (!knowledgeBaseId) {
+          throw new BadRequestException("请提供 knowledgeBaseId");
+        }
+        await this.authService.assertBrandPermission(brandId, "brandGrowth.library.businessAssets", "edit", auth);
+        const result = await this.brandsService.updateBusinessKnowledgeBase(
+          brandId,
+          knowledgeBaseId,
+          payload as Parameters<BrandsService["updateBusinessKnowledgeBase"]>[2],
+        );
+        return this.buildManagedOperationResponse({
+          title: "业务知识库已更新",
+          action,
+          data: result,
+          url: "/brand-growth/business-assets",
+          label: "打开业务资产",
+          resourceKind: "knowledge_base",
+        });
+      }
+      case "delete_knowledge_base": {
+        const knowledgeBaseId = String(options?.knowledgeBaseId || "").trim();
+        if (!knowledgeBaseId) {
+          throw new BadRequestException("请提供 knowledgeBaseId");
+        }
+        await this.authService.assertBrandPermission(brandId, "brandGrowth.library.businessAssets", "edit", auth);
+        const result = await this.brandsService.deleteBusinessKnowledgeBase(brandId, knowledgeBaseId);
+        return this.buildManagedOperationResponse({
+          title: "业务知识库已删除",
+          action,
+          data: result,
+          url: "/brand-growth/business-assets",
+          label: "打开业务资产",
+          resourceKind: "knowledge_base",
+        });
+      }
+      case "list_knowledge_base_files": {
+        const knowledgeBaseId = String(options?.knowledgeBaseId || "").trim();
+        if (!knowledgeBaseId) {
+          throw new BadRequestException("请提供 knowledgeBaseId");
+        }
+        await this.authService.assertBrandPermission(brandId, "brandGrowth.library.businessAssets", "view", auth);
+        const result = await this.brandsService.listBusinessKnowledgeBaseFiles(brandId, knowledgeBaseId);
+        return this.buildManagedOperationResponse({
+          title: "知识库文件列表",
+          action,
+          data: result,
+          url: "/brand-growth/business-assets",
+          label: "打开业务资产",
+          resourceKind: "knowledge_base",
+        });
+      }
+      case "create_knowledge_base_files": {
+        const knowledgeBaseId = String(options?.knowledgeBaseId || "").trim();
+        if (!knowledgeBaseId) {
+          throw new BadRequestException("请提供 knowledgeBaseId");
+        }
+        await this.authService.assertBrandPermission(brandId, "brandGrowth.library.businessAssets", "edit", auth);
+        const result = await this.brandsService.createBusinessKnowledgeBaseFiles(
+          brandId,
+          knowledgeBaseId,
+          payload as Parameters<BrandsService["createBusinessKnowledgeBaseFiles"]>[2],
+        );
+        return this.buildManagedOperationResponse({
+          title: "知识库文件已新增",
+          action,
+          data: result,
+          url: "/brand-growth/business-assets",
+          label: "打开业务资产",
+          resourceKind: "knowledge_base",
+        });
+      }
+      case "get_knowledge_base_file": {
+        const knowledgeBaseId = String(options?.knowledgeBaseId || "").trim();
+        const fileId = String(options?.fileId || "").trim();
+        if (!knowledgeBaseId || !fileId) {
+          throw new BadRequestException("请提供 knowledgeBaseId 和 fileId");
+        }
+        await this.authService.assertBrandPermission(brandId, "brandGrowth.library.businessAssets", "view", auth);
+        const result = await this.brandsService.getBusinessKnowledgeBaseFileDetail(brandId, knowledgeBaseId, fileId);
+        return this.buildManagedOperationResponse({
+          title: "知识库文件详情",
+          action,
+          data: result,
+          url: "/brand-growth/business-assets",
+          label: "打开业务资产",
+          resourceKind: "knowledge_base",
+        });
+      }
+      case "delete_knowledge_base_file": {
+        const knowledgeBaseId = String(options?.knowledgeBaseId || "").trim();
+        const fileId = String(options?.fileId || "").trim();
+        if (!knowledgeBaseId || !fileId) {
+          throw new BadRequestException("请提供 knowledgeBaseId 和 fileId");
+        }
+        await this.authService.assertBrandPermission(brandId, "brandGrowth.library.businessAssets", "edit", auth);
+        const result = await this.brandsService.deleteBusinessKnowledgeBaseFile(brandId, knowledgeBaseId, fileId);
+        return this.buildManagedOperationResponse({
+          title: "知识库文件已删除",
+          action,
+          data: result,
+          url: "/brand-growth/business-assets",
+          label: "打开业务资产",
+          resourceKind: "knowledge_base",
+        });
+      }
+      case "upsert_feishu_binding": {
+        await this.authService.assertBrandPermission(brandId, "brandGrowth.collection.xiaohongshuCollection", "edit", auth);
+        const result = await this.brandsService.upsertFeishuBinding(
+          brandId,
+          payload as Parameters<BrandsService["upsertFeishuBinding"]>[1],
+        );
+        return this.buildManagedOperationResponse({
+          title: "飞书绑定已更新",
+          action,
+          data: result,
+          url: "/brand-growth",
+          label: "打开品牌增长工作台",
+          resourceKind: "brand_archive",
+        });
+      }
+      default:
+        throw new BadRequestException(`不支持的 manage_brand_library action: ${action}`);
+    }
+  }
+
+  async manageGrowthReports(
+    headers: HeadersMap,
+    options?: {
+      action?: string;
+      reportId?: string;
+      selectedDate?: string;
+      payload?: Record<string, unknown>;
+    },
+  ) {
+    const action = String(options?.action || "").trim().toLowerCase();
+    const payload = options?.payload ?? {};
+    if (!action) {
+      throw new BadRequestException("请提供 action");
+    }
+
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+
+    switch (action) {
+      case "get_growth_workspace": {
+        await this.authService.assertBrandPermission(brandId, "brandGrowth.report.growthReport", "view", auth);
+        const result = await this.reportsService.getGrowthReportWorkspace(brandId);
+        return this.buildManagedOperationResponse({
+          title: "品牌增长报告工作区",
+          action,
+          data: result,
+          url: "/brand-growth/reports",
+          label: "打开品牌增长报告",
+          resourceKind: "report",
+        });
+      }
+      case "generate_growth_report":
+        return this.createBrandGrowthReport(headers);
+      case "update_growth_report": {
+        const reportId = String(options?.reportId || "").trim();
+        if (!reportId) {
+          throw new BadRequestException("请提供 reportId");
+        }
+        await this.authService.assertBrandPermission(brandId, "brandGrowth.report.growthReport", "edit", auth);
+        const result = await this.reportsService.updateGrowthReport(
+          brandId,
+          reportId,
+          payload as Parameters<ReportsService["updateGrowthReport"]>[2],
+        );
+        return this.buildManagedOperationResponse({
+          title: "品牌增长报告已更新",
+          action,
+          data: result,
+          url: "/brand-growth/reports",
+          label: "打开品牌增长报告",
+          resourceKind: "report",
+        });
+      }
+      case "get_visual_growth_workspace": {
+        await this.authService.assertBrandPermission(brandId, "brandGrowth.report.visualGrowthReport", "view", auth);
+        const result = await this.reportsService.getVisualGrowthReportWorkspace(brandId);
+        return this.buildManagedOperationResponse({
+          title: "可视化增长报告工作区",
+          action,
+          data: result,
+          url: "/brand-growth/reports",
+          label: "打开品牌增长报告",
+          resourceKind: "report",
+        });
+      }
+      case "generate_visual_growth_report": {
+        await this.authService.assertBrandPermission(brandId, "brandGrowth.report.visualGrowthReport", "edit", auth);
+        const result = await this.reportsService.generateVisualGrowthReport(brandId);
+        return this.buildManagedOperationResponse({
+          title: "可视化增长报告已触发",
+          action,
+          data: result,
+          url: "/brand-growth/reports",
+          label: "打开品牌增长报告",
+          resultStatus: "IN_PROGRESS",
+          resourceKind: "report",
+        });
+      }
+      case "update_visual_growth_report": {
+        const reportId = String(options?.reportId || "").trim();
+        if (!reportId) {
+          throw new BadRequestException("请提供 reportId");
+        }
+        await this.authService.assertBrandPermission(brandId, "brandGrowth.report.visualGrowthReport", "edit", auth);
+        const result = await this.reportsService.updateVisualGrowthReport(
+          brandId,
+          reportId,
+          payload as Parameters<ReportsService["updateVisualGrowthReport"]>[2],
+        );
+        return this.buildManagedOperationResponse({
+          title: "可视化增长报告已更新",
+          action,
+          data: result,
+          url: "/brand-growth/reports",
+          label: "打开品牌增长报告",
+          resourceKind: "report",
+        });
+      }
+      case "get_half_year_workspace": {
+        await this.authService.assertBrandPermission(brandId, "brandGrowth.report.halfYearMarketingPlan", "view", auth);
+        const result = await this.reportsService.getAnnualMarketingPlanWorkspace(brandId);
+        return this.buildManagedOperationResponse({
+          title: "半年营销规划工作区",
+          action,
+          data: result,
+          url: "/brand-growth/half-year-marketing-plan",
+          label: "打开半年营销规划",
+          resourceKind: "report",
+        });
+      }
+      case "generate_half_year_marketing_plan":
+        return this.createHalfYearMarketingPlan(headers, {
+          planningYear: typeof payload.planningYear === "string" ? payload.planningYear : undefined,
+          focus: typeof payload.focus === "string" ? payload.focus : undefined,
+        });
+      case "get_xiaohongshu_marketing_plan_workspace": {
+        await this.authService.assertBrandPermission(brandId, "xiaohongshu.plan", "view", auth);
+        const result = await this.reportsService.getXiaohongshuMarketingPlanWorkspace(brandId);
+        return this.buildManagedOperationResponse({
+          title: "小红书营销策划工作区",
+          action,
+          data: result,
+          url: "/xiaohongshu",
+          label: "打开小红书工作区",
+          resourceKind: "report",
+        });
+      }
+      case "generate_xiaohongshu_marketing_plan": {
+        await this.authService.assertBrandPermission(brandId, "xiaohongshu.plan", "edit", auth);
+        const result = await this.reportsService.generateXiaohongshuMarketingPlan(
+          brandId,
+          payload as Parameters<ReportsService["generateXiaohongshuMarketingPlan"]>[1],
+        );
+        return this.buildManagedOperationResponse({
+          title: "小红书营销策划已触发",
+          action,
+          data: result,
+          url: "/xiaohongshu",
+          label: "打开小红书工作区",
+          resultStatus: "IN_PROGRESS",
+          resourceKind: "report",
+        });
+      }
+      case "update_xiaohongshu_marketing_plan": {
+        const reportId = String(options?.reportId || "").trim();
+        if (!reportId) {
+          throw new BadRequestException("请提供 reportId");
+        }
+        await this.authService.assertBrandPermission(brandId, "xiaohongshu.plan", "edit", auth);
+        const result = await this.reportsService.updateXiaohongshuMarketingPlan(
+          brandId,
+          reportId,
+          payload as Parameters<ReportsService["updateXiaohongshuMarketingPlan"]>[2],
+        );
+        return this.buildManagedOperationResponse({
+          title: "小红书营销策划已更新",
+          action,
+          data: result,
+          url: "/xiaohongshu",
+          label: "打开小红书工作区",
+          resourceKind: "report",
+        });
+      }
+      case "delete_xiaohongshu_marketing_plan": {
+        const reportId = String(options?.reportId || "").trim();
+        if (!reportId) {
+          throw new BadRequestException("请提供 reportId");
+        }
+        await this.authService.assertBrandPermission(brandId, "xiaohongshu.plan", "edit", auth);
+        const result = await this.reportsService.deleteXiaohongshuMarketingPlan(brandId, reportId);
+        return this.buildManagedOperationResponse({
+          title: "小红书营销策划已删除",
+          action,
+          data: result,
+          url: "/xiaohongshu",
+          label: "打开小红书工作区",
+          resourceKind: "report",
+        });
+      }
+      case "get_douyin_marketing_plan_workspace": {
+        await this.authService.assertBrandPermission(brandId, "douyin.plan", "view", auth);
+        const result = await this.reportsService.getDouyinMarketingPlanWorkspace(brandId);
+        return this.buildManagedOperationResponse({
+          title: "抖音营销策划工作区",
+          action,
+          data: result,
+          url: "/douyin",
+          label: "打开抖音工作台",
+          resourceKind: "report",
+        });
+      }
+      case "generate_douyin_marketing_plan": {
+        await this.authService.assertBrandPermission(brandId, "douyin.plan", "edit", auth);
+        const result = await this.reportsService.generateDouyinMarketingPlan(
+          brandId,
+          payload as Parameters<ReportsService["generateDouyinMarketingPlan"]>[1],
+        );
+        return this.buildManagedOperationResponse({
+          title: "抖音营销策划已触发",
+          action,
+          data: result,
+          url: "/douyin",
+          label: "打开抖音工作台",
+          resultStatus: "IN_PROGRESS",
+          resourceKind: "report",
+        });
+      }
+      case "update_douyin_marketing_plan": {
+        const reportId = String(options?.reportId || "").trim();
+        if (!reportId) {
+          throw new BadRequestException("请提供 reportId");
+        }
+        await this.authService.assertBrandPermission(brandId, "douyin.plan", "edit", auth);
+        const result = await this.reportsService.updateDouyinMarketingPlan(
+          brandId,
+          reportId,
+          payload as Parameters<ReportsService["updateDouyinMarketingPlan"]>[2],
+        );
+        return this.buildManagedOperationResponse({
+          title: "抖音营销策划已更新",
+          action,
+          data: result,
+          url: "/douyin",
+          label: "打开抖音工作台",
+          resourceKind: "report",
+        });
+      }
+      case "delete_douyin_marketing_plan": {
+        const reportId = String(options?.reportId || "").trim();
+        if (!reportId) {
+          throw new BadRequestException("请提供 reportId");
+        }
+        await this.authService.assertBrandPermission(brandId, "douyin.plan", "edit", auth);
+        const result = await this.reportsService.deleteDouyinMarketingPlan(brandId, reportId);
+        return this.buildManagedOperationResponse({
+          title: "抖音营销策划已删除",
+          action,
+          data: result,
+          url: "/douyin",
+          label: "打开抖音工作台",
+          resourceKind: "report",
+        });
+      }
+      case "get_douyin_hot_topic_candidates_workspace": {
+        await this.authService.assertBrandPermission(brandId, "douyin.hotTopics", "view", auth);
+        const result = await this.reportsService.getDouyinHotTopicCandidatesWorkspace(
+          brandId,
+          String(options?.selectedDate || "").trim() || undefined,
+        );
+        return this.buildManagedOperationResponse({
+          title: "抖音热点选题候选工作区",
+          action,
+          data: result,
+          url: "/douyin",
+          label: "打开抖音工作台",
+          resourceKind: "report",
+        });
+      }
+      case "generate_douyin_hot_topic_candidates": {
+        await this.authService.assertBrandPermission(brandId, "douyin.hotTopics", "edit", auth);
+        const result = await this.reportsService.generateDouyinHotTopicCandidates(
+          brandId,
+          String(options?.selectedDate || payload.selectedDate || "").trim() || undefined,
+        );
+        return this.buildManagedOperationResponse({
+          title: "抖音热点选题已触发",
+          action,
+          data: result,
+          url: "/douyin",
+          label: "打开抖音工作台",
+          resultStatus: "IN_PROGRESS",
+          resourceKind: "report",
+        });
+      }
+      case "update_douyin_topic_library": {
+        await this.authService.assertBrandPermission(brandId, "douyin.topicLibrary", "edit", auth);
+        const result = await this.reportsService.updateDouyinTopicLibrary(
+          brandId,
+          payload as Parameters<ReportsService["updateDouyinTopicLibrary"]>[1],
+        );
+        return this.buildManagedOperationResponse({
+          title: "抖音选题库已更新",
+          action,
+          data: result,
+          url: "/douyin",
+          label: "打开抖音工作台",
+          resourceKind: "report",
+        });
+      }
+      case "get_xiaohongshu_marketing_calendar_workspace": {
+        await this.authService.assertBrandPermission(brandId, "xiaohongshu.calendar", "view", auth);
+        const result = await this.reportsService.getXiaohongshuMarketingCalendarWorkspace(brandId);
+        return this.buildManagedOperationResponse({
+          title: "小红书营销日历工作区",
+          action,
+          data: result,
+          url: "/xiaohongshu",
+          label: "打开小红书工作区",
+          resourceKind: "report",
+        });
+      }
+      case "generate_xiaohongshu_marketing_calendar": {
+        await this.authService.assertBrandPermission(brandId, "xiaohongshu.calendar", "edit", auth);
+        const result = await this.reportsService.generateXiaohongshuMarketingCalendar(
+          brandId,
+          payload as Parameters<ReportsService["generateXiaohongshuMarketingCalendar"]>[1],
+        );
+        return this.buildManagedOperationResponse({
+          title: "小红书营销日历已触发",
+          action,
+          data: result,
+          url: "/xiaohongshu",
+          label: "打开小红书工作区",
+          resultStatus: "IN_PROGRESS",
+          resourceKind: "report",
+        });
+      }
+      case "update_xiaohongshu_marketing_calendar": {
+        const reportId = String(options?.reportId || "").trim();
+        if (!reportId) {
+          throw new BadRequestException("请提供 reportId");
+        }
+        await this.authService.assertBrandPermission(brandId, "xiaohongshu.calendar", "edit", auth);
+        const result = await this.reportsService.updateXiaohongshuMarketingCalendar(
+          brandId,
+          reportId,
+          payload as Parameters<ReportsService["updateXiaohongshuMarketingCalendar"]>[2],
+        );
+        return this.buildManagedOperationResponse({
+          title: "小红书营销日历已更新",
+          action,
+          data: result,
+          url: "/xiaohongshu",
+          label: "打开小红书工作区",
+          resourceKind: "report",
+        });
+      }
+      default:
+        throw new BadRequestException(`不支持的 manage_growth_reports action: ${action}`);
+    }
+  }
+
+  async manageXiaohongshuVideo(
+    headers: HeadersMap,
+    options?: {
+      action?: string;
+      workId?: string;
+      payload?: Record<string, unknown>;
+    },
+  ) {
+    const action = String(options?.action || "").trim().toLowerCase();
+    const payload = options?.payload ?? {};
+    if (!action) {
+      throw new BadRequestException("请提供 action");
+    }
+
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+
+    switch (action) {
+      case "list_works": {
+        await this.authService.assertBrandPermission(brandId, "xiaohongshu.video", "view", auth);
+        const result = await this.worksService.listXiaohongshuVideoWorks(brandId);
+        return this.buildManagedOperationResponse({
+          title: "小红书视频笔记列表",
+          action,
+          data: result,
+          url: "/xiaohongshu",
+          label: "打开小红书工作区",
+          resourceKind: "xiaohongshu",
+        });
+      }
+      case "list_providers": {
+        await this.authService.assertBrandPermission(brandId, "xiaohongshu.video", "view", auth);
+        const result = await this.worksService.listXiaohongshuVideoProviderOptions();
+        return this.buildManagedOperationResponse({
+          title: "小红书视频模型选项",
+          action,
+          data: result,
+          url: "/xiaohongshu",
+          label: "打开小红书工作区",
+          resourceKind: "xiaohongshu",
+        });
+      }
+      case "list_storyboard_image_providers": {
+        await this.authService.assertBrandPermission(brandId, "xiaohongshu.video", "view", auth);
+        const result = await this.worksService.listXiaohongshuVideoStoryboardImageOptions();
+        return this.buildManagedOperationResponse({
+          title: "小红书故事板生图模型选项",
+          action,
+          data: result,
+          url: "/xiaohongshu",
+          label: "打开小红书工作区",
+          resourceKind: "xiaohongshu",
+        });
+      }
+      case "generate": {
+        await this.authService.assertBrandPermission(brandId, "xiaohongshu.video", "edit", auth);
+        const result = await this.worksService.generateXiaohongshuVideoNote(
+          brandId,
+          payload as Parameters<WorksService["generateXiaohongshuVideoNote"]>[1],
+          auth,
+        );
+        return this.buildManagedOperationResponse({
+          title: "小红书视频笔记已触发",
+          action,
+          data: result,
+          url: "/xiaohongshu",
+          label: "打开小红书工作区",
+          resultStatus: "IN_PROGRESS",
+          resourceKind: "xiaohongshu",
+        });
+      }
+      case "regenerate_storyboard": {
+        const workId = String(options?.workId || "").trim();
+        if (!workId) {
+          throw new BadRequestException("请提供 workId");
+        }
+        await this.authService.assertBrandPermission(brandId, "xiaohongshu.video", "edit", auth);
+        const result = await this.worksService.regenerateXiaohongshuVideoStoryboard(
+          brandId,
+          workId,
+          payload as Parameters<WorksService["regenerateXiaohongshuVideoStoryboard"]>[2],
+        );
+        return this.buildManagedOperationResponse({
+          title: "小红书故事板重生已触发",
+          action,
+          data: result,
+          url: "/xiaohongshu",
+          label: "打开小红书工作区",
+          resultStatus: "IN_PROGRESS",
+          resourceKind: "xiaohongshu",
+        });
+      }
+      case "continue_video": {
+        const workId = String(options?.workId || "").trim();
+        if (!workId) {
+          throw new BadRequestException("请提供 workId");
+        }
+        await this.authService.assertBrandPermission(brandId, "xiaohongshu.video", "edit", auth);
+        const result = await this.worksService.continueXiaohongshuVideoGeneration(
+          brandId,
+          workId,
+          payload as Parameters<WorksService["continueXiaohongshuVideoGeneration"]>[2],
+        );
+        return this.buildManagedOperationResponse({
+          title: "小红书视频继续生成已触发",
+          action,
+          data: result,
+          url: "/xiaohongshu",
+          label: "打开小红书工作区",
+          resultStatus: "IN_PROGRESS",
+          resourceKind: "xiaohongshu",
+        });
+      }
+      case "recover": {
+        await this.authService.assertBrandPermission(brandId, "xiaohongshu.video", "edit", auth);
+        const result = await this.worksService.recoverXiaohongshuVideoGeneration(
+          brandId,
+          payload as Parameters<WorksService["recoverXiaohongshuVideoGeneration"]>[1],
+        );
+        return this.buildManagedOperationResponse({
+          title: "小红书视频找回已触发",
+          action,
+          data: result,
+          url: "/xiaohongshu",
+          label: "打开小红书工作区",
+          resultStatus: "IN_PROGRESS",
+          resourceKind: "xiaohongshu",
+        });
+      }
+      case "update": {
+        const workId = String(options?.workId || "").trim();
+        if (!workId) {
+          throw new BadRequestException("请提供 workId");
+        }
+        await this.authService.assertBrandPermission(brandId, "xiaohongshu.video", "edit", auth);
+        const result = await this.worksService.updateXiaohongshuVideoNote(
+          brandId,
+          workId,
+          payload as Parameters<WorksService["updateXiaohongshuVideoNote"]>[2],
+        );
+        return this.buildManagedOperationResponse({
+          title: "小红书视频笔记已更新",
+          action,
+          data: result,
+          url: "/xiaohongshu",
+          label: "打开小红书工作区",
+          resourceKind: "xiaohongshu",
+        });
+      }
+      case "delete": {
+        const workId = String(options?.workId || "").trim();
+        if (!workId) {
+          throw new BadRequestException("请提供 workId");
+        }
+        await this.authService.assertBrandPermission(brandId, "xiaohongshu.video", "edit", auth);
+        const result = await this.worksService.deleteXiaohongshuVideoNote(brandId, workId);
+        return this.buildManagedOperationResponse({
+          title: "小红书视频笔记已删除",
+          action,
+          data: result,
+          url: "/xiaohongshu",
+          label: "打开小红书工作区",
+          resourceKind: "xiaohongshu",
+        });
+      }
+      default:
+        throw new BadRequestException(`不支持的 manage_xiaohongshu_video action: ${action}`);
+    }
+  }
+
+  async manageDouyinVideoProduction(
+    headers: HeadersMap,
+    options?: {
+      section?: string;
+      action?: string;
+      workId?: string;
+      taskId?: string;
+      voiceId?: string;
+      templateId?: string;
+      customPersonId?: string;
+      appKey?: string;
+      mediaAssetId?: string;
+      limit?: number;
+      page?: number;
+      size?: number;
+      sort?: string;
+      tagIds?: number[];
+      payload?: Record<string, unknown>;
+    },
+  ) {
+    const section = String(options?.section || "").trim().toLowerCase();
+    const action = String(options?.action || "").trim().toLowerCase();
+    const payload = options?.payload ?? {};
+    if (!section || !action) {
+      throw new BadRequestException("请提供 section 和 action");
+    }
+
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    const tagIds = Array.isArray(options?.tagIds)
+      ? options?.tagIds.map((item) => Number(item)).filter((item) => Number.isFinite(item) && item > 0)
+      : [];
+
+    switch (`${section}:${action}`) {
+      case "video:list_works": {
+        await this.authService.assertBrandPermission(brandId, "douyin.video", "view", auth);
+        const result = await this.worksService.listDouyinVideoWorks(brandId);
+        return this.buildManagedOperationResponse({
+          title: "抖音视频列表",
+          action: `${section}:${action}`,
+          data: result,
+          url: "/douyin",
+          label: "打开抖音工作台",
+          resourceKind: "douyin",
+        });
+      }
+      case "video:list_providers": {
+        await this.authService.assertBrandPermission(brandId, "douyin.video", "view", auth);
+        const result = await this.worksService.listDouyinVideoProviderOptions();
+        return this.buildManagedOperationResponse({
+          title: "抖音视频模型选项",
+          action: `${section}:${action}`,
+          data: result,
+          url: "/douyin",
+          label: "打开抖音工作台",
+          resourceKind: "douyin",
+        });
+      }
+      case "video:list_storyboard_image_providers": {
+        await this.authService.assertBrandPermission(brandId, "douyin.video", "view", auth);
+        const result = await this.worksService.listDouyinVideoStoryboardImageOptions();
+        return this.buildManagedOperationResponse({
+          title: "抖音故事板生图模型选项",
+          action: `${section}:${action}`,
+          data: result,
+          url: "/douyin",
+          label: "打开抖音工作台",
+          resourceKind: "douyin",
+        });
+      }
+      case "video:generate": {
+        await this.authService.assertBrandPermission(brandId, "douyin.video", "edit", auth);
+        const result = await this.worksService.generateDouyinVideoNote(
+          brandId,
+          payload as Parameters<WorksService["generateDouyinVideoNote"]>[1],
+          auth,
+        );
+        return this.buildManagedOperationResponse({
+          title: "抖音视频已触发",
+          action: `${section}:${action}`,
+          data: result,
+          url: "/douyin",
+          label: "打开抖音工作台",
+          resultStatus: "IN_PROGRESS",
+          resourceKind: "douyin",
+        });
+      }
+      case "video:regenerate_storyboard": {
+        const workId = String(options?.workId || "").trim();
+        if (!workId) {
+          throw new BadRequestException("请提供 workId");
+        }
+        await this.authService.assertBrandPermission(brandId, "douyin.video", "edit", auth);
+        const result = await this.worksService.regenerateDouyinVideoStoryboard(
+          brandId,
+          workId,
+          payload as Parameters<WorksService["regenerateDouyinVideoStoryboard"]>[2],
+        );
+        return this.buildManagedOperationResponse({
+          title: "抖音故事板重生已触发",
+          action: `${section}:${action}`,
+          data: result,
+          url: "/douyin",
+          label: "打开抖音工作台",
+          resultStatus: "IN_PROGRESS",
+          resourceKind: "douyin",
+        });
+      }
+      case "video:continue_video": {
+        const workId = String(options?.workId || "").trim();
+        if (!workId) {
+          throw new BadRequestException("请提供 workId");
+        }
+        await this.authService.assertBrandPermission(brandId, "douyin.video", "edit", auth);
+        const result = await this.worksService.continueDouyinVideoGeneration(
+          brandId,
+          workId,
+          payload as Parameters<WorksService["continueDouyinVideoGeneration"]>[2],
+        );
+        return this.buildManagedOperationResponse({
+          title: "抖音视频继续生成已触发",
+          action: `${section}:${action}`,
+          data: result,
+          url: "/douyin",
+          label: "打开抖音工作台",
+          resultStatus: "IN_PROGRESS",
+          resourceKind: "douyin",
+        });
+      }
+      case "video:recover": {
+        await this.authService.assertBrandPermission(brandId, "douyin.video", "edit", auth);
+        const result = await this.worksService.recoverDouyinVideoGeneration(
+          brandId,
+          payload as Parameters<WorksService["recoverDouyinVideoGeneration"]>[1],
+        );
+        return this.buildManagedOperationResponse({
+          title: "抖音视频找回已触发",
+          action: `${section}:${action}`,
+          data: result,
+          url: "/douyin",
+          label: "打开抖音工作台",
+          resultStatus: "IN_PROGRESS",
+          resourceKind: "douyin",
+        });
+      }
+      case "video:update": {
+        const workId = String(options?.workId || "").trim();
+        if (!workId) {
+          throw new BadRequestException("请提供 workId");
+        }
+        await this.authService.assertBrandPermission(brandId, "douyin.video", "edit", auth);
+        const result = await this.worksService.updateDouyinVideoNote(
+          brandId,
+          workId,
+          payload as Parameters<WorksService["updateDouyinVideoNote"]>[2],
+        );
+        return this.buildManagedOperationResponse({
+          title: "抖音视频已更新",
+          action: `${section}:${action}`,
+          data: result,
+          url: "/douyin",
+          label: "打开抖音工作台",
+          resourceKind: "douyin",
+        });
+      }
+      case "video:delete": {
+        const workId = String(options?.workId || "").trim();
+        if (!workId) {
+          throw new BadRequestException("请提供 workId");
+        }
+        await this.authService.assertBrandPermission(brandId, "douyin.video", "edit", auth);
+        const result = await this.worksService.deleteDouyinVideoNote(brandId, workId);
+        return this.buildManagedOperationResponse({
+          title: "抖音视频已删除",
+          action: `${section}:${action}`,
+          data: result,
+          url: "/douyin",
+          label: "打开抖音工作台",
+          resourceKind: "douyin",
+        });
+      }
+      case "direct_video:list_works": {
+        await this.authService.assertBrandPermission(brandId, "douyin.videoDirect", "view", auth);
+        const result = await this.worksService.listDouyinDirectVideoWorks(brandId);
+        return this.buildManagedOperationResponse({
+          title: "抖音直接生视频列表",
+          action: `${section}:${action}`,
+          data: result,
+          url: "/douyin",
+          label: "打开抖音工作台",
+          resourceKind: "douyin",
+        });
+      }
+      case "direct_video:list_providers": {
+        await this.authService.assertBrandPermission(brandId, "douyin.videoDirect", "view", auth);
+        const result = await this.worksService.listDouyinDirectVideoProviderOptions();
+        return this.buildManagedOperationResponse({
+          title: "抖音直接生视频模型选项",
+          action: `${section}:${action}`,
+          data: result,
+          url: "/douyin",
+          label: "打开抖音工作台",
+          resourceKind: "douyin",
+        });
+      }
+      case "direct_video:generate": {
+        await this.authService.assertBrandPermission(brandId, "douyin.videoDirect", "edit", auth);
+        const result = await this.worksService.generateDouyinDirectVideo(
+          brandId,
+          payload as Parameters<WorksService["generateDouyinDirectVideo"]>[1],
+          auth,
+        );
+        return this.buildManagedOperationResponse({
+          title: "抖音直接生视频已触发",
+          action: `${section}:${action}`,
+          data: result,
+          url: "/douyin",
+          label: "打开抖音工作台",
+          resultStatus: "IN_PROGRESS",
+          resourceKind: "douyin",
+        });
+      }
+      case "direct_video:continue_video": {
+        const workId = String(options?.workId || "").trim();
+        if (!workId) {
+          throw new BadRequestException("请提供 workId");
+        }
+        await this.authService.assertBrandPermission(brandId, "douyin.videoDirect", "edit", auth);
+        const result = await this.worksService.continueDouyinDirectVideoGeneration(
+          brandId,
+          workId,
+          payload as Parameters<WorksService["continueDouyinDirectVideoGeneration"]>[2],
+        );
+        return this.buildManagedOperationResponse({
+          title: "抖音直接生视频继续生成已触发",
+          action: `${section}:${action}`,
+          data: result,
+          url: "/douyin",
+          label: "打开抖音工作台",
+          resultStatus: "IN_PROGRESS",
+          resourceKind: "douyin",
+        });
+      }
+      case "direct_video:recover": {
+        await this.authService.assertBrandPermission(brandId, "douyin.videoDirect", "edit", auth);
+        const result = await this.worksService.recoverDouyinDirectVideoGeneration(
+          brandId,
+          payload as Parameters<WorksService["recoverDouyinDirectVideoGeneration"]>[1],
+        );
+        return this.buildManagedOperationResponse({
+          title: "抖音直接生视频找回已触发",
+          action: `${section}:${action}`,
+          data: result,
+          url: "/douyin",
+          label: "打开抖音工作台",
+          resultStatus: "IN_PROGRESS",
+          resourceKind: "douyin",
+        });
+      }
+      case "direct_video:update": {
+        const workId = String(options?.workId || "").trim();
+        if (!workId) {
+          throw new BadRequestException("请提供 workId");
+        }
+        await this.authService.assertBrandPermission(brandId, "douyin.videoDirect", "edit", auth);
+        const result = await this.worksService.updateDouyinDirectVideo(
+          brandId,
+          workId,
+          payload as Parameters<WorksService["updateDouyinDirectVideo"]>[2],
+        );
+        return this.buildManagedOperationResponse({
+          title: "抖音直接生视频已更新",
+          action: `${section}:${action}`,
+          data: result,
+          url: "/douyin",
+          label: "打开抖音工作台",
+          resourceKind: "douyin",
+        });
+      }
+      case "direct_video:delete": {
+        const workId = String(options?.workId || "").trim();
+        if (!workId) {
+          throw new BadRequestException("请提供 workId");
+        }
+        await this.authService.assertBrandPermission(brandId, "douyin.videoDirect", "edit", auth);
+        const result = await this.worksService.deleteDouyinDirectVideo(brandId, workId);
+        return this.buildManagedOperationResponse({
+          title: "抖音直接生视频已删除",
+          action: `${section}:${action}`,
+          data: result,
+          url: "/douyin",
+          label: "打开抖音工作台",
+          resourceKind: "douyin",
+        });
+      }
+      case "remix_short_video:list_works": {
+        await this.authService.assertBrandPermission(brandId, "douyin.remixShortVideo", "view", auth);
+        const result = await this.worksService.listDouyinRemixShortVideoWorks(brandId);
+        return this.buildManagedOperationResponse({
+          title: "抖音混剪短视频列表",
+          action: `${section}:${action}`,
+          data: result,
+          url: "/douyin",
+          label: "打开抖音工作台",
+          resourceKind: "douyin",
+        });
+      }
+      case "remix_short_video:generate": {
+        await this.authService.assertBrandPermission(brandId, "douyin.remixShortVideo", "edit", auth);
+        const result = await this.worksService.generateDouyinRemixShortVideo(
+          brandId,
+          payload as Parameters<WorksService["generateDouyinRemixShortVideo"]>[1],
+          auth,
+        );
+        return this.buildManagedOperationResponse({
+          title: "抖音混剪短视频已触发",
+          action: `${section}:${action}`,
+          data: result,
+          url: "/douyin",
+          label: "打开抖音工作台",
+          resultStatus: "IN_PROGRESS",
+          resourceKind: "douyin",
+        });
+      }
+      case "remix_short_video:continue_video": {
+        const workId = String(options?.workId || "").trim();
+        if (!workId) {
+          throw new BadRequestException("请提供 workId");
+        }
+        await this.authService.assertBrandPermission(brandId, "douyin.remixShortVideo", "edit", auth);
+        const result = await this.worksService.continueDouyinRemixShortVideoGeneration(
+          brandId,
+          workId,
+          payload as Parameters<WorksService["continueDouyinRemixShortVideoGeneration"]>[2],
+        );
+        return this.buildManagedOperationResponse({
+          title: "抖音混剪短视频继续生成已触发",
+          action: `${section}:${action}`,
+          data: result,
+          url: "/douyin",
+          label: "打开抖音工作台",
+          resultStatus: "IN_PROGRESS",
+          resourceKind: "douyin",
+        });
+      }
+      case "remix_short_video:delete": {
+        const workId = String(options?.workId || "").trim();
+        if (!workId) {
+          throw new BadRequestException("请提供 workId");
+        }
+        await this.authService.assertBrandPermission(brandId, "douyin.remixShortVideo", "edit", auth);
+        const result = await this.worksService.deleteDouyinRemixShortVideo(brandId, workId);
+        return this.buildManagedOperationResponse({
+          title: "抖音混剪短视频已删除",
+          action: `${section}:${action}`,
+          data: result,
+          url: "/douyin",
+          label: "打开抖音工作台",
+          resourceKind: "douyin",
+        });
+      }
+      case "digital_human:list_template_tags": {
+        await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "view", auth);
+        const result = await this.worksService.listDouyinDigitalHumanTemplateTags(brandId);
+        return this.buildManagedOperationResponse({
+          title: "数字人模板标签列表",
+          action: `${section}:${action}`,
+          data: result,
+          url: "/douyin",
+          label: "打开数字人工作区",
+          resourceKind: "douyin",
+        });
+      }
+      case "digital_human:list_templates": {
+        await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "view", auth);
+        const result = await this.worksService.listDouyinDigitalHumanTemplates(brandId, {
+          page: Number(options?.page || 1) || 1,
+          size: Number(options?.size || 24) || 24,
+          sort: String(options?.sort || "").trim() || undefined,
+          tagIds,
+        });
+        return this.buildManagedOperationResponse({
+          title: "数字人模板列表",
+          action: `${section}:${action}`,
+          data: result,
+          url: "/douyin",
+          label: "打开数字人工作区",
+          resourceKind: "douyin",
+        });
+      }
+      case "digital_human:list_voice_library": {
+        await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "view", auth);
+        const result = await this.worksService.listDouyinVoiceLibrary(brandId, {
+          page: Number(options?.page || 1) || 1,
+          size: Number(options?.size || 24) || 24,
+        });
+        return this.buildManagedOperationResponse({
+          title: "数字人公共音色列表",
+          action: `${section}:${action}`,
+          data: result,
+          url: "/douyin",
+          label: "打开数字人工作区",
+          resourceKind: "douyin",
+        });
+      }
+      case "digital_human:list_custom_voices": {
+        await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "view", auth);
+        const result = await this.worksService.listDouyinCustomVoices(brandId, {
+          page: Number(options?.page || 1) || 1,
+          pageSize: Number(options?.size || 24) || 24,
+        });
+        return this.buildManagedOperationResponse({
+          title: "我的数字人音色列表",
+          action: `${section}:${action}`,
+          data: result,
+          url: "/douyin",
+          label: "打开数字人工作区",
+          resourceKind: "douyin",
+        });
+      }
+      case "digital_human:create_custom_voice": {
+        await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "edit", auth);
+        const result = await this.worksService.createDouyinCustomVoice(
+          brandId,
+          payload as Parameters<WorksService["createDouyinCustomVoice"]>[1],
+          auth,
+        );
+        return this.buildManagedOperationResponse({
+          title: "数字人自定义音色已提交",
+          action: `${section}:${action}`,
+          data: result,
+          url: "/douyin",
+          label: "打开数字人工作区",
+          resultStatus: "IN_PROGRESS",
+          resourceKind: "douyin",
+        });
+      }
+      case "digital_human:delete_custom_voice": {
+        const voiceId = String(options?.voiceId || "").trim();
+        if (!voiceId) {
+          throw new BadRequestException("请提供 voiceId");
+        }
+        await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "edit", auth);
+        const result = await this.worksService.deleteDouyinCustomVoice(brandId, voiceId, auth);
+        return this.buildManagedOperationResponse({
+          title: "数字人自定义音色已删除",
+          action: `${section}:${action}`,
+          data: result,
+          url: "/douyin",
+          label: "打开数字人工作区",
+          resourceKind: "douyin",
+        });
+      }
+      case "digital_human:create_speech_task": {
+        await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "edit", auth);
+        const result = await this.worksService.createDouyinSpeechTask(
+          brandId,
+          payload as Parameters<WorksService["createDouyinSpeechTask"]>[1],
+          auth,
+        );
+        return this.buildManagedOperationResponse({
+          title: "数字人试听任务已提交",
+          action: `${section}:${action}`,
+          data: result,
+          url: "/douyin",
+          label: "打开数字人工作区",
+          resultStatus: "IN_PROGRESS",
+          resourceKind: "douyin",
+        });
+      }
+      case "digital_human:get_speech_task": {
+        const taskId = String(options?.taskId || "").trim();
+        if (!taskId) {
+          throw new BadRequestException("请提供 taskId");
+        }
+        await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "view", auth);
+        const result = await this.worksService.getDouyinSpeechTaskDetail(brandId, taskId);
+        return this.buildManagedOperationResponse({
+          title: "数字人试听任务详情",
+          action: `${section}:${action}`,
+          data: result,
+          url: "/douyin",
+          label: "打开数字人工作区",
+          resourceKind: "douyin",
+        });
+      }
+      case "digital_human:list_video_works": {
+        await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "view", auth);
+        const result = await this.worksService.listDouyinDigitalHumanVideoWorks(brandId);
+        return this.buildManagedOperationResponse({
+          title: "数字人作品列表",
+          action: `${section}:${action}`,
+          data: result,
+          url: "/douyin",
+          label: "打开数字人工作区",
+          resourceKind: "douyin",
+        });
+      }
+      case "digital_human:list_custom_persons": {
+        await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "view", auth);
+        const result = await this.worksService.listDouyinDigitalHumanCustomPersons(brandId);
+        return this.buildManagedOperationResponse({
+          title: "我的数字人列表",
+          action: `${section}:${action}`,
+          data: result,
+          url: "/douyin",
+          label: "打开数字人工作区",
+          resourceKind: "douyin",
+        });
+      }
+      case "digital_human:create_custom_person": {
+        await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "edit", auth);
+        const result = await this.worksService.createDouyinDigitalHumanCustomPerson(
+          brandId,
+          payload as Parameters<WorksService["createDouyinDigitalHumanCustomPerson"]>[1],
+          auth,
+        );
+        return this.buildManagedOperationResponse({
+          title: "我的数字人创建已提交",
+          action: `${section}:${action}`,
+          data: result,
+          url: "/douyin",
+          label: "打开数字人工作区",
+          resultStatus: "IN_PROGRESS",
+          resourceKind: "douyin",
+        });
+      }
+      case "digital_human:delete_custom_person": {
+        const customPersonId = String(options?.customPersonId || "").trim();
+        if (!customPersonId) {
+          throw new BadRequestException("请提供 customPersonId");
+        }
+        await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "edit", auth);
+        const result = await this.worksService.deleteDouyinDigitalHumanCustomPerson(brandId, customPersonId, auth);
+        return this.buildManagedOperationResponse({
+          title: "我的数字人已删除",
+          action: `${section}:${action}`,
+          data: result,
+          url: "/douyin",
+          label: "打开数字人工作区",
+          resourceKind: "douyin",
+        });
+      }
+      case "digital_human:list_favorites": {
+        await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "view", auth);
+        const result = await this.worksService.listDouyinDigitalHumanFavoriteTemplates(brandId, auth);
+        return this.buildManagedOperationResponse({
+          title: "数字人收藏模板列表",
+          action: `${section}:${action}`,
+          data: result,
+          url: "/douyin",
+          label: "打开数字人工作区",
+          resourceKind: "douyin",
+        });
+      }
+      case "digital_human:save_favorite": {
+        const templateId = String(options?.templateId || payload.templateId || "").trim();
+        if (!templateId) {
+          throw new BadRequestException("请提供 templateId");
+        }
+        await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "edit", auth);
+        const result = await this.worksService.saveDouyinDigitalHumanFavoriteTemplate(brandId, templateId, auth);
+        return this.buildManagedOperationResponse({
+          title: "数字人模板已收藏",
+          action: `${section}:${action}`,
+          data: result,
+          url: "/douyin",
+          label: "打开数字人工作区",
+          resourceKind: "douyin",
+        });
+      }
+      case "digital_human:delete_favorite": {
+        const templateId = String(options?.templateId || "").trim();
+        if (!templateId) {
+          throw new BadRequestException("请提供 templateId");
+        }
+        await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "edit", auth);
+        const result = await this.worksService.deleteDouyinDigitalHumanFavoriteTemplate(brandId, templateId, auth);
+        return this.buildManagedOperationResponse({
+          title: "数字人模板收藏已删除",
+          action: `${section}:${action}`,
+          data: result,
+          url: "/douyin",
+          label: "打开数字人工作区",
+          resourceKind: "douyin",
+        });
+      }
+      case "digital_human:list_script_templates": {
+        await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "view", auth);
+        const result = await this.worksService.listDouyinDigitalHumanScriptTemplates(brandId, auth);
+        return this.buildManagedOperationResponse({
+          title: "数字人脚本模板列表",
+          action: `${section}:${action}`,
+          data: result,
+          url: "/douyin",
+          label: "打开数字人工作区",
+          resourceKind: "douyin",
+        });
+      }
+      case "digital_human:create_script_template": {
+        await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "edit", auth);
+        const result = await this.worksService.createDouyinDigitalHumanScriptTemplate(
+          brandId,
+          payload as Parameters<WorksService["createDouyinDigitalHumanScriptTemplate"]>[1],
+          auth,
+        );
+        return this.buildManagedOperationResponse({
+          title: "数字人脚本模板已创建",
+          action: `${section}:${action}`,
+          data: result,
+          url: "/douyin",
+          label: "打开数字人工作区",
+          resourceKind: "douyin",
+        });
+      }
+      case "digital_human:update_script_template": {
+        const templateId = String(options?.templateId || "").trim();
+        if (!templateId) {
+          throw new BadRequestException("请提供 templateId");
+        }
+        await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "edit", auth);
+        const result = await this.worksService.updateDouyinDigitalHumanScriptTemplate(
+          brandId,
+          templateId,
+          payload as Parameters<WorksService["updateDouyinDigitalHumanScriptTemplate"]>[2],
+          auth,
+        );
+        return this.buildManagedOperationResponse({
+          title: "数字人脚本模板已更新",
+          action: `${section}:${action}`,
+          data: result,
+          url: "/douyin",
+          label: "打开数字人工作区",
+          resourceKind: "douyin",
+        });
+      }
+      case "digital_human:delete_script_template": {
+        const templateId = String(options?.templateId || "").trim();
+        if (!templateId) {
+          throw new BadRequestException("请提供 templateId");
+        }
+        await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "edit", auth);
+        const result = await this.worksService.deleteDouyinDigitalHumanScriptTemplate(brandId, templateId, auth);
+        return this.buildManagedOperationResponse({
+          title: "数字人脚本模板已删除",
+          action: `${section}:${action}`,
+          data: result,
+          url: "/douyin",
+          label: "打开数字人工作区",
+          resourceKind: "douyin",
+        });
+      }
+      case "digital_human:generate_script": {
+        await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "edit", auth);
+        const result = await this.worksService.generateDouyinDigitalHumanScript(
+          brandId,
+          payload as Parameters<WorksService["generateDouyinDigitalHumanScript"]>[1],
+        );
+        return this.buildManagedOperationResponse({
+          title: "数字人口播脚本已生成",
+          action: `${section}:${action}`,
+          data: result,
+          url: "/douyin",
+          label: "打开数字人工作区",
+          resourceKind: "douyin",
+        });
+      }
+      case "digital_human:generate_video": {
+        await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "edit", auth);
+        const result = await this.worksService.generateDouyinDigitalHumanVideo(
+          brandId,
+          payload as Parameters<WorksService["generateDouyinDigitalHumanVideo"]>[1],
+          auth,
+        );
+        return this.buildManagedOperationResponse({
+          title: "数字人视频已触发",
+          action: `${section}:${action}`,
+          data: result,
+          url: "/douyin",
+          label: "打开数字人工作区",
+          resultStatus: "IN_PROGRESS",
+          resourceKind: "douyin",
+        });
+      }
+      case "digital_human:generate_complete_video": {
+        await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "edit", auth);
+        const result = await this.worksService.generateDouyinDigitalHumanCompleteVideo(
+          brandId,
+          payload as Parameters<WorksService["generateDouyinDigitalHumanCompleteVideo"]>[1],
+          auth,
+        );
+        return this.buildManagedOperationResponse({
+          title: "数字人整片视频已触发",
+          action: `${section}:${action}`,
+          data: result,
+          url: "/douyin",
+          label: "打开数字人工作区",
+          resultStatus: "IN_PROGRESS",
+          resourceKind: "douyin",
+        });
+      }
+      case "digital_human:recover_video": {
+        await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "edit", auth);
+        const result = await this.worksService.recoverDouyinDigitalHumanVideo(
+          brandId,
+          payload as Parameters<WorksService["recoverDouyinDigitalHumanVideo"]>[1],
+        );
+        return this.buildManagedOperationResponse({
+          title: "数字人视频找回已触发",
+          action: `${section}:${action}`,
+          data: result,
+          url: "/douyin",
+          label: "打开数字人工作区",
+          resultStatus: "IN_PROGRESS",
+          resourceKind: "douyin",
+        });
+      }
+      case "digital_human:delete_video": {
+        const workId = String(options?.workId || "").trim();
+        if (!workId) {
+          throw new BadRequestException("请提供 workId");
+        }
+        await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "edit", auth);
+        const result = await this.worksService.deleteDouyinDigitalHumanVideo(brandId, workId);
+        return this.buildManagedOperationResponse({
+          title: "数字人视频已删除",
+          action: `${section}:${action}`,
+          data: result,
+          url: "/douyin",
+          label: "打开数字人工作区",
+          resourceKind: "douyin",
+        });
+      }
+      case "lip_sync:list_works": {
+        await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "view", auth);
+        const result = await this.worksService.listDouyinLipSyncWorks(brandId);
+        return this.buildManagedOperationResponse({
+          title: "数字人口型驱动列表",
+          action: `${section}:${action}`,
+          data: result,
+          url: "/douyin",
+          label: "打开数字人工作区",
+          resourceKind: "douyin",
+        });
+      }
+      case "lip_sync:generate": {
+        await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "edit", auth);
+        const result = await this.worksService.generateDouyinLipSync(
+          brandId,
+          payload as Parameters<WorksService["generateDouyinLipSync"]>[1],
+          auth,
+        );
+        return this.buildManagedOperationResponse({
+          title: "数字人口型驱动已触发",
+          action: `${section}:${action}`,
+          data: result,
+          url: "/douyin",
+          label: "打开数字人工作区",
+          resultStatus: "IN_PROGRESS",
+          resourceKind: "douyin",
+        });
+      }
+      case "lip_sync:recover": {
+        await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "edit", auth);
+        const result = await this.worksService.recoverDouyinLipSync(
+          brandId,
+          payload as Parameters<WorksService["recoverDouyinLipSync"]>[1],
+        );
+        return this.buildManagedOperationResponse({
+          title: "数字人口型驱动找回已触发",
+          action: `${section}:${action}`,
+          data: result,
+          url: "/douyin",
+          label: "打开数字人工作区",
+          resultStatus: "IN_PROGRESS",
+          resourceKind: "douyin",
+        });
+      }
+      case "lip_sync:delete": {
+        const workId = String(options?.workId || "").trim();
+        if (!workId) {
+          throw new BadRequestException("请提供 workId");
+        }
+        await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "edit", auth);
+        const result = await this.worksService.deleteDouyinLipSync(brandId, workId, auth);
+        return this.buildManagedOperationResponse({
+          title: "数字人口型驱动作品已删除",
+          action: `${section}:${action}`,
+          data: result,
+          url: "/douyin",
+          label: "打开数字人工作区",
+          resourceKind: "douyin",
+        });
+      }
+      case "runninghub:list_apps": {
+        await this.authService.assertBrandPermission(brandId, "douyin.runningHub", "view", auth);
+        const result = await this.worksService.listDouyinRunningHubApps(brandId);
+        return this.buildManagedOperationResponse({
+          title: "RunningHub 应用列表",
+          action: `${section}:${action}`,
+          data: result,
+          url: "/douyin",
+          label: "打开 RunningHub 工作台",
+          resourceKind: "douyin",
+        });
+      }
+      case "runninghub:get_app_detail": {
+        const appKey = String(options?.appKey || "").trim();
+        if (!appKey) {
+          throw new BadRequestException("请提供 appKey");
+        }
+        await this.authService.assertBrandPermission(brandId, "douyin.runningHub", "view", auth);
+        const result = await this.worksService.getDouyinRunningHubAppDetail(brandId, appKey);
+        return this.buildManagedOperationResponse({
+          title: "RunningHub 应用详情",
+          action: `${section}:${action}`,
+          data: result,
+          url: "/douyin",
+          label: "打开 RunningHub 工作台",
+          resourceKind: "douyin",
+        });
+      }
+      case "runninghub:list_works": {
+        await this.authService.assertBrandPermission(brandId, "douyin.runningHub", "view", auth);
+        const result = await this.worksService.listDouyinRunningHubWorks(brandId);
+        return this.buildManagedOperationResponse({
+          title: "RunningHub 作品列表",
+          action: `${section}:${action}`,
+          data: result,
+          url: "/douyin",
+          label: "打开 RunningHub 工作台",
+          resourceKind: "douyin",
+        });
+      }
+      case "runninghub:generate": {
+        const appKey = String(options?.appKey || "").trim();
+        if (!appKey) {
+          throw new BadRequestException("请提供 appKey");
+        }
+        await this.authService.assertBrandPermission(brandId, "douyin.runningHub", "edit", auth);
+        const result = await this.worksService.createDouyinRunningHubWork(
+          brandId,
+          appKey,
+          payload as Parameters<WorksService["createDouyinRunningHubWork"]>[2],
+          auth,
+        );
+        return this.buildManagedOperationResponse({
+          title: "RunningHub 任务已触发",
+          action: `${section}:${action}`,
+          data: result,
+          url: "/douyin",
+          label: "打开 RunningHub 工作台",
+          resultStatus: "IN_PROGRESS",
+          resourceKind: "douyin",
+        });
+      }
+      case "runninghub:delete": {
+        const workId = String(options?.workId || "").trim();
+        if (!workId) {
+          throw new BadRequestException("请提供 workId");
+        }
+        await this.authService.assertBrandPermission(brandId, "douyin.runningHub", "edit", auth);
+        const result = await this.worksService.deleteDouyinRunningHubWork(brandId, workId, auth);
+        return this.buildManagedOperationResponse({
+          title: "RunningHub 作品已删除",
+          action: `${section}:${action}`,
+          data: result,
+          url: "/douyin",
+          label: "打开 RunningHub 工作台",
+          resourceKind: "douyin",
+        });
+      }
+      case "ad_preaudit:list_works": {
+        await this.authService.assertBrandPermission(brandId, "douyin.adPreAudit", "view", auth);
+        const result = await this.worksService.listDouyinAdPreAuditWorks(brandId);
+        return this.buildManagedOperationResponse({
+          title: "广告预审列表",
+          action: `${section}:${action}`,
+          data: result,
+          url: "/douyin",
+          label: "打开广告预审工作台",
+          resourceKind: "douyin",
+        });
+      }
+      case "ad_preaudit:get_config": {
+        await this.authService.assertBrandPermission(brandId, "douyin.adPreAudit", "view", auth);
+        const result = await this.worksService.getDouyinAdPreAuditConfig(brandId);
+        return this.buildManagedOperationResponse({
+          title: "广告预审配置",
+          action: `${section}:${action}`,
+          data: result,
+          url: "/douyin",
+          label: "打开广告预审工作台",
+          resourceKind: "douyin",
+        });
+      }
+      case "ad_preaudit:save_config": {
+        await this.authService.assertBrandPermission(brandId, "douyin.adPreAudit", "edit", auth);
+        const result = await this.worksService.saveDouyinAdPreAuditConfig(
+          brandId,
+          payload as Parameters<WorksService["saveDouyinAdPreAuditConfig"]>[1],
+        );
+        return this.buildManagedOperationResponse({
+          title: "广告预审配置已更新",
+          action: `${section}:${action}`,
+          data: result,
+          url: "/douyin",
+          label: "打开广告预审工作台",
+          resourceKind: "douyin",
+        });
+      }
+      case "ad_preaudit:list_media_assets": {
+        await this.authService.assertBrandPermission(brandId, "douyin.adPreAudit", "view", auth);
+        const result = await this.worksService.listDouyinAdPreAuditMediaAssets(brandId);
+        return this.buildManagedOperationResponse({
+          title: "广告预审素材列表",
+          action: `${section}:${action}`,
+          data: result,
+          url: "/douyin",
+          label: "打开广告预审工作台",
+          resourceKind: "douyin",
+        });
+      }
+      case "ad_preaudit:create_upload": {
+        await this.authService.assertBrandPermission(brandId, "douyin.adPreAudit", "edit", auth);
+        const result = await this.worksService.createDouyinAdPreAuditUpload(
+          brandId,
+          payload as Parameters<WorksService["createDouyinAdPreAuditUpload"]>[1],
+        );
+        return this.buildManagedOperationResponse({
+          title: "广告预审上传任务已创建",
+          action: `${section}:${action}`,
+          data: result,
+          url: "/douyin",
+          label: "打开广告预审工作台",
+          resultStatus: "IN_PROGRESS",
+          resourceKind: "douyin",
+        });
+      }
+      case "ad_preaudit:refresh_upload": {
+        const mediaAssetId = String(options?.mediaAssetId || "").trim();
+        if (!mediaAssetId) {
+          throw new BadRequestException("请提供 mediaAssetId");
+        }
+        await this.authService.assertBrandPermission(brandId, "douyin.adPreAudit", "edit", auth);
+        const result = await this.worksService.refreshDouyinAdPreAuditUpload(brandId, mediaAssetId);
+        return this.buildManagedOperationResponse({
+          title: "广告预审上传状态已刷新",
+          action: `${section}:${action}`,
+          data: result,
+          url: "/douyin",
+          label: "打开广告预审工作台",
+          resultStatus: "IN_PROGRESS",
+          resourceKind: "douyin",
+        });
+      }
+      case "ad_preaudit:create": {
+        await this.authService.assertBrandPermission(brandId, "douyin.adPreAudit", "edit", auth);
+        const result = await this.worksService.createDouyinAdPreAudit(
+          brandId,
+          payload as Parameters<WorksService["createDouyinAdPreAudit"]>[1],
+          auth,
+        );
+        return this.buildManagedOperationResponse({
+          title: "广告预审任务已提交",
+          action: `${section}:${action}`,
+          data: result,
+          url: "/douyin",
+          label: "打开广告预审工作台",
+          resultStatus: "IN_PROGRESS",
+          resourceKind: "douyin",
+        });
+      }
+      case "ad_preaudit:refresh": {
+        const taskId = String(options?.taskId || "").trim();
+        if (!taskId) {
+          throw new BadRequestException("请提供 taskId");
+        }
+        await this.authService.assertBrandPermission(brandId, "douyin.adPreAudit", "edit", auth);
+        const result = await this.worksService.refreshDouyinAdPreAudit(brandId, taskId);
+        return this.buildManagedOperationResponse({
+          title: "广告预审结果已刷新",
+          action: `${section}:${action}`,
+          data: result,
+          url: "/douyin",
+          label: "打开广告预审工作台",
+          resultStatus: "IN_PROGRESS",
+          resourceKind: "douyin",
+        });
+      }
+      case "ad_preaudit:delete": {
+        const workId = String(options?.workId || "").trim();
+        if (!workId) {
+          throw new BadRequestException("请提供 workId");
+        }
+        await this.authService.assertBrandPermission(brandId, "douyin.adPreAudit", "edit", auth);
+        const result = await this.worksService.deleteDouyinAdPreAudit(brandId, workId);
+        return this.buildManagedOperationResponse({
+          title: "广告预审记录已删除",
+          action: `${section}:${action}`,
+          data: result,
+          url: "/douyin",
+          label: "打开广告预审工作台",
+          resourceKind: "douyin",
+        });
+      }
+      default:
+        throw new BadRequestException(`不支持的 manage_douyin_video_production 操作: ${section}:${action}`);
+    }
+  }
+
+  private buildManagedOperationResponse<TData>(payload: {
+    title: string;
+    action: string;
+    data: TData;
+    url: string;
+    label: string;
+    resultStatus?: OpenClawResultStatus;
+    resourceKind?: string;
+    highlights?: string[];
+  }) {
+    return this.buildSummaryResponse({
+      title: payload.title,
+      summary: `已执行动作 ${payload.action}。`,
+      highlights: payload.highlights?.length ? payload.highlights : [`动作：${payload.action}`],
+      data: payload.data,
+      links: [{ label: payload.label, url: payload.url }],
+      resultStatus: payload.resultStatus,
+      resourceKind: payload.resourceKind,
+    });
+  }
+
   private buildSummaryResponse<TData>(payload: {
     title: string;
     summary: string;
@@ -5533,6 +8385,42 @@ export class OpenClawService {
     };
   }
 
+  private buildDouyinCollectionCounts(workspace: DouyinCollectionWorkspace) {
+    return {
+      brandAccounts: workspace.brandAccounts.length,
+      competitorAccounts: workspace.competitorAccounts.length,
+      brandWorks: workspace.brandWorks.length,
+      competitorWorks: workspace.competitorWorks.length,
+      benchmarkWorks: workspace.benchmarkWorks.length,
+      searchWorks: workspace.searchWorks.length,
+      keywordRecommendations: workspace.keywordRecommendations.length,
+      commentData: workspace.commentData.length,
+      lowFanExplosiveWorks: workspace.lowFanExplosiveWorks.length,
+      highCompletionRateWorks: workspace.highCompletionRateWorks.length,
+      highLikeRateWorks: workspace.highLikeRateWorks.length,
+      cityHotspots: workspace.cityHotspots.length,
+    };
+  }
+
+  private normalizeDouyinContentTagSelection(options?: {
+    primaryTagId?: number;
+    secondaryTagId?: number;
+  }) {
+    const primaryTagId = typeof options?.primaryTagId === "number" && Number.isFinite(options.primaryTagId)
+      ? Math.trunc(options.primaryTagId)
+      : undefined;
+    const secondaryTagId = typeof options?.secondaryTagId === "number" && Number.isFinite(options.secondaryTagId)
+      ? Math.trunc(options.secondaryTagId)
+      : undefined;
+    if (!primaryTagId || !secondaryTagId) {
+      return undefined;
+    }
+    return {
+      primaryTagId,
+      secondaryTagId,
+    };
+  }
+
   private scoreWebsiteFunctionIntentMatch(
     intent: string,
     item: OpenClawWebsiteFunctionCatalogItem,
@@ -5811,6 +8699,95 @@ export class OpenClawService {
         return this.addXiaohongshuNoteToMaterialLibrary(headers, {
           assetId: typeof toolArgs.assetId === "string" ? toolArgs.assetId : undefined,
         });
+      case "get_douyin_collection_workspace":
+        return this.getDouyinCollectionWorkspace(headers, {
+          limit: typeof toolArgs.limit === "number" ? toolArgs.limit : undefined,
+        });
+      case "sync_douyin_brand_accounts":
+        return this.syncDouyinBrandAccounts(headers, {
+          accountLocators: Array.isArray(toolArgs.accountLocators)
+            ? toolArgs.accountLocators.map((item) => String(item || ""))
+            : undefined,
+          accountEntries: Array.isArray(toolArgs.accountEntries)
+            ? toolArgs.accountEntries.map((item) =>
+                item && typeof item === "object" && !Array.isArray(item)
+                  ? item as Record<string, unknown>
+                  : {})
+              .map((item) => ({
+                locator: typeof item.locator === "string" ? item.locator : undefined,
+                accountRole: typeof item.accountRole === "string" ? item.accountRole : undefined,
+              }))
+            : undefined,
+        });
+      case "sync_douyin_competitor_accounts":
+        return this.syncDouyinCompetitorAccounts(headers, {
+          accountLocators: Array.isArray(toolArgs.accountLocators)
+            ? toolArgs.accountLocators.map((item) => String(item || ""))
+            : undefined,
+          accountEntries: Array.isArray(toolArgs.accountEntries)
+            ? toolArgs.accountEntries.map((item) =>
+                item && typeof item === "object" && !Array.isArray(item)
+                  ? item as Record<string, unknown>
+                  : {})
+              .map((item) => ({
+                locator: typeof item.locator === "string" ? item.locator : undefined,
+                accountRole: typeof item.accountRole === "string" ? item.accountRole : undefined,
+              }))
+            : undefined,
+        });
+      case "sync_douyin_benchmark_works":
+        return this.syncDouyinBenchmarkWorks(headers, {
+          benchmarkAwemeIds: Array.isArray(toolArgs.benchmarkAwemeIds)
+            ? toolArgs.benchmarkAwemeIds.map((item) => String(item || ""))
+            : undefined,
+        });
+      case "sync_douyin_search_works":
+        return this.syncDouyinSearchWorks(headers, {
+          searchKeyword: typeof toolArgs.searchKeyword === "string" ? toolArgs.searchKeyword : undefined,
+          searchSortType: typeof toolArgs.searchSortType === "string" ? toolArgs.searchSortType : undefined,
+          searchPublishTime: typeof toolArgs.searchPublishTime === "string" ? toolArgs.searchPublishTime : undefined,
+          searchFilterDuration: typeof toolArgs.searchFilterDuration === "string" ? toolArgs.searchFilterDuration : undefined,
+          searchContentType: typeof toolArgs.searchContentType === "string" ? toolArgs.searchContentType : undefined,
+        });
+      case "sync_douyin_comment_data":
+        return this.syncDouyinCommentData(headers, {
+          commentSourceUrls: Array.isArray(toolArgs.commentSourceUrls)
+            ? toolArgs.commentSourceUrls.map((item) => String(item || ""))
+            : undefined,
+          commentPageRequests: Array.isArray(toolArgs.commentPageRequests)
+            ? toolArgs.commentPageRequests.map((item) =>
+                item && typeof item === "object" && !Array.isArray(item)
+                  ? item as Record<string, unknown>
+                  : {})
+              .map((item) => ({
+                sourceUrl: typeof item.sourceUrl === "string" ? item.sourceUrl : undefined,
+                cursor: typeof item.cursor === "string" ? item.cursor : undefined,
+              }))
+            : undefined,
+        });
+      case "sync_douyin_keyword_recommendations":
+        return this.syncDouyinKeywordRecommendations(headers, {
+          searchKeyword: typeof toolArgs.searchKeyword === "string" ? toolArgs.searchKeyword : undefined,
+        });
+      case "sync_douyin_low_fan_explosive_works":
+        return this.syncDouyinLowFanExplosiveWorks(headers, {
+          primaryTagId: typeof toolArgs.primaryTagId === "number" ? toolArgs.primaryTagId : undefined,
+          secondaryTagId: typeof toolArgs.secondaryTagId === "number" ? toolArgs.secondaryTagId : undefined,
+        });
+      case "sync_douyin_high_completion_rate_works":
+        return this.syncDouyinHighCompletionRateWorks(headers, {
+          primaryTagId: typeof toolArgs.primaryTagId === "number" ? toolArgs.primaryTagId : undefined,
+          secondaryTagId: typeof toolArgs.secondaryTagId === "number" ? toolArgs.secondaryTagId : undefined,
+        });
+      case "sync_douyin_high_like_rate_works":
+        return this.syncDouyinHighLikeRateWorks(headers, {
+          primaryTagId: typeof toolArgs.primaryTagId === "number" ? toolArgs.primaryTagId : undefined,
+          secondaryTagId: typeof toolArgs.secondaryTagId === "number" ? toolArgs.secondaryTagId : undefined,
+        });
+      case "sync_douyin_city_hotspots":
+        return this.syncDouyinCityHotspots(headers, {
+          cityCode: typeof toolArgs.cityCode === "number" ? toolArgs.cityCode : undefined,
+        });
       case "get_opportunity_insight_workspace":
         return this.getOpportunityInsightWorkspace(headers);
       case "generate_opportunity_insight_step_one":
@@ -6029,6 +9006,68 @@ export class OpenClawService {
       case "retry_wechat_publish_history":
         return this.retryWechatPublishHistory(headers, {
           historyId: typeof toolArgs.historyId === "string" ? toolArgs.historyId : undefined,
+        });
+      case "manage_wechat_workflow":
+        return this.manageWechatWorkflow(headers, {
+          action: typeof toolArgs.action === "string" ? toolArgs.action : undefined,
+          workflowId: typeof toolArgs.workflowId === "string" ? toolArgs.workflowId : undefined,
+          draftId: typeof toolArgs.draftId === "string" ? toolArgs.draftId : undefined,
+          historyId: typeof toolArgs.historyId === "string" ? toolArgs.historyId : undefined,
+          limit: typeof toolArgs.limit === "number" ? toolArgs.limit : undefined,
+          payload: toolArgs.payload && typeof toolArgs.payload === "object" && !Array.isArray(toolArgs.payload)
+            ? toolArgs.payload as Record<string, unknown>
+            : undefined,
+        });
+      case "manage_brand_library":
+        return this.manageBrandLibrary(headers, {
+          action: typeof toolArgs.action === "string" ? toolArgs.action : undefined,
+          productId: typeof toolArgs.productId === "string" ? toolArgs.productId : undefined,
+          knowledgeBaseId: typeof toolArgs.knowledgeBaseId === "string" ? toolArgs.knowledgeBaseId : undefined,
+          fileId: typeof toolArgs.fileId === "string" ? toolArgs.fileId : undefined,
+          limit: typeof toolArgs.limit === "number" ? toolArgs.limit : undefined,
+          platform: typeof toolArgs.platform === "string" ? toolArgs.platform : undefined,
+          payload: toolArgs.payload && typeof toolArgs.payload === "object" && !Array.isArray(toolArgs.payload)
+            ? toolArgs.payload as Record<string, unknown>
+            : undefined,
+        });
+      case "manage_growth_reports":
+        return this.manageGrowthReports(headers, {
+          action: typeof toolArgs.action === "string" ? toolArgs.action : undefined,
+          reportId: typeof toolArgs.reportId === "string" ? toolArgs.reportId : undefined,
+          selectedDate: typeof toolArgs.selectedDate === "string" ? toolArgs.selectedDate : undefined,
+          payload: toolArgs.payload && typeof toolArgs.payload === "object" && !Array.isArray(toolArgs.payload)
+            ? toolArgs.payload as Record<string, unknown>
+            : undefined,
+        });
+      case "manage_xiaohongshu_video":
+        return this.manageXiaohongshuVideo(headers, {
+          action: typeof toolArgs.action === "string" ? toolArgs.action : undefined,
+          workId: typeof toolArgs.workId === "string" ? toolArgs.workId : undefined,
+          payload: toolArgs.payload && typeof toolArgs.payload === "object" && !Array.isArray(toolArgs.payload)
+            ? toolArgs.payload as Record<string, unknown>
+            : undefined,
+        });
+      case "manage_douyin_video_production":
+        return this.manageDouyinVideoProduction(headers, {
+          section: typeof toolArgs.section === "string" ? toolArgs.section : undefined,
+          action: typeof toolArgs.action === "string" ? toolArgs.action : undefined,
+          workId: typeof toolArgs.workId === "string" ? toolArgs.workId : undefined,
+          taskId: typeof toolArgs.taskId === "string" ? toolArgs.taskId : undefined,
+          voiceId: typeof toolArgs.voiceId === "string" ? toolArgs.voiceId : undefined,
+          templateId: typeof toolArgs.templateId === "string" ? toolArgs.templateId : undefined,
+          customPersonId: typeof toolArgs.customPersonId === "string" ? toolArgs.customPersonId : undefined,
+          appKey: typeof toolArgs.appKey === "string" ? toolArgs.appKey : undefined,
+          mediaAssetId: typeof toolArgs.mediaAssetId === "string" ? toolArgs.mediaAssetId : undefined,
+          limit: typeof toolArgs.limit === "number" ? toolArgs.limit : undefined,
+          page: typeof toolArgs.page === "number" ? toolArgs.page : undefined,
+          size: typeof toolArgs.size === "number" ? toolArgs.size : undefined,
+          sort: typeof toolArgs.sort === "string" ? toolArgs.sort : undefined,
+          tagIds: Array.isArray(toolArgs.tagIds)
+            ? toolArgs.tagIds.map((item) => Number(item)).filter((item) => Number.isFinite(item))
+            : undefined,
+          payload: toolArgs.payload && typeof toolArgs.payload === "object" && !Array.isArray(toolArgs.payload)
+            ? toolArgs.payload as Record<string, unknown>
+            : undefined,
         });
       case "get_design_workspace_options":
         return this.getDesignWorkspaceOptions(headers);

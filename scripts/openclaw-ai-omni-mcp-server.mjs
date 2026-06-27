@@ -162,6 +162,170 @@ const TOOL_DEFINITIONS = [
       additionalProperties: false,
     },
   },
+  {
+    name: "get_douyin_collection_workspace",
+    description: "查看当前品牌资料库中的抖音搜集数据工作区摘要。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        limit: { type: "integer", minimum: 1, maximum: 50 },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "sync_douyin_brand_accounts",
+    description: "同步当前品牌的抖音品牌账号数据。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        accountLocators: { type: "array", items: { type: "string" } },
+        accountEntries: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              locator: { type: "string" },
+              accountRole: { type: "string" },
+            },
+            required: ["locator"],
+            additionalProperties: false,
+          },
+        },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "sync_douyin_competitor_accounts",
+    description: "同步当前品牌的抖音竞品账号数据。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        accountLocators: { type: "array", items: { type: "string" } },
+        accountEntries: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              locator: { type: "string" },
+              accountRole: { type: "string" },
+            },
+            required: ["locator"],
+            additionalProperties: false,
+          },
+        },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "sync_douyin_benchmark_works",
+    description: "同步当前品牌的抖音对标作品数据，需要提供作品 aweme_id。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        benchmarkAwemeIds: { type: "array", items: { type: "string" } },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "sync_douyin_search_works",
+    description: "按关键词同步当前品牌的抖音搜索结果。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        searchKeyword: { type: "string" },
+        searchSortType: { type: "string" },
+        searchPublishTime: { type: "string" },
+        searchFilterDuration: { type: "string" },
+        searchContentType: { type: "string" },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "sync_douyin_comment_data",
+    description: "同步当前品牌的抖音评论数据。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        commentSourceUrls: { type: "array", items: { type: "string" } },
+        commentPageRequests: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              sourceUrl: { type: "string" },
+              cursor: { type: "string" },
+            },
+            required: ["sourceUrl"],
+            additionalProperties: false,
+          },
+        },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "sync_douyin_keyword_recommendations",
+    description: "按关键词同步当前品牌的抖音关键词推荐数据。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        searchKeyword: { type: "string" },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "sync_douyin_low_fan_explosive_works",
+    description: "同步当前品牌的抖音低粉爆款榜数据。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        primaryTagId: { type: "integer" },
+        secondaryTagId: { type: "integer" },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "sync_douyin_high_completion_rate_works",
+    description: "同步当前品牌的抖音高完播率榜数据。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        primaryTagId: { type: "integer" },
+        secondaryTagId: { type: "integer" },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "sync_douyin_high_like_rate_works",
+    description: "同步当前品牌的抖音高点赞率榜数据。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        primaryTagId: { type: "integer" },
+        secondaryTagId: { type: "integer" },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "sync_douyin_city_hotspots",
+    description: "同步当前品牌的抖音同城热点榜数据。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        cityCode: { type: "integer" },
+      },
+      additionalProperties: false,
+    },
+  },
 ];
 
 let authCache;
@@ -320,6 +484,40 @@ async function callApi(path, options = {}) {
   return payload;
 }
 
+async function callMcp(method, params = {}, id = 1) {
+  const auth = await login();
+  const headers = {
+    Authorization: `Bearer ${auth.accessToken}`,
+    "x-brand-id": brandIdOverride || auth.currentBrandId,
+    "Content-Type": "application/json",
+  };
+  const { response, payload } = await requestJson("/openclaw/mcp", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id,
+      method,
+      params,
+    }),
+  });
+  if (!response.ok) {
+    const message =
+      payload && typeof payload === "object" && "message" in payload ? payload.message : `MCP 请求失败: ${response.status}`;
+    const error = new Error(String(message));
+    error.httpStatus = response.status;
+    error.payload = payload;
+    throw error;
+  }
+  if (payload?.error) {
+    const error = new Error(String(payload.error.message || "MCP 调用失败"));
+    error.httpStatus = payload.error.code;
+    error.payload = payload.error.data;
+    throw error;
+  }
+  return payload?.result;
+}
+
 async function handleToolCall(name, args = {}) {
   switch (name) {
     case "get_current_brand_context":
@@ -346,6 +544,28 @@ async function handleToolCall(name, args = {}) {
       return callApi("/openclaw/mcp/works/xiaohongshu/original/generate", { method: "POST", body: args });
     case "create_wechat_article":
       return callApi("/openclaw/mcp/works/wechat/articles/generate", { method: "POST", body: args });
+    case "get_douyin_collection_workspace":
+      return callApi(`/openclaw/mcp/brand-growth/douyin-collection/workspace${createQuery(args)}`);
+    case "sync_douyin_brand_accounts":
+      return callApi("/openclaw/mcp/brand-growth/douyin-collection/brand-accounts/sync", { method: "POST", body: args });
+    case "sync_douyin_competitor_accounts":
+      return callApi("/openclaw/mcp/brand-growth/douyin-collection/competitor-accounts/sync", { method: "POST", body: args });
+    case "sync_douyin_benchmark_works":
+      return callApi("/openclaw/mcp/brand-growth/douyin-collection/benchmark-works/sync", { method: "POST", body: args });
+    case "sync_douyin_search_works":
+      return callApi("/openclaw/mcp/brand-growth/douyin-collection/search-works/sync", { method: "POST", body: args });
+    case "sync_douyin_comment_data":
+      return callApi("/openclaw/mcp/brand-growth/douyin-collection/comment-data/sync", { method: "POST", body: args });
+    case "sync_douyin_keyword_recommendations":
+      return callApi("/openclaw/mcp/brand-growth/douyin-collection/keyword-recommendations/sync", { method: "POST", body: args });
+    case "sync_douyin_low_fan_explosive_works":
+      return callApi("/openclaw/mcp/brand-growth/douyin-collection/low-fan-explosive-works/sync", { method: "POST", body: args });
+    case "sync_douyin_high_completion_rate_works":
+      return callApi("/openclaw/mcp/brand-growth/douyin-collection/high-completion-rate-works/sync", { method: "POST", body: args });
+    case "sync_douyin_high_like_rate_works":
+      return callApi("/openclaw/mcp/brand-growth/douyin-collection/high-like-rate-works/sync", { method: "POST", body: args });
+    case "sync_douyin_city_hotspots":
+      return callApi("/openclaw/mcp/brand-growth/douyin-collection/city-hotspots/sync", { method: "POST", body: args });
     default:
       throw new Error(`未知工具: ${name}`);
   }
@@ -378,9 +598,20 @@ async function handleMessage(message) {
   }
 
   if (message.method === "tools/list") {
-    writeResult(message.id, {
-      tools: TOOL_DEFINITIONS,
-    });
+    try {
+      const result = await callMcp("tools/list", {}, message.id);
+      writeResult(message.id, result || { tools: TOOL_DEFINITIONS });
+    } catch (error) {
+      writeToolError(
+        message.id,
+        error instanceof Error ? error.message : String(error),
+        {
+          httpStatus: error?.httpStatus,
+          payload: error?.payload,
+          method: "tools/list",
+        },
+      );
+    }
     return;
   }
 
@@ -396,15 +627,18 @@ async function handleMessage(message) {
       return;
     }
     try {
-      const payload = await handleToolCall(toolName, toolArgs);
-      writeResult(message.id, {
+      const result = await callMcp("tools/call", {
+        name: toolName,
+        arguments: toolArgs,
+      }, message.id);
+      writeResult(message.id, result || {
         content: [
           {
             type: "text",
-            text: toJson(payload),
+            text: toJson({ status: "error", message: "远端 MCP 未返回结果" }),
           },
         ],
-        isError: false,
+        isError: true,
       });
     } catch (error) {
       writeToolError(

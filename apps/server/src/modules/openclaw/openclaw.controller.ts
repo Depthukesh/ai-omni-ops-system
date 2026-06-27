@@ -274,6 +274,126 @@ export class OpenClawController {
     });
   }
 
+  @Get("brand-growth/douyin-collection/workspace")
+  async getDouyinCollectionWorkspace(
+    @Headers() headers: HeadersMap,
+    @Query("limit") limit?: string,
+  ) {
+    return this.openClawService.getDouyinCollectionWorkspace(headers, {
+      limit: limit ? Number(limit) : undefined,
+    });
+  }
+
+  @Post("brand-growth/douyin-collection/brand-accounts/sync")
+  async syncDouyinBrandAccounts(
+    @Headers() headers: HeadersMap,
+    @Body() payload?: {
+      accountLocators?: string[];
+      accountEntries?: Array<{ locator?: string; accountRole?: string }>;
+    },
+  ) {
+    return this.openClawService.syncDouyinBrandAccounts(headers, payload);
+  }
+
+  @Post("brand-growth/douyin-collection/competitor-accounts/sync")
+  async syncDouyinCompetitorAccounts(
+    @Headers() headers: HeadersMap,
+    @Body() payload?: {
+      accountLocators?: string[];
+      accountEntries?: Array<{ locator?: string; accountRole?: string }>;
+    },
+  ) {
+    return this.openClawService.syncDouyinCompetitorAccounts(headers, payload);
+  }
+
+  @Post("brand-growth/douyin-collection/benchmark-works/sync")
+  async syncDouyinBenchmarkWorks(
+    @Headers() headers: HeadersMap,
+    @Body() payload?: {
+      benchmarkAwemeIds?: string[];
+    },
+  ) {
+    return this.openClawService.syncDouyinBenchmarkWorks(headers, payload);
+  }
+
+  @Post("brand-growth/douyin-collection/search-works/sync")
+  async syncDouyinSearchWorks(
+    @Headers() headers: HeadersMap,
+    @Body() payload?: {
+      searchKeyword?: string;
+      searchSortType?: string;
+      searchPublishTime?: string;
+      searchFilterDuration?: string;
+      searchContentType?: string;
+    },
+  ) {
+    return this.openClawService.syncDouyinSearchWorks(headers, payload);
+  }
+
+  @Post("brand-growth/douyin-collection/comment-data/sync")
+  async syncDouyinCommentData(
+    @Headers() headers: HeadersMap,
+    @Body() payload?: {
+      commentSourceUrls?: string[];
+      commentPageRequests?: Array<{ sourceUrl?: string; cursor?: string }>;
+    },
+  ) {
+    return this.openClawService.syncDouyinCommentData(headers, payload);
+  }
+
+  @Post("brand-growth/douyin-collection/keyword-recommendations/sync")
+  async syncDouyinKeywordRecommendations(
+    @Headers() headers: HeadersMap,
+    @Body() payload?: {
+      searchKeyword?: string;
+    },
+  ) {
+    return this.openClawService.syncDouyinKeywordRecommendations(headers, payload);
+  }
+
+  @Post("brand-growth/douyin-collection/low-fan-explosive-works/sync")
+  async syncDouyinLowFanExplosiveWorks(
+    @Headers() headers: HeadersMap,
+    @Body() payload?: {
+      primaryTagId?: number;
+      secondaryTagId?: number;
+    },
+  ) {
+    return this.openClawService.syncDouyinLowFanExplosiveWorks(headers, payload);
+  }
+
+  @Post("brand-growth/douyin-collection/high-completion-rate-works/sync")
+  async syncDouyinHighCompletionRateWorks(
+    @Headers() headers: HeadersMap,
+    @Body() payload?: {
+      primaryTagId?: number;
+      secondaryTagId?: number;
+    },
+  ) {
+    return this.openClawService.syncDouyinHighCompletionRateWorks(headers, payload);
+  }
+
+  @Post("brand-growth/douyin-collection/high-like-rate-works/sync")
+  async syncDouyinHighLikeRateWorks(
+    @Headers() headers: HeadersMap,
+    @Body() payload?: {
+      primaryTagId?: number;
+      secondaryTagId?: number;
+    },
+  ) {
+    return this.openClawService.syncDouyinHighLikeRateWorks(headers, payload);
+  }
+
+  @Post("brand-growth/douyin-collection/city-hotspots/sync")
+  async syncDouyinCityHotspots(
+    @Headers() headers: HeadersMap,
+    @Body() payload?: {
+      cityCode?: number;
+    },
+  ) {
+    return this.openClawService.syncDouyinCityHotspots(headers, payload);
+  }
+
   @Post("skills/:skillId/reset")
   async resetSkillToPlatformBaseline(
     @Headers() headers: HeadersMap,
