@@ -306,15 +306,187 @@ function replaceWechatImageTag(tag: string, url: string, alt: string) {
   return nextTag;
 }
 
-function buildWechatGeneratedImageAppendBlock(sources: WechatPreviewImageSources) {
-  const bodyImageAspectRatio = resolveWechatBodyImageAspectRatio();
-  const coverBlock = sources.coverImageUrl
-    ? `<section style="margin-top:24px;"><img src="${sources.coverImageUrl}" alt="公众号封面图" style="width:100%;border-radius:24px;border:1px solid #dfe5f2;background:#fff;box-shadow:0 18px 40px rgba(37,51,90,0.12);" /></section>`
-    : "";
-  const galleryBlock = sources.bodyImageUrls.length
-    ? `<section style="margin-top:24px;"><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;">${sources.bodyImageUrls.map((imageUrl, index) => `<img src="${imageUrl}" alt="公众号正文配图${index + 1}" style="width:100%;aspect-ratio:${sources.bodyImageAspectRatio || bodyImageAspectRatio};object-fit:cover;border-radius:20px;border:1px solid #e8edf7;background:#fff;" />`).join("")}</div></section>`
-    : "";
-  return `${coverBlock}${galleryBlock}`;
+function normalizeWechatHtmlInlineStyle(attrs: string, transform: (style: string) => string) {
+  const rawAttrs = String(attrs || "");
+  if (/\bstyle\s*=\s*"/i.test(rawAttrs)) {
+    return rawAttrs.replace(/\bstyle\s*=\s*"([^"]*)"/i, (_match, style) => ` style="${transform(style)}"`);
+  }
+  if (/\bstyle\s*=\s*'/i.test(rawAttrs)) {
+    return rawAttrs.replace(/\bstyle\s*=\s*'([^']*)'/i, (_match, style) => ` style="${transform(style)}"`);
+  }
+  const trimmed = rawAttrs.trimEnd();
+  return `${trimmed}${trimmed ? " " : ""}style="${transform("")}"`;
+}
+
+function normalizeWechatHtmlSpacing(htmlContent: string) {
+  let normalized = String(htmlContent || "").trim();
+  if (!normalized) {
+    return normalized;
+  }
+  normalized = normalized
+    .replace(/<(p|div|section|figure|figcaption)[^>]*>\s*(?:&nbsp;|\s|<br\s*\/?>)*\s*<\/\1>/gi, "")
+    .replace(/\bmin-height\s*:\s*\d+px/gi, "min-height:auto")
+    .replace(/\bpadding-top\s*:\s*(\d+)px/gi, (_match, value) => `padding-top:${Math.min(Number(value) || 0, 14)}px`)
+    .replace(/\bpadding-bottom\s*:\s*(\d+)px/gi, (_match, value) => `padding-bottom:${Math.min(Number(value) || 0, 14)}px`)
+    .replace(/\bmargin-top\s*:\s*(\d+)px/gi, (_match, value) => `margin-top:${Math.min(Number(value) || 0, 14)}px`)
+    .replace(/\bmargin-bottom\s*:\s*(\d+)px/gi, (_match, value) => `margin-bottom:${Math.min(Number(value) || 0, 14)}px`)
+    .replace(/\bgap\s*:\s*(\d+)px/gi, (_match, value) => `gap:${Math.min(Number(value) || 0, 12)}px`);
+  normalized = normalized.replace(/<figure\b([^>]*)>/gi, (_match, attrs) => {
+    const nextAttrs = normalizeWechatHtmlInlineStyle(attrs, (style) => {
+      const parts = String(style || "")
+        .split(";")
+        .map((item) => item.trim())
+        .filter(Boolean)
+        .filter((item) => !/^margin\s*:/i.test(item))
+        .filter((item) => !/^margin-top\s*:/i.test(item))
+        .filter((item) => !/^margin-bottom\s*:/i.test(item))
+        .filter((item) => !/^padding\s*:/i.test(item))
+        .filter((item) => !/^padding-top\s*:/i.test(item))
+        .filter((item) => !/^padding-bottom\s*:/i.test(item))
+        .filter((item) => !/^min-height\s*:/i.test(item));
+      parts.push("margin:14px 0");
+      return parts.join(";");
+    });
+    return `<figure${nextAttrs}>`;
+  });
+  normalized = normalized.replace(/<img\b([^>]*)>/gi, (_match, attrs) => {
+    const nextAttrs = normalizeWechatHtmlInlineStyle(attrs, (style) => {
+      const parts = String(style || "")
+        .split(";")
+        .map((item) => item.trim())
+        .filter(Boolean)
+        .filter((item) => !/^margin\s*:/i.test(item))
+        .filter((item) => !/^margin-top\s*:/i.test(item))
+        .filter((item) => !/^margin-bottom\s*:/i.test(item))
+        .filter((item) => !/^display\s*:/i.test(item))
+        .filter((item) => !/^height\s*:/i.test(item));
+      parts.push("display:block");
+      parts.push("margin:0 auto");
+      parts.push("height:auto");
+      if (!parts.some((item) => /^max-width\s*:/i.test(item))) {
+        parts.push("max-width:100%");
+      }
+      return parts.join(";");
+    });
+    return `<img${nextAttrs}>`;
+  });
+  return normalized
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/>\s+</g, "><")
+    .trim();
+}
+
+function buildWechatGeneratedImageFigure(params: {
+  url: string;
+  alt: string;
+  aspectRatio?: string;
+}) {
+  const aspectRatio = String(params.aspectRatio || "").trim();
+  const ratioStyle = aspectRatio ? `aspect-ratio:${aspectRatio};object-fit:cover;` : "";
+  return `<figure data-wechat-generated-image="true" style="margin:14px 0;"><img src="${params.url}" alt="${params.alt}" style="display:block;width:100%;max-width:720px;margin:0 auto;${ratioStyle}border-radius:20px;border:1px solid #e8edf7;background:#fff;box-shadow:0 10px 28px rgba(37,51,90,0.08);" /></figure>`;
+}
+
+function injectWechatCoverImageBlock(htmlContent: string, coverBlock: string) {
+  if (!coverBlock) {
+    return htmlContent;
+  }
+  if (/<\/h1>/i.test(htmlContent)) {
+    return htmlContent.replace(/<\/h1>/i, `</h1>${coverBlock}`);
+  }
+  if (/<main\b[^>]*>/i.test(htmlContent)) {
+    return htmlContent.replace(/<main\b[^>]*>/i, (match) => `${match}${coverBlock}`);
+  }
+  if (/<body\b[^>]*>/i.test(htmlContent)) {
+    return htmlContent.replace(/<body\b[^>]*>/i, (match) => `${match}${coverBlock}`);
+  }
+  return `${coverBlock}${htmlContent}`;
+}
+
+function appendWechatGeneratedImageBlocks(htmlContent: string, blocksHtml: string) {
+  if (!blocksHtml) {
+    return htmlContent;
+  }
+  if (/<\/main>/i.test(htmlContent)) {
+    return htmlContent.replace(/<\/main>/i, `${blocksHtml}</main>`);
+  }
+  if (/<\/body>/i.test(htmlContent)) {
+    return htmlContent.replace(/<\/body>/i, `${blocksHtml}</body>`);
+  }
+  return `${htmlContent}${blocksHtml}`;
+}
+
+function injectWechatBodyImageBlocks(htmlContent: string, bodyBlocks: string[]) {
+  if (!bodyBlocks.length) {
+    return htmlContent;
+  }
+  const paragraphCount = (htmlContent.match(/<\/p>/gi) || []).length;
+  if (paragraphCount > 0) {
+    const slots = new Map<number, string[]>();
+    bodyBlocks.forEach((block, index) => {
+      const slot = Math.min(
+        paragraphCount,
+        Math.max(1, Math.round(((index + 1) * (paragraphCount + 1)) / (bodyBlocks.length + 1))),
+      );
+      const items = slots.get(slot) || [];
+      items.push(block);
+      slots.set(slot, items);
+    });
+
+    let paragraphIndex = 0;
+    return htmlContent.replace(/<\/p>/gi, (tag) => {
+      paragraphIndex += 1;
+      const inserts = slots.get(paragraphIndex);
+      return inserts?.length ? `${tag}${inserts.join("")}` : tag;
+    });
+  }
+
+  const sectionCount = (htmlContent.match(/<\/section>/gi) || []).length;
+  if (sectionCount > 0) {
+    const slots = new Map<number, string[]>();
+    bodyBlocks.forEach((block, index) => {
+      const slot = Math.min(
+        sectionCount,
+        Math.max(1, Math.round(((index + 1) * (sectionCount + 1)) / (bodyBlocks.length + 1))),
+      );
+      const items = slots.get(slot) || [];
+      items.push(block);
+      slots.set(slot, items);
+    });
+
+    let sectionIndex = 0;
+    return htmlContent.replace(/<\/section>/gi, (tag) => {
+      sectionIndex += 1;
+      const inserts = slots.get(sectionIndex);
+      return inserts?.length ? `${tag}${inserts.join("")}` : tag;
+    });
+  }
+
+  return appendWechatGeneratedImageBlocks(htmlContent, bodyBlocks.join(""));
+}
+
+function injectWechatGeneratedImageBlocks(htmlContent: string, sources: WechatPreviewImageSources) {
+  let nextHtml = String(htmlContent || "").trim();
+  if (!nextHtml) {
+    return nextHtml;
+  }
+  const bodyImageAspectRatio = sources.bodyImageAspectRatio || resolveWechatBodyImageAspectRatio();
+  if (sources.coverImageUrl) {
+    nextHtml = injectWechatCoverImageBlock(nextHtml, buildWechatGeneratedImageFigure({
+      url: sources.coverImageUrl,
+      alt: "公众号封面图",
+    }));
+  }
+  if (sources.bodyImageUrls.length) {
+    nextHtml = injectWechatBodyImageBlocks(
+      nextHtml,
+      sources.bodyImageUrls.map((imageUrl, index) => buildWechatGeneratedImageFigure({
+        url: imageUrl,
+        alt: `公众号正文配图${index + 1}`,
+        aspectRatio: bodyImageAspectRatio,
+      })),
+    );
+  }
+  return nextHtml;
 }
 
 function injectWechatImagesIntoHtml(htmlContent: string, sources: WechatPreviewImageSources) {
@@ -338,19 +510,13 @@ function injectWechatImagesIntoHtml(htmlContent: string, sources: WechatPreviewI
   });
   const remaining = imageQueue.slice(cursor);
   if (!remaining.length) {
-    return replacedHtml;
+    return normalizeWechatHtmlSpacing(replacedHtml);
   }
-  const appendedBlock = buildWechatGeneratedImageAppendBlock({
+  return normalizeWechatHtmlSpacing(injectWechatGeneratedImageBlocks(replacedHtml, {
     coverImageUrl: cursor === 0 ? imageQueue[0] : undefined,
     bodyImageUrls: cursor === 0 ? imageQueue.slice(1) : remaining,
-  });
-  if (/<\/main>/i.test(replacedHtml)) {
-    return replacedHtml.replace(/<\/main>/i, `${appendedBlock}</main>`);
-  }
-  if (/<\/body>/i.test(replacedHtml)) {
-    return replacedHtml.replace(/<\/body>/i, `${appendedBlock}</body>`);
-  }
-  return `${replacedHtml}${appendedBlock}`;
+    bodyImageAspectRatio: sources.bodyImageAspectRatio,
+  }));
 }
 
 function resolveWorkflowPreviewImageSources(workflow: WechatWorkflowSessionRecord): WechatPreviewImageSources {

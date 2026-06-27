@@ -60,6 +60,7 @@ const SOURCE_PINNED_PROMPT_IDS = new Set([
   "prompt_opportunity_insight_comment",
   "prompt_opportunity_insight_final_report",
   "prompt_xhs_calendar",
+  "prompt_wechat_body_image_compose",
 ]);
 const SOURCE_PINNED_PROMPT_SCENES = new Set([
   "机会洞察-品牌账号分析",
@@ -67,6 +68,7 @@ const SOURCE_PINNED_PROMPT_SCENES = new Set([
   "机会洞察-评论洞察分析",
   "机会洞察-机会洞察总报告",
   "品牌全平台营销日历生成",
+  "公众号正文配图生成",
 ]);
 
 export type UpdateSkillConfigPayload = {

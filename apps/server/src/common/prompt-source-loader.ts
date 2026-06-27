@@ -229,6 +229,8 @@ export const PROMPT_SOURCE_CANDIDATES: Record<string, string[]> = {
     "../提示词/wechat/wechat-cover-image-designer/SKILL.md",
   ],
   prompt_wechat_body_image_compose: [
+    "../../../提示词/wechat/prompt_wechat_body_image_compose.md",
+    "../提示词/wechat/prompt_wechat_body_image_compose.md",
     "../../../提示词/wechat/wechat-body-image-designer/SKILL.md",
     "../提示词/wechat/wechat-body-image-designer/SKILL.md",
   ],
