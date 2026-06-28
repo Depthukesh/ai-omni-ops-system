@@ -396,4 +396,26 @@ export class WechatMpCollectorsController {
       payload.offset || 0,
     );
   }
+
+  @Post("brands/:brandId/search-items/read")
+  async readSearchItemContent(
+    @Param("brandId") brandId: string,
+    @Body() payload: { url: string },
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(brandId, auth);
+    return this.collectorsService.updateWechatSearchItemContent(brandId, payload.url);
+  }
+
+  @Post("brands/:brandId/search-items/stats")
+  async updateSearchItemStats(
+    @Param("brandId") brandId: string,
+    @Body() payload: { url: string },
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(brandId, auth);
+    return this.collectorsService.updateWechatSearchItemStats(brandId, payload.url);
+  }
 }

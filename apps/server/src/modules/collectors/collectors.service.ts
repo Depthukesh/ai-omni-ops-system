@@ -138,15 +138,24 @@ export type WechatSearchPublishTime = "all" | "day" | "week" | "half_year";
 export type WechatSearchItemRecord = {
   id: string;
   title: string;
+  articleContent?: string;
   desc?: string;
   docId?: string;
   accTypeName?: string;
   url?: string;
-  cover?: string;
+  images?: string[];
   publishTime?: string;
   jumpInfoUserName?: string;
   jumpInfoNickName?: string;
   jumpInfoSignature?: string;
+  readNum?: number;
+  likeCount?: number;
+  shareCount?: number;
+  collectCount?: number;
+  commentCount?: number;
+  starNum?: number;
+  statsUpdatedAt?: string;
+  contentReadAt?: string;
   collectedAt: string;
 };
 
@@ -7903,9 +7912,18 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       const jumpInfo = this.asMeta(item["jumpInfo"]);
       const docId = this.readMetaString(item, "docID") || this.readMetaString(item, "doc_id") || "";
       const itemId = `wechat_search_${docId || String(items.length)}`;
-      const url = this.readMetaString(item, "url") || this.readMetaString(jumpInfo, "url") || undefined;
-      const cover = this.readMetaString(item, "cover") || this.readMetaString(jumpInfo, "cover") || this.readMetaString(item, "thumb") || undefined;
-      const publishTime = this.readMetaString(item, "createTime") || this.readMetaString(item, "publish_time") || undefined;
+      const url = this.readMetaString(item, "doc_url") || this.readMetaString(item, "url") || this.readMetaString(jumpInfo, "url") || undefined;
+      // 图片：image 字段可能是字符串或数组
+      const imageRaw = item["image"];
+      let images: string[] | undefined;
+      if (Array.isArray(imageRaw)) {
+        images = (imageRaw as unknown[]).map((img) => (typeof img === "string" ? img : this.readMetaString(this.asMeta(img), "url"))).filter(Boolean);
+      } else if (typeof imageRaw === "string" && imageRaw) {
+        images = [imageRaw];
+      }
+      // 发布时间：pubTime 是秒级时间戳
+      const pubTime = this.readMetaNumber(item, "pubTime") || this.readMetaNumber(item, "pub_time") || this.readMetaNumber(item, "createTime");
+      const publishTimeText = this.formatUnixTimestampText(pubTime);
       items.push({
         id: itemId,
         title: this.readMetaString(item, "title") || "",
@@ -7913,8 +7931,8 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
         docId: docId || undefined,
         accTypeName: this.readMetaString(item, "accTypeName") || undefined,
         url,
-        cover,
-        publishTime,
+        images,
+        publishTime: publishTimeText,
         jumpInfoUserName: this.readMetaString(jumpInfo, "userName") || undefined,
         jumpInfoNickName: this.readMetaString(jumpInfo, "nickName") || undefined,
         jumpInfoSignature: this.readMetaString(jumpInfo, "signature") || undefined,
@@ -7938,11 +7956,20 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
           docId: item.docId,
           accTypeName: item.accTypeName,
           url: item.url,
-          cover: item.cover,
+          images: item.images,
           publishTime: item.publishTime,
           jumpInfoUserName: item.jumpInfoUserName,
           jumpInfoNickName: item.jumpInfoNickName,
           jumpInfoSignature: item.jumpInfoSignature,
+          readNum: item.readNum,
+          likeCount: item.likeCount,
+          shareCount: item.shareCount,
+          collectCount: item.collectCount,
+          commentCount: item.commentCount,
+          starNum: item.starNum,
+          statsUpdatedAt: item.statsUpdatedAt,
+          articleContent: item.articleContent,
+          contentReadAt: item.contentReadAt,
           collectedAt: item.collectedAt,
         },
       });
@@ -7960,19 +7987,127 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
 
   private mapWechatSearchItem(asset: AssetRecord): WechatSearchItemRecord {
     const meta = this.asMeta(asset.metadataJson);
+    const imagesRaw = meta["images"];
+    let images: string[] | undefined;
+    if (Array.isArray(imagesRaw)) {
+      images = (imagesRaw as unknown[]).map((img) => (typeof img === "string" ? img : this.readMetaString(this.asMeta(img), "url"))).filter(Boolean);
+    } else if (typeof imagesRaw === "string" && imagesRaw) {
+      images = [imagesRaw];
+    }
     return {
       id: this.readMetaString(meta, "itemId") || asset.id,
       title: asset.title,
+      articleContent: this.readMetaString(meta, "articleContent") || undefined,
       desc: this.readMetaString(meta, "desc") || undefined,
       docId: this.readMetaString(meta, "docId") || undefined,
       accTypeName: this.readMetaString(meta, "accTypeName") || undefined,
       url: this.readMetaString(meta, "url") || asset.fileUrl || undefined,
-      cover: this.readMetaString(meta, "cover") || undefined,
+      images,
       publishTime: this.readMetaString(meta, "publishTime") || undefined,
       jumpInfoUserName: this.readMetaString(meta, "jumpInfoUserName") || undefined,
       jumpInfoNickName: this.readMetaString(meta, "jumpInfoNickName") || undefined,
       jumpInfoSignature: this.readMetaString(meta, "jumpInfoSignature") || undefined,
+      readNum: this.readMetaNumber(meta, "readNum"),
+      likeCount: this.readMetaNumber(meta, "likeCount"),
+      shareCount: this.readMetaNumber(meta, "shareCount"),
+      collectCount: this.readMetaNumber(meta, "collectCount"),
+      commentCount: this.readMetaNumber(meta, "commentCount"),
+      starNum: this.readMetaNumber(meta, "starNum"),
+      statsUpdatedAt: this.readMetaString(meta, "statsUpdatedAt") || undefined,
+      contentReadAt: this.readMetaString(meta, "contentReadAt") || undefined,
       collectedAt: this.readMetaString(meta, "collectedAt") || new Date().toISOString(),
     };
+  }
+
+  async updateWechatSearchItemContent(brandId: string, articleUrl: string): Promise<{ item: WechatSearchItemRecord; workspace: { items: WechatSearchItemRecord[] } }> {
+    const trimmedUrl = String(articleUrl || "").trim();
+    if (!trimmedUrl) {
+      throw new BadRequestException("文章链接不能为空。");
+    }
+    // 调用 GLM reader 读取正文
+    const readerResult = await this.glmOpenService.readWebpage(brandId, trimmedUrl, {
+      userId: `wechat-search-reader-${brandId}`,
+    });
+    const articleContent = [readerResult.title, readerResult.content].filter(Boolean).join("\n\n");
+    // 找到对应的搜索结果 asset
+    const assets = await this.listCollectorAssets(brandId);
+    const target = assets.find((asset) => {
+      const meta = this.asMeta(asset.metadataJson);
+      return this.readMetaString(meta, "kind") === "WECHAT_SEARCH_ITEM" && (this.readMetaString(meta, "url") === trimmedUrl || asset.fileUrl === trimmedUrl);
+    });
+    if (!target) {
+      throw new NotFoundException("未找到对应的搜索结果，请先搜索。");
+    }
+    const meta = this.asMeta(target.metadataJson);
+    const updatedMetadata = {
+      ...meta,
+      articleContent,
+      contentReadAt: new Date().toISOString(),
+    };
+    const updated = await this.upsertCollectorAsset({
+      brandId,
+      kind: "WECHAT_SEARCH_ITEM" as CollectorAssetKind,
+      matchValue: this.readMetaString(meta, "itemId") || target.id,
+      title: target.title,
+      description: target.description,
+      fileUrl: trimmedUrl,
+      metadata: updatedMetadata,
+    });
+    const item = this.mapWechatSearchItem(updated);
+    const workspace = await this.getWechatSearchWorkspace(brandId);
+    return { item, workspace };
+  }
+
+  async updateWechatSearchItemStats(brandId: string, articleUrl: string): Promise<{ item: WechatSearchItemRecord; workspace: { items: WechatSearchItemRecord[] } }> {
+    const trimmedUrl = String(articleUrl || "").trim();
+    if (!trimmedUrl) {
+      throw new BadRequestException("文章链接不能为空。");
+    }
+    const body: Record<string, unknown> = {
+      url: trimmedUrl,
+      raw: false,
+    };
+    const raw = await this.fetchTikHubPost("/api/v1/wechat_mp/v2/fetch_article_stats", body, brandId);
+    const data = this.asMeta(this.asMeta(raw).data);
+    const stats = {
+      readNum: this.readMetaNumber(data, "read_num"),
+      likeCount: this.readMetaNumber(data, "like_count"),
+      shareCount: this.readMetaNumber(data, "share_count"),
+      collectCount: this.readMetaNumber(data, "collect_count"),
+      commentCount: this.readMetaNumber(data, "comment_count"),
+      starNum: this.readMetaNumber(data, "star_num"),
+    };
+    // 找到对应的搜索结果 asset
+    const assets = await this.listCollectorAssets(brandId);
+    const target = assets.find((asset) => {
+      const meta = this.asMeta(asset.metadataJson);
+      return this.readMetaString(meta, "kind") === "WECHAT_SEARCH_ITEM" && (this.readMetaString(meta, "url") === trimmedUrl || asset.fileUrl === trimmedUrl);
+    });
+    if (!target) {
+      throw new NotFoundException("未找到对应的搜索结果，请先搜索。");
+    }
+    const meta = this.asMeta(target.metadataJson);
+    const updatedMetadata = {
+      ...meta,
+      readNum: stats.readNum,
+      likeCount: stats.likeCount,
+      shareCount: stats.shareCount,
+      collectCount: stats.collectCount,
+      commentCount: stats.commentCount,
+      starNum: stats.starNum,
+      statsUpdatedAt: new Date().toISOString(),
+    };
+    const updated = await this.upsertCollectorAsset({
+      brandId,
+      kind: "WECHAT_SEARCH_ITEM" as CollectorAssetKind,
+      matchValue: this.readMetaString(meta, "itemId") || target.id,
+      title: target.title,
+      description: target.description,
+      fileUrl: trimmedUrl,
+      metadata: updatedMetadata,
+    });
+    const item = this.mapWechatSearchItem(updated);
+    const workspace = await this.getWechatSearchWorkspace(brandId);
+    return { item, workspace };
   }
 }

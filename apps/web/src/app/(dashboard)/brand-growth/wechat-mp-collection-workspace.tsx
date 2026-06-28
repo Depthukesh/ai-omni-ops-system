@@ -21,9 +21,11 @@ import {
   getWechatMpBenchmarkWorkspace,
   getWechatSearchWorkspace,
   readWechatMpArticleContent,
+  readWechatSearchItemContent,
   searchWechat,
   submitWechatMpBenchmarkArticle,
   updateWechatMpBenchmarkArticleStats,
+  updateWechatSearchItemStats,
   wechatMpBenchmarkSeed,
   wechatMpCollectionSeed,
   wechatSearchSeed,
@@ -111,6 +113,9 @@ export function WechatMpCollectionWorkspace(props: WechatMpCollectionWorkspacePr
   const [isSearching, setIsSearching] = useState(false);
   const [searchOffset, setSearchOffset] = useState(0);
   const [searchHasMore, setSearchHasMore] = useState(false);
+  const [selectedSearchIds, setSelectedSearchIds] = useState<string[]>([]);
+  const [updatingSearchIds, setUpdatingSearchIds] = useState<string[]>([]);
+  const [isUpdatingSearch, setIsUpdatingSearch] = useState(false);
 
   const showNotice = (type: "success" | "error", text: string) => {
     setNotice({ type, text });
@@ -271,6 +276,51 @@ export function WechatMpCollectionWorkspace(props: WechatMpCollectionWorkspacePr
     }
   };
 
+  // 搜一搜勾选和更新数据
+  const allSearchIds = props.searchWorkspace.items.map((item) => item.id);
+  const allSearchSelected = allSearchIds.length > 0 && allSearchIds.every((id) => selectedSearchIds.includes(id));
+
+  const handleToggleSearchItem = (id: string, checked: boolean) => {
+    setSelectedSearchIds((current) => (checked ? [...current, id] : current.filter((item) => item !== id)));
+  };
+
+  const handleSelectAllSearchItems = (checked: boolean) => {
+    setSelectedSearchIds(checked ? allSearchIds : []);
+  };
+
+  const handleUpdateSearchItems = async () => {
+    const selected = props.searchWorkspace.items.filter((item) => selectedSearchIds.includes(item.id));
+    if (!selected.length) {
+      showNotice("error", "请先勾选需要更新数据的文章。");
+      return;
+    }
+    setIsUpdatingSearch(true);
+    setUpdatingSearchIds(selected.map((item) => item.id));
+    let successCount = 0;
+    let failCount = 0;
+    for (const item of selected) {
+      if (!item.url) continue;
+      try {
+        // 1. GLM reader 读取正文
+        const readResult = await readWechatSearchItemContent(item.url, props.activeBrandId);
+        props.setSearchWorkspace(readResult.workspace);
+        // 2. TikHub fetch_article_stats 更新指标
+        const statsResult = await updateWechatSearchItemStats(item.url, props.activeBrandId);
+        props.setSearchWorkspace(statsResult.workspace);
+        successCount += 1;
+      } catch {
+        failCount += 1;
+      }
+    }
+    setUpdatingSearchIds([]);
+    setIsUpdatingSearch(false);
+    if (failCount === 0) {
+      showNotice("success", `已更新 ${successCount} 篇文章。`);
+    } else {
+      showNotice("error", `更新完成：成功 ${successCount} 篇，失败 ${failCount} 篇。`);
+    }
+  };
+
   return (
     <div className="workspace-panel strategy-page-card">
       <div className="strategy-card-toolbar">
@@ -366,6 +416,13 @@ export function WechatMpCollectionWorkspace(props: WechatMpCollectionWorkspacePr
           onNextPage={() => void handleSearchWechat(searchOffset)}
           isSearching={isSearching}
           hasMore={searchHasMore}
+          selectedIds={selectedSearchIds}
+          allSelected={allSearchSelected}
+          onToggle={handleToggleSearchItem}
+          onSelectAll={handleSelectAllSearchItems}
+          onUpdateData={handleUpdateSearchItems}
+          isUpdating={isUpdatingSearch}
+          updatingIds={updatingSearchIds}
           onCopyContent={handleCopyContent}
           formatDateTime={props.formatDateTime}
           formatCount={props.formatCount}
@@ -549,6 +606,13 @@ type WechatSearchPanelProps = {
   onNextPage: () => void;
   isSearching: boolean;
   hasMore: boolean;
+  selectedIds: string[];
+  allSelected: boolean;
+  onToggle: (id: string, checked: boolean) => void;
+  onSelectAll: (checked: boolean) => void;
+  onUpdateData: () => void;
+  isUpdating: boolean;
+  updatingIds: string[];
   onCopyContent: (content: string) => void;
   formatDateTime: OptionalDateFormatter;
   formatCount: OptionalNumberFormatter;
@@ -607,44 +671,79 @@ function WechatSearchPanel(props: WechatSearchPanelProps) {
         <div className="collection-result-head">
           <div>
             <h3>搜索结果</h3>
-            <p>展示微信搜一搜的搜索结果列表，点击文章内容可自动复制。</p>
+            <p>勾选文章后点击"更新数据"批量读取文章正文并更新互动指标。点击文章内容可自动复制。</p>
           </div>
-          {props.canEdit && props.items.length > 0 && props.hasMore ? (
-            <button type="button" className="secondary-button" onClick={props.onNextPage} disabled={props.isSearching}>
-              {props.isSearching ? "加载中..." : "下一页"}
-            </button>
-          ) : null}
+          <div className="xhs-account-entry-row__actions">
+            {props.canEdit && props.items.length > 0 && props.hasMore ? (
+              <button type="button" className="secondary-button" onClick={props.onNextPage} disabled={props.isSearching}>
+                {props.isSearching ? "加载中..." : "下一页"}
+              </button>
+            ) : null}
+            {props.canEdit && props.items.length > 0 ? (
+              <button type="button" className="primary-button" onClick={props.onUpdateData} disabled={props.isUpdating || props.selectedIds.length === 0}>
+                {props.isUpdating ? "更新中..." : "更新数据"}
+              </button>
+            ) : null}
+          </div>
         </div>
         {props.items.length ? (
           <div className="wechat-mp-article-table-shell">
             <table className="soft-table">
               <thead>
                 <tr>
+                  <th>
+                    <input type="checkbox" checked={props.allSelected} onChange={(event) => props.onSelectAll(event.target.checked)} />
+                  </th>
                   <th>标题</th>
                   <th>链接</th>
                   <th className="table-cell-wide">文章</th>
-                  <th>封面</th>
-                  <th>类型</th>
+                  <th>文章图片</th>
                   <th>发布时间</th>
+                  <th>阅读量</th>
+                  <th>点赞数</th>
+                  <th>分享数</th>
+                  <th>收藏数</th>
+                  <th>评论数</th>
+                  <th>喜欢数</th>
                 </tr>
               </thead>
               <tbody>
                 {props.items.map((item) => {
-                  const hasContent = Boolean(item.desc?.trim());
+                  const isChecked = props.selectedIds.includes(item.id);
+                  const isUpdating = props.updatingIds.includes(item.id);
+                  const hasContent = Boolean(item.articleContent?.trim());
+                  const images = item.images || [];
                   return (
                     <tr key={item.id}>
-                      <td><span className="note-data-link" title={item.desc || undefined}>{item.title || "-"}</span></td>
+                      <td>
+                        <input type="checkbox" checked={isChecked} onChange={(event) => props.onToggle(item.id, event.target.checked)} />
+                      </td>
+                      <td><span className="note-data-link" title={item.title}>{item.title || "-"}</span></td>
                       <td>{item.url ? <a href={item.url} target="_blank" rel="noopener noreferrer" className="note-data-link">查看</a> : <span>-</span>}</td>
                       <td className="wechat-mp-article-cell">
                         {hasContent ? (
-                          <div className="table-text-shell table-text-shell--copyable" data-rows="2" onClick={() => void props.onCopyContent(item.desc || "")} title="点击复制文章内容" style={{ cursor: "pointer" }}>
-                            <button type="button" className="table-text-cell" data-rows={2}>{item.desc}</button>
+                          <div className="table-text-shell table-text-shell--copyable" data-rows="2" onClick={() => void props.onCopyContent(item.articleContent || "")} title="点击复制文章内容" style={{ cursor: "pointer" }}>
+                            <button type="button" className="table-text-cell" data-rows={2}>{item.articleContent}</button>
                           </div>
                         ) : <span>-</span>}
                       </td>
-                      <td>{item.cover ? <img src={item.cover} alt={item.title} style={{ width: 48, height: 48, objectFit: "cover", borderRadius: 4 }} loading="lazy" /> : <span>-</span>}</td>
-                      <td>{item.accTypeName || "-"}</td>
+                      <td>
+                        {images.length ? (
+                          <div className="stack gap-4" style={{ flexDirection: "row", flexWrap: "wrap", gap: 4 }}>
+                            {images.slice(0, 3).map((img, idx) => (
+                              <img key={idx} src={img} alt={`${item.title}-${idx + 1}`} style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 4 }} loading="lazy" />
+                            ))}
+                            {images.length > 3 ? <span style={{ fontSize: 12, color: "var(--site-hero-muted)" }}>+{images.length - 3}</span> : null}
+                          </div>
+                        ) : <span>-</span>}
+                      </td>
                       <td>{props.formatDateTime(item.publishTime)}</td>
+                      <td>{isUpdating ? "..." : props.formatCount(item.readNum)}</td>
+                      <td>{isUpdating ? "..." : props.formatCount(item.likeCount)}</td>
+                      <td>{isUpdating ? "..." : props.formatCount(item.shareCount)}</td>
+                      <td>{isUpdating ? "..." : props.formatCount(item.collectCount)}</td>
+                      <td>{isUpdating ? "..." : props.formatCount(item.commentCount)}</td>
+                      <td>{isUpdating ? "..." : props.formatCount(item.starNum)}</td>
                     </tr>
                   );
                 })}

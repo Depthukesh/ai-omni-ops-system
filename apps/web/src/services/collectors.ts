@@ -888,15 +888,24 @@ export type WechatSearchPublishTime = "all" | "day" | "week" | "half_year";
 export type WechatSearchItemRecord = {
   id: string;
   title: string;
+  articleContent?: string;
   desc?: string;
   docId?: string;
   accTypeName?: string;
   url?: string;
-  cover?: string;
+  images?: string[];
   publishTime?: string;
   jumpInfoUserName?: string;
   jumpInfoNickName?: string;
   jumpInfoSignature?: string;
+  readNum?: number;
+  likeCount?: number;
+  shareCount?: number;
+  collectCount?: number;
+  commentCount?: number;
+  starNum?: number;
+  statsUpdatedAt?: string;
+  contentReadAt?: string;
   collectedAt: string;
 };
 
@@ -934,5 +943,21 @@ export async function searchWechat(
     `/collectors/wechat-mp/brands/${resolveBrandId(brandId)}/search`,
     "POST",
     { keyword, businessType, sort, publishTime, offset },
+  );
+}
+
+export async function readWechatSearchItemContent(url: string, brandId?: string) {
+  return jsonRequest<{ item: WechatSearchItemRecord; workspace: WechatSearchWorkspace }>(
+    `/collectors/wechat-mp/brands/${resolveBrandId(brandId)}/search-items/read`,
+    "POST",
+    { url },
+  );
+}
+
+export async function updateWechatSearchItemStats(url: string, brandId?: string) {
+  return jsonRequest<{ item: WechatSearchItemRecord; workspace: WechatSearchWorkspace }>(
+    `/collectors/wechat-mp/brands/${resolveBrandId(brandId)}/search-items/stats`,
+    "POST",
+    { url },
   );
 }
