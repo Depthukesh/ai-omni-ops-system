@@ -184,26 +184,15 @@ const XHS_ORIGINAL_COPY_LEGACY_FALLBACKS: Record<string, string> = {
     "根据营销规划方案、营销日历选题、产品信息和用户附加要求，生成适合小红书发布的避坑类原创标题、正文与标签。",
 };
 
-const WECHAT_HTML_RENDER_PROMPT_ID = "prompt_wechat_html_render";
-const WECHAT_HTML_RENDER_SCENE = "公众号HTML渲染";
-const WECHAT_HTML_RENDER_REQUIRED_MARKER = "## 参数映射协议";
-const WECHAT_HTML_RENDER_LEGACY_SUMMARY =
-  "用于公众号工作流中的“生成 HTML”阶段，必须服务于后续 API 发布确认，并根据用户选择的风格、布局、字体、字号、密度与引用方式生成更丰富的公众号排版。";
+const WECHAT_HTML_GENERAL_PROMPT_ID = "prompt_wechat_html_general";
+const WECHAT_HTML_MINIMAL_PROMPT_ID = "prompt_wechat_html_minimal";
+const WECHAT_HTML_SPACE_PROMPT_ID = "prompt_wechat_html_space";
+const WECHAT_HTML_NOTICE_PROMPT_ID = "prompt_wechat_html_notice";
 
-const WECHAT_HTML_RENDER_LEGACY_FALLBACKS: Record<string, string> = {
-  [WECHAT_HTML_RENDER_PROMPT_ID]: [
-    "---",
-    "name: wechat-html-renderer",
-    "source: wechat-workflow",
-    "mode: api-only",
-    "---",
-    "# 公众号HTML渲染",
-    "",
-    "用于公众号工作流中的“生成 HTML”阶段，必须服务于后续 API 发布确认，并根据用户选择的风格、布局、字体、字号、密度与引用方式生成更丰富的公众号排版。",
-    "",
-    "## 核心要求",
-  ].join("\n"),
-};
+const WECHAT_HTML_GENERAL_SCENE = "公众号HTML通用排版";
+const WECHAT_HTML_MINIMAL_SCENE = "公众号HTML极简排版";
+const WECHAT_HTML_SPACE_SCENE = "公众号HTML空间艺术排版";
+const WECHAT_HTML_NOTICE_SCENE = "公众号HTML通知类排版";
 
 const SKILL_PROMPT_BINDINGS: Record<string, SkillPromptBindingRule> = {
   skill_growth_analysis: {
@@ -454,13 +443,21 @@ const SKILL_PROMPT_BINDINGS: Record<string, SkillPromptBindingRule> = {
     promptIds: ["prompt_wechat_body_image_compose"],
     promptScenes: ["公众号正文配图生成"],
   },
-  skill_wechat_html_render: {
-    promptIds: ["prompt_wechat_html_render"],
-    promptScenes: ["公众号HTML渲染"],
+  "wechat-html-general": {
+    promptIds: ["prompt_wechat_html_general"],
+    promptScenes: ["公众号HTML通用排版"],
   },
-  "wechat-html-renderer": {
-    promptIds: ["prompt_wechat_html_render"],
-    promptScenes: ["公众号HTML渲染"],
+  "wechat-html-minimal": {
+    promptIds: ["prompt_wechat_html_minimal"],
+    promptScenes: ["公众号HTML极简排版"],
+  },
+  "wechat-html-space": {
+    promptIds: ["prompt_wechat_html_space"],
+    promptScenes: ["公众号HTML空间艺术排版"],
+  },
+  "wechat-html-notice": {
+    promptIds: ["prompt_wechat_html_notice"],
+    promptScenes: ["公众号HTML通知类排版"],
   },
   skill_wechat_api_publish: {
     promptIds: ["prompt_wechat_api_publish"],
@@ -1316,9 +1313,6 @@ export class SkillsPromptsService implements OnModuleInit {
   async getPromptById(id: string) {
     if (await this.prismaService.canUseDatabase()) {
       await this.ensureRegistryTablesReady();
-      if (id === WECHAT_HTML_RENDER_PROMPT_ID) {
-        await this.syncWechatHtmlRenderPromptIfNeeded();
-      }
       if (SOURCE_PINNED_PROMPT_IDS.has(id)) {
         await this.syncOpportunityInsightPromptContents();
       }
@@ -1342,9 +1336,6 @@ export class SkillsPromptsService implements OnModuleInit {
   async getActivePromptByScene(scenes: string[]) {
     if (await this.prismaService.canUseDatabase()) {
       await this.ensureRegistryTablesReady();
-      if (scenes.includes(WECHAT_HTML_RENDER_SCENE)) {
-        await this.syncWechatHtmlRenderPromptIfNeeded();
-      }
       if (scenes.some((scene) => SOURCE_PINNED_PROMPT_SCENES.has(scene))) {
         await this.syncOpportunityInsightPromptContents();
       }
@@ -1434,7 +1425,6 @@ export class SkillsPromptsService implements OnModuleInit {
   private async listPromptRows() {
     if (await this.prismaService.canUseDatabase()) {
       await this.ensureRegistryTablesReady();
-      await this.syncWechatHtmlRenderPromptIfNeeded();
       await this.syncOpportunityInsightPromptContents();
       const rows = await this.prismaService.$queryRaw<PromptTemplateRow[]>`
         SELECT *
@@ -1606,7 +1596,6 @@ export class SkillsPromptsService implements OnModuleInit {
     await this.removeRetiredOpenDesignArtifacts();
     await this.backfillDouyinOriginalCopyPromptContents();
     await this.backfillXhsOriginalCopyPromptContents();
-    await this.backfillWechatHtmlRenderPromptContents();
     await this.backfillImageGenerationSkillDefaults();
     await this.backfillLegacyVideoNoteDefaults();
     await this.backfillLegacySkillInputSchemas();
@@ -1825,46 +1814,6 @@ export class SkillsPromptsService implements OnModuleInit {
           )
       `;
     }
-  }
-
-  private async backfillWechatHtmlRenderPromptContents() {
-    await this.syncWechatHtmlRenderPromptIfNeeded();
-  }
-
-  private async syncWechatHtmlRenderPromptIfNeeded() {
-    const prompt = database.promptTemplates.find((item) => item.id === WECHAT_HTML_RENDER_PROMPT_ID);
-    if (!prompt) {
-      return;
-    }
-    const legacyFallback = WECHAT_HTML_RENDER_LEGACY_FALLBACKS[prompt.id];
-    if (!legacyFallback) {
-      return;
-    }
-    const seedContent = this.readPromptContent(prompt.id, prompt.content);
-    if (!seedContent || seedContent.trim() === legacyFallback.trim()) {
-      return;
-    }
-    await this.prismaService.$executeRaw`
-      UPDATE "PromptTemplate"
-      SET
-        "content" = ${seedContent},
-        "version" = ${prompt.version},
-        "updatedAt" = CURRENT_TIMESTAMP
-      WHERE "id" = ${prompt.id}
-        AND (
-          COALESCE(BTRIM("content"), '') = ''
-          OR BTRIM("content") = ${legacyFallback.trim()}
-          OR POSITION(${legacyFallback.trim()} IN BTRIM("content")) = 1
-          OR (
-            POSITION(${WECHAT_HTML_RENDER_LEGACY_SUMMARY} IN BTRIM("content")) > 0
-            AND POSITION(${WECHAT_HTML_RENDER_REQUIRED_MARKER} IN BTRIM("content")) = 0
-          )
-          OR (
-            COALESCE(BTRIM("version"), '') <> ${prompt.version}
-            AND POSITION(${WECHAT_HTML_RENDER_REQUIRED_MARKER} IN BTRIM("content")) = 0
-          )
-        )
-    `;
   }
 
   private async backfillImageGenerationSkillDefaults() {
@@ -2646,7 +2595,7 @@ export class SkillsPromptsService implements OnModuleInit {
           },
         ],
       },
-      "wechat-html-renderer": {
+      "wechat-html-general": {
         version: "v1",
         source: "ADMIN_EDITED",
         databaseInputs: [],
@@ -2662,15 +2611,59 @@ export class SkillsPromptsService implements OnModuleInit {
             acceptedFileTypes: "",
             remarks: "HTML 渲染主输入。",
           },
+        ],
+      },
+      "wechat-html-minimal": {
+        version: "v1",
+        source: "ADMIN_EDITED",
+        databaseInputs: [],
+        knowledgeInputs: [],
+        customInputs: [
           {
-            id: "seed_custom_html_style",
-            inputType: "SELECT",
-            label: "页面风格",
-            required: false,
-            options: ["品牌官网风", "科技深色风", "极简海报风", "杂志排版风"],
-            placeholder: "请选择页面风格",
+            id: "seed_custom_html_content",
+            inputType: "TEXT",
+            label: "Markdown 正文",
+            required: true,
+            options: [],
+            placeholder: "请输入或粘贴待渲染的公众号正文内容。",
             acceptedFileTypes: "",
-            remarks: "控制公众号 HTML 的整体视觉风格。",
+            remarks: "HTML 渲染主输入。",
+          },
+        ],
+      },
+      "wechat-html-space": {
+        version: "v1",
+        source: "ADMIN_EDITED",
+        databaseInputs: [],
+        knowledgeInputs: [],
+        customInputs: [
+          {
+            id: "seed_custom_html_content",
+            inputType: "TEXT",
+            label: "Markdown 正文",
+            required: true,
+            options: [],
+            placeholder: "请输入或粘贴待渲染的公众号正文内容。",
+            acceptedFileTypes: "",
+            remarks: "HTML 渲染主输入。",
+          },
+        ],
+      },
+      "wechat-html-notice": {
+        version: "v1",
+        source: "ADMIN_EDITED",
+        databaseInputs: [],
+        knowledgeInputs: [],
+        customInputs: [
+          {
+            id: "seed_custom_html_content",
+            inputType: "TEXT",
+            label: "Markdown 正文",
+            required: true,
+            options: [],
+            placeholder: "请输入或粘贴待渲染的公众号正文内容。",
+            acceptedFileTypes: "",
+            remarks: "HTML 渲染主输入。",
           },
         ],
       },

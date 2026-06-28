@@ -780,27 +780,9 @@ export type CreateWechatWorkflowPayload = {
   selectedBrandLabels?: string[];
 };
 
-export type WechatHtmlThemePreset =
-  | "newspaper"
-  | "magazine"
-  | "ink"
-  | "tech"
-  | "notion"
-  | "minimal";
-
-export type WechatHtmlLayoutPreset = "standard" | "hero-card" | "magazine" | "immersive";
-export type WechatHtmlFontFamily = "default" | "sans" | "serif" | "song" | "rounded";
-export type WechatHtmlFontSize = "15px" | "16px" | "17px";
-export type WechatHtmlDensity = "compact" | "comfortable" | "airy";
-export type WechatHtmlCitationMode = "inline" | "footnote";
-
+export type WechatHtmlStyleType = "general" | "minimal" | "space" | "notice";
 export type WechatHtmlStyleConfig = {
-  themePreset: WechatHtmlThemePreset;
-  layoutPreset: WechatHtmlLayoutPreset;
-  fontFamily: WechatHtmlFontFamily;
-  fontSize: WechatHtmlFontSize;
-  density: WechatHtmlDensity;
-  citationMode: WechatHtmlCitationMode;
+  styleType: WechatHtmlStyleType;
 };
 
 export type UpdateWechatWorkflowInputPayload = Partial<CreateWechatWorkflowPayload>;
@@ -830,14 +812,7 @@ export type GenerateWechatWorkflowHtmlPayload = {
 export type UpdateWechatWorkflowHtmlStylePayload = GenerateWechatWorkflowHtmlPayload;
 
 function buildDefaultWechatHtmlStyleConfig(): WechatHtmlStyleConfig {
-  return {
-    themePreset: "magazine",
-    layoutPreset: "hero-card",
-    fontFamily: "sans",
-    fontSize: "16px",
-    density: "comfortable",
-    citationMode: "inline",
-  };
+  return { styleType: "general" };
 }
 
 export type DesignWorkModuleKey = "image" | "html" | "deck" | "video";
@@ -7668,9 +7643,23 @@ export class WorksService {
       throw new BadRequestException("请先完成封面图与正文配图生成，再执行 HTML 阶段。");
     }
     target.htmlStyleConfig = this.normalizeWechatHtmlStyleConfig(payload.htmlStyleConfig, target.htmlStyleConfig);
+    const htmlPromptIdByStyleType: Record<WechatHtmlStyleType, string> = {
+      general: "prompt_wechat_html_general",
+      minimal: "prompt_wechat_html_minimal",
+      space: "prompt_wechat_html_space",
+      notice: "prompt_wechat_html_notice",
+    };
+    const htmlSkillSlugByStyleType: Record<WechatHtmlStyleType, string> = {
+      general: "wechat-html-general",
+      minimal: "wechat-html-minimal",
+      space: "wechat-html-space",
+      notice: "wechat-html-notice",
+    };
+    const htmlTargetPromptId = htmlPromptIdByStyleType[target.htmlStyleConfig.styleType] || htmlPromptIdByStyleType.general;
+    const htmlTargetSkillSlug = htmlSkillSlugByStyleType[target.htmlStyleConfig.styleType] || htmlSkillSlugByStyleType.general;
     const htmlPreference = await this.loadSkillModelPreference(
-      "wechat-html-renderer",
-      "prompt_wechat_html_render",
+      htmlTargetSkillSlug,
+      htmlTargetPromptId,
       ["deepseek-v4-pro", "deepseek-v4-flash"],
     );
     const task = await this.createOriginalTask({
@@ -14755,43 +14744,13 @@ export class WorksService {
       ...(fallback || {}),
     };
     const record = this.asRecord(value);
-    const themePreset = String(record?.themePreset || "").trim();
-    const layoutPreset = String(record?.layoutPreset || "").trim();
-    const fontFamily = String(record?.fontFamily || "").trim();
-    const fontSize = String(record?.fontSize || "").trim();
-    const density = String(record?.density || "").trim();
-    const citationMode = String(record?.citationMode || "").trim();
+    const styleType = String(record?.styleType || "").trim();
     return {
-      themePreset: (
-        ["newspaper", "magazine", "ink", "tech", "notion", "minimal"].includes(themePreset)
-          ? themePreset
-          : defaults.themePreset
-      ) as WechatHtmlThemePreset,
-      layoutPreset: (
-        ["standard", "hero-card", "magazine", "immersive"].includes(layoutPreset)
-          ? layoutPreset
-          : defaults.layoutPreset
-      ) as WechatHtmlLayoutPreset,
-      fontFamily: (
-        ["default", "sans", "serif", "song", "rounded"].includes(fontFamily)
-          ? fontFamily
-          : defaults.fontFamily
-      ) as WechatHtmlFontFamily,
-      fontSize: (
-        ["15px", "16px", "17px"].includes(fontSize)
-          ? fontSize
-          : defaults.fontSize
-      ) as WechatHtmlFontSize,
-      density: (
-        ["compact", "comfortable", "airy"].includes(density)
-          ? density
-          : defaults.density
-      ) as WechatHtmlDensity,
-      citationMode: (
-        ["inline", "footnote"].includes(citationMode)
-          ? citationMode
-          : defaults.citationMode
-      ) as WechatHtmlCitationMode,
+      styleType: (
+        ["general", "minimal", "space", "notice"].includes(styleType)
+          ? styleType
+          : defaults.styleType
+      ) as WechatHtmlStyleType,
     };
   }
 
@@ -15161,6 +15120,7 @@ export class WorksService {
 
   private async buildWechatHtmlKnowledgeContext(params: {
     brandId: string;
+    styleType: WechatHtmlStyleType;
     title: string;
     summary: string;
     content: string;
@@ -15189,12 +15149,27 @@ export class WorksService {
       return "";
     }
 
+    const skillSlugByStyleType: Record<WechatHtmlStyleType, string> = {
+      general: "wechat-html-general",
+      minimal: "wechat-html-minimal",
+      space: "wechat-html-space",
+      notice: "wechat-html-notice",
+    };
+    const legacyPromptIdByStyleType: Record<WechatHtmlStyleType, string> = {
+      general: "prompt_wechat_html_general",
+      minimal: "prompt_wechat_html_minimal",
+      space: "prompt_wechat_html_space",
+      notice: "prompt_wechat_html_notice",
+    };
+    const targetSkillSlug = skillSlugByStyleType[params.styleType] || skillSlugByStyleType.general;
+    const targetLegacyPromptId = legacyPromptIdByStyleType[params.styleType] || legacyPromptIdByStyleType.general;
+
     return this.buildWorksScopedKnowledgeContext({
       scope: {
         moduleTargetId: "wechat-workbench",
-        skillPackageKey: "wechat-html-renderer",
-        skillSlug: "wechat-html-renderer",
-        legacyPromptId: "prompt_wechat_html_render",
+        skillPackageKey: targetSkillSlug,
+        skillSlug: targetSkillSlug,
+        legacyPromptId: targetLegacyPromptId,
       },
       sceneLabel: "公众号 HTML 渲染",
       retrievalQuery,
@@ -16077,13 +16052,28 @@ export class WorksService {
     selectedBrandLabels: string[];
     preference?: SkillModelPreference;
   }): Promise<WechatHtmlGenerationModelResult> {
-    const skillPrompt = String((await this.skillsPromptsService.getActivePromptById("prompt_wechat_html_render"))?.content || "").trim();
+    const styleType = params.htmlStyleConfig.styleType;
+    const promptIdByStyleType: Record<WechatHtmlStyleType, string> = {
+      general: "prompt_wechat_html_general",
+      minimal: "prompt_wechat_html_minimal",
+      space: "prompt_wechat_html_space",
+      notice: "prompt_wechat_html_notice",
+    };
+    const skillSlugByStyleType: Record<WechatHtmlStyleType, string> = {
+      general: "wechat-html-general",
+      minimal: "wechat-html-minimal",
+      space: "wechat-html-space",
+      notice: "wechat-html-notice",
+    };
+    const targetPromptId = promptIdByStyleType[styleType] || promptIdByStyleType.general;
+    const targetSkillSlug = skillSlugByStyleType[styleType] || skillSlugByStyleType.general;
+    const skillPrompt = String((await this.skillsPromptsService.getActivePromptById(targetPromptId))?.content || "").trim();
     if (!skillPrompt) {
       throw new ServiceUnavailableException("未找到公众号 HTML 渲染提示词，请先在技能中心启用对应 prompt。");
     }
     const preference = params.preference || await this.loadSkillModelPreference(
-      "wechat-html-renderer",
-      "prompt_wechat_html_render",
+      targetSkillSlug,
+      targetPromptId,
       ["deepseek-v4-pro", "deepseek-v4-flash"],
     );
     const providers = await this.loadWechatTextProviders(params.brandId, preference);
@@ -16094,7 +16084,7 @@ export class WorksService {
       content: params.content,
       themeColor: params.themeColor,
       commentMode: params.commentMode,
-      htmlStyleConfig: params.htmlStyleConfig,
+      styleType,
       coverImageUrl: params.coverImageUrl,
       bodyImageUrls: params.bodyImageUrls,
       bodyImageBriefs: params.bodyImageBriefs,
@@ -16116,18 +16106,11 @@ export class WorksService {
       "htmlContent 内部所有 HTML 属性统一使用单引号，不要使用双引号，避免破坏 JSON。",
       "如果输入里已经给出 coverImageUrl 和 bodyImageUrls，就直接把这些真实图片 URL 写入 HTML，不要再使用空 src 占位。",
       "禁止在文末追加营销日历资料、产品资料、品牌资料、原文链接、创作来源、素材说明或附录说明。",
-      "请严格依据输入中的 htmlStyleConfig 执行排版，重点体现主题风格、布局方式、字体、字号、密度和外链处理方式。",
-      "你必须像成熟公众号排版工具一样工作：先根据 htmlStyleConfig 决定结构策略，再输出对应 HTML，不能只做轻微配色变化。",
-      "不同的 themePreset / layoutPreset 必须带来肉眼可见的结构差异，例如标题区形式、摘要区位置、章节容器、强调块、引用块、步骤块、轻量画廊等组合方式必须不同。",
-      "当 themePreset = magazine 时，优先采用更强的标题区、摘要卡、章节分隔和品牌专题感；当 themePreset = newspaper 时，优先采用更克制的专栏结构和更高信息密度；当 themePreset = tech 时，优先采用信息卡、步骤块、方法论分组；当 themePreset = ink 时，优先采用低彩度、留白和叙事型章节；当 themePreset = notion 或 minimal 时，优先采用规整、稳定、接近原生阅读的结构。",
-      "当 layoutPreset = hero-card 时，标题与摘要需要组成更明显的头图卡片区；当 layoutPreset = standard 时，采用稳定长文结构；当 layoutPreset = magazine 时，加强章节分区与模块化；当 layoutPreset = immersive 时，加强导语、引用和叙事流动感。",
-      "fontSize 和 density 必须真实影响正文、摘要、引用、列表和卡片间距，不允许只在文案说明里体现。",
-      "参考优秀公众号排版工具的做法：可以使用标题条、摘要卡、强调块、引用块、分组卡片、轻量画廊、步骤块、提示条等微信兼容结构增强层次，但必须保持 API 发布稳定性。",
-      "如果内容中存在连续问答、核心观点、步骤说明、多图分组等结构，应主动整理成更适合公众号的容器化表达。",
-      "如果 citationMode = footnote，需把普通外链整理为文末引用链接区；如果 citationMode = inline，则保留正文内联提及，不要额外生成引用区。",
+      "请依据输入中的文章内容完成排版，输出对应的公众号 HTML。",
     ].join("\n");
     const knowledgeContext = await this.buildWechatHtmlKnowledgeContext({
       brandId: params.brandId,
+      styleType,
       title: params.title,
       summary: params.summary,
       content: params.content,

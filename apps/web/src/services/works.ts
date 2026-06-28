@@ -660,27 +660,9 @@ export type WechatOfficialAccountRecord = {
   updatedAt: string;
 };
 
-export type WechatHtmlThemePreset =
-  | "newspaper"
-  | "magazine"
-  | "ink"
-  | "tech"
-  | "notion"
-  | "minimal";
-
-export type WechatHtmlLayoutPreset = "standard" | "hero-card" | "magazine" | "immersive";
-export type WechatHtmlFontFamily = "default" | "sans" | "serif" | "song" | "rounded";
-export type WechatHtmlFontSize = "15px" | "16px" | "17px";
-export type WechatHtmlDensity = "compact" | "comfortable" | "airy";
-export type WechatHtmlCitationMode = "inline" | "footnote";
-
+export type WechatHtmlStyleType = "general" | "minimal" | "space" | "notice";
 export type WechatHtmlStyleConfig = {
-  themePreset: WechatHtmlThemePreset;
-  layoutPreset: WechatHtmlLayoutPreset;
-  fontFamily: WechatHtmlFontFamily;
-  fontSize: WechatHtmlFontSize;
-  density: WechatHtmlDensity;
-  citationMode: WechatHtmlCitationMode;
+  styleType: WechatHtmlStyleType;
 };
 
 export type WechatWorkflowSessionRecord = {
