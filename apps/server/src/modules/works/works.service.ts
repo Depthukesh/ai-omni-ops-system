@@ -15947,7 +15947,7 @@ export class WorksService {
                 baseUrl,
                 provider.completionPath,
                 apiKey,
-                this.buildTextProviderPayload(provider, modelName, systemPrompt, userPrompt),
+                this.buildTextProviderPayload(provider, modelName, systemPrompt, userPrompt, undefined, 8000),
                 this.resolveModelAttemptTimeoutMs(provider.requestTimeoutMs, TEXT_MODEL_ATTEMPT_TIMEOUT_MS),
               );
               if (!response.ok) {
@@ -26748,6 +26748,7 @@ export class WorksService {
     systemPrompt: string,
     userPrompt: string,
     temperatureOverride?: number,
+    maxTokensOverride?: number,
   ) {
     const payload: Record<string, unknown> = {
       model: modelName,
@@ -26759,7 +26760,8 @@ export class WorksService {
       ],
       ...(provider.payloadExtras ?? {}),
     };
-    payload[provider.tokenLimitField === "max_completion_tokens" ? "max_completion_tokens" : "max_tokens"] = provider.maxTokens;
+    const effectiveMaxTokens = typeof maxTokensOverride === "number" && maxTokensOverride > 0 ? maxTokensOverride : provider.maxTokens;
+    payload[provider.tokenLimitField === "max_completion_tokens" ? "max_completion_tokens" : "max_tokens"] = effectiveMaxTokens;
     return payload;
   }
 
