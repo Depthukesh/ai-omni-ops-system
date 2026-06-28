@@ -877,6 +877,30 @@ export async function updateWechatMpBenchmarkArticleStats(url: string, brandId?:
   );
 }
 
+export async function deleteWechatMpArticle(articleId: string, brandId?: string) {
+  return jsonRequest<{ workspace: WechatMpCollectionWorkspace }>(
+    `/collectors/wechat-mp/brands/${resolveBrandId(brandId)}/articles/${articleId}`,
+    "DELETE",
+    {},
+  );
+}
+
+export async function deleteWechatMpBenchmarkArticle(articleId: string, brandId?: string) {
+  return jsonRequest<{ workspace: WechatMpBenchmarkWorkspace }>(
+    `/collectors/wechat-mp/brands/${resolveBrandId(brandId)}/benchmark-articles/${articleId}`,
+    "DELETE",
+    {},
+  );
+}
+
+export async function deleteWechatSearchItem(itemId: string, brandId?: string) {
+  return jsonRequest<{ workspace: WechatSearchWorkspace }>(
+    `/collectors/wechat-mp/brands/${resolveBrandId(brandId)}/search-items/${itemId}`,
+    "DELETE",
+    {},
+  );
+}
+
 // ─── 微信搜一搜 ───
 
 export type WechatSearchBusinessType =

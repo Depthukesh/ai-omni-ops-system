@@ -17,6 +17,9 @@ import type {
 import {
   bindWechatMpBrandAccount,
   deleteWechatMpBrandAccount,
+  deleteWechatMpArticle,
+  deleteWechatMpBenchmarkArticle,
+  deleteWechatSearchItem,
   fetchWechatMpArticles,
   getWechatMpBenchmarkWorkspace,
   getWechatSearchWorkspace,
@@ -104,6 +107,7 @@ export function WechatMpCollectionWorkspace(props: WechatMpCollectionWorkspacePr
   const [selectedBenchmarkIds, setSelectedBenchmarkIds] = useState<string[]>([]);
   const [updatingBenchmarkIds, setUpdatingBenchmarkIds] = useState<string[]>([]);
   const [isUpdatingBenchmark, setIsUpdatingBenchmark] = useState(false);
+  const [isDeletingBenchmark, setIsDeletingBenchmark] = useState(false);
 
   // 微信搜一搜状态
   const [searchKeyword, setSearchKeyword] = useState("");
@@ -116,6 +120,7 @@ export function WechatMpCollectionWorkspace(props: WechatMpCollectionWorkspacePr
   const [selectedSearchIds, setSelectedSearchIds] = useState<string[]>([]);
   const [updatingSearchIds, setUpdatingSearchIds] = useState<string[]>([]);
   const [isUpdatingSearch, setIsUpdatingSearch] = useState(false);
+  const [isDeletingSearch, setIsDeletingSearch] = useState(false);
 
   const showNotice = (type: "success" | "error", text: string) => {
     setNotice({ type, text });
@@ -255,6 +260,26 @@ export function WechatMpCollectionWorkspace(props: WechatMpCollectionWorkspacePr
     }
   };
 
+  const handleDeleteBenchmarkArticles = async () => {
+    const selected = props.benchmarkWorkspace.benchmarkArticles.filter((item) => selectedBenchmarkIds.includes(item.id));
+    if (!selected.length) {
+      showNotice("error", "请先勾选需要删除的文章。");
+      return;
+    }
+    setIsDeletingBenchmark(true);
+    for (const article of selected) {
+      try {
+        const result = await deleteWechatMpBenchmarkArticle(article.id, props.activeBrandId);
+        props.setBenchmarkWorkspace(result.workspace);
+      } catch {
+        // 静默继续
+      }
+    }
+    setSelectedBenchmarkIds([]);
+    setIsDeletingBenchmark(false);
+    showNotice("success", "已删除勾选的文章。");
+  };
+
   // 微信搜一搜 handler
   const handleSearchWechat = async (offset: number) => {
     const trimmed = searchKeyword.trim();
@@ -319,6 +344,26 @@ export function WechatMpCollectionWorkspace(props: WechatMpCollectionWorkspacePr
     } else {
       showNotice("error", `更新完成：成功 ${successCount} 篇，失败 ${failCount} 篇。`);
     }
+  };
+
+  const handleDeleteSearchItems = async () => {
+    const selected = props.searchWorkspace.items.filter((item) => selectedSearchIds.includes(item.id));
+    if (!selected.length) {
+      showNotice("error", "请先勾选需要删除的结果。");
+      return;
+    }
+    setIsDeletingSearch(true);
+    for (const item of selected) {
+      try {
+        const result = await deleteWechatSearchItem(item.id, props.activeBrandId);
+        props.setSearchWorkspace(result.workspace);
+      } catch {
+        // 静默继续
+      }
+    }
+    setSelectedSearchIds([]);
+    setIsDeletingSearch(false);
+    showNotice("success", "已删除勾选的结果。");
   };
 
   return (
@@ -394,6 +439,8 @@ export function WechatMpCollectionWorkspace(props: WechatMpCollectionWorkspacePr
           onUpdateStats={handleUpdateBenchmarkStats}
           isUpdating={isUpdatingBenchmark}
           updatingIds={updatingBenchmarkIds}
+          onDelete={handleDeleteBenchmarkArticles}
+          isDeleting={isDeletingBenchmark}
           onCopyContent={handleCopyContent}
           formatDateTime={props.formatDateTime}
           formatCount={props.formatCount}
@@ -423,6 +470,8 @@ export function WechatMpCollectionWorkspace(props: WechatMpCollectionWorkspacePr
           onUpdateData={handleUpdateSearchItems}
           isUpdating={isUpdatingSearch}
           updatingIds={updatingSearchIds}
+          onDelete={handleDeleteSearchItems}
+          isDeleting={isDeletingSearch}
           onCopyContent={handleCopyContent}
           formatDateTime={props.formatDateTime}
           formatCount={props.formatCount}
@@ -613,6 +662,8 @@ type WechatSearchPanelProps = {
   onUpdateData: () => void;
   isUpdating: boolean;
   updatingIds: string[];
+  onDelete: () => void;
+  isDeleting: boolean;
   onCopyContent: (content: string) => void;
   formatDateTime: OptionalDateFormatter;
   formatCount: OptionalNumberFormatter;
@@ -682,6 +733,11 @@ function WechatSearchPanel(props: WechatSearchPanelProps) {
             {props.canEdit && props.items.length > 0 ? (
               <button type="button" className="primary-button" onClick={props.onUpdateData} disabled={props.isUpdating || props.selectedIds.length === 0}>
                 {props.isUpdating ? "更新中..." : "更新数据"}
+              </button>
+            ) : null}
+            {props.canEdit && props.items.length > 0 ? (
+              <button type="button" className="note-inline-button" onClick={props.onDelete} disabled={props.isDeleting || props.selectedIds.length === 0}>
+                {props.isDeleting ? "删除中..." : "删除"}
               </button>
             ) : null}
           </div>
@@ -828,6 +884,8 @@ type BenchmarkWorkPanelProps = {
   onUpdateStats: () => void;
   isUpdating: boolean;
   updatingIds: string[];
+  onDelete: () => void;
+  isDeleting: boolean;
   onCopyContent: (content: string) => void;
   formatDateTime: OptionalDateFormatter;
   formatCount: OptionalNumberFormatter;
@@ -862,6 +920,11 @@ function BenchmarkWorkPanel(props: BenchmarkWorkPanelProps) {
           {props.canEdit && props.articles.length > 0 ? (
             <button type="button" className="primary-button" onClick={() => void props.onUpdateStats()} disabled={props.isUpdating || props.selectedIds.length === 0}>
               {props.isUpdating ? "更新中..." : "更新数据"}
+            </button>
+          ) : null}
+          {props.canEdit && props.articles.length > 0 ? (
+            <button type="button" className="note-inline-button" onClick={props.onDelete} disabled={props.isDeleting || props.selectedIds.length === 0}>
+              {props.isDeleting ? "删除中..." : "删除"}
             </button>
           ) : null}
         </div>

@@ -418,4 +418,37 @@ export class WechatMpCollectorsController {
     await this.authService.assertBrandAccess(brandId, auth);
     return this.collectorsService.updateWechatSearchItemStats(brandId, payload.url);
   }
+
+  @Delete("brands/:brandId/articles/:articleId")
+  async deleteArticle(
+    @Param("brandId") brandId: string,
+    @Param("articleId") articleId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(brandId, auth);
+    return this.collectorsService.deleteWechatMpArticle(brandId, articleId);
+  }
+
+  @Delete("brands/:brandId/benchmark-articles/:articleId")
+  async deleteBenchmarkArticle(
+    @Param("brandId") brandId: string,
+    @Param("articleId") articleId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(brandId, auth);
+    return this.collectorsService.deleteWechatMpBenchmarkArticle(brandId, articleId);
+  }
+
+  @Delete("brands/:brandId/search-items/:itemId")
+  async deleteSearchItem(
+    @Param("brandId") brandId: string,
+    @Param("itemId") itemId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(brandId, auth);
+    return this.collectorsService.deleteWechatSearchItem(brandId, itemId);
+  }
 }

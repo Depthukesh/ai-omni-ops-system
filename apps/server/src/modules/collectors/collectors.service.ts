@@ -7505,24 +7505,27 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       // raw=true 时结构为 appMsg + baseInfo
       const appMsg = this.asMeta(article["appMsg"]);
       const appMsgBaseInfo = this.asMeta(appMsg["baseInfo"]);
-      const detailInfo = this.asMeta(appMsg["detailInfo"]);
+      // detailInfo 是数组，取第一个元素
+      const detailInfoArray = (appMsg["detailInfo"] as unknown[] | undefined) || [];
+      const detailInfo = detailInfoArray.length ? this.asMeta(detailInfoArray[0]) : {};
       const baseInfo = this.asMeta(article["baseInfo"]);
-      // 文章 URL：优先从 detailInfo/appMsgBaseInfo 提取
+      // 文章 URL：detailInfo.contentUrl
       const articleUrl =
-        this.readMetaString(detailInfo, "url")
+        this.readMetaString(detailInfo, "contentUrl")
+        || this.readMetaString(detailInfo, "url")
         || this.readMetaString(appMsgBaseInfo, "url")
         || this.readMetaString(article, "url")
         || "";
-      // 文章 ID
+      // 文章 ID：baseInfo.msgId 或 appMsg.baseInfo.appMsgId
       const articleId =
         this.readMetaString(baseInfo, "msgId")
-        || this.readMetaString(appMsgBaseInfo, "msgid")
+        || String(this.readMetaNumber(appMsgBaseInfo, "appMsgId") || "")
         || this.readMetaString(article, "app_msg_id")
         || articleUrl;
       if (!articleId) continue;
-      // 时间戳
-      const createTime = this.readMetaNumber(baseInfo, "dateTime") || this.readMetaNumber(article, "create_time");
-      const updateTime = this.readMetaNumber(baseInfo, "updateTime") || this.readMetaNumber(article, "update_time");
+      // 时间戳：appMsg.baseInfo.createTime / updateTime
+      const createTime = this.readMetaNumber(appMsgBaseInfo, "createTime") || this.readMetaNumber(baseInfo, "dateTime") || this.readMetaNumber(article, "create_time");
+      const updateTime = this.readMetaNumber(appMsgBaseInfo, "updateTime") || this.readMetaNumber(baseInfo, "updateTime") || this.readMetaNumber(article, "update_time");
       // 标题
       const title =
         this.readMetaString(detailInfo, "title")
@@ -7532,32 +7535,24 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       // 摘要
       const digest =
         this.readMetaString(detailInfo, "digest")
+        || this.readMetaString(detailInfo, "authorDesc")
         || this.readMetaString(appMsgBaseInfo, "digest")
         || this.readMetaString(article, "digest")
         || undefined;
-      // 封面
+      // 封面：detailInfo.coverImgUrl
       const cover =
-        this.readMetaString(detailInfo, "cover")
+        this.readMetaString(detailInfo, "coverImgUrl")
+        || this.readMetaString(detailInfo, "coverImgUrl169")
+        || this.readMetaString(detailInfo, "cover")
         || this.readMetaString(appMsgBaseInfo, "cover")
         || this.readMetaString(article, "cover")
         || undefined;
-      // 阅读量和点赞数（从多个可能路径提取）
-      const readNum =
-        this.readMetaNumber(detailInfo, "readNum")
-        || this.readMetaNumber(appMsgBaseInfo, "readNum")
-        || this.readMetaNumber(appMsgBaseInfo, "read_num")
-        || this.readMetaNumber(baseInfo, "readNum");
-      const likeCount =
-        this.readMetaNumber(detailInfo, "likeNum")
-        || this.readMetaNumber(detailInfo, "diggCount")
-        || this.readMetaNumber(appMsgBaseInfo, "likeNum")
-        || this.readMetaNumber(appMsgBaseInfo, "digg_count")
-        || this.readMetaNumber(baseInfo, "likeNum");
+      // 阅读量和点赞数：fetch_account_articles 接口不返回这些字段，留空由 stats 接口补充
       articles.push({
         id: `wechat_mp_article_${articleId}`,
         sourceAccountId: `wechat_mp_brand_${trimmed}`,
         ghUsername: trimmed,
-        appMsgId: this.readMetaString(baseInfo, "msgId") || this.readMetaString(article, "app_msg_id") || undefined,
+        appMsgId: String(this.readMetaNumber(appMsgBaseInfo, "appMsgId") || "") || this.readMetaString(baseInfo, "msgId") || this.readMetaString(article, "app_msg_id") || undefined,
         title,
         digest,
         url: articleUrl,
@@ -7565,8 +7560,6 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
         createTime: createTime ? new Date(createTime * 1000).toISOString() : undefined,
         updateTime: updateTime ? new Date(updateTime * 1000).toISOString() : undefined,
         idx: this.readMetaNumber(baseInfo, "idx") || this.readMetaNumber(article, "idx"),
-        readNum: readNum || undefined,
-        likeCount: likeCount || undefined,
         collectedAt: new Date().toISOString(),
       });
     }
@@ -7591,17 +7584,56 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
           createTime: article.createTime,
           updateTime: article.updateTime,
           idx: article.idx,
-          readNum: article.readNum,
-          likeCount: article.likeCount,
-          oldLikeCount: article.oldLikeCount,
-          shareCount: article.shareCount,
-          collectCount: article.collectCount,
-          commentCount: article.commentCount,
-          starNum: article.starNum,
-          statsUpdatedAt: article.statsUpdatedAt,
           collectedAt: article.collectedAt,
         },
       });
+    }
+    // 自动补充每篇文章的阅读量和点赞数（调用 fetch_article_stats 接口）
+    for (const article of articles) {
+      if (!article.url) continue;
+      try {
+        const statsBody: Record<string, unknown> = { url: article.url, raw: false };
+        const statsRaw = await this.fetchTikHubPost("/api/v1/wechat_mp/v2/fetch_article_stats", statsBody, brandId);
+        const statsData = this.asMeta(this.asMeta(statsRaw).data);
+        article.readNum = this.readMetaNumber(statsData, "read_num") || undefined;
+        article.likeCount = this.readMetaNumber(statsData, "like_count") || undefined;
+        article.oldLikeCount = this.readMetaNumber(statsData, "old_like_count") || undefined;
+        article.shareCount = this.readMetaNumber(statsData, "share_count") || undefined;
+        article.collectCount = this.readMetaNumber(statsData, "collect_count") || undefined;
+        article.commentCount = this.readMetaNumber(statsData, "comment_count") || undefined;
+        article.starNum = this.readMetaNumber(statsData, "star_num") || undefined;
+        article.statsUpdatedAt = new Date().toISOString();
+        // 更新已存储的 metadata
+        const statsAssets = await this.listCollectorAssets(brandId);
+        const statsTarget = statsAssets.find((asset) => {
+          const meta = this.asMeta(asset.metadataJson);
+          return this.readMetaString(meta, "kind") === "WECHAT_MP_ARTICLE" && this.readMetaString(meta, "articleId") === article.id;
+        });
+        if (statsTarget) {
+          const statsMeta = this.asMeta(statsTarget.metadataJson);
+          await this.upsertCollectorAsset({
+            brandId,
+            kind: "WECHAT_MP_ARTICLE" as CollectorAssetKind,
+            matchValue: article.id,
+            title: article.title,
+            description: statsTarget.description,
+            fileUrl: article.url,
+            metadata: {
+              ...statsMeta,
+              readNum: article.readNum,
+              likeCount: article.likeCount,
+              oldLikeCount: article.oldLikeCount,
+              shareCount: article.shareCount,
+              collectCount: article.collectCount,
+              commentCount: article.commentCount,
+              starNum: article.starNum,
+              statsUpdatedAt: article.statsUpdatedAt,
+            },
+          });
+        }
+      } catch {
+        // stats 接口失败不影响文章列表返回，静默跳过
+      }
     }
     return {
       isEnd,
@@ -8109,5 +8141,46 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     const item = this.mapWechatSearchItem(updated);
     const workspace = await this.getWechatSearchWorkspace(brandId);
     return { item, workspace };
+  }
+
+  // ─── 删除方法 ───
+
+  async deleteWechatMpArticle(brandId: string, articleId: string): Promise<{ workspace: WechatMpCollectionWorkspace }> {
+    const assets = await this.listCollectorAssets(brandId);
+    const target = assets.find((asset) => {
+      const meta = this.asMeta(asset.metadataJson);
+      return this.readMetaString(meta, "kind") === "WECHAT_MP_ARTICLE" && this.readMetaString(meta, "articleId") === articleId;
+    });
+    if (target) {
+      await this.deleteCollectorAssetById(brandId, target.id);
+    }
+    const workspace = await this.getWechatMpWorkspace(brandId);
+    return { workspace };
+  }
+
+  async deleteWechatMpBenchmarkArticle(brandId: string, articleId: string): Promise<{ workspace: WechatMpBenchmarkWorkspace }> {
+    const assets = await this.listCollectorAssets(brandId);
+    const target = assets.find((asset) => {
+      const meta = this.asMeta(asset.metadataJson);
+      return this.readMetaString(meta, "kind") === "WECHAT_MP_BENCHMARK_ARTICLE" && this.readMetaString(meta, "articleId") === articleId;
+    });
+    if (target) {
+      await this.deleteCollectorAssetById(brandId, target.id);
+    }
+    const workspace = await this.getWechatMpBenchmarkWorkspace(brandId);
+    return { workspace };
+  }
+
+  async deleteWechatSearchItem(brandId: string, itemId: string): Promise<{ workspace: { items: WechatSearchItemRecord[] } }> {
+    const assets = await this.listCollectorAssets(brandId);
+    const target = assets.find((asset) => {
+      const meta = this.asMeta(asset.metadataJson);
+      return this.readMetaString(meta, "kind") === "WECHAT_SEARCH_ITEM" && this.readMetaString(meta, "itemId") === itemId;
+    });
+    if (target) {
+      await this.deleteCollectorAssetById(brandId, target.id);
+    }
+    const workspace = await this.getWechatSearchWorkspace(brandId);
+    return { workspace };
   }
 }
