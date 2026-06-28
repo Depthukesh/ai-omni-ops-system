@@ -75,6 +75,9 @@ import {
   type DouyinCollectionWorkspace,
   type XhsSyncPayload,
   type XhsCollectionWorkspace,
+  type WechatMpCollectionWorkspace,
+  wechatMpCollectionSeed,
+  getWechatMpCollectionWorkspace,
 } from "../../../services/collectors";
 import { API_BASE_URL } from "../../../services/http";
 import {
@@ -163,6 +166,7 @@ type StrategyPageKey =
   | "feishuCollection"
   | "xiaohongshuCollection"
   | "douyinCollection"
+  | "wechatMpCollection"
   | "dailyHotspot"
   | "opportunityInsight"
   | "growthReport"
@@ -214,6 +218,11 @@ const DouyinTopicLibraryWorkspace = dynamic(
   { loading: () => <WorkspaceChunkFallback label="选题库" /> },
 );
 
+const WechatMpCollectionWorkspace = dynamic(
+  () => import("./wechat-mp-collection-workspace").then((module) => module.WechatMpCollectionWorkspace),
+  { loading: () => <WorkspaceChunkFallback label="公众号" /> },
+);
+
 function WorkspaceChunkFallback({ label }: { label: string }) {
   return (
     <section className="strategy-workspace-shell" aria-live="polite">
@@ -250,6 +259,7 @@ const strategySections: Array<{
     pages: [
       { key: "xiaohongshuCollection", label: "小红书", description: "通过 Tikhub 直接采集品牌账号、竞品账号、品牌作品与对标作品数据。" },
       { key: "douyinCollection", label: "抖音", description: "查看抖音采集结果并执行 Tikhub 数据同步。" },
+      { key: "wechatMpCollection", label: "公众号", description: "绑定公众号 gh_username，采集历史文章列表并更新阅读量、点赞数等互动数据。" },
       { key: "dailyHotspot", label: "每日热点", description: "查看热点主题、平台趋势和当天建议动作。" },
     ],
   },
@@ -279,6 +289,7 @@ const strategyPagePermissionMap: Record<StrategyPageKey, BrandPermissionKey> = {
   feishuCollection: "brandGrowth.collection.xiaohongshuCollection",
   xiaohongshuCollection: "brandGrowth.collection.xiaohongshuCollection",
   douyinCollection: "brandGrowth.collection.douyinCollection",
+  wechatMpCollection: "brandGrowth.collection.wechatMpCollection",
   dailyHotspot: "brandGrowth.collection.dailyHotspot",
   opportunityInsight: "brandGrowth.report.opportunityInsight",
   growthReport: "brandGrowth.report.growthReport",
@@ -566,7 +577,7 @@ function getLoadScopeByPage(key: StrategyPageKey): BrandGrowthLoadScope {
   if (isBrandArchiveStep(key)) {
     return "library";
   }
-  if (key === "feishuCollection" || key === "xiaohongshuCollection" || key === "douyinCollection" || key === "dailyHotspot") {
+  if (key === "feishuCollection" || key === "xiaohongshuCollection" || key === "douyinCollection" || key === "wechatMpCollection" || key === "dailyHotspot") {
     return "collection";
   }
   return "report";
@@ -923,6 +934,7 @@ export function BrandGrowthWorkspace() {
   const [archive, setArchive] = useState<BrandArchiveBundle>(createEmptyArchiveBundle);
   const [collectionWorkspace, setCollectionWorkspace] = useState<XhsCollectionWorkspace>(createEmptyCollectionWorkspace);
   const [douyinCollectionWorkspace, setDouyinCollectionWorkspace] = useState<DouyinCollectionWorkspace>(createEmptyDouyinCollectionWorkspace);
+  const [wechatMpCollectionWorkspace, setWechatMpCollectionWorkspace] = useState<WechatMpCollectionWorkspace>(wechatMpCollectionSeed);
   const [dailyHotspotWorkspace, setDailyHotspotWorkspace] = useState<DailyHotspotWorkspace>(createEmptyDailyHotspotWorkspace);
   const [reportWorkspace, setReportWorkspace] = useState<GrowthReportWorkspace>(createEmptyGrowthReportWorkspace);
   const [opportunityInsightWorkspace, setOpportunityInsightWorkspace] = useState<OpportunityInsightWorkspace>(createEmptyOpportunityInsightWorkspace);
@@ -1591,6 +1603,7 @@ export function BrandGrowthWorkspace() {
         const [
           collectionResult,
           douyinCollectionResult,
+          wechatMpCollectionResult,
           dailyHotspotResult,
           feishuBindingResult,
           feishuAppConfigResult,
@@ -1598,6 +1611,7 @@ export function BrandGrowthWorkspace() {
         ] = await Promise.allSettled([
           getXiaohongshuCollectionWorkspace(resolvedActiveBrandId),
           getDouyinCollectionWorkspace(resolvedActiveBrandId),
+          getWechatMpCollectionWorkspace(resolvedActiveBrandId),
           getDailyHotspotWorkspace(resolvedActiveBrandId),
           getBrandFeishuBinding(resolvedActiveBrandId),
           getFeishuAppConfig(currentProfile?.id),
@@ -1619,6 +1633,12 @@ export function BrandGrowthWorkspace() {
           setDouyinCommentPagination([]);
         } else {
           partialFailures.push("抖音采集数据");
+        }
+
+        if (wechatMpCollectionResult.status === "fulfilled") {
+          setWechatMpCollectionWorkspace(wechatMpCollectionResult.value);
+        } else {
+          partialFailures.push("公众号采集数据");
         }
 
         if (dailyHotspotResult.status === "fulfilled") {
@@ -3723,6 +3743,24 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
   }
 
   function renderCollectionPage() {
+    if (activePage === "wechatMpCollection") {
+      const canEditWechatMp = brandPermissionSettings
+        ? Boolean(brandPermissionSettings.currentUserPermissions["brandGrowth.collection.wechatMpCollection"]?.edit)
+        : true;
+      return (
+        <WechatMpCollectionWorkspace
+          pageTitle={currentPage.label}
+          pageDescription={currentPage.description}
+          isHydrating={isHydrating}
+          canEdit={canEditWechatMp}
+          workspace={wechatMpCollectionWorkspace}
+          setWorkspace={setWechatMpCollectionWorkspace}
+          activeBrandId={activeBrandId || archive.brand.id}
+          formatDateTime={formatDateTime}
+          formatCount={formatCount}
+        />
+      );
+    }
     return (
       <BrandGrowthCollectionWorkspace
         activePage={

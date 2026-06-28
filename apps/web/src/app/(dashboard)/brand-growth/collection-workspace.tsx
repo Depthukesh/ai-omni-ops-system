@@ -2246,6 +2246,49 @@ function DouyinVideoPreviewCell(props: {
   return <span>-</span>;
 }
 
+// 模块级复制提醒 toast：多个单元格共享一个浮动弹窗，避免每行都挂一个 DOM 节点。
+let copyToastTimer: number | undefined;
+let copyToastListeners: Array<(visible: boolean) => void> = [];
+function notifyCopyToast(visible: boolean) {
+  if (visible) {
+    if (copyToastTimer) {
+      window.clearTimeout(copyToastTimer);
+    }
+  }
+  for (const listener of copyToastListeners) {
+    try {
+      listener(visible);
+    } catch {
+      // 忽略监听器异常
+    }
+  }
+  if (visible) {
+    copyToastTimer = window.setTimeout(() => {
+      notifyCopyToast(false);
+    }, 1600);
+  }
+}
+function useCopyToastVisible() {
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    const listener = (next: boolean) => setVisible(next);
+    copyToastListeners.push(listener);
+    return () => {
+      copyToastListeners = copyToastListeners.filter((item) => item !== listener);
+    };
+  }, []);
+  return visible;
+}
+function CopyToastPortal() {
+  const visible = useCopyToastVisible();
+  return (
+    <div className={`copy-toast ${visible ? "is-visible" : ""}`} role="status" aria-live="polite">
+      <span className="copy-toast__icon" aria-hidden="true">✓</span>
+      <span className="copy-toast__text">已复制</span>
+    </div>
+  );
+}
+
 function DouyinTranscriptCell(props: {
   item: DouyinCollectedWorkRecord;
   extractingAssetId?: string;
@@ -2267,6 +2310,7 @@ function DouyinTranscriptCell(props: {
       try {
         await navigator.clipboard.writeText(transcriptText);
         setCopied(true);
+        notifyCopyToast(true);
         window.setTimeout(() => setCopied(false), 1500);
       } catch {
         window.alert("复制失败，请手动选中文案复制。");
@@ -4456,6 +4500,7 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
           ) : null}
         </article>
       ) : null}
+      <CopyToastPortal />
     </div>
   );
 }

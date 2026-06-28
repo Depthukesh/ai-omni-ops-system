@@ -4676,6 +4676,50 @@ button {
   color: var(--site-accent);
 }
 
+/* 浮动复制提醒 toast */
+.copy-toast {
+  position: fixed;
+  z-index: 9999;
+  left: 50%;
+  bottom: 32px;
+  transform: translateX(-50%) translateY(16px);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: 999px;
+  background: rgba(16, 18, 22, 0.92);
+  color: #ffffff;
+  font-size: 14px;
+  line-height: 1.4;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.copy-toast.is-visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.copy-toast__icon {
+  display: inline-flex;
+  width: 18px;
+  height: 18px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #34c759;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.copy-toast__text {
+  white-space: nowrap;
+}
+
 .table-text-cell {
   display: -webkit-box;
   width: 100%;

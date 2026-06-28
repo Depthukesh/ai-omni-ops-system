@@ -734,3 +734,89 @@ export async function addBenchmarkNoteToMaterialLibrary(assetId: string, brandId
     { assetId },
   );
 }
+
+// ─── 公众号采集 ───
+
+export type WechatMpBrandAccountRecord = {
+  id: string;
+  ghUsername: string;
+  accountName: string;
+  collectedAt: string;
+};
+
+export type WechatMpArticleRecord = {
+  id: string;
+  sourceAccountId: string;
+  ghUsername?: string;
+  appMsgId?: string;
+  title: string;
+  digest?: string;
+  url: string;
+  cover?: string;
+  createTime?: string;
+  updateTime?: string;
+  idx?: number;
+  readNum?: number;
+  likeCount?: number;
+  oldLikeCount?: number;
+  shareCount?: number;
+  collectCount?: number;
+  commentCount?: number;
+  starNum?: number;
+  statsUpdatedAt?: string;
+  collectedAt: string;
+};
+
+export type WechatMpCollectionWorkspace = {
+  brandAccounts: WechatMpBrandAccountRecord[];
+  articles: WechatMpArticleRecord[];
+};
+
+export type WechatMpArticleFetchResult = {
+  isEnd: boolean;
+  nextOffset?: string;
+  count: number;
+  articles: WechatMpArticleRecord[];
+  workspace: WechatMpCollectionWorkspace;
+};
+
+export const wechatMpCollectionSeed: WechatMpCollectionWorkspace = {
+  brandAccounts: [],
+  articles: [],
+};
+
+export async function getWechatMpCollectionWorkspace(brandId?: string) {
+  return request<WechatMpCollectionWorkspace>(`/collectors/wechat-mp/brands/${resolveBrandId(brandId)}/workspace`);
+}
+
+export async function bindWechatMpBrandAccount(ghUsername: string, brandId?: string) {
+  return jsonRequest<{ item: WechatMpBrandAccountRecord; workspace: WechatMpCollectionWorkspace }>(
+    `/collectors/wechat-mp/brands/${resolveBrandId(brandId)}/brand-accounts`,
+    "POST",
+    { ghUsername },
+  );
+}
+
+export async function deleteWechatMpBrandAccount(accountId: string, brandId?: string) {
+  return jsonRequest<{ workspace: WechatMpCollectionWorkspace }>(
+    `/collectors/wechat-mp/brands/${resolveBrandId(brandId)}/brand-accounts/${accountId}`,
+    "DELETE",
+    {},
+  );
+}
+
+export async function fetchWechatMpArticles(ghUsername: string, offset?: string, brandId?: string) {
+  return jsonRequest<WechatMpArticleFetchResult>(
+    `/collectors/wechat-mp/brands/${resolveBrandId(brandId)}/articles/fetch`,
+    "POST",
+    { ghUsername, offset },
+  );
+}
+
+export async function updateWechatMpArticleStats(url: string, brandId?: string) {
+  return jsonRequest<{ item: WechatMpArticleRecord; workspace: WechatMpCollectionWorkspace }>(
+    `/collectors/wechat-mp/brands/${resolveBrandId(brandId)}/articles/stats`,
+    "POST",
+    { url },
+  );
+}

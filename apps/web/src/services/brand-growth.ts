@@ -16,6 +16,7 @@ export type BrandPermissionKey =
   | "brandGrowth.library.businessAssets"
   | "brandGrowth.collection.xiaohongshuCollection"
   | "brandGrowth.collection.douyinCollection"
+  | "brandGrowth.collection.wechatMpCollection"
   | "brandGrowth.collection.dailyHotspot"
   | "brandGrowth.report.opportunityInsight"
   | "brandGrowth.report.growthReport"

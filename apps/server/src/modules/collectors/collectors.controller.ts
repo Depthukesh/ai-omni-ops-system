@@ -273,3 +273,62 @@ export class DouyinCollectorsController {
     return this.collectorsService.removeDouyinKeywordRecommendation(brandId, assetId);
   }
 }
+
+@Controller("collectors/wechat-mp")
+export class WechatMpCollectorsController {
+  constructor(
+    @Inject(CollectorsService) private readonly collectorsService: CollectorsService,
+    @Inject(AuthService) private readonly authService: AuthService,
+  ) {}
+
+  @Get("brands/:brandId/workspace")
+  async workspace(@Param("brandId") brandId: string, @Headers() headers: Record<string, string | string[] | undefined>) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(brandId, auth);
+    return this.collectorsService.getWechatMpWorkspace(brandId);
+  }
+
+  @Post("brands/:brandId/brand-accounts")
+  async bindBrandAccount(
+    @Param("brandId") brandId: string,
+    @Body() payload: { ghUsername: string },
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(brandId, auth);
+    return this.collectorsService.syncWechatMpBrandAccount(brandId, payload.ghUsername);
+  }
+
+  @Delete("brands/:brandId/brand-accounts/:accountId")
+  async deleteBrandAccount(
+    @Param("brandId") brandId: string,
+    @Param("accountId") accountId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(brandId, auth);
+    return this.collectorsService.deleteWechatMpBrandAccount(brandId, accountId);
+  }
+
+  @Post("brands/:brandId/articles/fetch")
+  async fetchArticles(
+    @Param("brandId") brandId: string,
+    @Body() payload: { ghUsername: string; offset?: string },
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(brandId, auth);
+    return this.collectorsService.fetchWechatMpArticles(brandId, payload.ghUsername, payload.offset);
+  }
+
+  @Post("brands/:brandId/articles/stats")
+  async updateArticleStats(
+    @Param("brandId") brandId: string,
+    @Body() payload: { url: string },
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(brandId, auth);
+    return this.collectorsService.updateWechatMpArticleStats(brandId, payload.url);
+  }
+}

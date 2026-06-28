@@ -45,7 +45,9 @@ type CollectorAssetKind =
   | DouyinKeywordRecommendationKind
   | DouyinCommentKind
   | CollectorTargetKind
-  | DouyinCityHotspotKind;
+  | DouyinCityHotspotKind
+  | "WECHAT_MP_BRAND_ACCOUNT"
+  | "WECHAT_MP_ARTICLE";
 type CollectorSyncStatus = "IDLE" | "RUNNING" | "SUCCESS" | "FAILED";
 type DailyHotspotSyncStatus = "IDLE" | "RUNNING" | "SUCCESS" | "FAILED";
 type DouyinBillboardScopeKey =
@@ -57,6 +59,50 @@ type DouyinKeywordRecommendationScopeKey = "keywordRecommendations";
 type DouyinCommentScopeKey = "commentData";
 type DouyinCityHotspotScopeKey = "cityHotspots";
 export type XhsAccountRole = "BRAND" | "STAFF" | "TALENT";
+
+// 公众号采集类型定义
+export type WechatMpBrandAccountRecord = {
+  id: string;
+  ghUsername: string;
+  accountName: string;
+  collectedAt: string;
+};
+
+export type WechatMpArticleRecord = {
+  id: string;
+  sourceAccountId: string;
+  ghUsername?: string;
+  appMsgId?: string;
+  title: string;
+  digest?: string;
+  url: string;
+  cover?: string;
+  createTime?: string;
+  updateTime?: string;
+  idx?: number;
+  readNum?: number;
+  likeCount?: number;
+  oldLikeCount?: number;
+  shareCount?: number;
+  collectCount?: number;
+  commentCount?: number;
+  starNum?: number;
+  statsUpdatedAt?: string;
+  collectedAt: string;
+};
+
+export type WechatMpCollectionWorkspace = {
+  brandAccounts: WechatMpBrandAccountRecord[];
+  articles: WechatMpArticleRecord[];
+};
+
+export type WechatMpArticleFetchResult = {
+  isEnd: boolean;
+  nextOffset?: string;
+  count: number;
+  articles: WechatMpArticleRecord[];
+  workspace: WechatMpCollectionWorkspace;
+};
 type XhsSyncAccountEntry = {
   locator: string;
   accountRole?: XhsAccountRole;
@@ -5054,6 +5100,9 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
         if (this.isXhsAccountKind(kind)) {
           return this.isSameXhsAccountAssetIdentity(meta, item.fileUrl ?? undefined, kind, matchValue, fileUrl, metadata);
         }
+        if (kind === "WECHAT_MP_ARTICLE") {
+          return meta.kind === kind && this.readMetaString(meta, "articleId") === matchValue;
+        }
         return meta.kind === kind && this.readMetaString(meta, "sourceAccountId") === matchValue;
       });
       const [matched, ...duplicateMatches] = matchedItems;
@@ -5136,6 +5185,9 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       if (this.isXhsAccountKind(kind)) {
         return item.brandId === brandId
           && this.isSameXhsAccountAssetIdentity(meta, item.fileUrl, kind, matchValue, fileUrl, metadata);
+      }
+      if (kind === "WECHAT_MP_ARTICLE") {
+        return item.brandId === brandId && meta.kind === kind && this.readMetaString(meta, "articleId") === matchValue;
       }
       return item.brandId === brandId && meta.kind === kind && this.readMetaString(meta, "sourceAccountId") === matchValue;
     });
@@ -7277,5 +7329,252 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     const month = String(date.getMonth() + 1).padStart(2, "0");
     const day = String(date.getDate()).padStart(2, "0");
     return `${year}-${month}-${day}`;
+  }
+
+  // ─── 公众号采集（TikHub WeChat-Media-Platform-V2-API） ───
+
+  async getWechatMpWorkspace(brandId: string): Promise<WechatMpCollectionWorkspace> {
+    if (await this.prismaService.canUseDatabase()) {
+      const assets = await this.listCollectorAssets(brandId);
+      const accountAssets = assets.filter((asset) => {
+        const meta = this.asMeta(asset.metadataJson);
+        return this.readMetaString(meta, "kind") === "WECHAT_MP_BRAND_ACCOUNT";
+      });
+      const articleAssets = assets.filter((asset) => {
+        const meta = this.asMeta(asset.metadataJson);
+        return this.readMetaString(meta, "kind") === "WECHAT_MP_ARTICLE";
+      });
+      return {
+        brandAccounts: accountAssets.map((asset) => this.mapWechatMpBrandAccount(asset)),
+        articles: articleAssets.map((asset) => this.mapWechatMpArticle(asset)),
+      };
+    }
+    return { brandAccounts: [], articles: [] };
+  }
+
+  async syncWechatMpBrandAccount(brandId: string, ghUsername: string): Promise<{ item: WechatMpBrandAccountRecord; workspace: WechatMpCollectionWorkspace }> {
+    const trimmed = String(ghUsername || "").trim();
+    if (!/^gh_[A-Za-z0-9_]+$/.test(trimmed)) {
+      throw new BadRequestException("gh_username 格式不正确，应以 gh_ 开头。");
+    }
+    const account: WechatMpBrandAccountRecord = {
+      id: `wechat_mp_brand_${trimmed}`,
+      ghUsername: trimmed,
+      accountName: trimmed,
+      collectedAt: new Date().toISOString(),
+    };
+    const asset = await this.upsertCollectorAsset({
+      brandId,
+      kind: "WECHAT_MP_BRAND_ACCOUNT" as CollectorAssetKind,
+      matchValue: account.id,
+      title: account.accountName,
+      description: "微信公众号品牌账号绑定",
+      fileUrl: undefined,
+      metadata: {
+        kind: "WECHAT_MP_BRAND_ACCOUNT",
+        sourceAccountId: account.id,
+        ghUsername: account.ghUsername,
+        accountName: account.accountName,
+        collectedAt: account.collectedAt,
+      },
+    });
+    const item = this.mapWechatMpBrandAccount(asset);
+    const workspace = await this.getWechatMpWorkspace(brandId);
+    return { item, workspace };
+  }
+
+  async deleteWechatMpBrandAccount(brandId: string, accountId: string): Promise<{ workspace: WechatMpCollectionWorkspace }> {
+    const assets = await this.listCollectorAssets(brandId);
+    const target = assets.find((asset) => {
+      const meta = this.asMeta(asset.metadataJson);
+      return this.readMetaString(meta, "kind") === "WECHAT_MP_BRAND_ACCOUNT" && this.readMetaString(meta, "sourceAccountId") === accountId;
+    });
+    if (target) {
+      await this.deleteCollectorAssetById(brandId, target.id);
+    }
+    // 同时删除该账号下的文章
+    const articleAssets = assets.filter((asset) => {
+      const meta = this.asMeta(asset.metadataJson);
+      return this.readMetaString(meta, "kind") === "WECHAT_MP_ARTICLE" && this.readMetaString(meta, "sourceAccountId") === accountId;
+    });
+    for (const article of articleAssets) {
+      await this.deleteCollectorAssetById(brandId, article.id);
+    }
+    const workspace = await this.getWechatMpWorkspace(brandId);
+    return { workspace };
+  }
+
+  async fetchWechatMpArticles(brandId: string, ghUsername: string, offset?: string): Promise<WechatMpArticleFetchResult> {
+    const trimmed = String(ghUsername || "").trim();
+    if (!/^gh_[A-Za-z0-9_]+$/.test(trimmed)) {
+      throw new BadRequestException("gh_username 格式不正确，应以 gh_ 开头。");
+    }
+    const body: Record<string, unknown> = {
+      username: trimmed,
+      page_size: 20,
+      raw: false,
+    };
+    if (offset) {
+      body.offset = offset;
+    }
+    const raw = await this.fetchTikHubPost("/api/v1/wechat_mp/v2/fetch_account_articles", body, brandId);
+    const data = this.asMeta(this.asMeta(raw).data);
+    const isEnd = Boolean(this.readMetaNumber(data, "is_end"));
+    const nextOffset = this.readMetaString(data, "next_offset") || undefined;
+    const articlesRaw = (data.articles as unknown[] | undefined) || [];
+    const articles: WechatMpArticleRecord[] = [];
+    for (const articleRaw of articlesRaw) {
+      const article = this.asMeta(articleRaw);
+      const articleUrl = this.readMetaString(article, "url") || "";
+      const articleId = this.readMetaString(article, "app_msg_id") || articleUrl;
+      if (!articleId) continue;
+      const createTime = this.readMetaNumber(article, "create_time");
+      const updateTime = this.readMetaNumber(article, "update_time");
+      articles.push({
+        id: `wechat_mp_article_${articleId}`,
+        sourceAccountId: `wechat_mp_brand_${trimmed}`,
+        ghUsername: trimmed,
+        appMsgId: this.readMetaString(article, "app_msg_id") || undefined,
+        title: this.readMetaString(article, "title") || "",
+        digest: this.readMetaString(article, "digest") || undefined,
+        url: articleUrl,
+        cover: this.readMetaString(article, "cover") || undefined,
+        createTime: createTime ? new Date(createTime * 1000).toISOString() : undefined,
+        updateTime: updateTime ? new Date(updateTime * 1000).toISOString() : undefined,
+        idx: this.readMetaNumber(article, "idx"),
+        collectedAt: new Date().toISOString(),
+      });
+    }
+    // 存储文章到 BusinessAsset
+    for (const article of articles) {
+      await this.upsertCollectorAsset({
+        brandId,
+        kind: "WECHAT_MP_ARTICLE" as CollectorAssetKind,
+        matchValue: article.id,
+        title: article.title,
+        description: "微信公众号文章采集快照",
+        fileUrl: article.url,
+        metadata: {
+          kind: "WECHAT_MP_ARTICLE",
+          sourceAccountId: article.sourceAccountId,
+          articleId: article.id,
+          appMsgId: article.appMsgId,
+          title: article.title,
+          digest: article.digest,
+          url: article.url,
+          cover: article.cover,
+          createTime: article.createTime,
+          updateTime: article.updateTime,
+          idx: article.idx,
+          readNum: article.readNum,
+          likeCount: article.likeCount,
+          oldLikeCount: article.oldLikeCount,
+          shareCount: article.shareCount,
+          collectCount: article.collectCount,
+          commentCount: article.commentCount,
+          starNum: article.starNum,
+          statsUpdatedAt: article.statsUpdatedAt,
+          collectedAt: article.collectedAt,
+        },
+      });
+    }
+    return {
+      isEnd,
+      nextOffset,
+      count: articles.length,
+      articles,
+      workspace: await this.getWechatMpWorkspace(brandId),
+    };
+  }
+
+  async updateWechatMpArticleStats(brandId: string, articleUrl: string): Promise<{ item: WechatMpArticleRecord; workspace: WechatMpCollectionWorkspace }> {
+    const trimmedUrl = String(articleUrl || "").trim();
+    if (!/^https?:\/\/mp\.weixin\.qq\.com\/s([/?].+)?$/.test(trimmedUrl)) {
+      throw new BadRequestException("文章链接格式不正确，需为 mp.weixin.qq.com/s/ 开头的链接。");
+    }
+    const body: Record<string, unknown> = {
+      url: trimmedUrl,
+      raw: false,
+    };
+    const raw = await this.fetchTikHubPost("/api/v1/wechat_mp/v2/fetch_article_stats", body, brandId);
+    const data = this.asMeta(this.asMeta(raw).data);
+    const stats = {
+      readNum: this.readMetaNumber(data, "read_num"),
+      likeCount: this.readMetaNumber(data, "like_count"),
+      oldLikeCount: this.readMetaNumber(data, "old_like_count"),
+      shareCount: this.readMetaNumber(data, "share_count"),
+      collectCount: this.readMetaNumber(data, "collect_count"),
+      commentCount: this.readMetaNumber(data, "comment_count"),
+      starNum: this.readMetaNumber(data, "star_num"),
+    };
+    // 找到对应的文章 asset 并更新
+    const assets = await this.listCollectorAssets(brandId);
+    const target = assets.find((asset) => {
+      const meta = this.asMeta(asset.metadataJson);
+      return this.readMetaString(meta, "kind") === "WECHAT_MP_ARTICLE" && (this.readMetaString(meta, "url") === trimmedUrl || asset.fileUrl === trimmedUrl);
+    });
+    if (!target) {
+      throw new NotFoundException("未找到对应的文章，请先采集文章列表。");
+    }
+    const meta = this.asMeta(target.metadataJson);
+    const updatedMetadata = {
+      ...meta,
+      readNum: stats.readNum,
+      likeCount: stats.likeCount,
+      oldLikeCount: stats.oldLikeCount,
+      shareCount: stats.shareCount,
+      collectCount: stats.collectCount,
+      commentCount: stats.commentCount,
+      starNum: stats.starNum,
+      statsUpdatedAt: new Date().toISOString(),
+    };
+    const updated = await this.upsertCollectorAsset({
+      brandId,
+      kind: "WECHAT_MP_ARTICLE" as CollectorAssetKind,
+      matchValue: this.readMetaString(meta, "articleId") || target.id,
+      title: target.title,
+      description: target.description,
+      fileUrl: trimmedUrl,
+      metadata: updatedMetadata,
+    });
+    const item = this.mapWechatMpArticle(updated);
+    const workspace = await this.getWechatMpWorkspace(brandId);
+    return { item, workspace };
+  }
+
+  private mapWechatMpBrandAccount(asset: AssetRecord): WechatMpBrandAccountRecord {
+    const meta = this.asMeta(asset.metadataJson);
+    return {
+      id: this.readMetaString(meta, "sourceAccountId") || asset.id,
+      ghUsername: this.readMetaString(meta, "ghUsername") || "",
+      accountName: this.readMetaString(meta, "accountName") || asset.title,
+      collectedAt: this.readMetaString(meta, "collectedAt") || new Date().toISOString(),
+    };
+  }
+
+  private mapWechatMpArticle(asset: AssetRecord): WechatMpArticleRecord {
+    const meta = this.asMeta(asset.metadataJson);
+    return {
+      id: this.readMetaString(meta, "articleId") || asset.id,
+      sourceAccountId: this.readMetaString(meta, "sourceAccountId") || "",
+      ghUsername: this.readMetaString(meta, "ghUsername") || undefined,
+      appMsgId: this.readMetaString(meta, "appMsgId") || undefined,
+      title: asset.title,
+      digest: this.readMetaString(meta, "digest") || undefined,
+      url: this.readMetaString(meta, "url") || asset.fileUrl || "",
+      cover: this.readMetaString(meta, "cover") || undefined,
+      createTime: this.readMetaString(meta, "createTime") || undefined,
+      updateTime: this.readMetaString(meta, "updateTime") || undefined,
+      idx: this.readMetaNumber(meta, "idx"),
+      readNum: this.readMetaNumber(meta, "readNum"),
+      likeCount: this.readMetaNumber(meta, "likeCount"),
+      oldLikeCount: this.readMetaNumber(meta, "oldLikeCount"),
+      shareCount: this.readMetaNumber(meta, "shareCount"),
+      collectCount: this.readMetaNumber(meta, "collectCount"),
+      commentCount: this.readMetaNumber(meta, "commentCount"),
+      starNum: this.readMetaNumber(meta, "starNum"),
+      statsUpdatedAt: this.readMetaString(meta, "statsUpdatedAt") || undefined,
+      collectedAt: this.readMetaString(meta, "collectedAt") || new Date().toISOString(),
+    };
   }
 }
