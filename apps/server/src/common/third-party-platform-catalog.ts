@@ -6,6 +6,7 @@ export type ThirdPartyPlatformRecord = {
   providerType: "OPENAI" | "GEMINI" | "DOUBAO" | "CUSTOM";
   status: "ACTIVE" | "DISABLED" | "DRAFT";
   baseUrl: string;
+  websiteUrl: string;
   tutorialUrl: string;
   modelIds: string[];
   defaultModel: string;
@@ -55,6 +56,7 @@ function buildThirdPartyPlatformSeeds() {
       providerType: ThirdPartyPlatformRecord["providerType"];
       status: ThirdPartyPlatformRecord["status"];
       baseUrl: string;
+      websiteUrl: string;
       tutorialUrl: string;
       modelIds: Set<string>;
       defaultModel: string;
@@ -73,6 +75,7 @@ function buildThirdPartyPlatformSeeds() {
         providerType: item.providerType,
         status: item.status,
         baseUrl: item.baseUrl,
+        websiteUrl: resolvePlatformWebsiteUrl(item.baseUrl),
         tutorialUrl: item.tutorialUrl,
         modelIds: new Set(item.modelWhitelist),
         defaultModel: item.defaultModel,
@@ -85,6 +88,9 @@ function buildThirdPartyPlatformSeeds() {
     item.modelWhitelist.forEach((model) => current.modelIds.add(model));
     if (!current.tutorialUrl && item.tutorialUrl) {
       current.tutorialUrl = item.tutorialUrl;
+    }
+    if (!current.websiteUrl) {
+      current.websiteUrl = resolvePlatformWebsiteUrl(item.baseUrl);
     }
     if (!current.defaultModel && item.defaultModel) {
       current.defaultModel = item.defaultModel;
@@ -110,6 +116,7 @@ function buildThirdPartyPlatformSeeds() {
       providerType: item.providerType,
       status: item.status,
       baseUrl: item.baseUrl,
+      websiteUrl: item.websiteUrl,
       tutorialUrl: item.tutorialUrl,
       modelIds: Array.from(item.modelIds),
       defaultModel: item.defaultModel,
@@ -123,6 +130,7 @@ function buildThirdPartyPlatformSeeds() {
         providerType: "CUSTOM" as const,
         status: "ACTIVE" as const,
         baseUrl: "https://api.tikhub.io",
+        websiteUrl: "https://www.tikhub.io",
         tutorialUrl: "https://docs.tikhub.io/186826222e0",
         modelIds: [],
         defaultModel: "",
@@ -135,6 +143,7 @@ function buildThirdPartyPlatformSeeds() {
         providerType: "CUSTOM" as const,
         status: "ACTIVE" as const,
         baseUrl: "https://open-api.chanjing.cc",
+        websiteUrl: "https://www.chanjing.cc",
         tutorialUrl: "https://doc.chanjing.cc/api/open-api-common-knowledge.html",
         modelIds: [],
         defaultModel: "",
@@ -147,6 +156,7 @@ function buildThirdPartyPlatformSeeds() {
         providerType: "CUSTOM" as const,
         status: "ACTIVE" as const,
         baseUrl: "https://vod.volcengineapi.com",
+        websiteUrl: "https://console.volcengine.com/vod",
         tutorialUrl: "https://www.volcengine.com/docs/4/1511923?lang=zh",
         modelIds: [],
         defaultModel: "",
@@ -159,6 +169,7 @@ function buildThirdPartyPlatformSeeds() {
         providerType: "CUSTOM" as const,
         status: "ACTIVE" as const,
         baseUrl: "https://www.runninghub.cn",
+        websiteUrl: "https://www.runninghub.cn",
         tutorialUrl: "https://www.runninghub.cn/runninghub-api-doc-cn/api-425749010",
         modelIds: [],
         defaultModel: "",
@@ -184,6 +195,32 @@ function resolvePlatformName(baseUrl: string) {
     return PLATFORM_NAME_BY_HOST[url.host] || `${url.host} 平台`;
   } catch {
     return `${baseUrl || "未命名"} 平台`;
+  }
+}
+
+export function resolvePlatformWebsiteUrl(baseUrl: string) {
+  try {
+    const url = new URL(baseUrl);
+    const host = url.host.toLowerCase();
+    const websiteByHost: Record<string, string> = {
+      "api.xskill.ai": "https://www.xskill.ai",
+      "api.apiz.ai": "https://www.xskill.ai",
+      "api.deepseek.com": "https://platform.deepseek.com",
+      "api.moonshot.cn": "https://platform.moonshot.cn",
+      "open.bigmodel.cn": "https://open.bigmodel.cn",
+      "api.tikhub.io": "https://www.tikhub.io",
+      "ark.cn-beijing.volces.com": "https://www.volcengine.com/product/ark",
+      "vod.volcengineapi.com": "https://console.volcengine.com/vod",
+      "open-api.chanjing.cc": "https://www.chanjing.cc",
+      "www.runninghub.cn": "https://www.runninghub.cn",
+      "apihub.agnes-ai.com": "https://agnes-ai.com/zh-Hans",
+      "www.right.codes": "https://www.right.codes",
+      "agent.mathmind.cn": "https://agent.mathmind.cn",
+      "api.mathmind.cn": "https://agent.mathmind.cn",
+    };
+    return websiteByHost[host] || `${url.protocol}//${url.host}`;
+  } catch {
+    return String(baseUrl || "").trim();
   }
 }
 

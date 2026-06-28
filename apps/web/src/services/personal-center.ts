@@ -118,6 +118,7 @@ export type UserThirdPartyPlatformRecord = {
   providerType: "OPENAI" | "GEMINI" | "DOUBAO" | "CUSTOM";
   status: "ACTIVE" | "DISABLED" | "DRAFT";
   baseUrl: string;
+  websiteUrl: string;
   tutorialUrl: string;
   modelIds: string[];
   defaultModel: string;

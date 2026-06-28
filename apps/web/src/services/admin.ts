@@ -826,6 +826,7 @@ export type ThirdPartyPlatformRecord = {
   providerType: "OPENAI" | "GEMINI" | "DOUBAO" | "CUSTOM";
   status: "ACTIVE" | "DISABLED" | "DRAFT";
   baseUrl: string;
+  websiteUrl: string;
   tutorialUrl: string;
   modelIds: string[];
   defaultModel: string;
@@ -4303,6 +4304,7 @@ export async function createThirdPartyPlatform(payload: {
   providerType: ThirdPartyPlatformRecord["providerType"];
   status?: ThirdPartyPlatformRecord["status"];
   baseUrl: string;
+  websiteUrl?: string;
   tutorialUrl?: string;
   modelIds?: string[];
   defaultModel?: string;
@@ -4316,7 +4318,7 @@ export async function updateThirdPartyPlatform(
   payload: Partial<
     Pick<
       ThirdPartyPlatformRecord,
-      "name" | "providerType" | "status" | "baseUrl" | "tutorialUrl" | "modelIds" | "defaultModel" | "remark"
+      "name" | "providerType" | "status" | "baseUrl" | "websiteUrl" | "tutorialUrl" | "modelIds" | "defaultModel" | "remark"
     >
   >,
 ) {

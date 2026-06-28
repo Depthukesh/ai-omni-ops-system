@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿"use client";
+﻿﻿﻿﻿﻿"use client";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -74,6 +74,7 @@ function normalizePlatformRecord(platform: unknown): UserThirdPartyPlatformRecor
         : "CUSTOM",
     status: status === "ACTIVE" || status === "DISABLED" || status === "DRAFT" ? status : "DRAFT",
     baseUrl: normalizeString(record.baseUrl).trim(),
+    websiteUrl: normalizeString(record.websiteUrl).trim() || normalizeString(record.baseUrl).trim(),
     tutorialUrl: normalizeString(record.tutorialUrl).trim(),
     modelIds: normalizeStringArray(record.modelIds),
     defaultModel: normalizeString(record.defaultModel).trim(),
@@ -196,7 +197,7 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
       if (!keyword) {
         return true;
       }
-      return [item.name, item.baseUrl, item.defaultModel, item.modelIds.join(" "), item.remark]
+      return [item.name, item.baseUrl, item.websiteUrl, item.defaultModel, item.modelIds.join(" "), item.remark]
         .join(" ")
         .toLowerCase()
         .includes(keyword);
@@ -542,8 +543,8 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
                 >
                   {savingPlatformId === selectedPlatform.id ? "保存中..." : "保存品牌共享 API Key"}
                 </button>
-                {selectedPlatform.baseUrl ? (
-                  <a href={selectedPlatform.baseUrl} target="_blank" rel="noreferrer" className="secondary-button">
+                {selectedPlatform.websiteUrl ? (
+                  <a href={selectedPlatform.websiteUrl} target="_blank" rel="noreferrer" className="secondary-button">
                     打开第三方平台
                   </a>
                 ) : null}
@@ -564,8 +565,12 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
 
             <div className="personal-grid" style={{ marginBottom: 16 }}>
               <div>
-                <span>第三方平台链接</span>
+                <span>API 接口地址</span>
                 <strong style={{ wordBreak: "break-all" }}>{selectedPlatform.baseUrl || "-"}</strong>
+              </div>
+              <div>
+                <span>平台官网地址</span>
+                <strong style={{ wordBreak: "break-all" }}>{selectedPlatform.websiteUrl || "未配置平台官网地址"}</strong>
               </div>
               <div>
                 <span>{getPlatformDefaultLabel(selectedPlatform)}</span>

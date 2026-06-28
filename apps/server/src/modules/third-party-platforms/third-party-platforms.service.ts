@@ -3,6 +3,7 @@ import { database } from "../../common/mock-data";
 import {
   THIRD_PARTY_PLATFORM_SEEDS,
   isDecommissionedPlatformBaseUrl,
+  resolvePlatformWebsiteUrl,
   type ThirdPartyPlatformRecord,
 } from "../../common/third-party-platform-catalog";
 import { PrismaService } from "../../prisma/prisma.service";
@@ -13,6 +14,7 @@ export type CreateThirdPartyPlatformPayload = {
   providerType: ThirdPartyPlatformRecord["providerType"];
   status?: ThirdPartyPlatformRecord["status"];
   baseUrl: string;
+  websiteUrl?: string;
   tutorialUrl?: string;
   modelIds?: string[];
   defaultModel?: string;
@@ -24,6 +26,7 @@ export type UpdateThirdPartyPlatformPayload = {
   providerType?: ThirdPartyPlatformRecord["providerType"];
   status?: ThirdPartyPlatformRecord["status"];
   baseUrl?: string;
+  websiteUrl?: string;
   tutorialUrl?: string;
   modelIds?: string[];
   defaultModel?: string;
@@ -70,6 +73,7 @@ type ThirdPartyPlatformRow = {
   providerType: ThirdPartyPlatformRecord["providerType"];
   status: ThirdPartyPlatformRecord["status"];
   baseUrl: string;
+  websiteUrl: string;
   tutorialUrl: string;
   modelIdsJson: unknown;
   defaultModel: string;
@@ -85,6 +89,11 @@ type BrandThirdPartyPlatformSecretRow = {
   updatedAt: Date | string;
 };
 
+type ThirdPartyPlatformGroup = {
+  platform: ThirdPartyPlatformRecord;
+  aliasIds: string[];
+};
+
 @Injectable()
 export class ThirdPartyPlatformsService {
   private bootstrapPromise?: Promise<void>;
@@ -95,6 +104,10 @@ export class ThirdPartyPlatformsService {
   ) {}
 
   async listPlatforms() {
+    return (await this.listPlatformGroups()).map((item) => item.platform);
+  }
+
+  private async listPlatformsRaw() {
     if (await this.prismaService.canUseDatabase()) {
       await this.ensureTablesReady();
       const rows = await this.prismaService.$queryRaw<ThirdPartyPlatformRow[]>`
@@ -118,7 +131,15 @@ export class ThirdPartyPlatformsService {
   }
 
   async getPlatformById(platformId: string) {
-    return (await this.listPlatforms()).find((item) => item.id === platformId);
+    const normalizedPlatformId = String(platformId || "").trim();
+    if (!normalizedPlatformId) {
+      return undefined;
+    }
+    const rawPlatform = (await this.listPlatformsRaw()).find((item) => item.id === normalizedPlatformId);
+    if (rawPlatform) {
+      return rawPlatform;
+    }
+    return (await this.listPlatformGroups()).find((item) => item.aliasIds.includes(normalizedPlatformId))?.platform;
   }
 
   async createPlatform(payload: CreateThirdPartyPlatformPayload) {
@@ -128,6 +149,7 @@ export class ThirdPartyPlatformsService {
       providerType: payload.providerType,
       status: payload.status || "DRAFT",
       baseUrl: payload.baseUrl,
+      websiteUrl: payload.websiteUrl || "",
       tutorialUrl: payload.tutorialUrl || "",
       modelIds: payload.modelIds || [],
       defaultModel: payload.defaultModel || "",
@@ -144,6 +166,7 @@ export class ThirdPartyPlatformsService {
           "providerType",
           "status",
           "baseUrl",
+          "websiteUrl",
           "tutorialUrl",
           "modelIdsJson",
           "defaultModel",
@@ -156,6 +179,7 @@ export class ThirdPartyPlatformsService {
           ${nextRecord.providerType},
           ${nextRecord.status},
           ${nextRecord.baseUrl},
+          ${nextRecord.websiteUrl},
           ${nextRecord.tutorialUrl},
           ${JSON.stringify(nextRecord.modelIds)}::jsonb,
           ${nextRecord.defaultModel},
@@ -186,6 +210,7 @@ export class ThirdPartyPlatformsService {
       providerType: payload.providerType ?? current.providerType,
       status: payload.status ?? current.status,
       baseUrl: payload.baseUrl ?? current.baseUrl,
+      websiteUrl: payload.websiteUrl ?? current.websiteUrl,
       tutorialUrl: payload.tutorialUrl ?? current.tutorialUrl,
       modelIds: payload.modelIds ?? current.modelIds,
       defaultModel: payload.defaultModel ?? current.defaultModel,
@@ -202,6 +227,7 @@ export class ThirdPartyPlatformsService {
           "providerType" = ${nextRecord.providerType},
           "status" = ${nextRecord.status},
           "baseUrl" = ${nextRecord.baseUrl},
+          "websiteUrl" = ${nextRecord.websiteUrl},
           "tutorialUrl" = ${nextRecord.tutorialUrl},
           "modelIdsJson" = ${JSON.stringify(nextRecord.modelIds)}::jsonb,
           "defaultModel" = ${nextRecord.defaultModel},
@@ -220,40 +246,44 @@ export class ThirdPartyPlatformsService {
   }
 
   async deletePlatform(platformId: string) {
-    const current = await this.getPlatformById(platformId);
+    const group = await this.getPlatformGroupById(platformId);
+    const current = group?.platform || await this.getPlatformById(platformId);
     if (!current) {
       throw new NotFoundException("第三方平台不存在");
     }
+    const targetIds = group?.aliasIds.length ? group.aliasIds : [platformId];
 
     if (await this.prismaService.canUseDatabase()) {
       await this.ensureTablesReady();
       await this.prismaService.$queryRawUnsafe(
-        `DELETE FROM "BrandThirdPartyPlatformSecret" WHERE "platformId" = $1`,
-        platformId,
+        `DELETE FROM "BrandThirdPartyPlatformSecret" WHERE "platformId" = ANY($1::text[])`,
+        targetIds,
       );
       const rows = await this.prismaService.$queryRaw<ThirdPartyPlatformRow[]>`
         DELETE FROM "ThirdPartyPlatformConfig"
-        WHERE "id" = ${platformId}
+        WHERE "id" = ANY (${targetIds}::text[])
         RETURNING *
       `;
       return this.normalizePlatformRow(rows[0] ?? current);
     }
 
-    database.thirdPartyPlatforms = (database.thirdPartyPlatforms || []).filter((item) => item.id !== platformId);
+    const targetIdSet = new Set(targetIds);
+    database.thirdPartyPlatforms = (database.thirdPartyPlatforms || []).filter((item) => !targetIdSet.has(item.id));
     database.brandThirdPartyPlatformSecrets = (database.brandThirdPartyPlatformSecrets || []).filter(
-      (item) => item.platformId !== platformId,
+      (item) => !targetIdSet.has(item.platformId),
     );
     return current;
   }
 
   async listUserPlatforms(_userId: string, brandId: string) {
-    const [platforms, secrets] = await Promise.all([this.listPlatforms(), this.listBrandSecrets(brandId)]);
-    return Promise.all(platforms.map(async (item) => {
-      const secret = secrets.find((entry) => entry.platformId === item.id);
+    const [platformGroups, secrets] = await Promise.all([this.listPlatformGroups(), this.listBrandSecrets(brandId)]);
+    return Promise.all(platformGroups.map(async ({ platform, aliasIds }) => {
+      const aliasIdSet = new Set(aliasIds);
+      const secret = secrets.find((entry) => aliasIdSet.has(entry.platformId));
       const apiKey = secret?.apiKey || "";
-      const dynamicStats = await this.buildDynamicStats(item, apiKey);
+      const dynamicStats = await this.buildDynamicStats(platform, apiKey);
       return {
-        ...item,
+        ...platform,
         apiKey,
         effectiveApiKeyMasked: this.maskSecret(apiKey),
         dynamicStats,
@@ -262,23 +292,18 @@ export class ThirdPartyPlatformsService {
   }
 
   async updateBrandPlatformSecret(brandId: string, platformId: string, payload: UpdateBrandThirdPartyPlatformSecretPayload) {
-    const platform = await this.getPlatformById(platformId);
+    const group = await this.getPlatformGroupById(platformId);
+    const platform = group?.platform || await this.getPlatformById(platformId);
     if (!platform) {
       throw new NotFoundException("第三方平台不存在");
     }
+    const targetPlatformIds = group?.aliasIds.length ? group.aliasIds : [platform.id];
 
     const nextApiKey = String(payload.apiKey || "").trim();
 
     if (await this.prismaService.canUseDatabase()) {
       await this.ensureTablesReady();
-      const existingRows = await this.prismaService.$queryRaw<BrandThirdPartyPlatformSecretRow[]>`
-        SELECT *
-        FROM "BrandThirdPartyPlatformSecret"
-        WHERE "brandId" = ${brandId}
-          AND "platformId" = ${platformId}
-        LIMIT 1
-      `;
-      const existing = existingRows[0];
+      const existing = await this.findBrandPlatformSecretByPlatforms(brandId, targetPlatformIds);
 
       if (existing) {
         const rows = await this.prismaService.$queryRaw<BrandThirdPartyPlatformSecretRow[]>`
@@ -303,7 +328,7 @@ export class ThirdPartyPlatformsService {
         VALUES (
           ${`brand_platform_secret_${Date.now()}`},
           ${brandId},
-          ${platformId},
+          ${platform.id},
           ${nextApiKey},
           CURRENT_TIMESTAMP
         )
@@ -316,7 +341,7 @@ export class ThirdPartyPlatformsService {
       database.brandThirdPartyPlatformSecrets = [];
     }
     const existing = database.brandThirdPartyPlatformSecrets.find(
-      (item) => item.brandId === brandId && item.platformId === platformId,
+      (item) => item.brandId === brandId && targetPlatformIds.includes(item.platformId),
     );
     if (existing) {
       existing.apiKey = nextApiKey;
@@ -536,7 +561,7 @@ export class ThirdPartyPlatformsService {
           .filter(Boolean),
       ),
     );
-    const platforms = await this.listPlatforms();
+    const platforms = await this.listPlatformsRaw();
     const exactMatches = platforms.filter((item) => normalizedBaseUrls.includes(this.normalizeBaseUrl(item.baseUrl)));
     if (exactMatches.length) {
       const exactIds = new Set(exactMatches.map((item) => item.id));
@@ -572,6 +597,103 @@ export class ThirdPartyPlatformsService {
     return (database.brandThirdPartyPlatformSecrets || []).find(
       (item) => item.brandId === brandId && item.platformId === platformId,
     );
+  }
+
+  private async listPlatformGroups(): Promise<ThirdPartyPlatformGroup[]> {
+    return this.collapsePlatformGroups(await this.listPlatformsRaw());
+  }
+
+  private async getPlatformGroupById(platformId: string) {
+    const normalizedPlatformId = String(platformId || "").trim();
+    if (!normalizedPlatformId) {
+      return undefined;
+    }
+    return (await this.listPlatformGroups()).find((item) => item.aliasIds.includes(normalizedPlatformId));
+  }
+
+  private collapsePlatformGroups(platforms: ThirdPartyPlatformRecord[]): ThirdPartyPlatformGroup[] {
+    const groups = new Map<string, ThirdPartyPlatformGroup>();
+    for (const platform of platforms) {
+      const groupKey = this.resolvePlatformGroupKey(platform);
+      const current = groups.get(groupKey);
+      if (!current) {
+        groups.set(groupKey, {
+          platform: {
+            ...platform,
+            modelIds: [...platform.modelIds],
+          },
+          aliasIds: [platform.id],
+        });
+        continue;
+      }
+
+      current.aliasIds = Array.from(new Set([...current.aliasIds, platform.id]));
+      current.platform = {
+        ...current.platform,
+        name: current.platform.name || platform.name,
+        providerType:
+          current.platform.providerType === platform.providerType
+            ? current.platform.providerType
+            : "CUSTOM",
+        status: this.pickHigherStatus(current.platform.status, platform.status),
+        baseUrl: this.pickPreferredPlatformBaseUrl(current.platform.baseUrl, platform.baseUrl),
+        websiteUrl: current.platform.websiteUrl || platform.websiteUrl,
+        tutorialUrl: current.platform.tutorialUrl || platform.tutorialUrl,
+        modelIds: Array.from(new Set([...current.platform.modelIds, ...platform.modelIds])),
+        defaultModel: current.platform.defaultModel || platform.defaultModel,
+        remark: current.platform.remark || platform.remark,
+        updatedAt:
+          new Date(platform.updatedAt).getTime() > new Date(current.platform.updatedAt).getTime()
+            ? platform.updatedAt
+            : current.platform.updatedAt,
+      };
+    }
+    return Array.from(groups.values());
+  }
+
+  private resolvePlatformGroupKey(platform: Pick<ThirdPartyPlatformRecord, "baseUrl" | "websiteUrl">) {
+    const normalizedWebsiteUrl = this.normalizeBaseUrl(platform.websiteUrl || resolvePlatformWebsiteUrl(platform.baseUrl));
+    if (normalizedWebsiteUrl) {
+      return `website:${normalizedWebsiteUrl}`;
+    }
+    const baseHost = this.extractHost(platform.baseUrl);
+    return baseHost ? `host:${baseHost}` : `base:${this.normalizeBaseUrl(platform.baseUrl)}`;
+  }
+
+  private pickHigherStatus(
+    current: ThirdPartyPlatformRecord["status"],
+    next: ThirdPartyPlatformRecord["status"],
+  ): ThirdPartyPlatformRecord["status"] {
+    const weights: Record<ThirdPartyPlatformRecord["status"], number> = {
+      ACTIVE: 3,
+      DRAFT: 2,
+      DISABLED: 1,
+    };
+    return weights[next] > weights[current] ? next : current;
+  }
+
+  private pickPreferredPlatformBaseUrl(current: string, next: string) {
+    return this.getPlatformBaseUrlPriority(next) > this.getPlatformBaseUrlPriority(current) ? next : current;
+  }
+
+  private getPlatformBaseUrlPriority(value: string) {
+    const normalized = this.normalizeBaseUrl(value);
+    if (!normalized) {
+      return 0;
+    }
+    if (normalized === "https://api.xskill.ai") {
+      return 100;
+    }
+    if (normalized === "https://api.apiz.ai") {
+      return 90;
+    }
+    if (normalized === "https://www.right.codes/codex") {
+      return 100;
+    }
+    if (normalized === "https://www.right.codes/draw") {
+      return 90;
+    }
+    return 10;
   }
 
   private async findBrandPlatformSecretByPlatforms(brandId: string, platformIds: string[]) {
@@ -621,6 +743,7 @@ export class ThirdPartyPlatformsService {
       providerType: input.providerType,
       status: input.status,
       baseUrl: String(input.baseUrl || "").trim(),
+      websiteUrl: String(input.websiteUrl || "").trim() || resolvePlatformWebsiteUrl(String(input.baseUrl || "").trim()),
       tutorialUrl: String(input.tutorialUrl || "").trim(),
       modelIds,
       defaultModel,
@@ -641,6 +764,7 @@ export class ThirdPartyPlatformsService {
       providerType: row.providerType,
       status: row.status,
       baseUrl: row.baseUrl,
+      websiteUrl: "websiteUrl" in row ? row.websiteUrl : "",
       tutorialUrl: row.tutorialUrl,
       modelIds,
       defaultModel: row.defaultModel,
@@ -722,6 +846,7 @@ export class ThirdPartyPlatformsService {
         "providerType" TEXT NOT NULL,
         "status" TEXT NOT NULL,
         "baseUrl" TEXT NOT NULL DEFAULT '',
+        "websiteUrl" TEXT NOT NULL DEFAULT '',
         "tutorialUrl" TEXT NOT NULL DEFAULT '',
         "modelIdsJson" JSONB NOT NULL DEFAULT '[]'::jsonb,
         "defaultModel" TEXT NOT NULL DEFAULT '',
@@ -729,6 +854,9 @@ export class ThirdPartyPlatformsService {
         "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
     `);
+    await this.prismaService.$executeRawUnsafe(
+      `ALTER TABLE "ThirdPartyPlatformConfig" ADD COLUMN IF NOT EXISTS "websiteUrl" TEXT NOT NULL DEFAULT ''`,
+    );
     await this.prismaService.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS "UserThirdPartyPlatformSecret" (
         "id" TEXT PRIMARY KEY,
@@ -811,6 +939,7 @@ export class ThirdPartyPlatformsService {
           "providerType",
           "status",
           "baseUrl",
+          "websiteUrl",
           "tutorialUrl",
           "modelIdsJson",
           "defaultModel",
@@ -823,6 +952,7 @@ export class ThirdPartyPlatformsService {
           ${item.providerType},
           ${item.status},
           ${item.baseUrl},
+          ${item.websiteUrl},
           ${item.tutorialUrl},
           ${JSON.stringify(item.modelIds)}::jsonb,
           ${item.defaultModel},
@@ -839,6 +969,7 @@ export class ThirdPartyPlatformsService {
     const nextProviderType = current.providerType || seed.providerType;
     const nextStatus = current.status || seed.status;
     const nextBaseUrl = this.resolveSystemSeedBaseUrl(current.baseUrl, seed.baseUrl);
+    const nextWebsiteUrl = current.websiteUrl || seed.websiteUrl || resolvePlatformWebsiteUrl(nextBaseUrl);
     const nextTutorialUrl = current.tutorialUrl || seed.tutorialUrl || "";
     const nextDefaultModel = current.defaultModel || seed.defaultModel || "";
     const nextRemark = current.remark || seed.remark || "";
@@ -849,6 +980,7 @@ export class ThirdPartyPlatformsService {
       && current.providerType === nextProviderType
       && current.status === nextStatus
       && current.baseUrl === nextBaseUrl
+      && current.websiteUrl === nextWebsiteUrl
       && currentModelIdsJson === nextModelIdsJson
       && current.tutorialUrl === nextTutorialUrl
       && current.defaultModel === nextDefaultModel
@@ -863,6 +995,7 @@ export class ThirdPartyPlatformsService {
         "providerType" = ${nextProviderType},
         "status" = ${nextStatus},
         "baseUrl" = ${nextBaseUrl},
+        "websiteUrl" = ${nextWebsiteUrl},
         "modelIdsJson" = ${nextModelIdsJson}::jsonb,
         "tutorialUrl" = ${nextTutorialUrl},
         "defaultModel" = ${nextDefaultModel},

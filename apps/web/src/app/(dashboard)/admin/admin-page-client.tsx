@@ -392,6 +392,7 @@ type ThirdPartyPlatformEditDraft = {
   providerType: ThirdPartyPlatformRecord["providerType"];
   status: ThirdPartyPlatformRecord["status"];
   baseUrl: string;
+  websiteUrl: string;
   tutorialUrl: string;
   modelIds: string;
   defaultModel: string;
@@ -402,6 +403,7 @@ type CreateThirdPartyPlatformDraft = {
   providerType: ThirdPartyPlatformRecord["providerType"];
   status: ThirdPartyPlatformRecord["status"];
   baseUrl: string;
+  websiteUrl: string;
   tutorialUrl: string;
   modelIds: string;
   defaultModel: string;
@@ -3367,6 +3369,7 @@ export default function AdminPage() {
         item.name,
         item.providerType,
         item.baseUrl,
+        item.websiteUrl,
         item.defaultModel,
         item.remark,
         ...item.modelIds,
@@ -8154,12 +8157,23 @@ export default function AdminPage() {
                         </select>
                       </label>
                       <label className="admin-provider-field admin-provider-field--wide">
-                        <span>第三方平台链接</span>
+                        <span>API 接口地址</span>
                         <input
                           value={selectedThirdPartyPlatformDraft.baseUrl}
                           onChange={(event) =>
                             handlePlatformDraftChange(selectedThirdPartyPlatform.id, {
                               baseUrl: event.target.value,
+                            })
+                          }
+                        />
+                      </label>
+                      <label className="admin-provider-field admin-provider-field--wide">
+                        <span>平台官网地址</span>
+                        <input
+                          value={selectedThirdPartyPlatformDraft.websiteUrl}
+                          onChange={(event) =>
+                            handlePlatformDraftChange(selectedThirdPartyPlatform.id, {
+                              websiteUrl: event.target.value,
                             })
                           }
                         />
@@ -8268,9 +8282,14 @@ export default function AdminPage() {
                   </div>
 
                   <div className="admin-provider-actions">
+                    {selectedThirdPartyPlatformDraft.websiteUrl.trim() ? (
+                      <a href={selectedThirdPartyPlatformDraft.websiteUrl} target="_blank" rel="noreferrer" className="secondary-button">
+                        打开平台官网
+                      </a>
+                    ) : null}
                     {selectedThirdPartyPlatformDraft.baseUrl.trim() ? (
                       <a href={selectedThirdPartyPlatformDraft.baseUrl} target="_blank" rel="noreferrer" className="secondary-button">
-                        第三方平台链接
+                        打开 API 地址
                       </a>
                     ) : null}
                     {selectedThirdPartyPlatformDraft.tutorialUrl.trim() ? (
@@ -9637,6 +9656,7 @@ function buildThirdPartyPlatformDraft(item: ThirdPartyPlatformRecord): ThirdPart
     providerType: item.providerType,
     status: item.status,
     baseUrl: item.baseUrl,
+    websiteUrl: item.websiteUrl,
     tutorialUrl: item.tutorialUrl,
     modelIds: item.modelIds.join(", "),
     defaultModel: item.defaultModel,
@@ -9657,6 +9677,7 @@ function buildCreateThirdPartyPlatformDraft(): CreateThirdPartyPlatformDraft {
     providerType: "OPENAI",
     status: "DRAFT",
     baseUrl: "",
+    websiteUrl: "",
     tutorialUrl: "",
     modelIds: "",
     defaultModel: "",
@@ -9667,7 +9688,7 @@ function buildCreateThirdPartyPlatformDraft(): CreateThirdPartyPlatformDraft {
 function buildThirdPartyPlatformPayload(
   draft: Pick<
     CreateThirdPartyPlatformDraft,
-    "name" | "providerType" | "status" | "baseUrl" | "tutorialUrl" | "modelIds" | "defaultModel" | "remark"
+    "name" | "providerType" | "status" | "baseUrl" | "websiteUrl" | "tutorialUrl" | "modelIds" | "defaultModel" | "remark"
   >,
 ) {
   const modelIds = parseThirdPartyPlatformModelIds(draft.modelIds);
@@ -9676,6 +9697,7 @@ function buildThirdPartyPlatformPayload(
     providerType: draft.providerType,
     status: draft.status,
     baseUrl: draft.baseUrl.trim(),
+    websiteUrl: draft.websiteUrl.trim(),
     tutorialUrl: draft.tutorialUrl.trim(),
     modelIds,
     defaultModel: resolveThirdPartyPlatformDefaultModel(draft.modelIds, draft.defaultModel),
@@ -9719,6 +9741,7 @@ function buildThirdPartyPlatformsFromProviders(list: ApiProviderRecord[]): Third
       providerType: ThirdPartyPlatformRecord["providerType"];
       statuses: Set<ThirdPartyPlatformRecord["status"]>;
       baseUrl: string;
+      websiteUrl: string;
       tutorialUrl: string;
       modelIds: Set<string>;
       defaultModel: string;
@@ -9728,12 +9751,16 @@ function buildThirdPartyPlatformsFromProviders(list: ApiProviderRecord[]): Third
   >();
 
   for (const item of list) {
+    const normalizedWebsiteUrl = normalizeThirdPartyPlatformBaseUrl(resolveThirdPartyPlatformWebsiteUrl(item.baseUrl));
     const normalizedBaseUrl = normalizeThirdPartyPlatformBaseUrl(item.baseUrl);
-    const key = normalizedBaseUrl || item.id;
+    const key = normalizedWebsiteUrl || normalizedBaseUrl || item.id;
     const current = grouped.get(key);
     if (current) {
       current.statuses.add(item.status);
       item.modelWhitelist.forEach((model) => current.modelIds.add(model));
+      if (!current.websiteUrl && item.baseUrl.trim()) {
+        current.websiteUrl = resolveThirdPartyPlatformWebsiteUrl(item.baseUrl);
+      }
       if (!current.defaultModel && item.defaultModel.trim()) {
         current.defaultModel = item.defaultModel.trim();
       }
@@ -9755,6 +9782,7 @@ function buildThirdPartyPlatformsFromProviders(list: ApiProviderRecord[]): Third
       providerType: item.providerType,
       statuses: new Set([item.status]),
       baseUrl: item.baseUrl.trim(),
+      websiteUrl: resolveThirdPartyPlatformWebsiteUrl(item.baseUrl),
       tutorialUrl: item.tutorialUrl.trim(),
       modelIds: new Set(item.modelWhitelist.map((model) => model.trim()).filter(Boolean)),
       defaultModel: item.defaultModel.trim(),
@@ -9773,6 +9801,7 @@ function buildThirdPartyPlatformsFromProviders(list: ApiProviderRecord[]): Third
         providerType: item.providerType,
         status: resolveThirdPartyPlatformStatus(item.statuses),
         baseUrl: item.baseUrl,
+        websiteUrl: item.websiteUrl,
         tutorialUrl: item.tutorialUrl,
         modelIds,
         defaultModel,
@@ -9808,6 +9837,36 @@ function resolveThirdPartyPlatformName(baseUrl: string, fallbackName: string) {
     return hostNameMap[host] || fallbackName.trim() || host;
   } catch {
     return fallbackName.trim() || trimmed;
+  }
+}
+
+function resolveThirdPartyPlatformWebsiteUrl(baseUrl: string) {
+  const trimmed = baseUrl.trim();
+  if (!trimmed) {
+    return "";
+  }
+  try {
+    const url = new URL(trimmed);
+    const host = url.host.toLowerCase();
+    const websiteByHost: Record<string, string> = {
+      "api.xskill.ai": "https://www.xskill.ai",
+      "api.apiz.ai": "https://www.xskill.ai",
+      "api.deepseek.com": "https://platform.deepseek.com",
+      "api.moonshot.cn": "https://platform.moonshot.cn",
+      "open.bigmodel.cn": "https://open.bigmodel.cn",
+      "api.tikhub.io": "https://www.tikhub.io",
+      "ark.cn-beijing.volces.com": "https://www.volcengine.com/product/ark",
+      "vod.volcengineapi.com": "https://console.volcengine.com/vod",
+      "open-api.chanjing.cc": "https://www.chanjing.cc",
+      "www.runninghub.cn": "https://www.runninghub.cn",
+      "apihub.agnes-ai.com": "https://agnes-ai.com/zh-Hans",
+      "www.right.codes": "https://www.right.codes",
+      "agent.mathmind.cn": "https://agent.mathmind.cn",
+      "api.mathmind.cn": "https://agent.mathmind.cn",
+    };
+    return websiteByHost[host] || `${url.protocol}//${url.host}`;
+  } catch {
+    return trimmed;
   }
 }
 
