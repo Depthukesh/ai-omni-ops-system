@@ -1,34 +1,19 @@
 import { Buffer } from "node:buffer";
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { dirname, extname, join, resolve } from "node:path";
+import { extname, join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { BadRequestException, ForbiddenException, Inject, Injectable, Logger, NotFoundException, OnModuleDestroy, OnModuleInit, ServiceUnavailableException } from "@nestjs/common";
 import { AssetCategory, Prisma } from "@prisma/client";
-import ffmpegInstaller from "@ffmpeg-installer/ffmpeg";
 import { createId, database, type AssetRecord, type PlatformAccountRecord } from "../../common/mock-data";
 import { getFeishuUserAppConfig, getFeishuUserIntegration, setFeishuUserIntegration } from "../../common/user-integrations";
 import { PrismaService } from "../../prisma/prisma.service";
 import { OssStorageService } from "../../storage/oss-storage.service";
 import { SchedulerService } from "../scheduler/scheduler.service";
+import { GlmOpenService } from "../third-party-platforms/glm-open.service";
 import { ThirdPartyPlatformsService } from "../third-party-platforms/third-party-platforms.service";
-import { VolcengineSpeechService } from "../third-party-platforms/volcengine-speech.service";
 
 const execFileAsync = promisify(execFile);
-
-function resolveFfmpegBinary() {
-  const envBinary = String(process.env.FFMPEG_BINARY || "").trim();
-  if (envBinary) {
-    return envBinary;
-  }
-  const bundledBinary = String(ffmpegInstaller?.path || "").trim();
-  if (bundledBinary && existsSync(bundledBinary)) {
-    return bundledBinary;
-  }
-  return "ffmpeg";
-}
 
 type CollectorAccountKind =
   | "XHS_BRAND_ACCOUNT"
@@ -541,6 +526,8 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
   private static readonly DAILY_HOTSPOT_JOB_NAME = "collectors.daily-hotspots.sync";
   private static readonly DOUYIN_VIDEO_CACHE_CLEANUP_JOB_NAME = "collectors.douyin-video-cache.cleanup";
   private static readonly DOUYIN_VIDEO_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+  private static readonly REMOTE_IMAGE_DOWNLOAD_TIMEOUT_MS = 90 * 1000;
+  private static readonly REMOTE_VIDEO_DOWNLOAD_TIMEOUT_MS = 10 * 60 * 1000;
   private static readonly DOUYIN_CONTENT_TAG_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
   private static readonly DOUYIN_CITY_OPTION_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
   private static readonly DOUYIN_CONTENT_TAG_CACHE_ASSET_TITLE = "__douyin_content_tag_cache__";
@@ -560,8 +547,8 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     private readonly schedulerService: SchedulerService,
     @Inject(ThirdPartyPlatformsService)
     private readonly thirdPartyPlatformsService: ThirdPartyPlatformsService,
-    @Inject(VolcengineSpeechService)
-    private readonly volcengineSpeechService: VolcengineSpeechService,
+    @Inject(GlmOpenService)
+    private readonly glmOpenService: GlmOpenService,
   ) {}
 
   onModuleInit() {
@@ -987,32 +974,21 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
         workspace: await this.getDouyinWorkspace(brandId),
       };
     }
-    const storageKey = this.readMetaString(meta, "videoStorageKey");
-    if (this.readMetaString(meta, "videoCacheStatus") !== "READY" || !storageKey) {
-      throw new BadRequestException("当前作品的视频缓存尚未准备好，请稍后再试");
-    }
-    const storedVideo = await this.ossStorageService.getObject(storageKey);
-    if (!storedVideo) {
-      throw new ServiceUnavailableException("未找到当前作品对应的视频缓存文件，请重新同步后再试");
+    const transcriptSourceUrl = this.resolveDouyinTranscriptVideoUrl(asset, meta);
+    if (!transcriptSourceUrl) {
+      throw new BadRequestException("当前作品缺少可识别的视频地址，请先重新采集或等待视频缓存完成");
     }
     await this.updateCollectorAssetMeta(brandId, assetId, {
       transcriptStatus: "PENDING",
       transcriptLastError: "",
     });
     try {
-      const extractedAudio = await this.extractAudioTrackFromVideoBuffer(
-        storedVideo.buffer,
-        `${this.readMetaString(meta, "workId") || assetId}.mp4`,
-      );
-      const result = await this.volcengineSpeechService.transcribeShortAudio(brandId, extractedAudio.buffer, {
-        fileName: extractedAudio.fileName,
-        mimeType: extractedAudio.contentType,
-        language: "zh-CN",
+      const result = await this.glmOpenService.extractVideoTranscript(brandId, transcriptSourceUrl, {
         userId: `douyin-${brandId}`,
       });
       await this.updateCollectorAssetMeta(brandId, assetId, {
         transcript: result.text,
-        transcriptSource: "volcengine-speech-flash",
+        transcriptSource: result.model || "glm-5v-turbo",
         transcriptStatus: "SUCCESS",
         transcriptLastError: "",
         transcribedAt: new Date().toISOString(),
@@ -1030,6 +1006,13 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       item: this.mapDouyinCollectedWork(updatedAsset, kind),
       workspace: await this.getDouyinWorkspace(brandId),
     };
+  }
+
+  private resolveDouyinTranscriptVideoUrl(asset: AssetRecord, meta: Record<string, unknown>) {
+    return this.resolveDouyinVideoPlaybackUrl(asset, meta)
+      || this.readMetaString(meta, "videoSourceUrl")
+      || this.readMetaString(meta, "videoUrl")
+      || "";
   }
 
   async removeDouyinKeywordRecommendation(brandId: string, assetId: string) {
@@ -1236,30 +1219,22 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     if (!normalizedUrl) {
       throw new BadRequestException("媒体地址无效");
     }
-
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), mediaType === "video" ? 120000 : 45000);
-    try {
-      const response = await fetch(normalizedUrl, {
-        method: "GET",
-        signal: controller.signal,
-      });
-      if (!response.ok) {
-        throw new ServiceUnavailableException(`远程媒体下载失败：${response.status}`);
-      }
-
-      const buffer = Buffer.from(await response.arrayBuffer());
-      const contentType = this.resolveXhsMediaContentType(
-        response.headers.get("content-type") || "",
-        normalizedUrl,
-        mediaType,
-      );
-      const fileName = this.buildXhsNoteMediaFileName(noteId, mediaType, index, contentType, normalizedUrl);
-      await this.ossStorageService.putObject(this.buildXhsNoteMediaStorageKey(brandId, fileName), buffer, contentType);
-      return this.buildXhsNoteMediaAssetUrl(brandId, fileName);
-    } finally {
-      clearTimeout(timer);
-    }
+    const { buffer, response } = await this.downloadRemoteBuffer(normalizedUrl, {
+      label: mediaType === "video" ? "小红书视频缓存" : "小红书图片缓存",
+      timeoutMs:
+        mediaType === "video"
+          ? CollectorsService.REMOTE_VIDEO_DOWNLOAD_TIMEOUT_MS
+          : CollectorsService.REMOTE_IMAGE_DOWNLOAD_TIMEOUT_MS,
+      retryCount: mediaType === "video" ? 1 : 0,
+    });
+    const contentType = this.resolveXhsMediaContentType(
+      response.headers.get("content-type") || "",
+      normalizedUrl,
+      mediaType,
+    );
+    const fileName = this.buildXhsNoteMediaFileName(noteId, mediaType, index, contentType, normalizedUrl);
+    await this.ossStorageService.putObject(this.buildXhsNoteMediaStorageKey(brandId, fileName), buffer, contentType);
+    return this.buildXhsNoteMediaAssetUrl(brandId, fileName);
   }
 
   async getDailyHotspotWorkspace(
@@ -1739,19 +1714,18 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async cacheDouyinVideoAsset(brandId: string, workId: string, sourceUrl: string) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 120000);
+    const normalizedUrl = this.normalizeHttpUrl(sourceUrl);
+    if (!normalizedUrl) {
+      throw new BadRequestException("抖音视频地址无效");
+    }
     try {
-      const response = await fetch(sourceUrl, {
-        method: "GET",
-        signal: controller.signal,
+      const { buffer, response } = await this.downloadRemoteBuffer(normalizedUrl, {
+        label: "抖音视频缓存",
+        timeoutMs: CollectorsService.REMOTE_VIDEO_DOWNLOAD_TIMEOUT_MS,
+        retryCount: 1,
       });
-      if (!response.ok) {
-        throw new ServiceUnavailableException(`抖音视频下载失败：${response.status}`);
-      }
-      const buffer = Buffer.from(await response.arrayBuffer());
-      const contentType = response.headers.get("content-type") || this.guessDouyinVideoContentType(sourceUrl);
-      const storageKey = this.buildDouyinVideoStorageKey(brandId, workId, contentType, sourceUrl);
+      const contentType = response.headers.get("content-type") || this.guessDouyinVideoContentType(normalizedUrl);
+      const storageKey = this.buildDouyinVideoStorageKey(brandId, workId, contentType, normalizedUrl);
       await this.ossStorageService.putObject(storageKey, buffer, contentType);
       const cachedAt = new Date().toISOString();
       return {
@@ -1763,60 +1737,54 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     } catch (error) {
       const detail = error instanceof Error ? error.message : "未知错误";
       throw new ServiceUnavailableException(`抖音视频缓存到 OSS 失败：${detail}`);
-    } finally {
-      clearTimeout(timer);
     }
   }
 
-  private async extractAudioTrackFromVideoBuffer(videoBuffer: Buffer, sourceFileName: string) {
-    const binary = resolveFfmpegBinary();
-    const tempRoot = await mkdtemp(join(tmpdir(), "douyin-video-transcript-"));
-    const extension = extname(String(sourceFileName || "").trim()) || ".mp4";
-    const inputPath = join(tempRoot, `source${extension}`);
-    const outputPath = join(tempRoot, "audio.wav");
-    try {
-      await writeFile(inputPath, videoBuffer);
-      await execFileAsync(binary, [
-        "-y",
-        "-i",
-        inputPath,
-        "-vn",
-        "-ac",
-        "1",
-        "-ar",
-        "16000",
-        "-acodec",
-        "pcm_s16le",
-        outputPath,
-      ]);
-      const buffer = await readFile(outputPath);
-      if (!buffer.length) {
-        throw new ServiceUnavailableException("ffmpeg 未产出可识别的音频内容");
+  private async downloadRemoteBuffer(
+    url: string,
+    options: {
+      label: string;
+      timeoutMs: number;
+      retryCount?: number;
+    },
+  ) {
+    const attempts = Math.max(1, (options.retryCount || 0) + 1);
+    let lastError: unknown;
+    for (let attempt = 1; attempt <= attempts; attempt += 1) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), options.timeoutMs);
+      try {
+        const response = await fetch(url, {
+          method: "GET",
+          signal: controller.signal,
+        });
+        if (!response.ok) {
+          throw new ServiceUnavailableException(`${options.label}失败：${response.status}`);
+        }
+        const buffer = Buffer.from(await response.arrayBuffer());
+        return {
+          buffer,
+          response,
+        };
+      } catch (error) {
+        lastError = error;
+        if (attempt >= attempts) {
+          break;
+        }
+        const detail = error instanceof Error ? error.message : "未知错误";
+        this.logger.warn(`${options.label}重试 ${attempt}/${attempts - 1}：${detail}`);
+      } finally {
+        clearTimeout(timer);
       }
-      return {
-        buffer,
-        contentType: "audio/wav",
-        fileName: `${this.sanitizeFileNameBase(sourceFileName)}.wav`,
-      };
-    } catch (error) {
-      const errno = error as NodeJS.ErrnoException;
-      if (errno?.code === "ENOENT") {
-        throw new ServiceUnavailableException("当前服务端未安装 ffmpeg，暂时无法从抖音视频中提取音频");
-      }
-      const message = error instanceof Error ? error.message : "未知错误";
-      throw new ServiceUnavailableException(`从抖音视频提取音频失败：${message}`);
-    } finally {
-      await rm(tempRoot, { recursive: true, force: true }).catch(() => false);
     }
-  }
-
-  private sanitizeFileNameBase(fileName: string) {
-    return String(fileName || "")
-      .trim()
-      .replace(/^.*[\\/]/, "")
-      .replace(/\.[^.]+$/, "")
-      .replace(/[^a-zA-Z0-9_-]+/g, "_")
-      .replace(/^_+|_+$/g, "") || "audio";
+    if (lastError instanceof ServiceUnavailableException) {
+      throw lastError;
+    }
+    if (lastError instanceof Error && lastError.name === "AbortError") {
+      throw new ServiceUnavailableException(`${options.label}超时，视频较大或源站响应较慢时更容易触发`);
+    }
+    const message = lastError instanceof Error ? lastError.message : "未知错误";
+    throw new ServiceUnavailableException(`${options.label}失败：${message}`);
   }
 
   private enqueueDouyinVideoCache(asset: AssetRecord) {

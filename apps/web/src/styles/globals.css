@@ -4726,6 +4726,37 @@ button {
   cursor: text;
 }
 
+.segmented-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(108, 124, 255, 0.08);
+}
+
+.segmented-control__item {
+  border: none;
+  background: transparent;
+  color: var(--site-hero-muted);
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.segmented-control__item.is-active {
+  background: var(--card-surface);
+  color: var(--site-hero-text);
+  box-shadow: 0 10px 22px rgba(43, 56, 92, 0.12);
+}
+
+.segmented-control__item:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
 .material-library-checkbox {
   width: 26px;
   height: 26px;

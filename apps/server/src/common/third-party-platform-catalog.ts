@@ -18,6 +18,7 @@ export const DECOMMISSIONED_PLATFORM_HOSTS = new Set([
   "hk-api.gptbest.vip",
   "api.gptbest.vip",
   "api.bltcy.ai",
+  "openspeech.bytedance.com",
 ]);
 
 const PLATFORM_NAME_BY_HOST: Record<string, string> = {
@@ -26,7 +27,6 @@ const PLATFORM_NAME_BY_HOST: Record<string, string> = {
   "api.apiz.ai": "APIZ / NEX AI 平台",
   "api.deepseek.com": "DeepSeek 平台",
   "ark.cn-beijing.volces.com": "火山方舟平台",
-  "openspeech.bytedance.com": "豆包语音平台",
   "api.moonshot.cn": "Kimi 平台",
   "open.bigmodel.cn": "GLM 平台",
   "api.tikhub.io": "Tikhub 平台",
@@ -211,7 +211,6 @@ export function resolvePlatformWebsiteUrl(baseUrl: string) {
       "open.bigmodel.cn": "https://open.bigmodel.cn",
       "api.tikhub.io": "https://www.tikhub.io",
       "ark.cn-beijing.volces.com": "https://www.volcengine.com/product/ark",
-      "openspeech.bytedance.com": "https://console.volcengine.com/speech/service",
       "vod.volcengineapi.com": "https://console.volcengine.com/vod",
       "open-api.chanjing.cc": "https://www.chanjing.cc",
       "www.runninghub.cn": "https://www.runninghub.cn",

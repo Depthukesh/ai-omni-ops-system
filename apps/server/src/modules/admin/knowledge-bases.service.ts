@@ -24,7 +24,7 @@ import { PrismaService } from "../../prisma/prisma.service";
 import { OssStorageService } from "../../storage/oss-storage.service";
 import { ApiProvidersService } from "./api-providers.service";
 import { ThirdPartyPlatformsService } from "../third-party-platforms/third-party-platforms.service";
-import { VolcengineSpeechService } from "../third-party-platforms/volcengine-speech.service";
+import { GlmOpenService } from "../third-party-platforms/glm-open.service";
 
 export type CreateKnowledgeBasePayload = {
   name: string;
@@ -270,7 +270,7 @@ export class KnowledgeBasesService {
     private readonly ossStorageService: OssStorageService,
     private readonly apiProvidersService: ApiProvidersService,
     private readonly thirdPartyPlatformsService: ThirdPartyPlatformsService,
-    private readonly volcengineSpeechService: VolcengineSpeechService,
+    private readonly glmOpenService: GlmOpenService,
   ) {}
 
   async listKnowledgeBases() {
@@ -1180,7 +1180,7 @@ export class KnowledgeBasesService {
     return "LINK";
   }
 
-  private async resolveBusinessAssetStoredFileName(brandId: string, file: Pick<KnowledgeBaseFileRecord, "fileName">) {
+  private async resolveBusinessAssetSourceInfo(brandId: string, file: Pick<KnowledgeBaseFileRecord, "fileName">) {
     const linkedAsset = await this.prismaService.businessAsset.findFirst({
       where: {
         brandId,
@@ -1192,7 +1192,27 @@ export class KnowledgeBasesService {
         fileUrl: true,
       },
     });
-    return this.extractStoredFileNameFromUrl(linkedAsset?.fileUrl ?? "");
+    const fileUrl = String(linkedAsset?.fileUrl || "").trim();
+    return {
+      fileUrl,
+      storedFileName: this.extractStoredFileNameFromUrl(fileUrl),
+    };
+  }
+
+  private extractKnowledgeFileTextFallback(fileType: KnowledgeBaseFileRecord["fileType"], buffer: Buffer) {
+    if (fileType === "DOCX") {
+      return this.extractTextFromDocxBuffer(buffer);
+    }
+    if (fileType === "XLSX") {
+      return this.extractTextFromXlsxBuffer(buffer);
+    }
+    if (fileType === "PDF") {
+      return this.extractTextFromPdfBuffer(buffer);
+    }
+    if (fileType === "MD") {
+      return this.decodeBufferAsText(buffer);
+    }
+    return "";
   }
 
   private normalizeTextContent(value: string) {
@@ -1385,8 +1405,25 @@ export class KnowledgeBasesService {
         note: "当前知识库文件没有关联品牌原始文档路径",
       };
     }
-    const storedFileName = (await this.resolveBusinessAssetStoredFileName(brandId, file)) || this.sanitizeStoredFileName(file.fileName);
-    const resolvedFileType = this.inferKnowledgeFileType(storedFileName, file.fileName);
+    const sourceInfo = await this.resolveBusinessAssetSourceInfo(brandId, file);
+    const storedFileName = sourceInfo.storedFileName || this.sanitizeStoredFileName(file.fileName);
+    const resolvedFileType = this.inferKnowledgeFileType(storedFileName, sourceInfo.fileUrl, file.fileName);
+    if (resolvedFileType === "LINK" && sourceInfo.fileUrl) {
+      const result = await this.glmOpenService.readWebpage(brandId, sourceInfo.fileUrl, {
+        userId: `knowledge-${brandId}`,
+      });
+      const content = this.normalizeTextContent(
+        [result.title, result.description, result.content].filter(Boolean).join("\n\n"),
+      );
+      if (content) {
+        return {
+          content,
+          sourceLabel: "web-reader",
+          usedFallback: false,
+          resolvedFileType,
+        };
+      }
+    }
     const storedFile = await this.ossStorageService.getObject(
       this.buildBrandAssetFileStorageKey(brandId, storedFileName),
     );
@@ -1400,28 +1437,33 @@ export class KnowledgeBasesService {
       };
     }
     const extractedContent =
-      resolvedFileType === "DOCX"
-        ? this.extractTextFromDocxBuffer(storedFile.buffer)
-        : resolvedFileType === "XLSX"
-          ? this.extractTextFromXlsxBuffer(storedFile.buffer)
-          : resolvedFileType === "PDF"
-            ? this.extractTextFromPdfBuffer(storedFile.buffer)
-            : resolvedFileType === "MD"
-              ? this.decodeBufferAsText(storedFile.buffer)
-              : resolvedFileType === "AUDIO"
-                ? (
-                  await this.volcengineSpeechService.transcribeAudioFile(brandId, storedFile.buffer, {
-                    fileName: storedFileName,
-                    mimeType: storedFile.contentType,
-                    language: "zh-CN",
-                    userId: `knowledge-${brandId}`,
-                  })
-                ).text
-              : "";
+      resolvedFileType === "AUDIO"
+        ? (
+          await this.glmOpenService.transcribeAudioFile(brandId, storedFile.buffer, {
+            fileName: storedFileName,
+            mimeType: storedFile.contentType,
+            userId: `knowledge-${brandId}`,
+          })
+        ).text
+        : ["DOCX", "XLSX", "PDF", "MD", "IMAGE"].includes(resolvedFileType)
+          ? (
+            await this.glmOpenService.parseFile(brandId, storedFile.buffer, {
+              fileName: storedFileName,
+              mimeType: storedFile.contentType,
+              fileType: storedFileName,
+              userId: `knowledge-${brandId}`,
+            })
+          ).content || this.extractKnowledgeFileTextFallback(resolvedFileType, storedFile.buffer)
+          : "";
     if (extractedContent) {
       return {
         content: extractedContent,
-        sourceLabel: resolvedFileType === "AUDIO" ? "audio-transcript" : "file-content",
+        sourceLabel:
+          resolvedFileType === "AUDIO"
+            ? "audio-transcript"
+            : resolvedFileType === "LINK"
+              ? "web-reader"
+              : "file-parser-glm",
         usedFallback: false,
         resolvedFileType,
       };

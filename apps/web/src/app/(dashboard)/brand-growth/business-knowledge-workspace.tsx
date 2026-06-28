@@ -32,6 +32,13 @@ type UploadDraft = {
   message?: string;
 };
 
+type WebpageDraft = {
+  title: string;
+  url: string;
+  description: string;
+  priority: string;
+};
+
 type SettingsDraft = {
   name: string;
   description: string;
@@ -86,6 +93,24 @@ function formatDateTime(value?: string) {
   }
   const parsed = new Date(value);
   return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString("zh-CN", { hour12: false });
+}
+
+function createEmptyWebpageDraft(): WebpageDraft {
+  return {
+    title: "",
+    url: "",
+    description: "",
+    priority: "",
+  };
+}
+
+function isValidHttpUrl(value: string) {
+  try {
+    const target = new URL(String(value || "").trim());
+    return target.protocol === "http:" || target.protocol === "https:";
+  } catch {
+    return false;
+  }
 }
 
 function getSyncStatusLabel(status: BrandBusinessKnowledgeBaseRecord["syncStatus"]) {
@@ -213,6 +238,8 @@ export function BusinessKnowledgeWorkspace({ brandId }: Props) {
 
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [uploadDrafts, setUploadDrafts] = useState<UploadDraft[]>([]);
+  const [uploadMode, setUploadMode] = useState<"FILE" | "WEBPAGE">("FILE");
+  const [webpageDraft, setWebpageDraft] = useState<WebpageDraft>(createEmptyWebpageDraft());
   const [isUploading, setIsUploading] = useState(false);
 
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
@@ -347,49 +374,79 @@ export function BusinessKnowledgeWorkspace({ brandId }: Props) {
     if (!selectedKnowledgeBaseSummary) {
       return;
     }
-    const validDrafts = uploadDrafts.filter((item) => item.file);
-    if (!validDrafts.length) {
-      setError("请先添加资料文件");
-      return;
-    }
     setIsUploading(true);
     setError("");
     try {
       const payloadItems: Array<{
         title: string;
+        description?: string;
         sourceName?: string;
         fileUrl: string;
         priority?: number;
       }> = [];
 
-      for (const draft of validDrafts) {
-        setUploadDrafts((current) =>
-          current.map((item) => (item.id === draft.id ? { ...item, progress: "uploading", message: "资料上传中" } : item)),
-        );
-        const uploaded = await uploadBrandAssetFile(brandId, draft.file!);
+      if (uploadMode === "WEBPAGE") {
+        const normalizedUrl = webpageDraft.url.trim();
+        if (!normalizedUrl) {
+          setError("请先填写网页地址");
+          setIsUploading(false);
+          return;
+        }
+        if (!isValidHttpUrl(normalizedUrl)) {
+          setError("网页地址格式不正确，请填写 http 或 https 地址");
+          setIsUploading(false);
+          return;
+        }
         payloadItems.push({
-          title: draft.file!.name.replace(/\.[^.]+$/, ""),
-          sourceName: "本地上传",
-          fileUrl: uploaded.fileUrl,
-          priority: draft.priority.trim() ? Number(draft.priority) : undefined,
+          title: webpageDraft.title.trim() || normalizedUrl,
+          description: webpageDraft.description.trim() || undefined,
+          sourceName: "网页读取",
+          fileUrl: normalizedUrl,
+          priority: webpageDraft.priority.trim() ? Number(webpageDraft.priority) : undefined,
         });
-        setUploadDrafts((current) =>
-          current.map((item) => (item.id === draft.id ? { ...item, progress: "processing", message: "正在切片处理中" } : item)),
-        );
+      } else {
+        const validDrafts = uploadDrafts.filter((item) => item.file);
+        if (!validDrafts.length) {
+          setError("请先添加资料文件");
+          setIsUploading(false);
+          return;
+        }
+
+        for (const draft of validDrafts) {
+          setUploadDrafts((current) =>
+            current.map((item) => (item.id === draft.id ? { ...item, progress: "uploading", message: "资料上传中" } : item)),
+          );
+          const uploaded = await uploadBrandAssetFile(brandId, draft.file!);
+          payloadItems.push({
+            title: draft.file!.name.replace(/\.[^.]+$/, ""),
+            sourceName: "本地上传",
+            fileUrl: uploaded.fileUrl,
+            priority: draft.priority.trim() ? Number(draft.priority) : undefined,
+          });
+          setUploadDrafts((current) =>
+            current.map((item) => (item.id === draft.id ? { ...item, progress: "processing", message: "正在切片处理中" } : item)),
+          );
+        }
       }
 
       const nextFiles = await createBrandBusinessKnowledgeBaseFiles(brandId, selectedKnowledgeBaseSummary.id, {
         items: payloadItems,
       });
       setFiles(nextFiles);
-      setUploadDrafts((current) => current.map((item) => ({ ...item, progress: "done", message: "资料已完成切片" })));
+      if (uploadMode === "FILE") {
+        setUploadDrafts((current) => current.map((item) => ({ ...item, progress: "done", message: "资料已完成切片" })));
+      }
       const nextKnowledgeBases = await listBrandBusinessKnowledgeBases(brandId);
       setKnowledgeBases(nextKnowledgeBases);
       setIsUploadModalOpen(false);
       setUploadDrafts([]);
+      setUploadMode("FILE");
+      setWebpageDraft(createEmptyWebpageDraft());
       setNotice(nextFiles.some((item) => item.status === "PENDING") ? "资料已添加，正在自动切片" : "资料已添加并完成切片");
     } catch (requestError) {
-      setUploadDrafts((current) => current.map((item) => ({ ...item, progress: "failed", message: "资料处理失败" })));
+      if (uploadMode === "FILE") {
+        setUploadDrafts((current) => current.map((item) => ({ ...item, progress: "failed", message: "资料处理失败" })));
+      }
       setError(requestError instanceof Error ? requestError.message : "资料添加失败");
     } finally {
       setIsUploading(false);
@@ -669,28 +726,91 @@ export function BusinessKnowledgeWorkspace({ brandId }: Props) {
             <div className="knowledge-asset-modal__head">
               <div>
                 <strong>添加资料</strong>
-                <p>这里只做资料添加，可一次上传多份文件；添加后系统会自动切片处理。</p>
-                <p>支持格式：{BUSINESS_KNOWLEDGE_UPLOAD_FORMATS}。</p>
-                <p>其中可提取正文的文档会自动切片；图片、音频、视频、压缩包等文件会先按文件名、类型和来源进入知识库。</p>
+                <p>{uploadMode === "WEBPAGE" ? "网页读取会直接抓取网页正文并进入知识库。" : "这里只做资料添加，可一次上传多份文件；添加后系统会自动切片处理。"}</p>
+                {uploadMode === "FILE" ? <p>支持格式：{BUSINESS_KNOWLEDGE_UPLOAD_FORMATS}。</p> : null}
+                <p>
+                  {uploadMode === "WEBPAGE"
+                    ? "系统会调用网页阅读能力抓取标题、摘要和正文，再进入后续切片流程。"
+                    : "其中可提取正文的文档会自动切片；图片、音频、视频、压缩包等文件会先按文件名、类型和来源进入知识库。"}
+                </p>
               </div>
             </div>
             <div className="business-kb-upload-toolbar">
-              <label className="secondary-button">
-                选择文件
-                <input
-                  type="file"
-                  accept={BUSINESS_KNOWLEDGE_UPLOAD_ACCEPT}
-                  multiple
-                  hidden
-                  onChange={(event) => {
-                    handleAppendFiles(event.target.files);
-                    event.target.value = "";
-                  }}
-                />
-              </label>
+              <div className="segmented-control">
+                <button
+                  type="button"
+                  className={uploadMode === "FILE" ? "segmented-control__item is-active" : "segmented-control__item"}
+                  onClick={() => setUploadMode("FILE")}
+                  disabled={isUploading}
+                >
+                  上传文件
+                </button>
+                <button
+                  type="button"
+                  className={uploadMode === "WEBPAGE" ? "segmented-control__item is-active" : "segmented-control__item"}
+                  onClick={() => setUploadMode("WEBPAGE")}
+                  disabled={isUploading}
+                >
+                  网页读取
+                </button>
+              </div>
+              {uploadMode === "FILE" ? (
+                <label className="secondary-button">
+                  选择文件
+                  <input
+                    type="file"
+                    accept={BUSINESS_KNOWLEDGE_UPLOAD_ACCEPT}
+                    multiple
+                    hidden
+                    onChange={(event) => {
+                      handleAppendFiles(event.target.files);
+                      event.target.value = "";
+                    }}
+                  />
+                </label>
+              ) : null}
             </div>
             <div className="knowledge-asset-modal__drafts">
-              {uploadDrafts.length ? (
+              {uploadMode === "WEBPAGE" ? (
+                <article className="knowledge-draft-card">
+                  <div className="form-grid">
+                    <label className="field field-full">
+                      <span>网页地址</span>
+                      <input
+                        value={webpageDraft.url}
+                        placeholder="https://example.com/article"
+                        onChange={(event) => setWebpageDraft((current) => ({ ...current, url: event.target.value }))}
+                      />
+                    </label>
+                    <label className="field">
+                      <span>资料标题</span>
+                      <input
+                        value={webpageDraft.title}
+                        placeholder="可选，不填则直接使用网页地址"
+                        onChange={(event) => setWebpageDraft((current) => ({ ...current, title: event.target.value }))}
+                      />
+                    </label>
+                    <label className="field">
+                      <span>优先级</span>
+                      <input
+                        type="number"
+                        min={1}
+                        value={webpageDraft.priority}
+                        placeholder="可选"
+                        onChange={(event) => setWebpageDraft((current) => ({ ...current, priority: event.target.value }))}
+                      />
+                    </label>
+                    <label className="field field-full">
+                      <span>补充说明</span>
+                      <textarea
+                        value={webpageDraft.description}
+                        placeholder="可选，用于说明这篇网页的用途"
+                        onChange={(event) => setWebpageDraft((current) => ({ ...current, description: event.target.value }))}
+                      />
+                    </label>
+                  </div>
+                </article>
+              ) : uploadDrafts.length ? (
                 uploadDrafts.map((draft) => (
                   <article key={draft.id} className="knowledge-draft-card">
                     <div className="business-kb-upload-row">
@@ -739,7 +859,16 @@ export function BusinessKnowledgeWorkspace({ brandId }: Props) {
             </div>
             <div className="knowledge-asset-modal__footer">
               <div className="knowledge-asset-modal__footer-actions">
-                <button type="button" className="secondary-button" onClick={() => setIsUploadModalOpen(false)} disabled={isUploading}>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => {
+                    setIsUploadModalOpen(false);
+                    setUploadMode("FILE");
+                    setWebpageDraft(createEmptyWebpageDraft());
+                  }}
+                  disabled={isUploading}
+                >
                   取消
                 </button>
                 <button type="button" className="primary-button" onClick={() => void handleSubmitFiles()} disabled={isUploading}>

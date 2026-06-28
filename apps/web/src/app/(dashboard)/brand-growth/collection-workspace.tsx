@@ -2260,25 +2260,22 @@ function DouyinTranscriptCell(props: {
     return <span>-</span>;
   }
 
+  if (hasTranscript) {
+    return <ExpandableTextCell value={item.transcript} emptyText="暂无视频文案" compactRows={1} />;
+  }
+
   return (
     <div className="stack gap-8">
-      {hasTranscript ? (
-        <ExpandableTextCell value={item.transcript} emptyText="暂无视频文案" compactRows={3} />
-      ) : (
-        <button
-          type="button"
-          className="note-inline-button"
-          onClick={() => void props.onExtract(item)}
-          disabled={isExtracting}
-        >
-          {isExtracting ? "提取中..." : "提取文案"}
-        </button>
-      )}
+      <button
+        type="button"
+        className="note-inline-button"
+        onClick={() => void props.onExtract(item)}
+        disabled={isExtracting}
+      >
+        {isExtracting ? "提取中..." : "提取文案"}
+      </button>
       {!hasTranscript && item.transcriptStatus === "FAILED" && item.transcriptLastError ? (
         <span className="form-help form-help--error">{item.transcriptLastError}</span>
-      ) : null}
-      {hasTranscript && item.transcribedAt ? (
-        <span className="form-help">识别时间：{item.transcribedAt}</span>
       ) : null}
     </div>
   );

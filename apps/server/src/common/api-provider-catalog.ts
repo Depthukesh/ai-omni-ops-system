@@ -133,11 +133,12 @@ type AgnesVideoSeedInput = {
   durationOptions?: number[];
 };
 
-type VolcengineSpeechSeedInput = {
+type GlmToolSeedInput = {
   id: string;
   name: string;
   tutorialUrl: string;
-  resourceId: string;
+  modelId: string;
+  providerType?: ProviderType;
   runtimeKey: string;
   runtimeTags: string[];
   requestPath: string;
@@ -373,17 +374,17 @@ function createAgnesVideoSeed(input: AgnesVideoSeedInput) {
   });
 }
 
-function createVolcengineSpeechSeed(input: VolcengineSpeechSeedInput) {
+function createGlmToolSeed(input: GlmToolSeedInput) {
   return createSeed({
     id: input.id,
     name: input.name,
-    providerType: "DOUBAO",
+    providerType: input.providerType || "CUSTOM",
     status: "ACTIVE",
-    baseUrl: "https://openspeech.bytedance.com",
+    baseUrl: "https://open.bigmodel.cn/api/paas/v4",
     tutorialUrl: input.tutorialUrl,
-    modelWhitelist: [input.resourceId],
+    modelWhitelist: [input.modelId],
     apiKey: "",
-    defaultModel: input.resourceId,
+    defaultModel: input.modelId,
     organization: "",
     project: "",
     timeoutMs: 180000,
@@ -392,13 +393,13 @@ function createVolcengineSpeechSeed(input: VolcengineSpeechSeedInput) {
     extraParams: {
       runtimeKey: input.runtimeKey,
       runtimeTags: input.runtimeTags,
-      baseUrls: ["https://openspeech.bytedance.com"],
+      baseUrls: ["https://open.bigmodel.cn/api/paas/v4"],
       requestPath: input.requestPath,
       queryPath: input.queryPath || "",
-      requestMode: input.queryPath ? "volcengine_speech_submit_query" : "volcengine_speech_flash",
-      resourceId: input.resourceId,
+      requestMode: "glm-tool",
+      modelId: input.modelId,
       displayOrder: input.displayOrder,
-      sourceFolder: "豆包语音识别",
+      sourceFolder: "GLM 工具能力",
     },
     remark: input.remark,
   });
@@ -682,29 +683,63 @@ const AGNES_VIDEO_PROVIDER_SEEDS: ApiProviderSeedRecord[] = [
   }),
 ];
 
-const VOLCENGINE_SPEECH_PROVIDER_SEEDS: ApiProviderSeedRecord[] = [
-  createVolcengineSpeechSeed({
-    id: "provider_runtime_speech_volcengine_flash_recognition",
-    name: "豆包语音 · 语音识别（极速版）",
-    tutorialUrl: "https://www.volcengine.com/docs/6561/1631584?lang=zh",
-    resourceId: "volc.bigasr.auc_turbo",
-    runtimeKey: "speech-recognition",
-    runtimeTags: ["speech-recognition", "collectors-runtime", "transcript-runtime"],
-    requestPath: "/api/v3/auc/bigmodel/recognize/flash",
-    displayOrder: 35,
-    remark: "用于短音频/短视频语音快速提取文案，推荐配合抖音采集视频缓存后的音轨抽取链路使用；品牌 Owner 可在个人中心填写新版 X-Api-Key，或按 `appId::accessToken` 兼容旧版控制台。",
+const GLM_TOOL_PROVIDER_SEEDS: ApiProviderSeedRecord[] = [
+  createSeed({
+    id: "provider_runtime_vision_glm",
+    name: "GLM · 视觉理解",
+    providerType: "OPENAI",
+    status: "ACTIVE",
+    baseUrl: "https://open.bigmodel.cn/api/paas/v4",
+    tutorialUrl: "https://docs.bigmodel.cn/api-reference/%E6%A8%A1%E5%9E%8B-api/%E5%AF%B9%E8%AF%9D%E8%A1%A5%E5%85%A8",
+    modelWhitelist: ["glm-5v-turbo"],
+    apiKey: "",
+    defaultModel: "glm-5v-turbo",
+    organization: "",
+    project: "",
+    timeoutMs: 300000,
+    streamEnabled: false,
+    customHeaders: {},
+    extraParams: {
+      runtimeKey: "visual-understanding-glm",
+      runtimeTags: ["visual-understanding", "collectors-runtime", "works-runtime"],
+      baseUrls: ["https://open.bigmodel.cn/api/paas/v4"],
+      completionPath: "/chat/completions",
+      sourceFolder: "GLM 视觉理解",
+    },
+    remark: "用于图像、视频等多模态理解场景；本轮主要接到收集数据的视频文案提取链路。",
   }),
-  createVolcengineSpeechSeed({
-    id: "provider_runtime_audio_file_volcengine_standard_recognition",
-    name: "豆包语音 · 录音文件识别（标准版）",
-    tutorialUrl: "https://www.volcengine.com/docs/6561/1354868?lang=zh",
-    resourceId: "volc.seedasr.auc",
-    runtimeKey: "audio-file-recognition",
-    runtimeTags: ["audio-file-recognition", "knowledge-runtime", "transcript-runtime"],
-    requestPath: "/api/v3/auc/bigmodel/submit",
-    queryPath: "/api/v3/auc/bigmodel/query",
-    displayOrder: 36,
-    remark: "用于知识库音频文件的稳定转写，采用标准版 submit/query 轮询模式；品牌 Owner 可在个人中心填写新版 X-Api-Key，或按 `appId::accessToken` 兼容旧版控制台。",
+  createGlmToolSeed({
+    id: "provider_runtime_audio_glm_voice",
+    name: "GLM · 音频模型",
+    tutorialUrl: "https://docs.bigmodel.cn/api-reference/%E6%A8%A1%E5%9E%8B-api/%E8%AF%AD%E9%9F%B3%E8%BD%AC%E6%96%87%E6%9C%AC",
+    modelId: "glm-4-voice",
+    runtimeKey: "audio-recognition-glm",
+    runtimeTags: ["audio-recognition", "knowledge-runtime", "transcript-runtime"],
+    requestPath: "/audio/transcriptions",
+    displayOrder: 37,
+    remark: "用于知识库音频文件识别；品牌 Owner 在个人中心配置 GLM API Key 后即可启用。",
+  }),
+  createGlmToolSeed({
+    id: "provider_runtime_file_parser_glm",
+    name: "GLM · 文件解析（同步）",
+    tutorialUrl: "https://docs.bigmodel.cn/api-reference/%E5%B7%A5%E5%85%B7-api/%E6%96%87%E4%BB%B6%E8%A7%A3%E6%9E%90%E5%90%8C%E6%AD%A5",
+    modelId: "prime-sync",
+    runtimeKey: "file-parser-glm",
+    runtimeTags: ["file-parser", "knowledge-runtime"],
+    requestPath: "/files/parser/sync",
+    displayOrder: 38,
+    remark: "用于知识库文件正文提取，支持常见办公文档和图片。",
+  }),
+  createGlmToolSeed({
+    id: "provider_runtime_web_reader_glm",
+    name: "GLM · 网页阅读",
+    tutorialUrl: "https://docs.bigmodel.cn/api-reference/%E5%B7%A5%E5%85%B7-api/%E7%BD%91%E9%A1%B5%E9%98%85%E8%AF%BB",
+    modelId: "reader",
+    runtimeKey: "web-reader-glm",
+    runtimeTags: ["web-reader", "knowledge-runtime"],
+    requestPath: "/reader",
+    displayOrder: 39,
+    remark: "用于知识库读取网页正文并生成可切片文本。",
   }),
 ];
 
@@ -898,7 +933,6 @@ export const SYSTEM_API_PROVIDER_SEEDS: ApiProviderSeedRecord[] = [
     },
     remark: "Agnes 平台的文生文模型，兼容 OpenAI Chat Completions；品牌 Owner 在个人中心第三方接口配置填写 Agnes API Key 后即可启用。",
   }),
-  ...VOLCENGINE_SPEECH_PROVIDER_SEEDS,
   ...VOLCENGINE_ARK_EMBEDDING_PROVIDER_SEEDS,
   createSeed({
     id: "provider_runtime_text_kimi",
@@ -936,9 +970,9 @@ export const SYSTEM_API_PROVIDER_SEEDS: ApiProviderSeedRecord[] = [
     status: "ACTIVE",
     baseUrl: "https://open.bigmodel.cn/api/paas/v4",
     tutorialUrl: "https://docs.bigmodel.cn/api-reference/%E6%A8%A1%E5%9E%8B-api/%E5%AF%B9%E8%AF%9D%E8%A1%A5%E5%85%A8",
-    modelWhitelist: ["GLM-5.1"],
+    modelWhitelist: ["GLM-5.1", "glm-5.2"],
     apiKey: "31270618da0746f0b55aa9f73ea2f733.WE2FIFpyesDP723j",
-    defaultModel: "GLM-5.1",
+    defaultModel: "glm-5.2",
     organization: "",
     project: "",
     timeoutMs: 120000,
@@ -946,7 +980,7 @@ export const SYSTEM_API_PROVIDER_SEEDS: ApiProviderSeedRecord[] = [
     customHeaders: {},
     extraParams: {
       runtimeKey: "text-domestic-glm",
-      runtimeTags: ["text-domestic", "reports-runtime"],
+      runtimeTags: ["text-domestic", "works-runtime", "reports-runtime"],
       baseUrls: ["https://open.bigmodel.cn/api/paas/v4"],
       apiKeys: [
         "31270618da0746f0b55aa9f73ea2f733.WE2FIFpyesDP723j",
@@ -957,6 +991,7 @@ export const SYSTEM_API_PROVIDER_SEEDS: ApiProviderSeedRecord[] = [
     },
     remark: "系统按用户提供的 GLM 接口资料初始化，用于可视化报告等国内文生文补位场景。",
   }),
+  ...GLM_TOOL_PROVIDER_SEEDS,
   createSeed({
     id: "provider_runtime_image_generation_right_codes",
     name: "Right Codes · 文生图/图生图",

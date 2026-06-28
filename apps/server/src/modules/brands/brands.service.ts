@@ -36,7 +36,7 @@ import {
 } from "../admin/knowledge-bases.service";
 import { PrismaService } from "../../prisma/prisma.service";
 import { OssStorageService } from "../../storage/oss-storage.service";
-import { VolcengineSpeechService } from "../third-party-platforms/volcengine-speech.service";
+import { GlmOpenService } from "../third-party-platforms/glm-open.service";
 import { ThirdPartyPlatformsService } from "../third-party-platforms/third-party-platforms.service";
 import { ChanjingOpenApiService } from "../works/chanjing-open-api.service";
 
@@ -3320,7 +3320,7 @@ export class BrandsService {
         this.ossStorageService,
         new ApiProvidersService(this.prismaService),
         thirdPartyPlatformsService,
-        new VolcengineSpeechService(thirdPartyPlatformsService),
+        new GlmOpenService(thirdPartyPlatformsService),
       );
     }
     return this.knowledgeBasesServiceFallback;
