@@ -371,4 +371,29 @@ export class WechatMpCollectorsController {
     await this.authService.assertBrandAccess(brandId, auth);
     return this.collectorsService.updateWechatMpBenchmarkArticleStats(brandId, payload.url);
   }
+
+  @Get("brands/:brandId/search-workspace")
+  async searchWorkspace(@Param("brandId") brandId: string, @Headers() headers: Record<string, string | string[] | undefined>) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(brandId, auth);
+    return this.collectorsService.getWechatSearchWorkspace(brandId);
+  }
+
+  @Post("brands/:brandId/search")
+  async search(
+    @Param("brandId") brandId: string,
+    @Body() payload: { keyword: string; businessType?: string; sort?: string; publishTime?: string; offset?: number },
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(brandId, auth);
+    return this.collectorsService.searchWechat(
+      brandId,
+      payload.keyword,
+      (payload.businessType as "all" | "account" | "article" | "video" | "live_stream" | "moments" | "news" | "book" | "listen" | "image" | "encyclopedia" | "weixin_index") || "all",
+      (payload.sort as "default" | "latest" | "hot") || "default",
+      (payload.publishTime as "all" | "day" | "week" | "half_year") || "all",
+      payload.offset || 0,
+    );
+  }
 }

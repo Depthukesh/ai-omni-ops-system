@@ -8,24 +8,33 @@ import type {
   WechatMpBenchmarkWorkspace,
   WechatMpBrandAccountRecord,
   WechatMpCollectionWorkspace,
+  WechatSearchBusinessType,
+  WechatSearchItemRecord,
+  WechatSearchPublishTime,
+  WechatSearchSortType,
+  WechatSearchWorkspace,
 } from "../../../services/collectors";
 import {
   bindWechatMpBrandAccount,
   deleteWechatMpBrandAccount,
   fetchWechatMpArticles,
   getWechatMpBenchmarkWorkspace,
+  getWechatSearchWorkspace,
   readWechatMpArticleContent,
+  searchWechat,
   submitWechatMpBenchmarkArticle,
   updateWechatMpBenchmarkArticleStats,
   wechatMpBenchmarkSeed,
   wechatMpCollectionSeed,
+  wechatSearchSeed,
 } from "../../../services/collectors";
 
-type WechatMpSubCardKey = "brandAccountData" | "benchmarkWorks";
+type WechatMpSubCardKey = "brandAccountData" | "benchmarkWorks" | "wechatSearch";
 
 const WECHAT_MP_SUB_CARDS: Array<{ key: WechatMpSubCardKey; label: string }> = [
   { key: "brandAccountData", label: "品牌公众号数据" },
   { key: "benchmarkWorks", label: "对标作品信息及数据" },
+  { key: "wechatSearch", label: "微信搜一搜" },
 ];
 
 // 模块级复制提醒 toast
@@ -67,6 +76,8 @@ export type WechatMpCollectionWorkspaceProps = {
   setWorkspace: Dispatch<SetStateAction<WechatMpCollectionWorkspace>>;
   benchmarkWorkspace: WechatMpBenchmarkWorkspace;
   setBenchmarkWorkspace: Dispatch<SetStateAction<WechatMpBenchmarkWorkspace>>;
+  searchWorkspace: WechatSearchWorkspace;
+  setSearchWorkspace: Dispatch<SetStateAction<WechatSearchWorkspace>>;
   activeBrandId?: string;
   formatDateTime: OptionalDateFormatter;
   formatCount: OptionalNumberFormatter;
@@ -91,6 +102,15 @@ export function WechatMpCollectionWorkspace(props: WechatMpCollectionWorkspacePr
   const [selectedBenchmarkIds, setSelectedBenchmarkIds] = useState<string[]>([]);
   const [updatingBenchmarkIds, setUpdatingBenchmarkIds] = useState<string[]>([]);
   const [isUpdatingBenchmark, setIsUpdatingBenchmark] = useState(false);
+
+  // 微信搜一搜状态
+  const [searchKeyword, setSearchKeyword] = useState("");
+  const [searchBusinessType, setSearchBusinessType] = useState<WechatSearchBusinessType>("all");
+  const [searchSort, setSearchSort] = useState<WechatSearchSortType>("default");
+  const [searchPublishTime, setSearchPublishTime] = useState<WechatSearchPublishTime>("all");
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchOffset, setSearchOffset] = useState(0);
+  const [searchHasMore, setSearchHasMore] = useState(false);
 
   const showNotice = (type: "success" | "error", text: string) => {
     setNotice({ type, text });
@@ -230,6 +250,27 @@ export function WechatMpCollectionWorkspace(props: WechatMpCollectionWorkspacePr
     }
   };
 
+  // 微信搜一搜 handler
+  const handleSearchWechat = async (offset: number) => {
+    const trimmed = searchKeyword.trim();
+    if (!trimmed) {
+      showNotice("error", "请输入搜索关键词。");
+      return;
+    }
+    setIsSearching(true);
+    try {
+      const result = await searchWechat(trimmed, searchBusinessType, searchSort, searchPublishTime, offset, props.activeBrandId);
+      props.setSearchWorkspace({ items: result.items });
+      setSearchOffset(result.offset);
+      setSearchHasMore(result.continueFlag);
+      showNotice("success", `已获取 ${result.count} 条搜索结果。`);
+    } catch (error) {
+      showNotice("error", error instanceof Error ? error.message : "搜索失败。");
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
   return (
     <div className="workspace-panel strategy-page-card">
       <div className="strategy-card-toolbar">
@@ -303,6 +344,28 @@ export function WechatMpCollectionWorkspace(props: WechatMpCollectionWorkspacePr
           onUpdateStats={handleUpdateBenchmarkStats}
           isUpdating={isUpdatingBenchmark}
           updatingIds={updatingBenchmarkIds}
+          onCopyContent={handleCopyContent}
+          formatDateTime={props.formatDateTime}
+          formatCount={props.formatCount}
+        />
+      ) : null}
+
+      {activeCard === "wechatSearch" ? (
+        <WechatSearchPanel
+          items={props.searchWorkspace.items}
+          canEdit={props.canEdit}
+          keyword={searchKeyword}
+          onKeywordChange={setSearchKeyword}
+          businessType={searchBusinessType}
+          onBusinessTypeChange={setSearchBusinessType}
+          sort={searchSort}
+          onSortChange={setSearchSort}
+          publishTime={searchPublishTime}
+          onPublishTimeChange={setSearchPublishTime}
+          onSearch={() => void handleSearchWechat(0)}
+          onNextPage={() => void handleSearchWechat(searchOffset)}
+          isSearching={isSearching}
+          hasMore={searchHasMore}
           onCopyContent={handleCopyContent}
           formatDateTime={props.formatDateTime}
           formatCount={props.formatCount}
@@ -435,6 +498,161 @@ function BrandAccountDataPanel(props: BrandAccountDataPanelProps) {
           />
         ) : (
           <div className="note-empty-state">当前还没有采集到公众号文章，请先添加公众号账号并提交获取文章列表。</div>
+        )}
+      </article>
+    </>
+  );
+}
+
+// ─── 微信搜一搜面板 ───
+
+const BUSINESS_TYPE_OPTIONS: Array<{ value: WechatSearchBusinessType; label: string }> = [
+  { value: "all", label: "综合" },
+  { value: "account", label: "公众号" },
+  { value: "article", label: "文章" },
+  { value: "video", label: "视频" },
+  { value: "live_stream", label: "直播" },
+  { value: "moments", label: "朋友圈" },
+  { value: "news", label: "新闻" },
+  { value: "book", label: "读书" },
+  { value: "listen", label: "听书" },
+  { value: "image", label: "图片" },
+  { value: "encyclopedia", label: "百科" },
+  { value: "weixin_index", label: "微信指数" },
+];
+
+const SORT_OPTIONS: Array<{ value: WechatSearchSortType; label: string }> = [
+  { value: "default", label: "不限" },
+  { value: "latest", label: "最新" },
+  { value: "hot", label: "最热" },
+];
+
+const PUBLISH_TIME_OPTIONS: Array<{ value: WechatSearchPublishTime; label: string }> = [
+  { value: "all", label: "不限" },
+  { value: "day", label: "最近一天" },
+  { value: "week", label: "最近七天" },
+  { value: "half_year", label: "最近半年" },
+];
+
+type WechatSearchPanelProps = {
+  items: WechatSearchItemRecord[];
+  canEdit: boolean;
+  keyword: string;
+  onKeywordChange: (value: string) => void;
+  businessType: WechatSearchBusinessType;
+  onBusinessTypeChange: (value: WechatSearchBusinessType) => void;
+  sort: WechatSearchSortType;
+  onSortChange: (value: WechatSearchSortType) => void;
+  publishTime: WechatSearchPublishTime;
+  onPublishTimeChange: (value: WechatSearchPublishTime) => void;
+  onSearch: () => void;
+  onNextPage: () => void;
+  isSearching: boolean;
+  hasMore: boolean;
+  onCopyContent: (content: string) => void;
+  formatDateTime: OptionalDateFormatter;
+  formatCount: OptionalNumberFormatter;
+};
+
+function WechatSearchPanel(props: WechatSearchPanelProps) {
+  return (
+    <>
+      <article className="light-data-panel" style={{ marginBottom: 16 }}>
+        <div className="collection-result-head">
+          <div>
+            <h3>微信搜一搜</h3>
+            <p>输入关键词，选择搜索类型、排序和发布时间，提交后获取微信搜一搜结果。支持翻页获取更多结果。</p>
+          </div>
+          {props.canEdit ? (
+            <button type="button" className="primary-button" onClick={props.onSearch} disabled={props.isSearching || !props.keyword.trim()}>
+              {props.isSearching ? "搜索中..." : "搜索"}
+            </button>
+          ) : null}
+        </div>
+        <div className="stack gap-12" style={{ marginTop: 12 }}>
+          <label className="field">
+            <span>关键词</span>
+            <input value={props.keyword} onChange={(event) => props.onKeywordChange(event.target.value)} placeholder="请输入搜索关键词" />
+          </label>
+          <div className="strategy-chip-row" style={{ flexWrap: "wrap" }}>
+            <label className="field" style={{ minWidth: 160 }}>
+              <span>搜索类型</span>
+              <select value={props.businessType} onChange={(event) => props.onBusinessTypeChange(event.target.value as WechatSearchBusinessType)}>
+                {BUSINESS_TYPE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </label>
+            <label className="field" style={{ minWidth: 120 }}>
+              <span>排序</span>
+              <select value={props.sort} onChange={(event) => props.onSortChange(event.target.value as WechatSearchSortType)}>
+                {SORT_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </label>
+            <label className="field" style={{ minWidth: 140 }}>
+              <span>发布时间</span>
+              <select value={props.publishTime} onChange={(event) => props.onPublishTimeChange(event.target.value as WechatSearchPublishTime)}>
+                {PUBLISH_TIME_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+        </div>
+      </article>
+
+      <article className="light-data-panel">
+        <div className="collection-result-head">
+          <div>
+            <h3>搜索结果</h3>
+            <p>展示微信搜一搜的搜索结果列表，点击文章内容可自动复制。</p>
+          </div>
+          {props.canEdit && props.items.length > 0 && props.hasMore ? (
+            <button type="button" className="secondary-button" onClick={props.onNextPage} disabled={props.isSearching}>
+              {props.isSearching ? "加载中..." : "下一页"}
+            </button>
+          ) : null}
+        </div>
+        {props.items.length ? (
+          <div className="wechat-mp-article-table-shell">
+            <table className="soft-table">
+              <thead>
+                <tr>
+                  <th>标题</th>
+                  <th>链接</th>
+                  <th className="table-cell-wide">文章</th>
+                  <th>封面</th>
+                  <th>类型</th>
+                  <th>发布时间</th>
+                </tr>
+              </thead>
+              <tbody>
+                {props.items.map((item) => {
+                  const hasContent = Boolean(item.desc?.trim());
+                  return (
+                    <tr key={item.id}>
+                      <td><span className="note-data-link" title={item.desc || undefined}>{item.title || "-"}</span></td>
+                      <td>{item.url ? <a href={item.url} target="_blank" rel="noopener noreferrer" className="note-data-link">查看</a> : <span>-</span>}</td>
+                      <td className="wechat-mp-article-cell">
+                        {hasContent ? (
+                          <div className="table-text-shell table-text-shell--copyable" data-rows="2" onClick={() => void props.onCopyContent(item.desc || "")} title="点击复制文章内容" style={{ cursor: "pointer" }}>
+                            <button type="button" className="table-text-cell" data-rows={2}>{item.desc}</button>
+                          </div>
+                        ) : <span>-</span>}
+                      </td>
+                      <td>{item.cover ? <img src={item.cover} alt={item.title} style={{ width: 48, height: 48, objectFit: "cover", borderRadius: 4 }} loading="lazy" /> : <span>-</span>}</td>
+                      <td>{item.accTypeName || "-"}</td>
+                      <td>{props.formatDateTime(item.publishTime)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="note-empty-state">当前还没有搜索结果，请先输入关键词并搜索。</div>
         )}
       </article>
     </>

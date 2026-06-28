@@ -876,3 +876,63 @@ export async function updateWechatMpBenchmarkArticleStats(url: string, brandId?:
     { url },
   );
 }
+
+// ─── 微信搜一搜 ───
+
+export type WechatSearchBusinessType =
+  | "all" | "account" | "article" | "video" | "live_stream"
+  | "moments" | "news" | "book" | "listen" | "image" | "encyclopedia" | "weixin_index";
+export type WechatSearchSortType = "default" | "latest" | "hot";
+export type WechatSearchPublishTime = "all" | "day" | "week" | "half_year";
+
+export type WechatSearchItemRecord = {
+  id: string;
+  title: string;
+  desc?: string;
+  docId?: string;
+  accTypeName?: string;
+  url?: string;
+  cover?: string;
+  publishTime?: string;
+  jumpInfoUserName?: string;
+  jumpInfoNickName?: string;
+  jumpInfoSignature?: string;
+  collectedAt: string;
+};
+
+export type WechatSearchResult = {
+  keyword: string;
+  businessType: string;
+  total?: number;
+  continueFlag: boolean;
+  offset: number;
+  count: number;
+  items: WechatSearchItemRecord[];
+};
+
+export type WechatSearchWorkspace = {
+  items: WechatSearchItemRecord[];
+};
+
+export const wechatSearchSeed: WechatSearchWorkspace = {
+  items: [],
+};
+
+export async function getWechatSearchWorkspace(brandId?: string) {
+  return request<WechatSearchWorkspace>(`/collectors/wechat-mp/brands/${resolveBrandId(brandId)}/search-workspace`);
+}
+
+export async function searchWechat(
+  keyword: string,
+  businessType: WechatSearchBusinessType = "all",
+  sort: WechatSearchSortType = "default",
+  publishTime: WechatSearchPublishTime = "all",
+  offset: number = 0,
+  brandId?: string,
+) {
+  return jsonRequest<WechatSearchResult>(
+    `/collectors/wechat-mp/brands/${resolveBrandId(brandId)}/search`,
+    "POST",
+    { keyword, businessType, sort, publishTime, offset },
+  );
+}

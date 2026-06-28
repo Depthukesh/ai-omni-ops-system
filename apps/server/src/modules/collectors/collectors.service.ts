@@ -48,7 +48,8 @@ type CollectorAssetKind =
   | DouyinCityHotspotKind
   | "WECHAT_MP_BRAND_ACCOUNT"
   | "WECHAT_MP_ARTICLE"
-  | "WECHAT_MP_BENCHMARK_ARTICLE";
+  | "WECHAT_MP_BENCHMARK_ARTICLE"
+  | "WECHAT_SEARCH_ITEM";
 type CollectorSyncStatus = "IDLE" | "RUNNING" | "SUCCESS" | "FAILED";
 type DailyHotspotSyncStatus = "IDLE" | "RUNNING" | "SUCCESS" | "FAILED";
 type DouyinBillboardScopeKey =
@@ -125,6 +126,38 @@ export type WechatMpBenchmarkArticleRecord = {
 
 export type WechatMpBenchmarkWorkspace = {
   benchmarkArticles: WechatMpBenchmarkArticleRecord[];
+};
+
+// 微信搜一搜类型
+export type WechatSearchBusinessType =
+  | "all" | "account" | "article" | "video" | "live_stream"
+  | "moments" | "news" | "book" | "listen" | "image" | "encyclopedia" | "weixin_index";
+export type WechatSearchSortType = "default" | "latest" | "hot";
+export type WechatSearchPublishTime = "all" | "day" | "week" | "half_year";
+
+export type WechatSearchItemRecord = {
+  id: string;
+  title: string;
+  desc?: string;
+  docId?: string;
+  accTypeName?: string;
+  url?: string;
+  cover?: string;
+  publishTime?: string;
+  jumpInfoUserName?: string;
+  jumpInfoNickName?: string;
+  jumpInfoSignature?: string;
+  collectedAt: string;
+};
+
+export type WechatSearchResult = {
+  keyword: string;
+  businessType: string;
+  total?: number;
+  continueFlag: boolean;
+  offset: number;
+  count: number;
+  items: WechatSearchItemRecord[];
 };
 type XhsSyncAccountEntry = {
   locator: string;
@@ -5129,6 +5162,9 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
         if (kind === "WECHAT_MP_BENCHMARK_ARTICLE") {
           return meta.kind === kind && this.readMetaString(meta, "articleId") === matchValue;
         }
+        if (kind === "WECHAT_SEARCH_ITEM") {
+          return meta.kind === kind && this.readMetaString(meta, "itemId") === matchValue;
+        }
         return meta.kind === kind && this.readMetaString(meta, "sourceAccountId") === matchValue;
       });
       const [matched, ...duplicateMatches] = matchedItems;
@@ -5217,6 +5253,9 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       }
       if (kind === "WECHAT_MP_BENCHMARK_ARTICLE") {
         return item.brandId === brandId && meta.kind === kind && this.readMetaString(meta, "articleId") === matchValue;
+      }
+      if (kind === "WECHAT_SEARCH_ITEM") {
+        return item.brandId === brandId && meta.kind === kind && this.readMetaString(meta, "itemId") === matchValue;
       }
       return item.brandId === brandId && meta.kind === kind && this.readMetaString(meta, "sourceAccountId") === matchValue;
     });
@@ -7814,6 +7853,125 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       starNum: this.readMetaNumber(meta, "starNum"),
       statsUpdatedAt: this.readMetaString(meta, "statsUpdatedAt") || undefined,
       contentReadAt: this.readMetaString(meta, "contentReadAt") || undefined,
+      collectedAt: this.readMetaString(meta, "collectedAt") || new Date().toISOString(),
+    };
+  }
+
+  // ─── 微信搜一搜 ───
+
+  async getWechatSearchWorkspace(brandId: string): Promise<{ items: WechatSearchItemRecord[] }> {
+    if (await this.prismaService.canUseDatabase()) {
+      const assets = await this.listCollectorAssets(brandId);
+      const searchAssets = assets.filter((asset) => {
+        const meta = this.asMeta(asset.metadataJson);
+        return this.readMetaString(meta, "kind") === "WECHAT_SEARCH_ITEM";
+      });
+      return { items: searchAssets.map((asset) => this.mapWechatSearchItem(asset)) };
+    }
+    return { items: [] };
+  }
+
+  async searchWechat(
+    brandId: string,
+    keyword: string,
+    businessType: WechatSearchBusinessType,
+    sort: WechatSearchSortType,
+    publishTime: WechatSearchPublishTime,
+    offset: number,
+  ): Promise<WechatSearchResult> {
+    const trimmedKeyword = String(keyword || "").trim();
+    if (!trimmedKeyword) {
+      throw new BadRequestException("搜索关键词不能为空。");
+    }
+    const body: Record<string, unknown> = {
+      keyword: trimmedKeyword,
+      business_type: businessType,
+      sort,
+      publish_time: publishTime,
+      offset,
+      raw: false,
+    };
+    const raw = await this.fetchTikHubPost("/api/v1/wechat_search/v2/fetch_search", body, brandId);
+    const data = this.asMeta(this.asMeta(raw).data);
+    const continueFlag = Boolean(this.readMetaNumber(data, "continue_flag") || this.readMetaString(data, "continue_flag"));
+    const nextOffset = this.readMetaNumber(data, "offset") || 0;
+    const totalCount = this.readMetaNumber(data, "total") || undefined;
+    const itemsRaw = (data.items as unknown[] | undefined) || [];
+    const items: WechatSearchItemRecord[] = [];
+    for (const itemRaw of itemsRaw) {
+      const item = this.asMeta(itemRaw);
+      const jumpInfo = this.asMeta(item["jumpInfo"]);
+      const docId = this.readMetaString(item, "docID") || this.readMetaString(item, "doc_id") || "";
+      const itemId = `wechat_search_${docId || String(items.length)}`;
+      const url = this.readMetaString(item, "url") || this.readMetaString(jumpInfo, "url") || undefined;
+      const cover = this.readMetaString(item, "cover") || this.readMetaString(jumpInfo, "cover") || this.readMetaString(item, "thumb") || undefined;
+      const publishTime = this.readMetaString(item, "createTime") || this.readMetaString(item, "publish_time") || undefined;
+      items.push({
+        id: itemId,
+        title: this.readMetaString(item, "title") || "",
+        desc: this.readMetaString(item, "desc") || undefined,
+        docId: docId || undefined,
+        accTypeName: this.readMetaString(item, "accTypeName") || undefined,
+        url,
+        cover,
+        publishTime,
+        jumpInfoUserName: this.readMetaString(jumpInfo, "userName") || undefined,
+        jumpInfoNickName: this.readMetaString(jumpInfo, "nickName") || undefined,
+        jumpInfoSignature: this.readMetaString(jumpInfo, "signature") || undefined,
+        collectedAt: new Date().toISOString(),
+      });
+    }
+    // 存储搜索结果到 BusinessAsset
+    for (const item of items) {
+      await this.upsertCollectorAsset({
+        brandId,
+        kind: "WECHAT_SEARCH_ITEM" as CollectorAssetKind,
+        matchValue: item.id,
+        title: item.title,
+        description: "微信搜一搜结果采集快照",
+        fileUrl: item.url,
+        metadata: {
+          kind: "WECHAT_SEARCH_ITEM",
+          itemId: item.id,
+          title: item.title,
+          desc: item.desc,
+          docId: item.docId,
+          accTypeName: item.accTypeName,
+          url: item.url,
+          cover: item.cover,
+          publishTime: item.publishTime,
+          jumpInfoUserName: item.jumpInfoUserName,
+          jumpInfoNickName: item.jumpInfoNickName,
+          jumpInfoSignature: item.jumpInfoSignature,
+          collectedAt: item.collectedAt,
+        },
+      });
+    }
+    return {
+      keyword: this.readMetaString(data, "keyword") || trimmedKeyword,
+      businessType: this.readMetaString(data, "business_type") || businessType,
+      total: totalCount,
+      continueFlag,
+      offset: nextOffset,
+      count: items.length,
+      items,
+    };
+  }
+
+  private mapWechatSearchItem(asset: AssetRecord): WechatSearchItemRecord {
+    const meta = this.asMeta(asset.metadataJson);
+    return {
+      id: this.readMetaString(meta, "itemId") || asset.id,
+      title: asset.title,
+      desc: this.readMetaString(meta, "desc") || undefined,
+      docId: this.readMetaString(meta, "docId") || undefined,
+      accTypeName: this.readMetaString(meta, "accTypeName") || undefined,
+      url: this.readMetaString(meta, "url") || asset.fileUrl || undefined,
+      cover: this.readMetaString(meta, "cover") || undefined,
+      publishTime: this.readMetaString(meta, "publishTime") || undefined,
+      jumpInfoUserName: this.readMetaString(meta, "jumpInfoUserName") || undefined,
+      jumpInfoNickName: this.readMetaString(meta, "jumpInfoNickName") || undefined,
+      jumpInfoSignature: this.readMetaString(meta, "jumpInfoSignature") || undefined,
       collectedAt: this.readMetaString(meta, "collectedAt") || new Date().toISOString(),
     };
   }
