@@ -6065,7 +6065,7 @@ export class OpenClawService {
           throw new BadRequestException("请提供 workflowId");
         }
         await this.authService.assertBrandPermission(brandId, "wechat.original", "edit", auth);
-        const result = await this.worksService.generateWechatWorkflowImages(brandId, workflowId, auth);
+        const result = await this.worksService.generateWechatWorkflowImages(brandId, workflowId, undefined, auth);
         return this.buildManagedOperationResponse({
           title: "公众号配图生成已触发",
           action,

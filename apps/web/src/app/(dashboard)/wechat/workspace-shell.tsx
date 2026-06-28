@@ -79,6 +79,14 @@ const imageModeOptions: Array<{ value: WechatImageMode; label: string }> = [
   { value: "body-only", label: "只生成文中配图" },
 ];
 
+const imageModelOptions: Array<{ value: string; label: string }> = [
+  { value: "gpt-image-2", label: "GPT Image 2" },
+  { value: "gpt-image-2-vip", label: "GPT Image 2 (VIP)" },
+  { value: "nano-banana-2", label: "Nano Banana 2" },
+  { value: "nano-banana-pro-2k", label: "Nano Banana Pro 2K" },
+  { value: "nano-banana-pro-4k", label: "Nano Banana Pro 4K" },
+];
+
 const inputTypeOptions: Array<{ value: WechatWorkflowInputType; label: string; description: string }> = [
   { value: "calendar", label: "营销日历派生", description: "从品牌增长报告下的营销日历进入内容创作。" },
   { value: "plain-text", label: "纯文本创作", description: "直接输入创作意图或素材摘要。" },
@@ -496,6 +504,7 @@ export function WechatWorkspaceShell() {
   const [workflowInjectBrandProfile, setWorkflowInjectBrandProfile] = useState(false);
   const [workflowThemeColor, setWorkflowThemeColor] = useState(themeOptions[0]?.color ?? "#25554a");
   const [workflowImageMode, setWorkflowImageMode] = useState<WechatImageMode>("cover-and-body");
+  const [preferredImageModel, setPreferredImageModel] = useState("gpt-image-2");
   const [workflowInstruction, setWorkflowInstruction] = useState("");
 
   const [articleTitle, setArticleTitle] = useState("");
@@ -941,7 +950,7 @@ export function WechatWorkspaceShell() {
     setIsGeneratingWorkflowImages(true);
     setErrorMessage("");
     try {
-      const response = await generateWechatWorkflowImages(brandId, selectedWorkflow.id);
+      const response = await generateWechatWorkflowImages(brandId, selectedWorkflow.id, { preferredImageModel });
       upsertSession(response.item);
       setPublishCoverImageUrl(response.item.imageBundle?.coverImageUrl || "");
       setNotice("生图任务已启动，系统会按 10 秒错峰逐张生成并自动刷新展示；单张最长 240 秒，总任务最长 20 分钟。");
@@ -1426,6 +1435,14 @@ export function WechatWorkspaceShell() {
                                   <option key={item.value} value={item.value}>
                                     {item.label}
                                   </option>
+                                ))}
+                              </select>
+                            </label>
+                            <label className="wechat-field">
+                              <span>生图模型</span>
+                              <select value={preferredImageModel} onChange={(event) => setPreferredImageModel(event.target.value)}>
+                                {imageModelOptions.map((item) => (
+                                  <option key={item.value} value={item.value}>{item.label}</option>
                                 ))}
                               </select>
                             </label>

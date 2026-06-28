@@ -58,6 +58,8 @@ const IMAGE_TASK_TOTAL_TIMEOUT_MS = 20 * 60 * 1000;
 const IMAGE_RESULT_FETCH_TIMEOUT_MS = 30 * 1000;
 const WECHAT_IMAGE_REQUEST_STAGGER_MS = 10 * 1000;
 const WECHAT_IMAGE_TASK_TOTAL_TIMEOUT_MS = 20 * 60 * 1000;
+// 公众号生图单张任务轮询超时：8 分钟，避免单张图长时间卡住后续正文配图
+const WECHAT_IMAGE_POLL_TOTAL_TIMEOUT_MS = 8 * 60 * 1000;
 const VIDEO_TASK_QUERY_TIMEOUT_MS = 20 * 1000;
 const VIDEO_TASK_TOTAL_TIMEOUT_MS = 20 * 60 * 1000;
 const WORKS_KNOWLEDGE_BINDING_LIMIT = 3;
@@ -7193,7 +7195,12 @@ export class WorksService {
     };
   }
 
-  async generateWechatWorkflowImages(brandId: string, workflowId: string, auth?: RequestAuthContext) {
+  async generateWechatWorkflowImages(
+    brandId: string,
+    workflowId: string,
+    payload?: { preferredImageModel?: string },
+    auth?: RequestAuthContext,
+  ) {
     const target = await this.loadWechatWorkflowSessionStoreItem(brandId, workflowId);
     if (target.imageBundle?.status === "RUNNING") {
       throw new BadRequestException("当前工作流生图仍在进行中，请等待本轮完成后再重试。");
@@ -7227,18 +7234,21 @@ export class WorksService {
       coverKnowledgeContext,
       bodyKnowledgeContext,
     });
+    const preferredImageModel = String(payload?.preferredImageModel || "").trim();
     const [coverImageConfig, bodyImageConfig] = await Promise.all([
       this.loadImageGenerationExecutionConfig({
         brandId,
         skillSlug: "wechat-cover-image-designer",
         promptId: "prompt_wechat_cover_image_compose",
         fallbackModels: ["gpt-image-2", "gpt-image-2-vip", "nano-banana-2", "nano-banana-pro-2k", "nano-banana-pro-4k"],
+        preferredModelSelection: preferredImageModel,
       }),
       this.loadImageGenerationExecutionConfig({
         brandId,
         skillSlug: "wechat-body-image-designer",
         promptId: "prompt_wechat_body_image_compose",
         fallbackModels: ["gpt-image-2", "gpt-image-2-vip", "nano-banana-2", "nano-banana-pro-2k", "nano-banana-pro-4k"],
+        preferredModelSelection: preferredImageModel,
       }),
     ]);
     const task = await this.createOriginalTask({
@@ -7405,12 +7415,13 @@ export class WorksService {
           role: "COVER",
           order: 0,
           providers: coverImageConfig.providers,
-          executionPrompt: coverImageConfig.executionPrompt,
+          executionPrompt: "",
           prompt: coverPrompt,
           referenceImageUrls: [],
           promptMode: "social_graphic",
           imageSizeOverride: coverImageSize,
           attemptTimeoutMs: WECHAT_IMAGE_MODEL_ATTEMPT_TIMEOUT_MS,
+          pollTotalTimeoutMs: WECHAT_IMAGE_POLL_TOTAL_TIMEOUT_MS,
         });
         latestModelName = coverAsset.modelName;
         await this.persistWechatWorkflowImageProgress(target, {
@@ -7462,12 +7473,13 @@ export class WorksService {
             role: "GALLERY",
             order: index,
             providers: bodyImageConfig.providers,
-            executionPrompt: bodyImageConfig.executionPrompt,
+            executionPrompt: "",
             prompt: bodyPrompts[index] || "",
             referenceImageUrls: [],
             promptMode: "social_graphic",
             imageSizeOverride: bodyImageSize,
             attemptTimeoutMs: WECHAT_IMAGE_MODEL_ATTEMPT_TIMEOUT_MS,
+            pollTotalTimeoutMs: WECHAT_IMAGE_POLL_TOTAL_TIMEOUT_MS,
           });
           bodyAssets.push(bodyAsset);
           latestModelName = bodyAsset.modelName;
@@ -12072,6 +12084,7 @@ export class WorksService {
     maxProvidersToTry?: number;
     maxModelsPerProvider?: number;
     attemptTimeoutMs?: number;
+    pollTotalTimeoutMs?: number;
   }) {
     let lastError = "";
     const attemptTrail: string[] = [];
@@ -12142,6 +12155,7 @@ export class WorksService {
                     queryMethod: provider.queryMethod,
                     queryBodyMode: provider.queryBodyMode,
                     requestTimeoutMs: params.attemptTimeoutMs ?? provider.requestTimeoutMs,
+                    totalTimeoutMs: params.pollTotalTimeoutMs,
                   });
                 } else {
                   const response = await this.requestModelCompletion(
@@ -27063,11 +27077,12 @@ export class WorksService {
       queryMethod?: "GET" | "POST";
       queryBodyMode?: "taskId-json" | "task_id-json";
       requestTimeoutMs?: number;
+      totalTimeoutMs?: number;
     },
   ) {
     let lastState = "";
     let lastError = "";
-    const deadlineAt = Date.now() + IMAGE_TASK_TOTAL_TIMEOUT_MS;
+    const deadlineAt = Date.now() + (options.totalTimeoutMs || IMAGE_TASK_TOTAL_TIMEOUT_MS);
     while (Date.now() < deadlineAt) {
       let response: Record<string, unknown>;
       try {

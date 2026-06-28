@@ -1633,11 +1633,15 @@ export async function generateWechatWorkflowArticle(brandId: string, workflowId:
   );
 }
 
-export async function generateWechatWorkflowImages(brandId: string, workflowId: string) {
+export async function generateWechatWorkflowImages(
+  brandId: string,
+  workflowId: string,
+  payload?: { preferredImageModel?: string },
+) {
   return jsonRequest<{ item: WechatWorkflowSessionRecord }>(
     `/works/brands/${brandId}/wechat/workflows/${workflowId}/images/generate`,
     "POST",
-    {},
+    payload || {},
   );
 }
 

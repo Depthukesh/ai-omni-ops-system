@@ -294,11 +294,12 @@ export class WorksController {
   generateWechatWorkflowImages(
     @Param("brandId") brandId: string,
     @Param("workflowId") workflowId: string,
+    @Body() payload: { preferredImageModel?: string } | undefined,
     @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
     return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
       await this.authService.assertBrandPermission(brandId, "wechat.original", "edit", auth);
-      return this.worksService.generateWechatWorkflowImages(brandId, workflowId, auth);
+      return this.worksService.generateWechatWorkflowImages(brandId, workflowId, payload, auth);
     });
   }
 
