@@ -36,6 +36,7 @@ import {
 } from "../admin/knowledge-bases.service";
 import { PrismaService } from "../../prisma/prisma.service";
 import { OssStorageService } from "../../storage/oss-storage.service";
+import { VolcengineSpeechService } from "../third-party-platforms/volcengine-speech.service";
 import { ThirdPartyPlatformsService } from "../third-party-platforms/third-party-platforms.service";
 import { ChanjingOpenApiService } from "../works/chanjing-open-api.service";
 
@@ -3313,11 +3314,13 @@ export class BrandsService {
       return this.knowledgeBasesService;
     }
     if (!this.knowledgeBasesServiceFallback) {
+      const thirdPartyPlatformsService = new ThirdPartyPlatformsService(this.prismaService, new ChanjingOpenApiService());
       this.knowledgeBasesServiceFallback = new KnowledgeBasesService(
         this.prismaService,
         this.ossStorageService,
         new ApiProvidersService(this.prismaService),
-        new ThirdPartyPlatformsService(this.prismaService, new ChanjingOpenApiService()),
+        thirdPartyPlatformsService,
+        new VolcengineSpeechService(thirdPartyPlatformsService),
       );
     }
     return this.knowledgeBasesServiceFallback;

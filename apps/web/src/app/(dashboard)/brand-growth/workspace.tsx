@@ -46,9 +46,11 @@ import {
 import {
   addDouyinBenchmarkWorkToMaterialLibrary,
   addBenchmarkNoteToMaterialLibrary,
+  extractDouyinWorkTranscript,
   getDouyinCollectionWorkspace,
   getXiaohongshuCommentReplies,
   getXiaohongshuCollectionWorkspace,
+  type DouyinCollectedWorkRecord,
   type DouyinCommentPaginationState,
   type DouyinCommentRecord,
   type XhsCommentPaginationState,
@@ -970,6 +972,7 @@ export function BrandGrowthWorkspace() {
   const [calendarItemDraft, setCalendarItemDraft] = useState<XiaohongshuMarketingCalendarItem | null>(null);
   const [uploadingProductId, setUploadingProductId] = useState("");
   const [addingMaterialAssetId, setAddingMaterialAssetId] = useState("");
+  const [extractingDouyinTranscriptAssetId, setExtractingDouyinTranscriptAssetId] = useState("");
   const [deletingDouyinKeywordRecommendationId, setDeletingDouyinKeywordRecommendationId] = useState("");
   const [notice, setNotice] = useState<string>("");
   const [errorMessage, setErrorMessage] = useState<string>("");
@@ -2809,6 +2812,30 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     }
   }
 
+  async function handleExtractDouyinWorkTranscript(item: DouyinCollectedWorkRecord) {
+    if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.collection.douyinCollection"]?.edit) {
+      setErrorMessage("当前账号没有编辑抖音收集数据的权限。");
+      return;
+    }
+    if (!item.id) {
+      return;
+    }
+
+    setExtractingDouyinTranscriptAssetId(item.id);
+    clearMessages();
+
+    try {
+      const response = await extractDouyinWorkTranscript(item.id, activeBrandId || archive.brand.id);
+      setDouyinCollectionWorkspace(response.workspace);
+      setNotice("视频文案提取完成。");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "提取失败";
+      setErrorMessage(`视频文案提取失败：${message}`);
+    } finally {
+      setExtractingDouyinTranscriptAssetId("");
+    }
+  }
+
   async function handleSyncDouyinWorkspace() {
     if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.collection.douyinCollection"]?.edit) {
       setErrorMessage("当前账号没有同步收集数据板块的编辑权限。");
@@ -3581,8 +3608,10 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
         setBrandNotesPageSize={setBrandNotesPageSize}
         paginatedBrandNotes={paginatedBrandNotes}
         addingMaterialAssetId={addingMaterialAssetId}
+        extractingDouyinTranscriptAssetId={extractingDouyinTranscriptAssetId}
         onAddBenchmarkNoteToMaterial={handleAddBenchmarkNoteToMaterial}
         onAddDouyinBenchmarkWorkToMaterial={handleToggleDouyinBenchmarkWorkMaterial}
+        onExtractDouyinTranscript={handleExtractDouyinWorkTranscript}
         onRemoveDouyinKeywordRecommendation={handleRemoveDouyinKeywordRecommendation}
         onPreviewMedia={setMediaPreview}
         buildFeishuMediaProxyUrl={(sourceUrl, download) => buildFeishuMediaProxyUrl(sourceUrl, download, activeBrandId || archive.brand.id)}

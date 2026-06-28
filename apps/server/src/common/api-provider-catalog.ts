@@ -133,6 +133,19 @@ type AgnesVideoSeedInput = {
   durationOptions?: number[];
 };
 
+type VolcengineSpeechSeedInput = {
+  id: string;
+  name: string;
+  tutorialUrl: string;
+  resourceId: string;
+  runtimeKey: string;
+  runtimeTags: string[];
+  requestPath: string;
+  queryPath?: string;
+  displayOrder: number;
+  remark: string;
+};
+
 function createVolcengineArkVideoSeed(input: VolcengineArkVideoSeedInput) {
   return createSeed({
     id: input.id,
@@ -355,6 +368,37 @@ function createAgnesVideoSeed(input: AgnesVideoSeedInput) {
       supportsImageToVideo: input.supportsImageToVideo,
       durationOptions: input.durationOptions || [5, 8, 10, 15],
       sourceFolder: "Agnes 视频生成",
+    },
+    remark: input.remark,
+  });
+}
+
+function createVolcengineSpeechSeed(input: VolcengineSpeechSeedInput) {
+  return createSeed({
+    id: input.id,
+    name: input.name,
+    providerType: "DOUBAO",
+    status: "ACTIVE",
+    baseUrl: "https://openspeech.bytedance.com",
+    tutorialUrl: input.tutorialUrl,
+    modelWhitelist: [input.resourceId],
+    apiKey: "",
+    defaultModel: input.resourceId,
+    organization: "",
+    project: "",
+    timeoutMs: 180000,
+    streamEnabled: false,
+    customHeaders: {},
+    extraParams: {
+      runtimeKey: input.runtimeKey,
+      runtimeTags: input.runtimeTags,
+      baseUrls: ["https://openspeech.bytedance.com"],
+      requestPath: input.requestPath,
+      queryPath: input.queryPath || "",
+      requestMode: input.queryPath ? "volcengine_speech_submit_query" : "volcengine_speech_flash",
+      resourceId: input.resourceId,
+      displayOrder: input.displayOrder,
+      sourceFolder: "豆包语音识别",
     },
     remark: input.remark,
   });
@@ -638,6 +682,32 @@ const AGNES_VIDEO_PROVIDER_SEEDS: ApiProviderSeedRecord[] = [
   }),
 ];
 
+const VOLCENGINE_SPEECH_PROVIDER_SEEDS: ApiProviderSeedRecord[] = [
+  createVolcengineSpeechSeed({
+    id: "provider_runtime_speech_volcengine_flash_recognition",
+    name: "豆包语音 · 语音识别（极速版）",
+    tutorialUrl: "https://www.volcengine.com/docs/6561/1631584?lang=zh",
+    resourceId: "volc.bigasr.auc_turbo",
+    runtimeKey: "speech-recognition",
+    runtimeTags: ["speech-recognition", "collectors-runtime", "transcript-runtime"],
+    requestPath: "/api/v3/auc/bigmodel/recognize/flash",
+    displayOrder: 35,
+    remark: "用于短音频/短视频语音快速提取文案，推荐配合抖音采集视频缓存后的音轨抽取链路使用；品牌 Owner 可在个人中心填写新版 X-Api-Key，或按 `appId::accessToken` 兼容旧版控制台。",
+  }),
+  createVolcengineSpeechSeed({
+    id: "provider_runtime_audio_file_volcengine_standard_recognition",
+    name: "豆包语音 · 录音文件识别（标准版）",
+    tutorialUrl: "https://www.volcengine.com/docs/6561/1354868?lang=zh",
+    resourceId: "volc.seedasr.auc",
+    runtimeKey: "audio-file-recognition",
+    runtimeTags: ["audio-file-recognition", "knowledge-runtime", "transcript-runtime"],
+    requestPath: "/api/v3/auc/bigmodel/submit",
+    queryPath: "/api/v3/auc/bigmodel/query",
+    displayOrder: 36,
+    remark: "用于知识库音频文件的稳定转写，采用标准版 submit/query 轮询模式；品牌 Owner 可在个人中心填写新版 X-Api-Key，或按 `appId::accessToken` 兼容旧版控制台。",
+  }),
+];
+
 const MATHMIND_PROVIDER_SEEDS: ApiProviderSeedRecord[] = [
   createSeed({
     id: "provider_runtime_mathmind_video_tools",
@@ -828,6 +898,7 @@ export const SYSTEM_API_PROVIDER_SEEDS: ApiProviderSeedRecord[] = [
     },
     remark: "Agnes 平台的文生文模型，兼容 OpenAI Chat Completions；品牌 Owner 在个人中心第三方接口配置填写 Agnes API Key 后即可启用。",
   }),
+  ...VOLCENGINE_SPEECH_PROVIDER_SEEDS,
   ...VOLCENGINE_ARK_EMBEDDING_PROVIDER_SEEDS,
   createSeed({
     id: "provider_runtime_text_kimi",

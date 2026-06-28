@@ -24,6 +24,7 @@ import { PrismaService } from "../../prisma/prisma.service";
 import { OssStorageService } from "../../storage/oss-storage.service";
 import { ApiProvidersService } from "./api-providers.service";
 import { ThirdPartyPlatformsService } from "../third-party-platforms/third-party-platforms.service";
+import { VolcengineSpeechService } from "../third-party-platforms/volcengine-speech.service";
 
 export type CreateKnowledgeBasePayload = {
   name: string;
@@ -269,6 +270,7 @@ export class KnowledgeBasesService {
     private readonly ossStorageService: OssStorageService,
     private readonly apiProvidersService: ApiProvidersService,
     private readonly thirdPartyPlatformsService: ThirdPartyPlatformsService,
+    private readonly volcengineSpeechService: VolcengineSpeechService,
   ) {}
 
   async listKnowledgeBases() {
@@ -1406,11 +1408,20 @@ export class KnowledgeBasesService {
             ? this.extractTextFromPdfBuffer(storedFile.buffer)
             : resolvedFileType === "MD"
               ? this.decodeBufferAsText(storedFile.buffer)
+              : resolvedFileType === "AUDIO"
+                ? (
+                  await this.volcengineSpeechService.transcribeAudioFile(brandId, storedFile.buffer, {
+                    fileName: storedFileName,
+                    mimeType: storedFile.contentType,
+                    language: "zh-CN",
+                    userId: `knowledge-${brandId}`,
+                  })
+                ).text
               : "";
     if (extractedContent) {
       return {
         content: extractedContent,
-        sourceLabel: "file-content",
+        sourceLabel: resolvedFileType === "AUDIO" ? "audio-transcript" : "file-content",
         usedFallback: false,
         resolvedFileType,
       };

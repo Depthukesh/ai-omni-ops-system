@@ -240,6 +240,11 @@ export type DouyinCollectedWorkRecord = {
   collectedAt: string;
   videoCacheStatus?: "PENDING" | "READY" | "FAILED" | "EXPIRED";
   videoCacheLastError?: string;
+  transcript?: string;
+  transcriptSource?: string;
+  transcriptStatus?: "PENDING" | "SUCCESS" | "FAILED";
+  transcriptLastError?: string;
+  transcribedAt?: string;
   rawFields?: Record<string, unknown>;
   isInMaterialLibrary?: boolean;
   materialAddedAt?: string;
@@ -582,6 +587,14 @@ export async function removeDouyinBenchmarkWorkFromMaterialLibrary(assetId: stri
     `/collectors/douyin/brands/${resolveBrandId(brandId)}/material-library/${assetId}`,
     "DELETE",
     {},
+  );
+}
+
+export async function extractDouyinWorkTranscript(assetId: string, brandId?: string) {
+  return jsonRequest<{ item: DouyinCollectedWorkRecord; workspace: DouyinCollectionWorkspace }>(
+    `/collectors/douyin/brands/${resolveBrandId(brandId)}/transcripts`,
+    "POST",
+    { assetId },
   );
 }
 

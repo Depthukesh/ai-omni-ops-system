@@ -445,8 +445,10 @@ export interface BrandGrowthCollectionWorkspaceProps {
   setBrandNotesPageSize: Dispatch<SetStateAction<number>>;
   paginatedBrandNotes: XhsCollectedNoteRecord[];
   addingMaterialAssetId: string;
+  extractingDouyinTranscriptAssetId: string;
   onAddBenchmarkNoteToMaterial: ValueAction<string>;
   onAddDouyinBenchmarkWorkToMaterial: ValueAction<DouyinCollectedWorkRecord>;
+  onExtractDouyinTranscript: ValueAction<DouyinCollectedWorkRecord>;
   onRemoveDouyinKeywordRecommendation: ValueAction<string>;
   onPreviewMedia: ValueAction<MediaPreviewState>;
   buildFeishuMediaProxyUrl: (sourceUrl?: string, download?: boolean) => string;
@@ -2244,6 +2246,44 @@ function DouyinVideoPreviewCell(props: {
   return <span>-</span>;
 }
 
+function DouyinTranscriptCell(props: {
+  item: DouyinCollectedWorkRecord;
+  extractingAssetId?: string;
+  onExtract: ValueAction<DouyinCollectedWorkRecord>;
+}) {
+  const { item } = props;
+  const hasTranscript = Boolean(item.transcript?.trim());
+  const isExtracting = props.extractingAssetId === item.id || item.transcriptStatus === "PENDING";
+  const canExtract = Boolean(item.videoUrl) || item.videoCacheStatus === "READY";
+
+  if (!canExtract && !hasTranscript) {
+    return <span>-</span>;
+  }
+
+  return (
+    <div className="stack gap-8">
+      {hasTranscript ? (
+        <ExpandableTextCell value={item.transcript} emptyText="暂无视频文案" compactRows={3} />
+      ) : (
+        <button
+          type="button"
+          className="note-inline-button"
+          onClick={() => void props.onExtract(item)}
+          disabled={isExtracting}
+        >
+          {isExtracting ? "提取中..." : "提取文案"}
+        </button>
+      )}
+      {!hasTranscript && item.transcriptStatus === "FAILED" && item.transcriptLastError ? (
+        <span className="form-help form-help--error">{item.transcriptLastError}</span>
+      ) : null}
+      {hasTranscript && item.transcribedAt ? (
+        <span className="form-help">识别时间：{item.transcribedAt}</span>
+      ) : null}
+    </div>
+  );
+}
+
 function formatTrendSummary(trends: DouyinCityHotspotRecord["trends"]) {
   if (!trends.length) {
     return "-";
@@ -2334,7 +2374,9 @@ function DouyinAccountTable(props: {
 function DouyinBrandWorksTable(props: {
   items: DouyinCollectedWorkRecord[];
   addingMaterialAssetId?: string;
+  extractingTranscriptAssetId?: string;
   onAddToMaterialLibrary?: ValueAction<DouyinCollectedWorkRecord>;
+  onExtractTranscript: ValueAction<DouyinCollectedWorkRecord>;
   formatDateTime: OptionalDateFormatter;
   formatCount: OptionalNumberFormatter;
   onPreviewMedia: ValueAction<MediaPreviewState>;
@@ -2360,6 +2402,7 @@ function DouyinBrandWorksTable(props: {
             <th>图文列表</th>
             <th>作品类型</th>
             <th>视频下载地址</th>
+            <th>视频文案</th>
             <th>采集时间</th>
           </tr>
         </thead>
@@ -2394,6 +2437,13 @@ function DouyinBrandWorksTable(props: {
               <td>{item.imageList?.length ? `${item.imageList.length} 张` : "-"}</td>
               <td>{(item.awemeType ?? item.workType) || "-"}</td>
               <td><DouyinVideoPreviewCell item={item} onPreviewMedia={props.onPreviewMedia} /></td>
+              <td className="table-cell-wide">
+                <DouyinTranscriptCell
+                  item={item}
+                  extractingAssetId={props.extractingTranscriptAssetId}
+                  onExtract={props.onExtractTranscript}
+                />
+              </td>
               <td>{props.formatDateTime(item.collectedAt)}</td>
             </tr>
           ))}
@@ -2407,6 +2457,8 @@ function DouyinMaterialReadyWorksTable(props: {
   items: DouyinCollectedWorkRecord[];
   addingMaterialAssetId: string;
   onAddToMaterialLibrary: ValueAction<DouyinCollectedWorkRecord>;
+  extractingTranscriptAssetId?: string;
+  onExtractTranscript: ValueAction<DouyinCollectedWorkRecord>;
   formatDateTime: OptionalDateFormatter;
   formatCount: OptionalNumberFormatter;
   onPreviewMedia: ValueAction<MediaPreviewState>;
@@ -2433,6 +2485,7 @@ function DouyinMaterialReadyWorksTable(props: {
             <th>作品封面</th>
             {showWorkUrlColumn ? <th>作品链接</th> : null}
             <th>{videoColumnLabel}</th>
+            <th>视频文案</th>
             <th>作品点赞数</th>
             <th>作品评论数</th>
             <th>作品分享数</th>
@@ -2480,6 +2533,13 @@ function DouyinMaterialReadyWorksTable(props: {
                 </td>
               ) : null}
               <td><DouyinVideoPreviewCell item={item} onPreviewMedia={props.onPreviewMedia} /></td>
+              <td className="table-cell-wide">
+                <DouyinTranscriptCell
+                  item={item}
+                  extractingAssetId={props.extractingTranscriptAssetId}
+                  onExtract={props.onExtractTranscript}
+                />
+              </td>
               <td>{props.formatCount(item.likeCount)}</td>
               <td>{props.formatCount(item.commentCount)}</td>
               <td>{props.formatCount(item.shareCount)}</td>
@@ -3994,6 +4054,8 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                     items={douyinPreviewItems as DouyinCollectedWorkRecord[]}
                     formatDateTime={props.formatDateTime}
                     formatCount={props.formatCount}
+                    extractingTranscriptAssetId={props.extractingDouyinTranscriptAssetId}
+                    onExtractTranscript={props.onExtractDouyinTranscript}
                     onPreviewMedia={props.onPreviewMedia}
                   />
                 ) : (
@@ -4079,6 +4141,8 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                     onAddToMaterialLibrary={props.onAddDouyinBenchmarkWorkToMaterial}
                     formatDateTime={props.formatDateTime}
                     formatCount={props.formatCount}
+                    extractingTranscriptAssetId={props.extractingDouyinTranscriptAssetId}
+                    onExtractTranscript={props.onExtractDouyinTranscript}
                     onPreviewMedia={props.onPreviewMedia}
                   />
                 ) : (
@@ -4108,6 +4172,8 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                     items={douyinPreviewItems as DouyinCollectedWorkRecord[]}
                     addingMaterialAssetId={props.addingMaterialAssetId}
                     onAddToMaterialLibrary={props.onAddDouyinBenchmarkWorkToMaterial}
+                    extractingTranscriptAssetId={props.extractingDouyinTranscriptAssetId}
+                    onExtractTranscript={props.onExtractDouyinTranscript}
                     formatDateTime={props.formatDateTime}
                     formatCount={props.formatCount}
                     onPreviewMedia={props.onPreviewMedia}
@@ -4155,6 +4221,8 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                     items={douyinPreviewItems as DouyinCollectedWorkRecord[]}
                     addingMaterialAssetId={props.addingMaterialAssetId}
                     onAddToMaterialLibrary={props.onAddDouyinBenchmarkWorkToMaterial}
+                    extractingTranscriptAssetId={props.extractingDouyinTranscriptAssetId}
+                    onExtractTranscript={props.onExtractDouyinTranscript}
                     formatDateTime={props.formatDateTime}
                     formatCount={props.formatCount}
                     onPreviewMedia={props.onPreviewMedia}
@@ -4259,6 +4327,8 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                     items={douyinPreviewItems as DouyinCollectedWorkRecord[]}
                     addingMaterialAssetId={props.addingMaterialAssetId}
                     onAddToMaterialLibrary={props.onAddDouyinBenchmarkWorkToMaterial}
+                    extractingTranscriptAssetId={props.extractingDouyinTranscriptAssetId}
+                    onExtractTranscript={props.onExtractDouyinTranscript}
                     formatDateTime={props.formatDateTime}
                     formatCount={props.formatCount}
                     onPreviewMedia={props.onPreviewMedia}
@@ -4290,6 +4360,8 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                     items={douyinPreviewItems as DouyinCollectedWorkRecord[]}
                     addingMaterialAssetId={props.addingMaterialAssetId}
                     onAddToMaterialLibrary={props.onAddDouyinBenchmarkWorkToMaterial}
+                    extractingTranscriptAssetId={props.extractingDouyinTranscriptAssetId}
+                    onExtractTranscript={props.onExtractDouyinTranscript}
                     formatDateTime={props.formatDateTime}
                     formatCount={props.formatCount}
                     onPreviewMedia={props.onPreviewMedia}
@@ -4321,6 +4393,8 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                     items={douyinPreviewItems as DouyinCollectedWorkRecord[]}
                     addingMaterialAssetId={props.addingMaterialAssetId}
                     onAddToMaterialLibrary={props.onAddDouyinBenchmarkWorkToMaterial}
+                    extractingTranscriptAssetId={props.extractingDouyinTranscriptAssetId}
+                    onExtractTranscript={props.onExtractDouyinTranscript}
                     formatDateTime={props.formatDateTime}
                     formatCount={props.formatCount}
                     onPreviewMedia={props.onPreviewMedia}

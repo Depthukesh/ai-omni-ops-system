@@ -1,18 +1,34 @@
 import { Buffer } from "node:buffer";
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { dirname, extname, join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { BadRequestException, ForbiddenException, Inject, Injectable, Logger, NotFoundException, OnModuleDestroy, OnModuleInit, ServiceUnavailableException } from "@nestjs/common";
 import { AssetCategory, Prisma } from "@prisma/client";
+import ffmpegInstaller from "@ffmpeg-installer/ffmpeg";
 import { createId, database, type AssetRecord, type PlatformAccountRecord } from "../../common/mock-data";
 import { getFeishuUserAppConfig, getFeishuUserIntegration, setFeishuUserIntegration } from "../../common/user-integrations";
 import { PrismaService } from "../../prisma/prisma.service";
 import { OssStorageService } from "../../storage/oss-storage.service";
 import { SchedulerService } from "../scheduler/scheduler.service";
 import { ThirdPartyPlatformsService } from "../third-party-platforms/third-party-platforms.service";
+import { VolcengineSpeechService } from "../third-party-platforms/volcengine-speech.service";
 
 const execFileAsync = promisify(execFile);
+
+function resolveFfmpegBinary() {
+  const envBinary = String(process.env.FFMPEG_BINARY || "").trim();
+  if (envBinary) {
+    return envBinary;
+  }
+  const bundledBinary = String(ffmpegInstaller?.path || "").trim();
+  if (bundledBinary && existsSync(bundledBinary)) {
+    return bundledBinary;
+  }
+  return "ffmpeg";
+}
 
 type CollectorAccountKind =
   | "XHS_BRAND_ACCOUNT"
@@ -397,6 +413,11 @@ export type DouyinCollectedWorkRecord = {
   collectedAt: string;
   videoCacheStatus?: "PENDING" | "READY" | "FAILED" | "EXPIRED";
   videoCacheLastError?: string;
+  transcript?: string;
+  transcriptSource?: string;
+  transcriptStatus?: "PENDING" | "SUCCESS" | "FAILED";
+  transcriptLastError?: string;
+  transcribedAt?: string;
   isInMaterialLibrary?: boolean;
   materialAddedAt?: string;
   billboardLabel?: string;
@@ -539,6 +560,8 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     private readonly schedulerService: SchedulerService,
     @Inject(ThirdPartyPlatformsService)
     private readonly thirdPartyPlatformsService: ThirdPartyPlatformsService,
+    @Inject(VolcengineSpeechService)
+    private readonly volcengineSpeechService: VolcengineSpeechService,
   ) {}
 
   onModuleInit() {
@@ -945,6 +968,66 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
         isInMaterialLibrary: undefined,
         materialAddedAt: undefined,
       },
+      workspace: await this.getDouyinWorkspace(brandId),
+    };
+  }
+
+  async extractDouyinWorkTranscript(brandId: string, assetId: string) {
+    this.ensureBrandExistsInMockOrDatabase(brandId);
+    const asset = await this.getCollectorAssetById(brandId, assetId);
+    const meta = this.asMeta(asset.metadataJson);
+    const kind = this.readMetaString(meta, "kind");
+    if (!this.isDouyinWorkKind(kind)) {
+      throw new BadRequestException("仅支持对抖音作品提取视频文案");
+    }
+    const existingTranscript = this.readMetaString(meta, "transcript");
+    if (existingTranscript) {
+      return {
+        item: this.mapDouyinCollectedWork(asset, kind),
+        workspace: await this.getDouyinWorkspace(brandId),
+      };
+    }
+    const storageKey = this.readMetaString(meta, "videoStorageKey");
+    if (this.readMetaString(meta, "videoCacheStatus") !== "READY" || !storageKey) {
+      throw new BadRequestException("当前作品的视频缓存尚未准备好，请稍后再试");
+    }
+    const storedVideo = await this.ossStorageService.getObject(storageKey);
+    if (!storedVideo) {
+      throw new ServiceUnavailableException("未找到当前作品对应的视频缓存文件，请重新同步后再试");
+    }
+    await this.updateCollectorAssetMeta(brandId, assetId, {
+      transcriptStatus: "PENDING",
+      transcriptLastError: "",
+    });
+    try {
+      const extractedAudio = await this.extractAudioTrackFromVideoBuffer(
+        storedVideo.buffer,
+        `${this.readMetaString(meta, "workId") || assetId}.mp4`,
+      );
+      const result = await this.volcengineSpeechService.transcribeShortAudio(brandId, extractedAudio.buffer, {
+        fileName: extractedAudio.fileName,
+        mimeType: extractedAudio.contentType,
+        language: "zh-CN",
+        userId: `douyin-${brandId}`,
+      });
+      await this.updateCollectorAssetMeta(brandId, assetId, {
+        transcript: result.text,
+        transcriptSource: "volcengine-speech-flash",
+        transcriptStatus: "SUCCESS",
+        transcriptLastError: "",
+        transcribedAt: new Date().toISOString(),
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "提取失败";
+      await this.updateCollectorAssetMeta(brandId, assetId, {
+        transcriptStatus: "FAILED",
+        transcriptLastError: message,
+      });
+      throw error;
+    }
+    const updatedAsset = await this.getCollectorAssetById(brandId, assetId);
+    return {
+      item: this.mapDouyinCollectedWork(updatedAsset, kind),
       workspace: await this.getDouyinWorkspace(brandId),
     };
   }
@@ -1538,6 +1621,11 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       collectedAt: this.readMetaString(meta, "collectedAt") || new Date().toISOString(),
       videoCacheStatus: (this.readMetaString(meta, "videoCacheStatus") as DouyinCollectedWorkRecord["videoCacheStatus"]) || undefined,
       videoCacheLastError: this.readMetaString(meta, "videoCacheLastError") || undefined,
+      transcript: this.readMetaString(meta, "transcript") || undefined,
+      transcriptSource: this.readMetaString(meta, "transcriptSource") || undefined,
+      transcriptStatus: (this.readMetaString(meta, "transcriptStatus") as DouyinCollectedWorkRecord["transcriptStatus"]) || undefined,
+      transcriptLastError: this.readMetaString(meta, "transcriptLastError") || undefined,
+      transcribedAt: this.readMetaString(meta, "transcribedAt") || undefined,
       isInMaterialLibrary: this.readMetaBoolean(meta, "inMaterialLibrary") || undefined,
       materialAddedAt: this.readMetaString(meta, "materialAddedAt") || undefined,
       billboardLabel: this.readMetaString(meta, "billboardLabel") || undefined,
@@ -1678,6 +1766,57 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     } finally {
       clearTimeout(timer);
     }
+  }
+
+  private async extractAudioTrackFromVideoBuffer(videoBuffer: Buffer, sourceFileName: string) {
+    const binary = resolveFfmpegBinary();
+    const tempRoot = await mkdtemp(join(tmpdir(), "douyin-video-transcript-"));
+    const extension = extname(String(sourceFileName || "").trim()) || ".mp4";
+    const inputPath = join(tempRoot, `source${extension}`);
+    const outputPath = join(tempRoot, "audio.wav");
+    try {
+      await writeFile(inputPath, videoBuffer);
+      await execFileAsync(binary, [
+        "-y",
+        "-i",
+        inputPath,
+        "-vn",
+        "-ac",
+        "1",
+        "-ar",
+        "16000",
+        "-acodec",
+        "pcm_s16le",
+        outputPath,
+      ]);
+      const buffer = await readFile(outputPath);
+      if (!buffer.length) {
+        throw new ServiceUnavailableException("ffmpeg 未产出可识别的音频内容");
+      }
+      return {
+        buffer,
+        contentType: "audio/wav",
+        fileName: `${this.sanitizeFileNameBase(sourceFileName)}.wav`,
+      };
+    } catch (error) {
+      const errno = error as NodeJS.ErrnoException;
+      if (errno?.code === "ENOENT") {
+        throw new ServiceUnavailableException("当前服务端未安装 ffmpeg，暂时无法从抖音视频中提取音频");
+      }
+      const message = error instanceof Error ? error.message : "未知错误";
+      throw new ServiceUnavailableException(`从抖音视频提取音频失败：${message}`);
+    } finally {
+      await rm(tempRoot, { recursive: true, force: true }).catch(() => false);
+    }
+  }
+
+  private sanitizeFileNameBase(fileName: string) {
+    return String(fileName || "")
+      .trim()
+      .replace(/^.*[\\/]/, "")
+      .replace(/\.[^.]+$/, "")
+      .replace(/[^a-zA-Z0-9_-]+/g, "_")
+      .replace(/^_+|_+$/g, "") || "audio";
   }
 
   private enqueueDouyinVideoCache(asset: AssetRecord) {

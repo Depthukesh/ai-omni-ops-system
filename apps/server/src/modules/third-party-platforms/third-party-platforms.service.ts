@@ -428,6 +428,22 @@ export class ThirdPartyPlatformsService {
       return [];
     }
 
+    if (host === "openspeech.bytedance.com") {
+      const apiKeys = [
+        String(process.env.VOLCENGINE_SPEECH_API_KEY || "").trim(),
+        String(process.env.DOUBAO_SPEECH_API_KEY || "").trim(),
+        String(process.env.DOUBAO_STT_API_KEY || "").trim(),
+      ].filter(Boolean);
+      const appId = String(process.env.DOUBAO_STT_APP_ID || process.env.VOLCENGINE_SPEECH_APP_ID || "").trim();
+      const accessKey = String(
+        process.env.DOUBAO_STT_ACCESS_KEY || process.env.DOUBAO_STT_ACCESS_TOKEN || process.env.VOLCENGINE_SPEECH_ACCESS_KEY || "",
+      ).trim();
+      if (appId && accessKey) {
+        apiKeys.push(`${appId}::${accessKey}`);
+      }
+      return Array.from(new Set(apiKeys));
+    }
+
     const envKeysByHost: Record<string, string[]> = {
       "api.apiz.ai": ["APIZ_API_KEY", "NEX_AI_API_KEY"],
       "api.deepseek.com": ["DEEPSEEK_API_KEY"],

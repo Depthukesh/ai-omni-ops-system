@@ -251,6 +251,17 @@ export class DouyinCollectorsController {
     return this.collectorsService.removeDouyinBenchmarkWorkFromMaterialLibrary(brandId, assetId);
   }
 
+  @Post("brands/:brandId/transcripts")
+  async extractWorkTranscript(
+    @Param("brandId") brandId: string,
+    @Body() payload: { assetId: string },
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(brandId, auth);
+    return this.collectorsService.extractDouyinWorkTranscript(brandId, payload.assetId);
+  }
+
   @Delete("brands/:brandId/keyword-recommendations/:assetId")
   async removeKeywordRecommendation(
     @Param("brandId") brandId: string,
