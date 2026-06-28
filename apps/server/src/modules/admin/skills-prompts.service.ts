@@ -1596,6 +1596,7 @@ export class SkillsPromptsService implements OnModuleInit {
     await this.removeRetiredOpenDesignArtifacts();
     await this.backfillDouyinOriginalCopyPromptContents();
     await this.backfillXhsOriginalCopyPromptContents();
+    await this.backfillWechatHtmlStylePromptContents();
     await this.backfillImageGenerationSkillDefaults();
     await this.backfillLegacyVideoNoteDefaults();
     await this.backfillLegacySkillInputSchemas();
@@ -1813,6 +1814,33 @@ export class SkillsPromptsService implements OnModuleInit {
             OR BTRIM("content") = ${legacyFallback.trim()}
           )
       `;
+    }
+  }
+
+  private async backfillWechatHtmlStylePromptContents() {
+    const stylePromptIds = [
+      "prompt_wechat_html_general",
+      "prompt_wechat_html_minimal",
+      "prompt_wechat_html_space",
+      "prompt_wechat_html_notice",
+    ];
+    for (const promptId of stylePromptIds) {
+      const seed = database.promptTemplates.find((item) => item.id === promptId);
+      if (!seed) continue;
+      const seedContent = this.readPromptContent(seed.id, seed.content);
+      try {
+        await this.prismaService.$executeRaw`
+          UPDATE "PromptTemplate"
+          SET "content" = ${seedContent}, "updatedAt" = CURRENT_TIMESTAMP
+          WHERE "id" = ${seed.id}
+            AND (
+              COALESCE(BTRIM("content"), '') = ''
+              OR "content" IS DISTINCT FROM ${seedContent}
+            )
+        `;
+      } catch {
+        // 忽略回填错误
+      }
     }
   }
 

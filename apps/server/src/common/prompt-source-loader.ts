@@ -238,6 +238,22 @@ export const PROMPT_SOURCE_CANDIDATES: Record<string, string[]> = {
     "../../../提示词/wechat/wechat-html-renderer/SKILL.md",
     "../提示词/wechat/wechat-html-renderer/SKILL.md",
   ],
+  prompt_wechat_html_general: [
+    "../../../提示词/公众号提示词/html排版提示词/通用排版提示词.txt",
+    "../提示词/公众号提示词/html排版提示词/通用排版提示词.txt",
+  ],
+  prompt_wechat_html_minimal: [
+    "../../../提示词/公众号提示词/html排版提示词/极简排版提示词.txt",
+    "../提示词/公众号提示词/html排版提示词/极简排版提示词.txt",
+  ],
+  prompt_wechat_html_space: [
+    "../../../提示词/公众号提示词/html排版提示词/空间艺术排版提示词.txt",
+    "../提示词/公众号提示词/html排版提示词/空间艺术排版提示词.txt",
+  ],
+  prompt_wechat_html_notice: [
+    "../../../提示词/公众号提示词/html排版提示词/通知类排版提示词.txt",
+    "../提示词/公众号提示词/html排版提示词/通知类排版提示词.txt",
+  ],
   prompt_wechat_api_publish: [
     "../../../提示词/wechat/wechat-api-publisher/SKILL.md",
     "../提示词/wechat/wechat-api-publisher/SKILL.md",
