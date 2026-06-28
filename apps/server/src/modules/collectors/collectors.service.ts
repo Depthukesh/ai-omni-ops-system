@@ -47,7 +47,8 @@ type CollectorAssetKind =
   | CollectorTargetKind
   | DouyinCityHotspotKind
   | "WECHAT_MP_BRAND_ACCOUNT"
-  | "WECHAT_MP_ARTICLE";
+  | "WECHAT_MP_ARTICLE"
+  | "WECHAT_MP_BENCHMARK_ARTICLE";
 type CollectorSyncStatus = "IDLE" | "RUNNING" | "SUCCESS" | "FAILED";
 type DailyHotspotSyncStatus = "IDLE" | "RUNNING" | "SUCCESS" | "FAILED";
 type DouyinBillboardScopeKey =
@@ -104,6 +105,26 @@ export type WechatMpArticleFetchResult = {
   count: number;
   articles: WechatMpArticleRecord[];
   workspace: WechatMpCollectionWorkspace;
+};
+
+export type WechatMpBenchmarkArticleRecord = {
+  id: string;
+  title: string;
+  articleContent?: string;
+  url: string;
+  readNum?: number;
+  likeCount?: number;
+  shareCount?: number;
+  collectCount?: number;
+  commentCount?: number;
+  starNum?: number;
+  statsUpdatedAt?: string;
+  contentReadAt?: string;
+  collectedAt: string;
+};
+
+export type WechatMpBenchmarkWorkspace = {
+  benchmarkArticles: WechatMpBenchmarkArticleRecord[];
 };
 type XhsSyncAccountEntry = {
   locator: string;
@@ -5105,6 +5126,9 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
         if (kind === "WECHAT_MP_ARTICLE") {
           return meta.kind === kind && this.readMetaString(meta, "articleId") === matchValue;
         }
+        if (kind === "WECHAT_MP_BENCHMARK_ARTICLE") {
+          return meta.kind === kind && this.readMetaString(meta, "articleId") === matchValue;
+        }
         return meta.kind === kind && this.readMetaString(meta, "sourceAccountId") === matchValue;
       });
       const [matched, ...duplicateMatches] = matchedItems;
@@ -5189,6 +5213,9 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
           && this.isSameXhsAccountAssetIdentity(meta, item.fileUrl, kind, matchValue, fileUrl, metadata);
       }
       if (kind === "WECHAT_MP_ARTICLE") {
+        return item.brandId === brandId && meta.kind === kind && this.readMetaString(meta, "articleId") === matchValue;
+      }
+      if (kind === "WECHAT_MP_BENCHMARK_ARTICLE") {
         return item.brandId === brandId && meta.kind === kind && this.readMetaString(meta, "articleId") === matchValue;
       }
       return item.brandId === brandId && meta.kind === kind && this.readMetaString(meta, "sourceAccountId") === matchValue;
@@ -7414,7 +7441,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     const body: Record<string, unknown> = {
       username: trimmed,
       page_size: 20,
-      raw: false,
+      raw: true,
     };
     if (offset) {
       body.offset = offset;
@@ -7427,23 +7454,71 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     const articles: WechatMpArticleRecord[] = [];
     for (const articleRaw of articlesRaw) {
       const article = this.asMeta(articleRaw);
-      const articleUrl = this.readMetaString(article, "url") || "";
-      const articleId = this.readMetaString(article, "app_msg_id") || articleUrl;
+      // raw=true 时结构为 appMsg + baseInfo
+      const appMsg = this.asMeta(article["appMsg"]);
+      const appMsgBaseInfo = this.asMeta(appMsg["baseInfo"]);
+      const detailInfo = this.asMeta(appMsg["detailInfo"]);
+      const baseInfo = this.asMeta(article["baseInfo"]);
+      // 文章 URL：优先从 detailInfo/appMsgBaseInfo 提取
+      const articleUrl =
+        this.readMetaString(detailInfo, "url")
+        || this.readMetaString(appMsgBaseInfo, "url")
+        || this.readMetaString(article, "url")
+        || "";
+      // 文章 ID
+      const articleId =
+        this.readMetaString(baseInfo, "msgId")
+        || this.readMetaString(appMsgBaseInfo, "msgid")
+        || this.readMetaString(article, "app_msg_id")
+        || articleUrl;
       if (!articleId) continue;
-      const createTime = this.readMetaNumber(article, "create_time");
-      const updateTime = this.readMetaNumber(article, "update_time");
+      // 时间戳
+      const createTime = this.readMetaNumber(baseInfo, "dateTime") || this.readMetaNumber(article, "create_time");
+      const updateTime = this.readMetaNumber(baseInfo, "updateTime") || this.readMetaNumber(article, "update_time");
+      // 标题
+      const title =
+        this.readMetaString(detailInfo, "title")
+        || this.readMetaString(appMsgBaseInfo, "title")
+        || this.readMetaString(article, "title")
+        || "";
+      // 摘要
+      const digest =
+        this.readMetaString(detailInfo, "digest")
+        || this.readMetaString(appMsgBaseInfo, "digest")
+        || this.readMetaString(article, "digest")
+        || undefined;
+      // 封面
+      const cover =
+        this.readMetaString(detailInfo, "cover")
+        || this.readMetaString(appMsgBaseInfo, "cover")
+        || this.readMetaString(article, "cover")
+        || undefined;
+      // 阅读量和点赞数（从多个可能路径提取）
+      const readNum =
+        this.readMetaNumber(detailInfo, "readNum")
+        || this.readMetaNumber(appMsgBaseInfo, "readNum")
+        || this.readMetaNumber(appMsgBaseInfo, "read_num")
+        || this.readMetaNumber(baseInfo, "readNum");
+      const likeCount =
+        this.readMetaNumber(detailInfo, "likeNum")
+        || this.readMetaNumber(detailInfo, "diggCount")
+        || this.readMetaNumber(appMsgBaseInfo, "likeNum")
+        || this.readMetaNumber(appMsgBaseInfo, "digg_count")
+        || this.readMetaNumber(baseInfo, "likeNum");
       articles.push({
         id: `wechat_mp_article_${articleId}`,
         sourceAccountId: `wechat_mp_brand_${trimmed}`,
         ghUsername: trimmed,
-        appMsgId: this.readMetaString(article, "app_msg_id") || undefined,
-        title: this.readMetaString(article, "title") || "",
-        digest: this.readMetaString(article, "digest") || undefined,
+        appMsgId: this.readMetaString(baseInfo, "msgId") || this.readMetaString(article, "app_msg_id") || undefined,
+        title,
+        digest,
         url: articleUrl,
-        cover: this.readMetaString(article, "cover") || undefined,
+        cover,
         createTime: createTime ? new Date(createTime * 1000).toISOString() : undefined,
         updateTime: updateTime ? new Date(updateTime * 1000).toISOString() : undefined,
-        idx: this.readMetaNumber(article, "idx"),
+        idx: this.readMetaNumber(baseInfo, "idx") || this.readMetaNumber(article, "idx"),
+        readNum: readNum || undefined,
+        likeCount: likeCount || undefined,
         collectedAt: new Date().toISOString(),
       });
     }
@@ -7619,5 +7694,127 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     const item = this.mapWechatMpArticle(updated);
     const workspace = await this.getWechatMpWorkspace(brandId);
     return { item, workspace };
+  }
+
+  // ─── 公众号对标作品 ───
+
+  async getWechatMpBenchmarkWorkspace(brandId: string): Promise<WechatMpBenchmarkWorkspace> {
+    if (await this.prismaService.canUseDatabase()) {
+      const assets = await this.listCollectorAssets(brandId);
+      const benchmarkAssets = assets.filter((asset) => {
+        const meta = this.asMeta(asset.metadataJson);
+        return this.readMetaString(meta, "kind") === "WECHAT_MP_BENCHMARK_ARTICLE";
+      });
+      return {
+        benchmarkArticles: benchmarkAssets.map((asset) => this.mapWechatMpBenchmarkArticle(asset)),
+      };
+    }
+    return { benchmarkArticles: [] };
+  }
+
+  async submitWechatMpBenchmarkArticle(brandId: string, articleUrl: string): Promise<{ item: WechatMpBenchmarkArticleRecord; workspace: WechatMpBenchmarkWorkspace }> {
+    const trimmedUrl = String(articleUrl || "").trim();
+    if (!/^https?:\/\/mp\.weixin\.qq\.com\/s([/?].+)?$/.test(trimmedUrl)) {
+      throw new BadRequestException("文章链接格式不正确，需为 mp.weixin.qq.com/s/ 开头的链接。");
+    }
+    // 调用 GLM reader 读取网页标题和正文
+    const readerResult = await this.glmOpenService.readWebpage(brandId, trimmedUrl, {
+      userId: `wechat-mp-benchmark-${brandId}`,
+    });
+    const title = readerResult.title || "未命名文章";
+    const articleContent = [readerResult.title, readerResult.content].filter(Boolean).join("\n\n");
+    const articleId = `wechat_mp_benchmark_${Buffer.from(trimmedUrl).toString("base64").slice(0, 32)}`;
+    const asset = await this.upsertCollectorAsset({
+      brandId,
+      kind: "WECHAT_MP_BENCHMARK_ARTICLE" as CollectorAssetKind,
+      matchValue: articleId,
+      title,
+      description: "微信公众号对标文章采集快照",
+      fileUrl: trimmedUrl,
+      metadata: {
+        kind: "WECHAT_MP_BENCHMARK_ARTICLE",
+        articleId,
+        title,
+        url: trimmedUrl,
+        articleContent,
+        contentReadAt: new Date().toISOString(),
+        collectedAt: new Date().toISOString(),
+      },
+    });
+    const item = this.mapWechatMpBenchmarkArticle(asset);
+    const workspace = await this.getWechatMpBenchmarkWorkspace(brandId);
+    return { item, workspace };
+  }
+
+  async updateWechatMpBenchmarkArticleStats(brandId: string, articleUrl: string): Promise<{ item: WechatMpBenchmarkArticleRecord; workspace: WechatMpBenchmarkWorkspace }> {
+    const trimmedUrl = String(articleUrl || "").trim();
+    if (!/^https?:\/\/mp\.weixin\.qq\.com\/s([/?].+)?$/.test(trimmedUrl)) {
+      throw new BadRequestException("文章链接格式不正确，需为 mp.weixin.qq.com/s/ 开头的链接。");
+    }
+    const body: Record<string, unknown> = {
+      url: trimmedUrl,
+      raw: false,
+    };
+    const raw = await this.fetchTikHubPost("/api/v1/wechat_mp/v2/fetch_article_stats", body, brandId);
+    const data = this.asMeta(this.asMeta(raw).data);
+    const stats = {
+      readNum: this.readMetaNumber(data, "read_num"),
+      likeCount: this.readMetaNumber(data, "like_count"),
+      shareCount: this.readMetaNumber(data, "share_count"),
+      collectCount: this.readMetaNumber(data, "collect_count"),
+      commentCount: this.readMetaNumber(data, "comment_count"),
+      starNum: this.readMetaNumber(data, "star_num"),
+    };
+    // 找到对应的对标文章 asset
+    const assets = await this.listCollectorAssets(brandId);
+    const target = assets.find((asset) => {
+      const meta = this.asMeta(asset.metadataJson);
+      return this.readMetaString(meta, "kind") === "WECHAT_MP_BENCHMARK_ARTICLE" && (this.readMetaString(meta, "url") === trimmedUrl || asset.fileUrl === trimmedUrl);
+    });
+    if (!target) {
+      throw new NotFoundException("未找到对应的对标文章，请先提交链接采集。");
+    }
+    const meta = this.asMeta(target.metadataJson);
+    const updatedMetadata = {
+      ...meta,
+      readNum: stats.readNum,
+      likeCount: stats.likeCount,
+      shareCount: stats.shareCount,
+      collectCount: stats.collectCount,
+      commentCount: stats.commentCount,
+      starNum: stats.starNum,
+      statsUpdatedAt: new Date().toISOString(),
+    };
+    const updated = await this.upsertCollectorAsset({
+      brandId,
+      kind: "WECHAT_MP_BENCHMARK_ARTICLE" as CollectorAssetKind,
+      matchValue: this.readMetaString(meta, "articleId") || target.id,
+      title: target.title,
+      description: target.description,
+      fileUrl: trimmedUrl,
+      metadata: updatedMetadata,
+    });
+    const item = this.mapWechatMpBenchmarkArticle(updated);
+    const workspace = await this.getWechatMpBenchmarkWorkspace(brandId);
+    return { item, workspace };
+  }
+
+  private mapWechatMpBenchmarkArticle(asset: AssetRecord): WechatMpBenchmarkArticleRecord {
+    const meta = this.asMeta(asset.metadataJson);
+    return {
+      id: this.readMetaString(meta, "articleId") || asset.id,
+      title: asset.title,
+      articleContent: this.readMetaString(meta, "articleContent") || undefined,
+      url: this.readMetaString(meta, "url") || asset.fileUrl || "",
+      readNum: this.readMetaNumber(meta, "readNum"),
+      likeCount: this.readMetaNumber(meta, "likeCount"),
+      shareCount: this.readMetaNumber(meta, "shareCount"),
+      collectCount: this.readMetaNumber(meta, "collectCount"),
+      commentCount: this.readMetaNumber(meta, "commentCount"),
+      starNum: this.readMetaNumber(meta, "starNum"),
+      statsUpdatedAt: this.readMetaString(meta, "statsUpdatedAt") || undefined,
+      contentReadAt: this.readMetaString(meta, "contentReadAt") || undefined,
+      collectedAt: this.readMetaString(meta, "collectedAt") || new Date().toISOString(),
+    };
   }
 }

@@ -830,3 +830,49 @@ export async function readWechatMpArticleContent(url: string, brandId?: string) 
     { url },
   );
 }
+
+// ─── 公众号对标作品 ───
+
+export type WechatMpBenchmarkArticleRecord = {
+  id: string;
+  title: string;
+  articleContent?: string;
+  url: string;
+  readNum?: number;
+  likeCount?: number;
+  shareCount?: number;
+  collectCount?: number;
+  commentCount?: number;
+  starNum?: number;
+  statsUpdatedAt?: string;
+  contentReadAt?: string;
+  collectedAt: string;
+};
+
+export type WechatMpBenchmarkWorkspace = {
+  benchmarkArticles: WechatMpBenchmarkArticleRecord[];
+};
+
+export const wechatMpBenchmarkSeed: WechatMpBenchmarkWorkspace = {
+  benchmarkArticles: [],
+};
+
+export async function getWechatMpBenchmarkWorkspace(brandId?: string) {
+  return request<WechatMpBenchmarkWorkspace>(`/collectors/wechat-mp/brands/${resolveBrandId(brandId)}/benchmark-workspace`);
+}
+
+export async function submitWechatMpBenchmarkArticle(url: string, brandId?: string) {
+  return jsonRequest<{ item: WechatMpBenchmarkArticleRecord; workspace: WechatMpBenchmarkWorkspace }>(
+    `/collectors/wechat-mp/brands/${resolveBrandId(brandId)}/benchmark-articles/submit`,
+    "POST",
+    { url },
+  );
+}
+
+export async function updateWechatMpBenchmarkArticleStats(url: string, brandId?: string) {
+  return jsonRequest<{ item: WechatMpBenchmarkArticleRecord; workspace: WechatMpBenchmarkWorkspace }>(
+    `/collectors/wechat-mp/brands/${resolveBrandId(brandId)}/benchmark-articles/stats`,
+    "POST",
+    { url },
+  );
+}

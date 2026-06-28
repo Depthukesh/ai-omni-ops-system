@@ -342,4 +342,33 @@ export class WechatMpCollectorsController {
     await this.authService.assertBrandAccess(brandId, auth);
     return this.collectorsService.readWechatMpArticleContent(brandId, payload.url);
   }
+
+  @Get("brands/:brandId/benchmark-workspace")
+  async benchmarkWorkspace(@Param("brandId") brandId: string, @Headers() headers: Record<string, string | string[] | undefined>) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(brandId, auth);
+    return this.collectorsService.getWechatMpBenchmarkWorkspace(brandId);
+  }
+
+  @Post("brands/:brandId/benchmark-articles/submit")
+  async submitBenchmarkArticle(
+    @Param("brandId") brandId: string,
+    @Body() payload: { url: string },
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(brandId, auth);
+    return this.collectorsService.submitWechatMpBenchmarkArticle(brandId, payload.url);
+  }
+
+  @Post("brands/:brandId/benchmark-articles/stats")
+  async updateBenchmarkArticleStats(
+    @Param("brandId") brandId: string,
+    @Body() payload: { url: string },
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(brandId, auth);
+    return this.collectorsService.updateWechatMpBenchmarkArticleStats(brandId, payload.url);
+  }
 }

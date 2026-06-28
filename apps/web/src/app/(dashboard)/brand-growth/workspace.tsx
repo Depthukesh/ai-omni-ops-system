@@ -76,8 +76,11 @@ import {
   type XhsSyncPayload,
   type XhsCollectionWorkspace,
   type WechatMpCollectionWorkspace,
+  type WechatMpBenchmarkWorkspace,
   wechatMpCollectionSeed,
+  wechatMpBenchmarkSeed,
   getWechatMpCollectionWorkspace,
+  getWechatMpBenchmarkWorkspace,
 } from "../../../services/collectors";
 import { API_BASE_URL } from "../../../services/http";
 import {
@@ -935,6 +938,7 @@ export function BrandGrowthWorkspace() {
   const [collectionWorkspace, setCollectionWorkspace] = useState<XhsCollectionWorkspace>(createEmptyCollectionWorkspace);
   const [douyinCollectionWorkspace, setDouyinCollectionWorkspace] = useState<DouyinCollectionWorkspace>(createEmptyDouyinCollectionWorkspace);
   const [wechatMpCollectionWorkspace, setWechatMpCollectionWorkspace] = useState<WechatMpCollectionWorkspace>(wechatMpCollectionSeed);
+  const [wechatMpBenchmarkWorkspace, setWechatMpBenchmarkWorkspace] = useState<WechatMpBenchmarkWorkspace>(wechatMpBenchmarkSeed);
   const [dailyHotspotWorkspace, setDailyHotspotWorkspace] = useState<DailyHotspotWorkspace>(createEmptyDailyHotspotWorkspace);
   const [reportWorkspace, setReportWorkspace] = useState<GrowthReportWorkspace>(createEmptyGrowthReportWorkspace);
   const [opportunityInsightWorkspace, setOpportunityInsightWorkspace] = useState<OpportunityInsightWorkspace>(createEmptyOpportunityInsightWorkspace);
@@ -1604,6 +1608,7 @@ export function BrandGrowthWorkspace() {
           collectionResult,
           douyinCollectionResult,
           wechatMpCollectionResult,
+          wechatMpBenchmarkResult,
           dailyHotspotResult,
           feishuBindingResult,
           feishuAppConfigResult,
@@ -1612,6 +1617,7 @@ export function BrandGrowthWorkspace() {
           getXiaohongshuCollectionWorkspace(resolvedActiveBrandId),
           getDouyinCollectionWorkspace(resolvedActiveBrandId),
           getWechatMpCollectionWorkspace(resolvedActiveBrandId),
+          getWechatMpBenchmarkWorkspace(resolvedActiveBrandId),
           getDailyHotspotWorkspace(resolvedActiveBrandId),
           getBrandFeishuBinding(resolvedActiveBrandId),
           getFeishuAppConfig(currentProfile?.id),
@@ -1639,6 +1645,12 @@ export function BrandGrowthWorkspace() {
           setWechatMpCollectionWorkspace(wechatMpCollectionResult.value);
         } else {
           partialFailures.push("公众号采集数据");
+        }
+
+        if (wechatMpBenchmarkResult.status === "fulfilled") {
+          setWechatMpBenchmarkWorkspace(wechatMpBenchmarkResult.value);
+        } else {
+          partialFailures.push("公众号对标作品数据");
         }
 
         if (dailyHotspotResult.status === "fulfilled") {
@@ -3755,6 +3767,8 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
           canEdit={canEditWechatMp}
           workspace={wechatMpCollectionWorkspace}
           setWorkspace={setWechatMpCollectionWorkspace}
+          benchmarkWorkspace={wechatMpBenchmarkWorkspace}
+          setBenchmarkWorkspace={setWechatMpBenchmarkWorkspace}
           activeBrandId={activeBrandId || archive.brand.id}
           formatDateTime={formatDateTime}
           formatCount={formatCount}
