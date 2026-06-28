@@ -960,6 +960,7 @@ model ThirdPartyPlatformConfig {
   providerType String
   status       String
   baseUrl      String
+  websiteUrl   String   @default("")
   tutorialUrl  String
   modelIdsJson Json
   defaultModel String
