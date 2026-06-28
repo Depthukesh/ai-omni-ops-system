@@ -4668,6 +4668,14 @@ button {
   width: 100%;
 }
 
+.table-text-shell--copyable .table-text-cell {
+  transition: color 0.2s ease, opacity 0.2s ease;
+}
+
+.table-text-shell--copyable.is-copied .table-text-cell {
+  color: var(--site-accent);
+}
+
 .table-text-cell {
   display: -webkit-box;
   width: 100%;
@@ -5769,12 +5777,6 @@ button {
 .note-inline-button:hover {
   border-color: var(--site-hero-muted);
   background: var(--subtle-surface);
-}
-
-.note-transcript-copy-button {
-  width: auto;
-  min-width: 0;
-  font-size: 12px;
 }
 
 .note-video-shell {

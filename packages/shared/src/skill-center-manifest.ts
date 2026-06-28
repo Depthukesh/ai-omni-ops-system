@@ -109,6 +109,19 @@ export const SKILL_CENTER_TREE: SkillCenterPrimaryConfig[] = [
           },
         ],
       },
+      {
+        id: "topic-library",
+        label: "选题库",
+        items: [
+          {
+            id: "brand-growth-topic-library-main",
+            label: "选题库-生成热点选题",
+            description: "对应前台品牌增长策略 > 品牌增长报告 > 选题库，基于所选日期的每日热点榜单与品牌背景资料生成可勾选热点选题，并沉淀进品牌选题库。",
+            skillSlug: "douyin-hot-topic-candidates",
+            promptScene: "抖音热点找选题",
+          },
+        ],
+      },
     ],
   },
   {
@@ -253,13 +266,6 @@ export const SKILL_CENTER_TREE: SkillCenterPrimaryConfig[] = [
             description: "对应前台抖音营销策划方案工作台，基于品牌报告、半年规划和抖音采集数据生成完整策划方案。",
             skillSlug: "tongcheng-brand-douyin-planning",
             promptScene: "抖音营销策划方案",
-          },
-          {
-            id: "douyin-hot-topic-candidates-main",
-            label: "热点找选题-生成热点选题",
-            description: "对应前台抖音热点找选题板块，基于所选日期的每日热点榜单与品牌背景资料生成 3 个可勾选选题。",
-            skillSlug: "douyin-hot-topic-candidates",
-            promptScene: "抖音热点找选题",
           },
         ],
       },

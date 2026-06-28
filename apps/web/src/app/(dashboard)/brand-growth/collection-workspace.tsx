@@ -2262,9 +2262,10 @@ function DouyinTranscriptCell(props: {
   }
 
   if (hasTranscript) {
+    const transcriptText = String(item.transcript || "").trim();
     const handleCopy = async () => {
       try {
-        await navigator.clipboard.writeText(item.transcript || "");
+        await navigator.clipboard.writeText(transcriptText);
         setCopied(true);
         window.setTimeout(() => setCopied(false), 1500);
       } catch {
@@ -2272,14 +2273,17 @@ function DouyinTranscriptCell(props: {
       }
     };
     return (
-      <button
-        type="button"
-        className="note-inline-button note-transcript-copy-button"
-        onClick={() => void handleCopy()}
-        title="点击复制完整文案"
-      >
-        {copied ? "已复制" : "点击复制文案"}
-      </button>
+      <div className={`table-text-shell table-text-shell--copyable ${copied ? "is-copied" : ""}`} data-rows="1">
+        <button
+          type="button"
+          className="table-text-cell"
+          data-rows={1}
+          onClick={() => void handleCopy()}
+          title={copied ? "已复制该行视频文案" : "点击复制该行完整视频文案"}
+        >
+          {transcriptText}
+        </button>
+      </div>
     );
   }
 

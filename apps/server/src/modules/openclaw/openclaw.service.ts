@@ -6761,48 +6761,48 @@ export class OpenClawService {
         });
       }
       case "get_douyin_hot_topic_candidates_workspace": {
-        await this.authService.assertBrandPermission(brandId, "douyin.hotTopics", "view", auth);
+        await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "view", auth);
         const result = await this.reportsService.getDouyinHotTopicCandidatesWorkspace(
           brandId,
           String(options?.selectedDate || "").trim() || undefined,
         );
         return this.buildManagedOperationResponse({
-          title: "抖音热点选题候选工作区",
+          title: "选题库工作区",
           action,
           data: result,
-          url: "/douyin",
-          label: "打开抖音工作台",
+          url: "/brand-growth",
+          label: "打开品牌增长策略",
           resourceKind: "report",
         });
       }
       case "generate_douyin_hot_topic_candidates": {
-        await this.authService.assertBrandPermission(brandId, "douyin.hotTopics", "edit", auth);
+        await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "edit", auth);
         const result = await this.reportsService.generateDouyinHotTopicCandidates(
           brandId,
           String(options?.selectedDate || payload.selectedDate || "").trim() || undefined,
         );
         return this.buildManagedOperationResponse({
-          title: "抖音热点选题已触发",
+          title: "选题库热点选题已触发",
           action,
           data: result,
-          url: "/douyin",
-          label: "打开抖音工作台",
+          url: "/brand-growth",
+          label: "打开品牌增长策略",
           resultStatus: "IN_PROGRESS",
           resourceKind: "report",
         });
       }
       case "update_douyin_topic_library": {
-        await this.authService.assertBrandPermission(brandId, "douyin.topicLibrary", "edit", auth);
+        await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "edit", auth);
         const result = await this.reportsService.updateDouyinTopicLibrary(
           brandId,
           payload as Parameters<ReportsService["updateDouyinTopicLibrary"]>[1],
         );
         return this.buildManagedOperationResponse({
-          title: "抖音选题库已更新",
+          title: "选题库已更新",
           action,
           data: result,
-          url: "/douyin",
-          label: "打开抖音工作台",
+          url: "/brand-growth",
+          label: "打开品牌增长策略",
           resourceKind: "report",
         });
       }

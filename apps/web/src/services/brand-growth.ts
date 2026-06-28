@@ -21,6 +21,7 @@ export type BrandPermissionKey =
   | "brandGrowth.report.growthReport"
   | "brandGrowth.report.visualGrowthReport"
   | "brandGrowth.report.halfYearMarketingPlan"
+  | "brandGrowth.report.topicLibrary"
   | "xiaohongshu.plan"
   | "douyin.plan"
   | "xiaohongshu.assets"

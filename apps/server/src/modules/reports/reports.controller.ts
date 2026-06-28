@@ -277,8 +277,7 @@ export class ReportsController {
   ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
     await this.assertAnyBrandPermission(brandId, [
-      { key: "douyin.hotTopics", action: "view" },
-      { key: "douyin.topicLibrary", action: "view" },
+      { key: "brandGrowth.report.topicLibrary", action: "view" },
     ], auth);
     return this.reportsService.getDouyinHotTopicCandidatesWorkspace(brandId, date);
   }
@@ -290,7 +289,7 @@ export class ReportsController {
     @Body() payload: { selectedDate?: string },
   ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
-    await this.authService.assertBrandPermission(brandId, "douyin.hotTopics", "edit", auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "edit", auth);
     return this.reportsService.generateDouyinHotTopicCandidates(brandId, payload?.selectedDate);
   }
 
@@ -301,7 +300,7 @@ export class ReportsController {
     @Body() payload: UpdateDouyinTopicLibraryPayload,
   ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
-    await this.authService.assertBrandPermission(brandId, "douyin.topicLibrary", "edit", auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "edit", auth);
     return this.reportsService.updateDouyinTopicLibrary(brandId, payload);
   }
 

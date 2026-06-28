@@ -162,7 +162,6 @@ type DouyinSectionKey =
 const MARKETING_PLAN_REQUIRED_INPUTS = ["品牌背景资料", "产品资料库", "机会洞察总报告", "品牌增长报告"] as const;
 const douyinSections: Array<{ key: DouyinSectionKey; label: string; description: string }> = [
   { key: "plan", label: "营销策划方案", description: "围绕品牌背景资料、产品资料库、机会洞察总报告和品牌增长报告生成可编辑的 Markdown 方案。" },
-  { key: "topicLibrary", label: "选题库", description: "整合热点找选题与选题库管理：可按日期生成热点选题并加入品牌选题库，也可手动添加选题，一行展示一条记录，超过 20 条自动分页。" },
   { key: "assets", label: "素材库", description: "展示已经从品牌增长策略 → 收集数据 → 抖音加入素材库的采集作品，包括竞品作品、对标作品、搜索关键词结果和各类榜单作品。" },
   { key: "originalCopy", label: "原创文案", description: "基于选题库、营销日历和抖音营销策划方案，按不同文案类型生成品牌独立存储的原创文案。" },
   { key: "remixCopy", label: "二创文案", description: "基于素材库视频、品牌资料、产品资料和营销策划方案，提取视频文案后生成品牌独立存储的二创文案。" },
@@ -177,8 +176,8 @@ const douyinSections: Array<{ key: DouyinSectionKey; label: string; description:
 const douyinSectionPermissionMap: Record<DouyinSectionKey, BrandPermissionKey> = {
   plan: "douyin.plan",
   assets: "douyin.assets",
-  hotTopics: "douyin.hotTopics",
-  topicLibrary: "douyin.topicLibrary",
+  hotTopics: "brandGrowth.report.topicLibrary",
+  topicLibrary: "brandGrowth.report.topicLibrary",
   originalCopy: "douyin.original",
   remixCopy: "douyin.remix",
   remixShortVideo: "douyin.remixShortVideo",
@@ -349,9 +348,9 @@ export function DouyinWorkspaceShell() {
   );
   const hasWorkspaceAccess = visibleSections.length > 0;
   const canEditMarketingPlan = brandPermissionSettings ? (permissionMap?.["douyin.plan"]?.edit ?? false) : true;
-  const canEditHotTopics = brandPermissionSettings ? (permissionMap?.["douyin.hotTopics"]?.edit ?? false) : true;
-  const canEditTopicLibrary = brandPermissionSettings ? (permissionMap?.["douyin.topicLibrary"]?.edit ?? false) : true;
-  const canViewTopicLibrary = brandPermissionSettings ? (permissionMap?.["douyin.topicLibrary"]?.view ?? false) : true;
+  const canEditHotTopics = brandPermissionSettings ? (permissionMap?.["brandGrowth.report.topicLibrary"]?.edit ?? false) : true;
+  const canEditTopicLibrary = brandPermissionSettings ? (permissionMap?.["brandGrowth.report.topicLibrary"]?.edit ?? false) : true;
+  const canViewTopicLibrary = brandPermissionSettings ? (permissionMap?.["brandGrowth.report.topicLibrary"]?.view ?? false) : true;
   const canEditOriginalCopy = brandPermissionSettings ? (permissionMap?.["douyin.original"]?.edit ?? false) : true;
   const canEditRemixCopy = brandPermissionSettings ? (permissionMap?.["douyin.remix"]?.edit ?? false) : true;
   const canEditRemixShortVideo = brandPermissionSettings ? (permissionMap?.["douyin.remixShortVideo"]?.edit ?? false) : true;

@@ -112,21 +112,27 @@ import {
 } from "../../../services/brand-growth";
 import {
   generateAnnualMarketingPlan,
+  generateDouyinHotTopicCandidates,
   generateGrowthReport,
   generateOpportunityInsightStepOne,
   generateOpportunityInsightStepThree,
   generateOpportunityInsightStepTwo,
   generateVisualGrowthReport,
   getAnnualMarketingPlanWorkspace,
+  getDouyinHotTopicCandidatesWorkspace,
   getGrowthReportWorkspace,
   getOpportunityInsightWorkspace,
   getXiaohongshuMarketingCalendarWorkspace,
   getXiaohongshuMarketingPlanWorkspace,
   getVisualGrowthReportWorkspace,
+  douyinHotTopicCandidatesSeed,
   generateXiaohongshuMarketingCalendar,
   opportunityInsightSeed,
   updateGrowthReport,
+  updateDouyinTopicLibrary,
   type AnnualMarketingPlanWorkspace,
+  type DouyinHotTopicCandidatesWorkspace,
+  type DouyinTopicLibraryItem,
   type GrowthReportWorkspace,
   type OpportunityInsightWorkspace,
   type XiaohongshuMarketingCalendarItem,
@@ -162,7 +168,8 @@ type StrategyPageKey =
   | "growthReport"
   | "visualGrowthReport"
   | "annualMarketingPlan"
-  | "xiaohongshuMarketingCalendar";
+  | "xiaohongshuMarketingCalendar"
+  | "reportTopicLibrary";
 type BrandGrowthLoadScope = "library" | "collection" | "report";
 type OpportunityInsightStep = 1 | 2 | 3;
 type OpportunityInsightStepModalState = {
@@ -200,6 +207,11 @@ const CalendarWorkspace = dynamic(
 const BrandGrowthReportWorkspace = dynamic(
   () => import("./report-workspace").then((module) => module.BrandGrowthReportWorkspace),
   { loading: () => <WorkspaceChunkFallback label="品牌增长报告" /> },
+);
+
+const DouyinTopicLibraryWorkspace = dynamic(
+  () => import("../douyin/topic-library-workspace").then((module) => module.DouyinTopicLibraryWorkspace),
+  { loading: () => <WorkspaceChunkFallback label="选题库" /> },
 );
 
 function WorkspaceChunkFallback({ label }: { label: string }) {
@@ -250,6 +262,7 @@ const strategySections: Array<{
       { key: "visualGrowthReport", label: "品牌增长可视化报告", description: "输出图表化的品牌增长可视化结果。" },
       { key: "annualMarketingPlan", label: "半年营销规划", description: "形成未来半年节奏、战役安排与重点营销规划。" },
       { key: "xiaohongshuMarketingCalendar", label: "营销日历", description: "基于品牌背景资料、机会洞察总报告和品牌增长报告生成品牌全平台营销日历。" },
+      { key: "reportTopicLibrary", label: "选题库", description: "承接营销日历后的选题沉淀与热点选题管理，支持生成热点选题、勾选加入选题库和手动补充选题。" },
     ],
   },
 ];
@@ -272,6 +285,7 @@ const strategyPagePermissionMap: Record<StrategyPageKey, BrandPermissionKey> = {
   visualGrowthReport: "brandGrowth.report.visualGrowthReport",
   annualMarketingPlan: "brandGrowth.report.halfYearMarketingPlan",
   xiaohongshuMarketingCalendar: "xiaohongshu.calendar",
+  reportTopicLibrary: "brandGrowth.report.topicLibrary",
 };
 
 function cloneSeed(): BrandArchiveBundle {
@@ -567,6 +581,7 @@ type ReportScopeSnapshot = {
   annualMarketingPlanWorkspace: AnnualMarketingPlanWorkspace;
   xiaohongshuMarketingPlanWorkspace: XiaohongshuMarketingPlanWorkspace;
   marketingCalendarWorkspace: XiaohongshuMarketingCalendarWorkspace;
+  douyinTopicLibraryWorkspace: DouyinHotTopicCandidatesWorkspace;
 };
 
 function buildReportScopeSnapshotKey(brandId: string) {
@@ -916,6 +931,8 @@ export function BrandGrowthWorkspace() {
   const [xiaohongshuMarketingPlanWorkspace, setXiaohongshuMarketingPlanWorkspace] =
     useState<XiaohongshuMarketingPlanWorkspace>(xiaohongshuMarketingPlanSeed);
   const [marketingCalendarWorkspace, setMarketingCalendarWorkspace] = useState<XiaohongshuMarketingCalendarWorkspace>({ history: [] });
+  const [douyinTopicLibraryWorkspace, setDouyinTopicLibraryWorkspace] =
+    useState<DouyinHotTopicCandidatesWorkspace>(douyinHotTopicCandidatesSeed);
   const [feishuBinding, setFeishuBinding] = useState<FeishuBindingRecord | null>(null);
   const [feishuAppConfig, setFeishuAppConfig] = useState<FeishuAppConfigRecord | null>(null);
   const [feishuAuthStatus, setFeishuAuthStatus] = useState<FeishuAuthStatusRecord | null>(null);
@@ -944,6 +961,8 @@ export function BrandGrowthWorkspace() {
   const [activeXhsCollectionCard, setActiveXhsCollectionCard] = useState<XiaohongshuCollectionCardKey>("brandAccount");
   const [activeDouyinCollectionCard, setActiveDouyinCollectionCard] = useState<DouyinCollectionCardKey>("brandAccount");
   const [selectedHotspotDate, setSelectedHotspotDate] = useState(getDefaultHotspotDate);
+  const [selectedDouyinTopicDate, setSelectedDouyinTopicDate] = useState("");
+  const [selectedDouyinTopicIds, setSelectedDouyinTopicIds] = useState<string[]>([]);
   const [isHydrating, setIsHydrating] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isSavingFeishuAppConfig, setIsSavingFeishuAppConfig] = useState(false);
@@ -965,6 +984,8 @@ export function BrandGrowthWorkspace() {
   const [isGeneratingVisualReport, setIsGeneratingVisualReport] = useState(false);
   const [isGeneratingAnnualMarketingPlan, setIsGeneratingAnnualMarketingPlan] = useState(false);
   const [isGeneratingMarketingCalendar, setIsGeneratingMarketingCalendar] = useState(false);
+  const [isGeneratingDouyinTopicCandidates, setIsGeneratingDouyinTopicCandidates] = useState(false);
+  const [isSavingDouyinTopicLibrary, setIsSavingDouyinTopicLibrary] = useState(false);
   const [selectedCalendarItemId, setSelectedCalendarItemId] = useState("");
   const [isCalendarDetailOpen, setIsCalendarDetailOpen] = useState(false);
   const [isEditingCalendarItem, setIsEditingCalendarItem] = useState(false);
@@ -1239,17 +1260,24 @@ export function BrandGrowthWorkspace() {
   const latestVisualTask = visualReportWorkspace.latestTask;
   const latestAnnualMarketingTask = annualMarketingPlanWorkspace.latestTask;
   const latestCalendarTask = marketingCalendarWorkspace.latestTask;
+  const latestDouyinTopicResult = douyinTopicLibraryWorkspace.latest;
+  const latestDouyinTopicTask = douyinTopicLibraryWorkspace.latestTask;
   const isGrowthReportTaskActive = latestGrowthTask?.taskStatus === "QUEUED" || latestGrowthTask?.taskStatus === "RUNNING";
   const isOpportunityInsightTaskActive = latestOpportunityTask?.taskStatus === "QUEUED" || latestOpportunityTask?.taskStatus === "RUNNING";
   const isVisualReportTaskActive = latestVisualTask?.taskStatus === "QUEUED" || latestVisualTask?.taskStatus === "RUNNING";
   const isAnnualMarketingPlanTaskActive =
     latestAnnualMarketingTask?.taskStatus === "QUEUED" || latestAnnualMarketingTask?.taskStatus === "RUNNING";
   const isMarketingCalendarTaskActive = latestCalendarTask?.taskStatus === "QUEUED" || latestCalendarTask?.taskStatus === "RUNNING";
+  const isDouyinTopicTaskActive =
+    latestDouyinTopicTask?.taskStatus === "QUEUED"
+    || latestDouyinTopicTask?.taskStatus === "PENDING"
+    || latestDouyinTopicTask?.taskStatus === "RUNNING";
   const isOpportunityInsightPageActive = activePage === "opportunityInsight";
   const isGrowthReportPageActive = activePage === "growthReport";
   const isVisualGrowthReportPageActive = activePage === "visualGrowthReport";
   const isAnnualMarketingPlanPageActive = activePage === "annualMarketingPlan";
   const isMarketingCalendarPageActive = activePage === "xiaohongshuMarketingCalendar";
+  const isReportTopicLibraryPageActive = activePage === "reportTopicLibrary";
   const hasBrandBackgroundForMarketingCalendar = Boolean(
     archive.brand.brandName?.trim()
     || archive.brand.brandDescription?.trim()
@@ -1322,6 +1350,7 @@ export function BrandGrowthWorkspace() {
     setAnnualMarketingPlanWorkspace(cachedSnapshot.annualMarketingPlanWorkspace);
     setXiaohongshuMarketingPlanWorkspace(cachedSnapshot.xiaohongshuMarketingPlanWorkspace);
     setMarketingCalendarWorkspace(cachedSnapshot.marketingCalendarWorkspace);
+    setDouyinTopicLibraryWorkspace(cachedSnapshot.douyinTopicLibraryWorkspace || douyinHotTopicCandidatesSeed);
     setLoadedScopes((current) => (current.report ? current : { ...current, report: true }));
   }, []);
 
@@ -1461,6 +1490,28 @@ export function BrandGrowthWorkspace() {
   }, [isMarketingCalendarPageActive, isMarketingCalendarTaskActive, latestCalendarTask?.updatedAt]);
 
   useEffect(() => {
+    if (douyinTopicLibraryWorkspace.selectedDate && douyinTopicLibraryWorkspace.selectedDate !== selectedDouyinTopicDate) {
+      setSelectedDouyinTopicDate(douyinTopicLibraryWorkspace.selectedDate);
+      return;
+    }
+    if (!selectedDouyinTopicDate && douyinTopicLibraryWorkspace.availableDates.length) {
+      setSelectedDouyinTopicDate(douyinTopicLibraryWorkspace.availableDates[0]);
+    }
+  }, [douyinTopicLibraryWorkspace.availableDates, douyinTopicLibraryWorkspace.selectedDate, selectedDouyinTopicDate]);
+
+  useEffect(() => {
+    if (!isDouyinTopicTaskActive || !isReportTopicLibraryPageActive) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      void refreshDouyinTopicLibraryWorkspace(selectedDouyinTopicDate, true);
+    }, 4000);
+
+    return () => window.clearTimeout(timer);
+  }, [isDouyinTopicTaskActive, isReportTopicLibraryPageActive, latestDouyinTopicTask?.updatedAt, selectedDouyinTopicDate]);
+
+  useEffect(() => {
     if (!isCalendarDetailOpen || !selectedCalendarItem || isEditingCalendarItem) {
       return;
     }
@@ -1480,6 +1531,7 @@ export function BrandGrowthWorkspace() {
       annualMarketingPlanWorkspace,
       xiaohongshuMarketingPlanWorkspace,
       marketingCalendarWorkspace,
+      douyinTopicLibraryWorkspace,
     });
   }, [
     activeBrandId,
@@ -1491,6 +1543,7 @@ export function BrandGrowthWorkspace() {
     reportWorkspace,
     visualReportWorkspace,
     xiaohongshuMarketingPlanWorkspace,
+    douyinTopicLibraryWorkspace,
   ]);
 
   async function loadArchive(options?: { targetPage?: StrategyPageKey; force?: boolean }) {
@@ -1609,6 +1662,7 @@ export function BrandGrowthWorkspace() {
           annualMarketingPlanResult,
           xiaohongshuMarketingPlanResult,
           marketingCalendarResult,
+          douyinTopicLibraryResult,
         ] = await Promise.allSettled([
           getXiaohongshuCollectionWorkspace(resolvedActiveBrandId),
           getGrowthReportWorkspace(resolvedActiveBrandId),
@@ -1617,6 +1671,7 @@ export function BrandGrowthWorkspace() {
           getAnnualMarketingPlanWorkspace(resolvedActiveBrandId),
           getXiaohongshuMarketingPlanWorkspace(resolvedActiveBrandId),
           getXiaohongshuMarketingCalendarWorkspace(resolvedActiveBrandId),
+          getDouyinHotTopicCandidatesWorkspace(resolvedActiveBrandId),
         ]);
 
         if (collectionResult.status === "fulfilled") {
@@ -1659,6 +1714,12 @@ export function BrandGrowthWorkspace() {
           setMarketingCalendarWorkspace(marketingCalendarResult.value);
         } else {
           partialFailures.push("营销日历");
+        }
+
+        if (douyinTopicLibraryResult.status === "fulfilled") {
+          setDouyinTopicLibraryWorkspace(douyinTopicLibraryResult.value);
+        } else {
+          partialFailures.push("选题库");
         }
 
         setLoadedScopes((current) => ({ ...current, report: true }));
@@ -1755,6 +1816,32 @@ export function BrandGrowthWorkspace() {
         const message = error instanceof Error ? error.message : "刷新失败";
         setErrorMessage(`刷新营销日历失败：${message}`);
       }
+    }
+  }
+
+  async function refreshDouyinTopicLibraryWorkspace(selectedDate?: string, silent = false) {
+    try {
+      const nextWorkspace = await getDouyinHotTopicCandidatesWorkspace(archive.brand.id, selectedDate || undefined);
+      setDouyinTopicLibraryWorkspace(nextWorkspace);
+      if (nextWorkspace.latestTask?.taskStatus === "FAILED" && nextWorkspace.latestTask.errorMessage) {
+        setErrorMessage(`生成失败：${nextWorkspace.latestTask.errorMessage}`);
+      }
+    } catch (error) {
+      if (!silent) {
+        const message = error instanceof Error ? error.message : "刷新失败";
+        setErrorMessage(`刷新选题库失败：${message}`);
+      }
+    }
+  }
+
+  async function saveDouyinTopicLibrary(items: DouyinTopicLibraryItem[]) {
+    setIsSavingDouyinTopicLibrary(true);
+    try {
+      const nextWorkspace = await updateDouyinTopicLibrary(items, archive.brand.id);
+      setDouyinTopicLibraryWorkspace(nextWorkspace);
+      return nextWorkspace;
+    } finally {
+      setIsSavingDouyinTopicLibrary(false);
     }
   }
 
@@ -2300,6 +2387,127 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
       setErrorMessage(`热点日期切换失败：${message}`);
     } finally {
       setIsSyncingDailyHotspots(false);
+    }
+  }
+
+  async function handleDouyinTopicDateChange(date: string) {
+    if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.report.topicLibrary"]?.view) {
+      setErrorMessage("当前账号没有查看选题库的权限。");
+      return;
+    }
+    setSelectedDouyinTopicDate(date);
+    clearMessages();
+    await refreshDouyinTopicLibraryWorkspace(date);
+  }
+
+  async function handleGenerateDouyinTopicCandidates() {
+    if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.report.topicLibrary"]?.edit) {
+      setErrorMessage("当前账号没有编辑选题库的权限。");
+      return;
+    }
+    if (!selectedDouyinTopicDate) {
+      setErrorMessage("请先选择热点日期。");
+      return;
+    }
+    setIsGeneratingDouyinTopicCandidates(true);
+    clearMessages();
+
+    try {
+      const nextWorkspace = await generateDouyinHotTopicCandidates(selectedDouyinTopicDate, archive.brand.id);
+      setDouyinTopicLibraryWorkspace(nextWorkspace);
+      setSelectedDouyinTopicIds([]);
+      setNotice("已提交热点选题生成任务，正在后台生成。");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "生成失败";
+      setErrorMessage(`热点选题生成失败：${message}`);
+    } finally {
+      setIsGeneratingDouyinTopicCandidates(false);
+    }
+  }
+
+  function handleToggleDouyinTopic(topicId: string, checked: boolean) {
+    setSelectedDouyinTopicIds((current) => (
+      checked ? [...new Set([...current, topicId])] : current.filter((item) => item !== topicId)
+    ));
+  }
+
+  async function handleAddSelectedDouyinTopics() {
+    if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.report.topicLibrary"]?.edit) {
+      setErrorMessage("当前账号没有编辑选题库的权限。");
+      return;
+    }
+    if (!selectedDouyinTopicIds.length) {
+      setErrorMessage("请先勾选要加入选题库的选题。");
+      return;
+    }
+    if (!latestDouyinTopicResult?.items?.length) {
+      setErrorMessage("当前没有可加入的热点选题，请先生成。");
+      return;
+    }
+
+    clearMessages();
+    try {
+      const existing = douyinTopicLibraryWorkspace.topicLibrary || [];
+      const selectedItems = latestDouyinTopicResult.items.filter((item) => selectedDouyinTopicIds.includes(item.id));
+      const additions: DouyinTopicLibraryItem[] = selectedItems.map((item, index) => ({
+        id: item.id,
+        topicContent: item.title.trim(),
+        topicDescription: item.description?.trim() || latestDouyinTopicResult.summary || `来自 ${selectedDouyinTopicDate} 热点选题`,
+        selectedAt: new Date().toISOString(),
+        source: "GENERATED",
+        sourceDate: selectedDouyinTopicDate || undefined,
+      }));
+      const deduped = [...existing];
+      for (const addition of additions) {
+        if (!deduped.some((item) => item.id === addition.id || item.topicContent === addition.topicContent)) {
+          deduped.push(addition);
+        }
+      }
+      await saveDouyinTopicLibrary(deduped);
+      setSelectedDouyinTopicIds([]);
+      setNotice("已加入选题库。");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "保存失败";
+      setErrorMessage(`加入选题库失败：${message}`);
+    }
+  }
+
+  async function handleAddManualDouyinTopic(payload: { topicContent: string; topicDescription: string }) {
+    if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.report.topicLibrary"]?.edit) {
+      setErrorMessage("当前账号没有编辑选题库的权限。");
+      return;
+    }
+    clearMessages();
+    try {
+      const existing = douyinTopicLibraryWorkspace.topicLibrary || [];
+      const nextItem: DouyinTopicLibraryItem = {
+        id: `manual_${Date.now()}`,
+        topicContent: payload.topicContent.trim(),
+        topicDescription: payload.topicDescription.trim(),
+        selectedAt: new Date().toISOString(),
+        source: "MANUAL",
+      };
+      await saveDouyinTopicLibrary([...existing, nextItem]);
+      setNotice("已添加选题。");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "保存失败";
+      setErrorMessage(`添加选题失败：${message}`);
+    }
+  }
+
+  async function handleDeleteDouyinTopic(topicId: string) {
+    if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.report.topicLibrary"]?.edit) {
+      setErrorMessage("当前账号没有编辑选题库的权限。");
+      return;
+    }
+    clearMessages();
+    try {
+      const nextItems = (douyinTopicLibraryWorkspace.topicLibrary || []).filter((item) => item.id !== topicId);
+      await saveDouyinTopicLibrary(nextItems);
+      setNotice("已删除选题。");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "删除失败";
+      setErrorMessage(`删除选题失败：${message}`);
     }
   }
 
@@ -3679,6 +3887,41 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
       );
     }
 
+    if (activePage === "reportTopicLibrary") {
+      return (
+        <DouyinTopicLibraryWorkspace
+          sectionLabel={currentPage.label}
+          sectionDescription={currentPage.description}
+          isLoading={isHydrating}
+          canEdit={hasCurrentPageEditPermission}
+          items={douyinTopicLibraryWorkspace.topicLibrary || []}
+          isSaving={isSavingDouyinTopicLibrary}
+          onRefresh={async () => {
+            await refreshDouyinTopicLibraryWorkspace(selectedDouyinTopicDate);
+          }}
+          onAddManualTopic={handleAddManualDouyinTopic}
+          onDeleteTopic={handleDeleteDouyinTopic}
+          formatDateTime={formatDateTime}
+          hotTopicProps={{
+            canEdit: hasCurrentPageEditPermission,
+            availableDates: douyinTopicLibraryWorkspace.availableDates,
+            selectedDate: selectedDouyinTopicDate,
+            latest: latestDouyinTopicResult,
+            latestTask: latestDouyinTopicTask,
+            selectedTopicIds: selectedDouyinTopicIds,
+            isSavingTopicLibrary: isSavingDouyinTopicLibrary,
+            onRefresh: async () => {
+              await refreshDouyinTopicLibraryWorkspace(selectedDouyinTopicDate);
+            },
+            onDateChange: handleDouyinTopicDateChange,
+            onGenerate: handleGenerateDouyinTopicCandidates,
+            onToggleTopic: handleToggleDouyinTopic,
+            onAddSelectedTopics: handleAddSelectedDouyinTopics,
+          }}
+        />
+      );
+    }
+
     const latestReport = reportWorkspace.latest;
     const latestVisualReport = visualReportWorkspace.latest;
     const latestPlan = annualMarketingPlanWorkspace.latest;
@@ -3772,6 +4015,10 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     }
 
     if (activePage === "dailyHotspot") {
+      return null;
+    }
+
+    if (activePage === "reportTopicLibrary") {
       return null;
     }
 
