@@ -5771,6 +5771,12 @@ button {
   background: var(--subtle-surface);
 }
 
+.note-transcript-copy-button {
+  width: auto;
+  min-width: 0;
+  font-size: 12px;
+}
+
 .note-video-shell {
   border: 1px solid var(--site-hero-border);
   border-radius: 12px;

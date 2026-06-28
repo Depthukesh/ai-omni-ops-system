@@ -2255,13 +2255,32 @@ function DouyinTranscriptCell(props: {
   const hasTranscript = Boolean(item.transcript?.trim());
   const isExtracting = props.extractingAssetId === item.id || item.transcriptStatus === "PENDING";
   const canExtract = Boolean(item.videoUrl) || item.videoCacheStatus === "READY";
+  const [copied, setCopied] = useState(false);
 
   if (!canExtract && !hasTranscript) {
     return <span>-</span>;
   }
 
   if (hasTranscript) {
-    return <ExpandableTextCell value={item.transcript} emptyText="暂无视频文案" compactRows={1} />;
+    const handleCopy = async () => {
+      try {
+        await navigator.clipboard.writeText(item.transcript || "");
+        setCopied(true);
+        window.setTimeout(() => setCopied(false), 1500);
+      } catch {
+        window.alert("复制失败，请手动选中文案复制。");
+      }
+    };
+    return (
+      <button
+        type="button"
+        className="note-inline-button note-transcript-copy-button"
+        onClick={() => void handleCopy()}
+        title="点击复制完整文案"
+      >
+        {copied ? "已复制" : "点击复制文案"}
+      </button>
+    );
   }
 
   return (
