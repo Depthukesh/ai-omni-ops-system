@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type Dispatch, type SetStateAction } from "react";
+import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
 import type { OptionalDateFormatter, OptionalNumberFormatter } from "./shared-types";
 import type {
   WechatMpArticleRecord,
@@ -11,8 +11,7 @@ import {
   bindWechatMpBrandAccount,
   deleteWechatMpBrandAccount,
   fetchWechatMpArticles,
-  getWechatMpCollectionWorkspace,
-  updateWechatMpArticleStats,
+  readWechatMpArticleContent,
   wechatMpCollectionSeed,
 } from "../../../services/collectors";
 
@@ -21,6 +20,36 @@ type WechatMpSubCardKey = "brandAccountData";
 const WECHAT_MP_SUB_CARDS: Array<{ key: WechatMpSubCardKey; label: string }> = [
   { key: "brandAccountData", label: "品牌公众号数据" },
 ];
+
+// 模块级复制提醒 toast（与抖音文案复制共用同一套浮动弹窗逻辑）
+let copyToastTimer: number | undefined;
+let copyToastListeners: Array<(visible: boolean) => void> = [];
+function notifyCopyToast(visible: boolean) {
+  if (visible && copyToastTimer) {
+    window.clearTimeout(copyToastTimer);
+  }
+  for (const listener of copyToastListeners) {
+    try {
+      listener(visible);
+    } catch {
+      // 忽略
+    }
+  }
+  if (visible) {
+    copyToastTimer = window.setTimeout(() => notifyCopyToast(false), 1600);
+  }
+}
+function useCopyToastVisible() {
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    const listener = (next: boolean) => setVisible(next);
+    copyToastListeners.push(listener);
+    return () => {
+      copyToastListeners = copyToastListeners.filter((fn) => fn !== listener);
+    };
+  }, []);
+  return visible;
+}
 
 export type WechatMpCollectionWorkspaceProps = {
   pageTitle: string;
@@ -43,9 +72,9 @@ export function WechatMpCollectionWorkspace(props: WechatMpCollectionWorkspacePr
   const [fetchingAccountIds, setFetchingAccountIds] = useState<string[]>([]);
   const [articleOffsets, setArticleOffsets] = useState<Record<string, string | undefined>>({});
   const [hasMoreByAccount, setHasMoreByAccount] = useState<Record<string, boolean>>({});
-  const [selectedArticleIds, setSelectedArticleIds] = useState<string[]>([]);
-  const [updatingArticleIds, setUpdatingArticleIds] = useState<string[]>([]);
+  const [readingArticleIds, setReadingArticleIds] = useState<string[]>([]);
   const [notice, setNotice] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const toastVisible = useCopyToastVisible();
 
   const showNotice = (type: "success" | "error", text: string) => {
     setNotice({ type, text });
@@ -78,7 +107,6 @@ export function WechatMpCollectionWorkspace(props: WechatMpCollectionWorkspacePr
     try {
       const result = await deleteWechatMpBrandAccount(accountId, props.activeBrandId);
       props.setWorkspace(result.workspace);
-      setSelectedArticleIds((current) => current.filter((id) => !result.workspace.articles.some((article) => article.id === id)));
       showNotice("success", "账号已删除。");
     } catch (error) {
       showNotice("error", error instanceof Error ? error.message : "删除失败。");
@@ -103,49 +131,28 @@ export function WechatMpCollectionWorkspace(props: WechatMpCollectionWorkspacePr
     }
   };
 
-  const handleToggleArticle = (articleId: string, checked: boolean) => {
-    setSelectedArticleIds((current) =>
-      checked ? [...current, articleId] : current.filter((id) => id !== articleId),
-    );
-  };
-
-  const handleSelectAll = (checked: boolean) => {
-    if (checked) {
-      setSelectedArticleIds(props.workspace.articles.map((article) => article.id));
-    } else {
-      setSelectedArticleIds([]);
+  const handleReadArticle = async (article: WechatMpArticleRecord) => {
+    if (!article.url || readingArticleIds.includes(article.id)) return;
+    setReadingArticleIds((current) => [...current, article.id]);
+    try {
+      const result = await readWechatMpArticleContent(article.url, props.activeBrandId);
+      props.setWorkspace(result.workspace);
+      showNotice("success", "文章内容已读取。");
+    } catch (error) {
+      showNotice("error", error instanceof Error ? error.message : "读取文章失败。");
+    } finally {
+      setReadingArticleIds((current) => current.filter((id) => id !== article.id));
     }
   };
 
-  const handleUpdateSelected = async () => {
-    const selected = props.workspace.articles.filter((article) => selectedArticleIds.includes(article.id));
-    if (!selected.length) {
-      showNotice("error", "请先勾选需要更新数据的文章。");
-      return;
-    }
-    setUpdatingArticleIds(selected.map((article) => article.id));
-    let successCount = 0;
-    let failCount = 0;
-    for (const article of selected) {
-      try {
-        const result = await updateWechatMpArticleStats(article.url, props.activeBrandId);
-        props.setWorkspace(result.workspace);
-        successCount += 1;
-      } catch {
-        failCount += 1;
-      }
-    }
-    setUpdatingArticleIds([]);
-    if (failCount === 0) {
-      showNotice("success", `已更新 ${successCount} 篇文章数据。`);
-    } else {
-      showNotice("error", `更新完成：成功 ${successCount} 篇，失败 ${failCount} 篇。`);
+  const handleCopyArticleContent = async (content: string) => {
+    try {
+      await navigator.clipboard.writeText(content);
+      notifyCopyToast(true);
+    } catch {
+      window.alert("复制失败，请手动选中复制。");
     }
   };
-
-  const currentPage = WECHAT_MP_SUB_CARDS.find((item) => item.key === activeCard);
-  const allArticleIds = props.workspace.articles.map((article) => article.id);
-  const allSelected = allArticleIds.length > 0 && allArticleIds.every((id) => selectedArticleIds.includes(id));
 
   return (
     <div className="workspace-panel strategy-page-card">
@@ -193,18 +200,15 @@ export function WechatMpCollectionWorkspace(props: WechatMpCollectionWorkspacePr
           deletingAccountId={deletingAccountId}
           fetchingAccountIds={fetchingAccountIds}
           hasMoreByAccount={hasMoreByAccount}
+          readingArticleIds={readingArticleIds}
           canEdit={props.canEdit}
           onOpenModal={() => setIsModalOpen(true)}
           onFetchArticles={handleFetchArticles}
           onDelete={handleDelete}
+          onReadArticle={handleReadArticle}
+          onCopyArticleContent={handleCopyArticleContent}
           formatDateTime={props.formatDateTime}
           formatCount={props.formatCount}
-          selectedArticleIds={selectedArticleIds}
-          allSelected={allSelected}
-          onToggleArticle={handleToggleArticle}
-          onSelectAll={handleSelectAll}
-          onUpdateSelected={handleUpdateSelected}
-          updatingArticleIds={updatingArticleIds}
         />
       ) : null}
 
@@ -240,6 +244,11 @@ export function WechatMpCollectionWorkspace(props: WechatMpCollectionWorkspacePr
           </div>
         </div>
       ) : null}
+
+      <div className={`copy-toast ${toastVisible ? "is-visible" : ""}`} role="status" aria-live="polite">
+        <span className="copy-toast__icon" aria-hidden="true">✓</span>
+        <span className="copy-toast__text">已复制</span>
+      </div>
     </div>
   );
 }
@@ -252,18 +261,15 @@ type BrandAccountDataPanelProps = {
   deletingAccountId?: string;
   fetchingAccountIds: string[];
   hasMoreByAccount: Record<string, boolean>;
+  readingArticleIds: string[];
   canEdit: boolean;
   onOpenModal: () => void;
   onFetchArticles: (accountId: string, ghUsername: string) => void;
   onDelete: (accountId: string) => void;
+  onReadArticle: (article: WechatMpArticleRecord) => void;
+  onCopyArticleContent: (content: string) => void;
   formatDateTime: OptionalDateFormatter;
   formatCount: OptionalNumberFormatter;
-  selectedArticleIds: string[];
-  allSelected: boolean;
-  onToggleArticle: (articleId: string, checked: boolean) => void;
-  onSelectAll: (checked: boolean) => void;
-  onUpdateSelected: () => void;
-  updatingArticleIds: string[];
 };
 
 function BrandAccountDataPanel(props: BrandAccountDataPanelProps) {
@@ -273,7 +279,7 @@ function BrandAccountDataPanel(props: BrandAccountDataPanelProps) {
         <div className="collection-result-head">
           <div>
             <h3>品牌公众号数据</h3>
-            <p>绑定公众号 gh_username 后，点击"提交"获取历史文章列表，支持翻页和勾选文章更新互动数据。</p>
+            <p>绑定公众号 gh_username 后，点击"提交"获取历史文章列表，支持翻页。文章内容通过 GLM 网页阅读器读取，点击文章内容可自动复制。</p>
           </div>
           {props.canEdit ? (
             <button type="button" className="secondary-button" onClick={props.onOpenModal} disabled={props.isBinding}>
@@ -331,29 +337,17 @@ function BrandAccountDataPanel(props: BrandAccountDataPanelProps) {
         <div className="collection-result-head">
           <div>
             <h3>文章列表</h3>
-            <p>展示已采集到的公众号文章，勾选后点击"更新数据"批量获取阅读量、点赞数等互动指标。</p>
+            <p>展示已采集到的公众号文章，点击"读取文章"调用 GLM 网页阅读器获取正文内容，点击文章文字可自动复制。</p>
           </div>
-          {props.canEdit && props.articles.length > 0 ? (
-            <button
-              type="button"
-              className="primary-button"
-              onClick={props.onUpdateSelected}
-              disabled={props.updatingArticleIds.length > 0 || props.selectedArticleIds.length === 0}
-            >
-              {props.updatingArticleIds.length > 0 ? "更新中..." : "更新数据"}
-            </button>
-          ) : null}
         </div>
         {props.articles.length ? (
           <WechatMpArticleTable
             items={props.articles}
-            selectedIds={props.selectedArticleIds}
-            allSelected={props.allSelected}
-            onToggle={props.onToggleArticle}
-            onSelectAll={props.onSelectAll}
+            readingIds={props.readingArticleIds}
+            onReadArticle={props.onReadArticle}
+            onCopyArticleContent={props.onCopyArticleContent}
             formatDateTime={props.formatDateTime}
             formatCount={props.formatCount}
-            updatingIds={props.updatingArticleIds}
           />
         ) : (
           <div className="note-empty-state">当前还没有采集到公众号文章，请先添加公众号账号并提交获取文章列表。</div>
@@ -365,54 +359,33 @@ function BrandAccountDataPanel(props: BrandAccountDataPanelProps) {
 
 function WechatMpArticleTable(props: {
   items: WechatMpArticleRecord[];
-  selectedIds: string[];
-  allSelected: boolean;
-  onToggle: (articleId: string, checked: boolean) => void;
-  onSelectAll: (checked: boolean) => void;
+  readingIds: string[];
+  onReadArticle: (article: WechatMpArticleRecord) => void;
+  onCopyArticleContent: (content: string) => void;
   formatDateTime: OptionalDateFormatter;
   formatCount: OptionalNumberFormatter;
-  updatingIds: string[];
 }) {
   return (
-    <div className="table-scroll-shell">
+    <div className="wechat-mp-article-table-shell">
       <table className="soft-table">
         <thead>
           <tr>
-            <th>
-              <input
-                type="checkbox"
-                checked={props.allSelected}
-                onChange={(event) => props.onSelectAll(event.target.checked)}
-              />
-            </th>
             <th>标题</th>
             <th>链接</th>
-            <th>文章</th>
+            <th className="table-cell-wide">文章</th>
             <th>封面图</th>
             <th>发布时间</th>
             <th>阅读量</th>
             <th>点赞数</th>
-            <th>在看数</th>
-            <th>分享数</th>
-            <th>收藏数</th>
-            <th>评论数</th>
-            <th>喜欢数</th>
           </tr>
         </thead>
         <tbody>
           {props.items.map((article) => {
-            const isChecked = props.selectedIds.includes(article.id);
-            const isUpdating = props.updatingIds.includes(article.id);
+            const isReading = props.readingIds.includes(article.id);
+            const hasContent = Boolean(article.articleContent?.trim());
             return (
               <tr key={article.id}>
                 <td>
-                  <input
-                    type="checkbox"
-                    checked={isChecked}
-                    onChange={(event) => props.onToggle(article.id, event.target.checked)}
-                  />
-                </td>
-                <td className="table-cell-wide">
                   <span className="note-data-link" title={article.digest || undefined}>{article.title || "-"}</span>
                 </td>
                 <td>
@@ -422,9 +395,28 @@ function WechatMpArticleTable(props: {
                     <span>-</span>
                   )}
                 </td>
-                <td>
-                  {article.url ? (
-                    <a href={article.url} target="_blank" rel="noopener noreferrer" className="note-data-link">正文</a>
+                <td className="wechat-mp-article-cell">
+                  {hasContent ? (
+                    <div
+                      className="table-text-shell table-text-shell--copyable"
+                      data-rows="2"
+                      onClick={() => void props.onCopyArticleContent(article.articleContent || "")}
+                      title="点击复制文章内容"
+                      style={{ cursor: "pointer" }}
+                    >
+                      <button type="button" className="table-text-cell" data-rows={2}>
+                        {article.articleContent}
+                      </button>
+                    </div>
+                  ) : article.url ? (
+                    <button
+                      type="button"
+                      className="note-inline-button"
+                      onClick={() => void props.onReadArticle(article)}
+                      disabled={isReading}
+                    >
+                      {isReading ? "读取中..." : "读取文章"}
+                    </button>
                   ) : (
                     <span>-</span>
                   )}
@@ -437,13 +429,8 @@ function WechatMpArticleTable(props: {
                   )}
                 </td>
                 <td>{props.formatDateTime(article.createTime)}</td>
-                <td>{isUpdating ? "..." : props.formatCount(article.readNum)}</td>
-                <td>{isUpdating ? "..." : props.formatCount(article.likeCount)}</td>
-                <td>{isUpdating ? "..." : props.formatCount(article.oldLikeCount)}</td>
-                <td>{isUpdating ? "..." : props.formatCount(article.shareCount)}</td>
-                <td>{isUpdating ? "..." : props.formatCount(article.collectCount)}</td>
-                <td>{isUpdating ? "..." : props.formatCount(article.commentCount)}</td>
-                <td>{isUpdating ? "..." : props.formatCount(article.starNum)}</td>
+                <td>{props.formatCount(article.readNum)}</td>
+                <td>{props.formatCount(article.likeCount)}</td>
               </tr>
             );
           })}

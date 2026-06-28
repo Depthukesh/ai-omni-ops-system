@@ -764,6 +764,8 @@ export type WechatMpArticleRecord = {
   commentCount?: number;
   starNum?: number;
   statsUpdatedAt?: string;
+  articleContent?: string;
+  contentReadAt?: string;
   collectedAt: string;
 };
 
@@ -816,6 +818,14 @@ export async function fetchWechatMpArticles(ghUsername: string, offset?: string,
 export async function updateWechatMpArticleStats(url: string, brandId?: string) {
   return jsonRequest<{ item: WechatMpArticleRecord; workspace: WechatMpCollectionWorkspace }>(
     `/collectors/wechat-mp/brands/${resolveBrandId(brandId)}/articles/stats`,
+    "POST",
+    { url },
+  );
+}
+
+export async function readWechatMpArticleContent(url: string, brandId?: string) {
+  return jsonRequest<{ item: WechatMpArticleRecord; workspace: WechatMpCollectionWorkspace }>(
+    `/collectors/wechat-mp/brands/${resolveBrandId(brandId)}/articles/read`,
     "POST",
     { url },
   );

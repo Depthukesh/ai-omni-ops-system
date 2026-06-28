@@ -331,4 +331,15 @@ export class WechatMpCollectorsController {
     await this.authService.assertBrandAccess(brandId, auth);
     return this.collectorsService.updateWechatMpArticleStats(brandId, payload.url);
   }
+
+  @Post("brands/:brandId/articles/read")
+  async readArticleContent(
+    @Param("brandId") brandId: string,
+    @Body() payload: { url: string },
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(brandId, auth);
+    return this.collectorsService.readWechatMpArticleContent(brandId, payload.url);
+  }
 }

@@ -4720,6 +4720,51 @@ button {
   white-space: nowrap;
 }
 
+/* 公众号文章表格固定高度 + 纵向滚动 */
+.wechat-mp-article-table-shell {
+  width: 100%;
+  max-height: 520px;
+  overflow: auto;
+  border: 1px solid var(--site-hero-border);
+  border-radius: 12px;
+}
+
+.wechat-mp-article-table-shell .soft-table {
+  min-width: 920px;
+}
+
+.wechat-mp-article-table-shell .soft-table th,
+.wechat-mp-article-table-shell .soft-table td {
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  vertical-align: top;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.wechat-mp-article-table-shell .soft-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--card-surface);
+}
+
+.wechat-mp-article-table-shell .soft-table tbody tr {
+  height: 64px;
+}
+
+.wechat-mp-article-cell {
+  position: relative;
+  max-width: 280px;
+}
+
+.wechat-mp-article-cell .table-text-shell {
+  position: relative;
+  width: 100%;
+}
+
 .table-text-cell {
   display: -webkit-box;
   width: 100%;

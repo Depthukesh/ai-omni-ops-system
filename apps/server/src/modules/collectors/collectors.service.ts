@@ -88,6 +88,8 @@ export type WechatMpArticleRecord = {
   commentCount?: number;
   starNum?: number;
   statsUpdatedAt?: string;
+  articleContent?: string;
+  contentReadAt?: string;
   collectedAt: string;
 };
 
@@ -7574,7 +7576,48 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       commentCount: this.readMetaNumber(meta, "commentCount"),
       starNum: this.readMetaNumber(meta, "starNum"),
       statsUpdatedAt: this.readMetaString(meta, "statsUpdatedAt") || undefined,
+      articleContent: this.readMetaString(meta, "articleContent") || undefined,
+      contentReadAt: this.readMetaString(meta, "contentReadAt") || undefined,
       collectedAt: this.readMetaString(meta, "collectedAt") || new Date().toISOString(),
     };
+  }
+
+  async readWechatMpArticleContent(brandId: string, articleUrl: string): Promise<{ item: WechatMpArticleRecord; workspace: WechatMpCollectionWorkspace }> {
+    const trimmedUrl = String(articleUrl || "").trim();
+    if (!/^https?:\/\/mp\.weixin\.qq\.com\/s([/?].+)?$/.test(trimmedUrl)) {
+      throw new BadRequestException("文章链接格式不正确，需为 mp.weixin.qq.com/s/ 开头的链接。");
+    }
+    // 调用 GLM reader 读取网页正文
+    const readerResult = await this.glmOpenService.readWebpage(brandId, trimmedUrl, {
+      userId: `wechat-mp-reader-${brandId}`,
+    });
+    const articleContent = [readerResult.title, readerResult.content].filter(Boolean).join("\n\n");
+    // 找到对应文章 asset 并更新 articleContent
+    const assets = await this.listCollectorAssets(brandId);
+    const target = assets.find((asset) => {
+      const meta = this.asMeta(asset.metadataJson);
+      return this.readMetaString(meta, "kind") === "WECHAT_MP_ARTICLE" && (this.readMetaString(meta, "url") === trimmedUrl || asset.fileUrl === trimmedUrl);
+    });
+    if (!target) {
+      throw new NotFoundException("未找到对应的文章，请先采集文章列表。");
+    }
+    const meta = this.asMeta(target.metadataJson);
+    const updatedMetadata = {
+      ...meta,
+      articleContent,
+      contentReadAt: new Date().toISOString(),
+    };
+    const updated = await this.upsertCollectorAsset({
+      brandId,
+      kind: "WECHAT_MP_ARTICLE" as CollectorAssetKind,
+      matchValue: this.readMetaString(meta, "articleId") || target.id,
+      title: target.title,
+      description: target.description,
+      fileUrl: trimmedUrl,
+      metadata: updatedMetadata,
+    });
+    const item = this.mapWechatMpArticle(updated);
+    const workspace = await this.getWechatMpWorkspace(brandId);
+    return { item, workspace };
   }
 }
