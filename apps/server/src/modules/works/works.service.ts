@@ -7395,8 +7395,8 @@ export class WorksService {
       }
     }
 
-    const coverPrompt = prompts[0] || promptSummary;
-    const bodyPrompts = target.imageMode === "cover-only" ? [] : prompts.slice(1);
+    const coverPrompt = this.stripWechatImageVerticalSizeHints(prompts[0] || promptSummary);
+    const bodyPrompts = (target.imageMode === "cover-only" ? [] : prompts.slice(1)).map((p) => this.stripWechatImageVerticalSizeHints(p));
     const coverImageSize = this.resolveWechatCoverImageGenerationSize();
     const bodyImageSize = this.resolveWechatBodyImageGenerationSize(target.bodyImageSize);
     let coverAsset: Awaited<ReturnType<WorksService["generateImageAsset"]>> | null = null;
@@ -16643,7 +16643,7 @@ export class WorksService {
       case "square-1-1":
         return { apiz: "1:1", openai: "1024x1024" };
       case "portrait-4-3":
-        return { apiz: "3:4", openai: "1024x1536" };
+        return { apiz: "3:4", openai: "1024x1792" };
       default:
         return { apiz: "16:9", openai: "1792x1024" };
     }
@@ -16743,8 +16743,21 @@ export class WorksService {
     return tasks.length ? tasks : undefined;
   }
 
+  private stripWechatImageVerticalSizeHints(prompt: string): string {
+    // 清除 brief/prompt 中的竖版、小红书、3:4、1242x1660 等尺寸描述，防止与公众号横版尺寸冲突
+    return String(prompt || "")
+      .replace(/竖版小红书图文比例[，,]?\s*严格按\s*1242x1660[（(]宽3:高4[)）]\s*构图[^。]*。?/g, "")
+      .replace(/竖版[^，,。\n]*?(?:3\s*[:：]\s*4|1242\s*x\s*1660)[^。]*。?/gi, "")
+      .replace(/小红书[^，,。\n]*?(?:3\s*[:：]\s*4|1242\s*x\s*1660)[^。]*。?/gi, "")
+      .replace(/(?:宽\s*)?3\s*[:：]\s*4\s*(?:高\s*)?4\b[^。]*。?/gi, "")
+      .replace(/1242\s*x\s*1660/g, "")
+      .replace(/竖版/g, "横版")
+      .replace(/\s{2,}/g, " ")
+      .trim();
+  }
+
   private buildWechatCoverImagePrompt(title: string, summary: string, themeColor: string, brief?: string) {
-    const normalizedBrief = String(brief || "").trim();
+    const normalizedBrief = this.stripWechatImageVerticalSizeHints(String(brief || "").trim());
     if (normalizedBrief) {
       return normalizedBrief;
     }
@@ -16753,7 +16766,7 @@ export class WorksService {
 
   private buildWechatBodyImagePrompts(session: WechatWorkflowSessionRecord) {
     if (session.bodyImageBriefs?.length) {
-      return session.bodyImageBriefs;
+      return session.bodyImageBriefs.map((brief) => this.stripWechatImageVerticalSizeHints(brief));
     }
     return [
       `公众号正文配图，章节主题：${session.selectedMarketingLabels[0] || session.title}，场景真实、明亮、适合长文阅读插图，保留人物或环境叙事感。`,
