@@ -12194,12 +12194,19 @@ export class WorksService {
                     Buffer.from(asset.base64, "base64"),
                     asset.contentType,
                     fileName,
+                    params.imageSizeOverride?.openai,
                   )).toString("base64")
                   : undefined;
                 let finalUrl = "";
                 if (asset.url) {
                   try {
-                    finalUrl = await this.cacheRemoteGeneratedImage(params.brandId, fileName, asset.url, asset.contentType);
+                    finalUrl = await this.cacheRemoteGeneratedImage(
+                      params.brandId,
+                      fileName,
+                      asset.url,
+                      asset.contentType,
+                      params.imageSizeOverride?.openai,
+                    );
                   } catch (error) {
                     const canFallbackToRemoteUrl = /^https?:\/\//i.test(asset.url)
                       && !params.imageSizeOverride
@@ -12252,7 +12259,13 @@ export class WorksService {
     );
   }
 
-  private async cacheRemoteGeneratedImage(brandId: string, fileName: string, remoteUrl: string, fallbackContentType: string) {
+  private async cacheRemoteGeneratedImage(
+    brandId: string,
+    fileName: string,
+    remoteUrl: string,
+    fallbackContentType: string,
+    normalizeImageSpec?: string,
+  ) {
     return this.cacheRemoteGeneratedFile({
       brandId,
       fileName,
@@ -12261,6 +12274,7 @@ export class WorksService {
       resolveExtension: (contentType, nextFileName) => this.resolveImageExtensionFromMimeType(contentType, nextFileName),
       requestLabel: `下载远程生成图片 ${remoteUrl}`,
       normalizeImageAspectRatio: true,
+      normalizeImageSpec,
       fetchTimeoutMs: IMAGE_RESULT_FETCH_TIMEOUT_MS,
     });
   }
@@ -28113,7 +28127,7 @@ export class WorksService {
     });
   }
 
-  private async normalizeGeneratedImageBuffer(buffer: Buffer, contentType: string, fileName: string) {
+  private async normalizeGeneratedImageBuffer(buffer: Buffer, contentType: string, fileName: string, sizeSpec?: string) {
     const normalizedType = String(contentType || "").toLowerCase();
     const fileExtension = extname(fileName).toLowerCase();
     if (
@@ -28128,8 +28142,10 @@ export class WorksService {
 
     try {
       const { default: sharp } = await import("sharp");
-      const targetWidth = 1242;
-      const targetHeight = 1660;
+      const normalizedSizeSpec = this.normalizeDesignImageSpec(sizeSpec || "") || "1242x1660";
+      const [targetWidthText, targetHeightText] = normalizedSizeSpec.split("x");
+      const targetWidth = Number(targetWidthText) || 1242;
+      const targetHeight = Number(targetHeightText) || 1660;
       const image = sharp(buffer, { animated: false, failOn: "none" }).rotate();
       const metadata = await image.metadata();
       if (!metadata.width || !metadata.height) {
@@ -28178,6 +28194,7 @@ export class WorksService {
     resolveExtension: (contentType: string, fileName: string) => string;
     requestLabel: string;
     normalizeImageAspectRatio?: boolean;
+    normalizeImageSpec?: string;
     fetchTimeoutMs?: number;
   }) {
     const controller = new AbortController();
@@ -28200,7 +28217,7 @@ export class WorksService {
         ? params.fileName
         : `${params.fileName.replace(/\.[^.]+$/, "")}${extension}`;
       const normalizedBuffer = params.normalizeImageAspectRatio
-        ? await this.normalizeGeneratedImageBuffer(buffer, contentType, targetName)
+        ? await this.normalizeGeneratedImageBuffer(buffer, contentType, targetName, params.normalizeImageSpec)
         : buffer;
       return (await this.writeGeneratedBinaryFile(params.brandId, targetName, normalizedBuffer.toString("base64"), contentType)).url;
     } catch (error) {
