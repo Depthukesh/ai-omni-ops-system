@@ -1119,6 +1119,37 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
+  async removeBenchmarkNoteFromMaterialLibrary(brandId: string, assetId: string) {
+    this.ensureBrandExistsInMockOrDatabase(brandId);
+    const asset = await this.getCollectorAssetById(brandId, assetId);
+    const meta = this.asMeta(asset.metadataJson);
+    const kind = this.readMetaString(meta, "kind");
+    if (kind !== "XHS_BENCHMARK_NOTE" && kind !== "XHS_SEARCH_NOTE") {
+      throw new BadRequestException("仅支持将小红书作品从素材库移除");
+    }
+
+    await this.updateCollectorAssetMeta(brandId, assetId, {
+      inMaterialLibrary: false,
+      materialAddedAt: null,
+    });
+
+    return {
+      item: {
+        ...this.mapCollectedNote({
+          ...asset,
+          metadataJson: {
+            ...meta,
+            inMaterialLibrary: false,
+            materialAddedAt: null,
+          },
+        }),
+        isInMaterialLibrary: false,
+        materialAddedAt: undefined,
+      },
+      workspace: await this.getXiaohongshuWorkspace(brandId),
+    };
+  }
+
   async deleteXhsCollectedNote(brandId: string, assetId: string) {
     this.ensureBrandExistsInMockOrDatabase(brandId);
     const asset = await this.getCollectorAssetById(brandId, assetId);

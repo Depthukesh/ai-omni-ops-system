@@ -371,6 +371,88 @@ const OPENCLAW_WEBSITE_FUNCTION_CATALOG: OpenClawWebsiteFunctionCatalogItem[] = 
       "accept_my_brand_invite",
     ],
   },
+  {
+    key: "openclaw_lobster_diary",
+    domainKey: "openclaw",
+    domainName: "OpenClaw 专区",
+    name: "查看并管理龙虾日记",
+    summary: "适合通过 OpenClaw Agent 创建、查看和删除龙虾日记，用户端只能只读查看。",
+    pageUrl: "/brand-growth",
+    pageLabel: "打开 OpenClaw 专区",
+    riskLevel: "low",
+    intentKeywords: ["龙虾日记", "openclaw", "日记", "专区", "日志", "记录"],
+    requiredInputKeys: ["diaryDate", "title", "content"],
+    requiredInputs: ["日期", "标题", "正文内容"],
+    recommendedQuestions: ["帮我创建一篇龙虾日记", "帮我看当前品牌有哪些龙虾日记"],
+    mcpTools: [
+      "get_openclaw_lobster_diaries",
+      "create_openclaw_lobster_diary",
+      "delete_openclaw_lobster_diary",
+    ],
+  },
+  {
+    key: "unified_material_library",
+    domainKey: "brand_growth",
+    domainName: "品牌增长",
+    name: "查看并管理统一素材库",
+    summary: "适合查看跨平台统一素材库（小红书+抖音+公众号），并把采集作品加入或移除素材库。",
+    pageUrl: "/brand-growth",
+    pageLabel: "打开品牌增长工作台",
+    riskLevel: "medium",
+    intentKeywords: ["素材库", "统一素材", "跨平台素材", "加入素材", "移除素材"],
+    requiredInputKeys: ["assetId"],
+    requiredInputs: ["素材 ID"],
+    recommendedQuestions: ["帮我看统一素材库有哪些素材", "帮我把这个对标作品加入素材库"],
+    mcpTools: [
+      "get_unified_material_library_items",
+      "get_xiaohongshu_material_library_items",
+      "get_douyin_material_library_items",
+      "add_xiaohongshu_note_to_material_library",
+      "add_douyin_work_to_material_library",
+      "add_wechat_article_to_material_library",
+      "remove_xiaohongshu_note_from_material_library",
+      "remove_douyin_work_from_material_library",
+    ],
+  },
+  {
+    key: "wechat_collection_workspace",
+    domainKey: "brand_growth",
+    domainName: "品牌增长",
+    name: "查看并同步公众号采集数据",
+    summary: "适合读取品牌资料库中的公众号采集数据工作区，并直接触发对标文章和微信搜一搜同步。",
+    pageUrl: "/brand-growth",
+    pageLabel: "打开品牌增长工作台",
+    riskLevel: "medium",
+    intentKeywords: ["公众号采集", "微信搜一搜", "对标文章", "公众号数据", "文章统计"],
+    requiredInputKeys: ["brandId"],
+    requiredInputs: ["当前品牌"],
+    recommendedQuestions: ["帮我看公众号采集数据板块", "帮我同步微信搜一搜数据", "帮我更新这篇文章的阅读量"],
+    mcpTools: [
+      "get_wechat_collection_workspace",
+      "sync_wechat_benchmark_articles",
+      "sync_wechat_search_articles",
+      "update_wechat_article_stats",
+      "delete_wechat_collected_article",
+    ],
+  },
+  {
+    key: "collection_data_management",
+    domainKey: "brand_growth",
+    domainName: "品牌增长",
+    name: "删除小红书和抖音采集内容",
+    summary: "适合在对话中直接删除小红书或抖音采集的对标作品、搜索笔记或榜单作品。",
+    pageUrl: "/brand-growth",
+    pageLabel: "打开品牌增长工作台",
+    riskLevel: "medium",
+    intentKeywords: ["删除采集", "删除作品", "删除笔记", "清理采集数据"],
+    requiredInputKeys: ["assetId"],
+    requiredInputs: ["采集作品 ID"],
+    recommendedQuestions: ["帮我删除这条小红书采集作品", "帮我删除这条抖音采集作品"],
+    mcpTools: [
+      "delete_xhs_collected_note",
+      "delete_douyin_collected_work",
+    ],
+  },
 ];
 
 const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
@@ -1746,6 +1828,164 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
         },
       },
       required: ["section", "action"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_unified_material_library_items",
+    description: "查看当前品牌统一素材库，聚合小红书、抖音和公众号素材，可用于跨平台二创。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        limit: { type: "integer", minimum: 1, maximum: 100 },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "add_douyin_work_to_material_library",
+    description: "把抖音对标作品、搜索作品或榜单作品加入统一素材库。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        assetId: { type: "string", description: "抖音采集作品 ID。" },
+      },
+      required: ["assetId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "add_wechat_article_to_material_library",
+    description: "把公众号对标文章或微信搜一搜文章加入统一素材库。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        assetId: { type: "string", description: "公众号采集文章 ID。" },
+      },
+      required: ["assetId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "remove_xiaohongshu_note_from_material_library",
+    description: "把小红书对标作品或搜索笔记从统一素材库中移除。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        assetId: { type: "string", description: "小红书采集作品 ID。" },
+      },
+      required: ["assetId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "remove_douyin_work_from_material_library",
+    description: "把抖音作品从统一素材库中移除。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        assetId: { type: "string", description: "抖音采集作品 ID。" },
+      },
+      required: ["assetId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_wechat_collection_workspace",
+    description: "查看品牌资料库里公众号采集数据工作区，包括品牌公众号文章、对标文章和微信搜一搜。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        limit: { type: "integer", minimum: 1, maximum: 50 },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "sync_wechat_benchmark_articles",
+    description: "同步品牌资料库里公众号对标文章数据，需要提供文章链接。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        articleUrls: {
+          type: "array",
+          items: { type: "string" },
+          description: "公众号文章链接列表。",
+        },
+      },
+      required: ["articleUrls"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "sync_wechat_search_articles",
+    description: "同步品牌资料库里微信搜一搜数据，需要提供搜索关键词。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        searchKeyword: { type: "string", description: "微信搜一搜关键词。" },
+      },
+      required: ["searchKeyword"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "update_wechat_article_stats",
+    description: "根据公众号文章链接更新阅读量、点赞数、分享数、收藏数、评论数、喜欢数。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        articleUrl: { type: "string", description: "公众号文章链接。" },
+      },
+      required: ["articleUrl"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "delete_xhs_collected_note",
+    description: "删除小红书采集的对标作品或搜索笔记。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        assetId: { type: "string", description: "小红书采集作品 ID。" },
+      },
+      required: ["assetId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "delete_douyin_collected_work",
+    description: "删除抖音采集的竞品作品、对标作品、搜索作品或榜单作品。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        assetId: { type: "string", description: "抖音采集作品 ID。" },
+      },
+      required: ["assetId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "delete_wechat_collected_article",
+    description: "删除公众号采集的品牌文章、对标文章或微信搜一搜文章。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        assetId: { type: "string", description: "公众号采集文章 ID。" },
+        kind: { type: "string", description: "可选：benchmark、search、brand。默认自动判断。" },
+      },
+      required: ["assetId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_douyin_material_library_items",
+    description: "查看当前品牌素材库里可用于抖音二创的素材作品。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        limit: { type: "integer", minimum: 1, maximum: 50 },
+      },
       additionalProperties: false,
     },
   },
@@ -5305,6 +5545,437 @@ export class OpenClawService {
         })),
       },
       links: [{ label: "打开小红书工作区", url: "/xiaohongshu" }],
+    });
+  }
+
+  async getUnifiedMaterialLibraryItems(
+    headers: HeadersMap,
+    options?: {
+      limit?: number;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "view", auth);
+
+    const items = await this.collectorsService.listUnifiedMaterialLibraryItems(brandId);
+    const limit = this.normalizeLimit(options?.limit);
+    const sliced = items.slice(0, limit);
+
+    return this.buildSummaryResponse({
+      title: "统一素材库",
+      summary: items.length
+        ? `当前品牌统一素材库共有 ${items.length} 条素材，涵盖小红书、抖音和公众号。`
+        : "当前品牌统一素材库还没有素材，请先把对标作品加入素材库。",
+      highlights: sliced.length
+        ? sliced.slice(0, 5).map((item) => `${item.platformLabel}｜${item.title}`)
+        : ["素材数：0"],
+      data: {
+        total: items.length,
+        items: sliced.map((item) => ({
+          id: item.id,
+          platform: item.platform,
+          platformLabel: item.platformLabel,
+          title: item.title,
+          authorName: item.authorName,
+          sourceKind: item.sourceKind,
+          detailUrl: item.detailUrl,
+          likeCount: item.likeCount,
+          commentCount: item.commentCount,
+          shareCount: item.shareCount,
+          collectCount: item.collectCount,
+          materialAddedAt: item.materialAddedAt,
+          collectedAt: item.collectedAt,
+        })),
+      },
+      links: [{ label: "打开素材库", url: "/brand-growth" }],
+      resourceKind: "unified_material_library",
+    });
+  }
+
+  async addDouyinWorkToMaterialLibrary(
+    headers: HeadersMap,
+    options?: {
+      assetId?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.collection.douyinCollection", "edit", auth);
+
+    const assetId = String(options?.assetId || "").trim();
+    if (!assetId) {
+      throw new BadRequestException("请提供 assetId");
+    }
+    const result = await this.collectorsService.addDouyinBenchmarkWorkToMaterialLibrary(brandId, assetId);
+
+    return this.buildSummaryResponse({
+      title: "抖音素材已加入素材库",
+      summary: `素材 ${assetId} 已加入统一素材库，可继续用于跨平台二创。`,
+      highlights: [
+        `素材 ID：${assetId}`,
+        result.item?.title ? `素材标题：${result.item.title}` : "素材标题：未返回",
+      ],
+      data: result,
+      links: [{ label: "打开素材库", url: "/brand-growth" }],
+      resultStatus: "COMPLETED",
+      resourceKind: "douyin_material",
+    });
+  }
+
+  async addWechatArticleToMaterialLibrary(
+    headers: HeadersMap,
+    options?: {
+      assetId?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.collection.wechatMpCollection", "edit", auth);
+
+    const assetId = String(options?.assetId || "").trim();
+    if (!assetId) {
+      throw new BadRequestException("请提供 assetId");
+    }
+    const result = await this.collectorsService.addWechatBenchmarkArticleToMaterialLibrary(brandId, assetId);
+
+    return this.buildSummaryResponse({
+      title: "公众号素材已加入素材库",
+      summary: `素材 ${assetId} 已加入统一素材库，可继续用于跨平台二创。`,
+      highlights: [
+        `素材 ID：${assetId}`,
+        result.item?.title ? `素材标题：${result.item.title}` : "素材标题：未返回",
+      ],
+      data: result,
+      links: [{ label: "打开素材库", url: "/brand-growth" }],
+      resultStatus: "COMPLETED",
+      resourceKind: "wechat_material",
+    });
+  }
+
+  async removeXiaohongshuNoteFromMaterialLibrary(
+    headers: HeadersMap,
+    options?: {
+      assetId?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.collection.xiaohongshuCollection", "edit", auth);
+
+    const assetId = String(options?.assetId || "").trim();
+    if (!assetId) {
+      throw new BadRequestException("请提供 assetId");
+    }
+    const result = await this.collectorsService.removeBenchmarkNoteFromMaterialLibrary(brandId, assetId);
+
+    return this.buildSummaryResponse({
+      title: "小红书素材已从素材库移除",
+      summary: `素材 ${assetId} 已从统一素材库中移除。`,
+      highlights: [`素材 ID：${assetId}`],
+      data: result,
+      links: [{ label: "打开素材库", url: "/brand-growth" }],
+      resultStatus: "COMPLETED",
+      resourceKind: "xiaohongshu_material",
+    });
+  }
+
+  async removeDouyinWorkFromMaterialLibrary(
+    headers: HeadersMap,
+    options?: {
+      assetId?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.collection.douyinCollection", "edit", auth);
+
+    const assetId = String(options?.assetId || "").trim();
+    if (!assetId) {
+      throw new BadRequestException("请提供 assetId");
+    }
+    const result = await this.collectorsService.removeDouyinBenchmarkWorkFromMaterialLibrary(brandId, assetId);
+
+    return this.buildSummaryResponse({
+      title: "抖音素材已从素材库移除",
+      summary: `素材 ${assetId} 已从统一素材库中移除。`,
+      highlights: [`素材 ID：${assetId}`],
+      data: result,
+      links: [{ label: "打开素材库", url: "/brand-growth" }],
+      resultStatus: "COMPLETED",
+      resourceKind: "douyin_material",
+    });
+  }
+
+  async getWechatCollectionWorkspace(
+    headers: HeadersMap,
+    options?: {
+      limit?: number;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.collection.wechatMpCollection", "view", auth);
+
+    const [workspace, benchmarkWorkspace, searchWorkspace] = await Promise.all([
+      this.collectorsService.getWechatMpWorkspace(brandId),
+      this.collectorsService.getWechatMpBenchmarkWorkspace(brandId),
+      this.collectorsService.getWechatSearchWorkspace(brandId),
+    ]);
+    const limit = this.normalizeLimit(options?.limit);
+
+    return this.buildSummaryResponse({
+      title: "公众号采集数据工作区",
+      summary: `当前品牌公众号采集数据已包含 ${workspace.brandAccounts?.length || 0} 个品牌公众号、${workspace.articles?.length || 0} 条品牌文章、${benchmarkWorkspace.benchmarkArticles?.length || 0} 条对标文章和 ${searchWorkspace.items?.length || 0} 条微信搜一搜结果。`,
+      highlights: [
+        `品牌公众号：${workspace.brandAccounts?.length || 0}`,
+        `品牌文章：${workspace.articles?.length || 0}`,
+        `对标文章：${benchmarkWorkspace.benchmarkArticles?.length || 0}`,
+        `搜一搜结果：${searchWorkspace.items?.length || 0}`,
+      ],
+      data: {
+        brandAccounts: (workspace.brandAccounts || []).slice(0, limit),
+        articles: (workspace.articles || []).slice(0, limit),
+        benchmarkArticles: (benchmarkWorkspace.benchmarkArticles || []).slice(0, limit),
+        searchItems: (searchWorkspace.items || []).slice(0, limit),
+      },
+      links: [{ label: "打开品牌增长工作台", url: "/brand-growth" }],
+      resourceKind: "wechat_collection",
+    });
+  }
+
+  async syncWechatBenchmarkArticles(
+    headers: HeadersMap,
+    options?: {
+      articleUrls?: string[];
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.collection.wechatMpCollection", "edit", auth);
+
+    const articleUrls = this.normalizeStringArray(options?.articleUrls);
+    if (!articleUrls.length) {
+      throw new BadRequestException("请提供 articleUrls");
+    }
+
+    const results: Array<{ url: string; title?: string; success: boolean; error?: string }> = [];
+    for (const url of articleUrls) {
+      try {
+        const result = await this.collectorsService.submitWechatMpBenchmarkArticle(brandId, url);
+        results.push({ url, title: result.item?.title, success: true });
+      } catch (error) {
+        results.push({ url, success: false, error: error instanceof Error ? error.message : "同步失败" });
+      }
+    }
+    const successCount = results.filter((item) => item.success).length;
+
+    return this.buildSummaryResponse({
+      title: "公众号对标文章已同步",
+      summary: `已尝试同步 ${articleUrls.length} 篇对标文章，成功 ${successCount} 篇，失败 ${articleUrls.length - successCount} 篇。`,
+      highlights: results.slice(0, 5).map((item) => `${item.success ? "✓" : "✗"} ${item.url}`),
+      data: { results, successCount, totalCount: articleUrls.length },
+      links: [{ label: "打开品牌增长工作台", url: "/brand-growth" }],
+      resultStatus: "COMPLETED",
+      resourceKind: "wechat_collection",
+    });
+  }
+
+  async syncWechatSearchArticles(
+    headers: HeadersMap,
+    options?: {
+      searchKeyword?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.collection.wechatMpCollection", "edit", auth);
+
+    const searchKeyword = String(options?.searchKeyword || "").trim();
+    if (!searchKeyword) {
+      throw new BadRequestException("请提供 searchKeyword");
+    }
+    const result = await this.collectorsService.searchWechat(brandId, searchKeyword, "all", "default", "all", 0);
+
+    return this.buildSummaryResponse({
+      title: "微信搜一搜已同步",
+      summary: `已根据关键词「${searchKeyword}」同步微信搜一搜数据，当前共 ${result.items?.length || 0} 条结果。`,
+      highlights: (result.items || []).slice(0, 5).map((item) => item.title || item.url || "未命名"),
+      data: result,
+      links: [{ label: "打开品牌增长工作台", url: "/brand-growth" }],
+      resultStatus: "COMPLETED",
+      resourceKind: "wechat_collection",
+    });
+  }
+
+  async updateWechatArticleStats(
+    headers: HeadersMap,
+    options?: {
+      articleUrl?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.collection.wechatMpCollection", "edit", auth);
+
+    const articleUrl = String(options?.articleUrl || "").trim();
+    if (!articleUrl) {
+      throw new BadRequestException("请提供 articleUrl");
+    }
+    const result = await this.collectorsService.updateWechatMpBenchmarkArticleStats(brandId, articleUrl);
+
+    return this.buildSummaryResponse({
+      title: "公众号文章数据已更新",
+      summary: `文章「${result.item?.title || articleUrl}」的阅读量、点赞数、分享数、收藏数、评论数、喜欢数已更新。`,
+      highlights: [
+        `阅读量：${result.item?.readNum ?? "未返回"}`,
+        `点赞数：${result.item?.likeCount ?? "未返回"}`,
+        `分享数：${result.item?.shareCount ?? "未返回"}`,
+      ],
+      data: result,
+      links: [{ label: "打开品牌增长工作台", url: "/brand-growth" }],
+      resultStatus: "COMPLETED",
+      resourceKind: "wechat_collection",
+    });
+  }
+
+  async deleteXhsCollectedNote(
+    headers: HeadersMap,
+    options?: {
+      assetId?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.collection.xiaohongshuCollection", "edit", auth);
+
+    const assetId = String(options?.assetId || "").trim();
+    if (!assetId) {
+      throw new BadRequestException("请提供 assetId");
+    }
+    const result = await this.collectorsService.deleteXhsCollectedNote(brandId, assetId);
+
+    return this.buildSummaryResponse({
+      title: "小红书采集作品已删除",
+      summary: `作品 ${assetId} 已从采集数据中删除。`,
+      highlights: [`已删除 ID：${assetId}`],
+      data: result,
+      links: [{ label: "打开品牌增长工作台", url: "/brand-growth" }],
+      resultStatus: "COMPLETED",
+      resourceKind: "xiaohongshu_collection",
+    });
+  }
+
+  async deleteDouyinCollectedWork(
+    headers: HeadersMap,
+    options?: {
+      assetId?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.collection.douyinCollection", "edit", auth);
+
+    const assetId = String(options?.assetId || "").trim();
+    if (!assetId) {
+      throw new BadRequestException("请提供 assetId");
+    }
+    const result = await this.collectorsService.deleteDouyinCollectedWork(brandId, assetId);
+
+    return this.buildSummaryResponse({
+      title: "抖音采集作品已删除",
+      summary: `作品 ${assetId} 已从采集数据中删除。`,
+      highlights: [`已删除 ID：${assetId}`],
+      data: result,
+      links: [{ label: "打开品牌增长工作台", url: "/brand-growth" }],
+      resultStatus: "COMPLETED",
+      resourceKind: "douyin_collection",
+    });
+  }
+
+  async deleteWechatCollectedArticle(
+    headers: HeadersMap,
+    options?: {
+      assetId?: string;
+      kind?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.collection.wechatMpCollection", "edit", auth);
+
+    const assetId = String(options?.assetId || "").trim();
+    if (!assetId) {
+      throw new BadRequestException("请提供 assetId");
+    }
+    const kind = String(options?.kind || "").trim().toLowerCase();
+    let result: { workspace: unknown };
+    if (kind === "search") {
+      result = await this.collectorsService.deleteWechatSearchItem(brandId, assetId);
+    } else if (kind === "brand") {
+      result = await this.collectorsService.deleteWechatMpArticle(brandId, assetId);
+    } else {
+      result = await this.collectorsService.deleteWechatMpBenchmarkArticle(brandId, assetId);
+    }
+
+    return this.buildSummaryResponse({
+      title: "公众号采集文章已删除",
+      summary: `文章 ${assetId} 已从采集数据中删除。`,
+      highlights: [`已删除 ID：${assetId}`],
+      data: result,
+      links: [{ label: "打开品牌增长工作台", url: "/brand-growth" }],
+      resultStatus: "COMPLETED",
+      resourceKind: "wechat_collection",
+    });
+  }
+
+  async getDouyinMaterialLibraryItems(
+    headers: HeadersMap,
+    options?: {
+      limit?: number;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "douyin.remix", "view", auth);
+
+    const workspace = await this.collectorsService.getDouyinWorkspace(brandId);
+    const materials = [
+      ...workspace.competitorWorks,
+      ...workspace.benchmarkWorks,
+      ...workspace.searchWorks,
+      ...workspace.lowFanExplosiveWorks,
+      ...workspace.highCompletionRateWorks,
+      ...workspace.highLikeRateWorks,
+    ]
+      .filter((item) => item.isInMaterialLibrary)
+      .sort((left, right) => this.getTimestamp(right.materialAddedAt || right.collectedAt) - this.getTimestamp(left.materialAddedAt || left.collectedAt));
+    const items = materials.slice(0, this.normalizeLimit(options?.limit));
+
+    return this.buildSummaryResponse({
+      title: "抖音二创素材库",
+      summary: items.length
+        ? `当前品牌素材库中有 ${materials.length} 条可用于二创的抖音素材。`
+        : "当前品牌素材库里还没有可用于二创的抖音素材，请先把对标作品加入素材库。",
+      highlights: items.length
+        ? items.slice(0, 5).map((item) => `${item.title}｜${item.authorName || "未命名作者"}`)
+        : ["素材数：0"],
+      data: {
+        total: materials.length,
+        items: items.map((item) => ({
+          id: item.id,
+          title: item.title,
+          authorName: item.authorName,
+          workUrl: item.workUrl,
+          likeCount: item.likeCount,
+          commentCount: item.commentCount,
+          shareCount: item.shareCount,
+          collectCount: item.collectCount,
+          materialAddedAt: item.materialAddedAt,
+          collectedAt: item.collectedAt,
+        })),
+      },
+      links: [{ label: "打开素材库", url: "/brand-growth" }],
     });
   }
 
@@ -9342,6 +10013,61 @@ export class OpenClawService {
           content: typeof toolArgs.content === "string" ? toolArgs.content : undefined,
           author: typeof toolArgs.author === "string" ? toolArgs.author : undefined,
           styleHint: typeof toolArgs.styleHint === "string" ? toolArgs.styleHint : undefined,
+        });
+      case "get_unified_material_library_items":
+        return this.getUnifiedMaterialLibraryItems(headers, {
+          limit: typeof toolArgs.limit === "number" ? toolArgs.limit : undefined,
+        });
+      case "add_douyin_work_to_material_library":
+        return this.addDouyinWorkToMaterialLibrary(headers, {
+          assetId: typeof toolArgs.assetId === "string" ? toolArgs.assetId : undefined,
+        });
+      case "add_wechat_article_to_material_library":
+        return this.addWechatArticleToMaterialLibrary(headers, {
+          assetId: typeof toolArgs.assetId === "string" ? toolArgs.assetId : undefined,
+        });
+      case "remove_xiaohongshu_note_from_material_library":
+        return this.removeXiaohongshuNoteFromMaterialLibrary(headers, {
+          assetId: typeof toolArgs.assetId === "string" ? toolArgs.assetId : undefined,
+        });
+      case "remove_douyin_work_from_material_library":
+        return this.removeDouyinWorkFromMaterialLibrary(headers, {
+          assetId: typeof toolArgs.assetId === "string" ? toolArgs.assetId : undefined,
+        });
+      case "get_wechat_collection_workspace":
+        return this.getWechatCollectionWorkspace(headers, {
+          limit: typeof toolArgs.limit === "number" ? toolArgs.limit : undefined,
+        });
+      case "sync_wechat_benchmark_articles":
+        return this.syncWechatBenchmarkArticles(headers, {
+          articleUrls: Array.isArray(toolArgs.articleUrls)
+            ? toolArgs.articleUrls.map((item) => String(item || ""))
+            : undefined,
+        });
+      case "sync_wechat_search_articles":
+        return this.syncWechatSearchArticles(headers, {
+          searchKeyword: typeof toolArgs.searchKeyword === "string" ? toolArgs.searchKeyword : undefined,
+        });
+      case "update_wechat_article_stats":
+        return this.updateWechatArticleStats(headers, {
+          articleUrl: typeof toolArgs.articleUrl === "string" ? toolArgs.articleUrl : undefined,
+        });
+      case "delete_xhs_collected_note":
+        return this.deleteXhsCollectedNote(headers, {
+          assetId: typeof toolArgs.assetId === "string" ? toolArgs.assetId : undefined,
+        });
+      case "delete_douyin_collected_work":
+        return this.deleteDouyinCollectedWork(headers, {
+          assetId: typeof toolArgs.assetId === "string" ? toolArgs.assetId : undefined,
+        });
+      case "delete_wechat_collected_article":
+        return this.deleteWechatCollectedArticle(headers, {
+          assetId: typeof toolArgs.assetId === "string" ? toolArgs.assetId : undefined,
+          kind: typeof toolArgs.kind === "string" ? toolArgs.kind : undefined,
+        });
+      case "get_douyin_material_library_items":
+        return this.getDouyinMaterialLibraryItems(headers, {
+          limit: typeof toolArgs.limit === "number" ? toolArgs.limit : undefined,
         });
       default:
         throw new BadRequestException(`未知工具：${toolName}`);
