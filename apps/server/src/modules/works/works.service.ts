@@ -9899,7 +9899,7 @@ export class WorksService {
         sourceMaterialId: sourceMaterial.id,
         sourceMaterialTitle: sourceMaterial.title,
         sourceMaterialDescription: sourceMaterial.description || undefined,
-        sourceMaterialUrl: sourceMaterial.noteUrl || sourceMaterial.sourceUrl || undefined,
+        sourceMaterialUrl: sourceMaterial.detailUrl || sourceMaterial.sourceUrl || undefined,
         sourceMaterialImageUrls: sourceMaterial.imageList || [],
         productId: selectedProduct?.id,
         productName: selectedProduct?.productName,
