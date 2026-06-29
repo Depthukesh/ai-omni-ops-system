@@ -741,7 +741,7 @@ export function DouyinDirectVideoWorkspace(props: DouyinDirectVideoWorkspaceProp
               .filter((item) => Boolean(item.videoUrl))
               .map((item) => (
                 <option key={item.id} value={item.id}>
-                  {item.label || item.title}
+                  {item.title}
                 </option>
               ))}
           </select>
