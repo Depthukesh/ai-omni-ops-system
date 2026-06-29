@@ -16189,6 +16189,11 @@ export class WorksService {
       "}",
       "bodyPrompts 数量与输入 bodyImageBriefs 保持一致，不要新增或删减。",
       "不要返回 Markdown。",
+      "",
+      "⚠️ 重要尺寸要求（覆盖任何之前的竖版/小红书比例指令）：",
+      "- 公众号封面图（coverPrompt）必须是横版 16:9 比例（1600x900），禁止竖版或方形。",
+      "- 公众号正文配图（bodyPrompts）必须是横版 4:3 比例（1600x1200），禁止竖版或方形。",
+      "- 所有尺寸指令必须直接写入每条 prompt 中，不要遗漏。",
     ].join("\n");
 
     const userPrompt = [
