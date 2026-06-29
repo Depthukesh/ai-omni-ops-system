@@ -16581,7 +16581,7 @@ export class WorksService {
   private resolveWechatCoverImageGenerationSize() {
     return {
       apiz: "16:9",
-      openai: "1600x900",
+      openai: "1792x1024",
     };
   }
 
@@ -16639,13 +16639,13 @@ export class WorksService {
   private resolveWechatBodyImageGenerationSize(bodyImageSize: WechatBodyImageSize) {
     switch (bodyImageSize) {
       case "landscape-16-9":
-        return { apiz: "16:9", openai: "1600x900" };
+        return { apiz: "16:9", openai: "1792x1024" };
       case "square-1-1":
-        return { apiz: "1:1", openai: "1200x1200" };
+        return { apiz: "1:1", openai: "1024x1024" };
       case "portrait-4-3":
-        return { apiz: "3:4", openai: "1200x1600" };
+        return { apiz: "3:4", openai: "1024x1536" };
       default:
-        return { apiz: "4:3", openai: "1600x1200" };
+        return { apiz: "16:9", openai: "1792x1024" };
     }
   }
 
@@ -27341,7 +27341,7 @@ export class WorksService {
     }
     if (promptMode === "wechat_graphic") {
       const aspectRatio = imageSizeOverride?.apiz || "16:9";
-      const pixelSize = imageSizeOverride?.openai || "1600x900";
+      const pixelSize = imageSizeOverride?.openai || "1792x1024";
       const isLandscape = aspectRatio === "16:9" || aspectRatio === "4:3";
       const orientationText = isLandscape ? "横版" : aspectRatio === "1:1" ? "正方形" : "竖版";
       return [
@@ -27349,10 +27349,12 @@ export class WorksService {
         "",
         prompt.trim(),
         "",
-        `补充强制要求：这是公众号${role === "COVER" ? "封面图" : `正文配图${order + 1}`}，生成纯视觉图片，不要在画面中排版中文标题或标签。`,
+        `补充强制要求：这是公众号${role === "COVER" ? "封面图" : `正文配图${order + 1}`}，必须输出带清晰中文排版的社媒成品图，不能只生成纯场景摄影图。`,
         `画面必须为${orientationText}比例，严格按 ${pixelSize}（宽${aspectRatio.split(":")[0]}:高${aspectRatio.split(":")[1]}）构图，禁止输出其他比例。`,
-        "画面要简洁干净，突出主视觉和品牌感，不要堆砌文字、标签或按钮元素。",
         "如果输入中带有参考图，必须显著继承其构图、视角、主体摆位、光线和留白关系，不能只保留泛化氛围。",
+        "文字必须直接出现在画面主体版式中，清晰可读，不能只写在手写卡片、包装角落、远处招牌或模糊背景里。",
+        "所有标题和标签必须完整落在画面安全区内，四周至少保留 8% 安全边距，严禁任何文字超出图片边界、贴边、被裁切或被主体遮挡。",
+        "主标题最多两行，小标签数量从简，必须有明确的字号层级、颜色对比和留白，任何一项都不能省略。",
       ]
         .filter(Boolean)
         .join("\n");
