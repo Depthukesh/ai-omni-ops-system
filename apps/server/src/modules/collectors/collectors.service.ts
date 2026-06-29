@@ -8422,7 +8422,8 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async findWechatBenchmarkArticleAssetByArticleId(brandId: string, articleId: string) {
-    const asset = await this.findCollectorAssetByPredicate(brandId, (candidate) => {
+    const assets = await this.listCollectorAssets(brandId);
+    const asset = assets.find((candidate) => {
       const meta = this.asMeta(candidate.metadataJson);
       return this.readMetaString(meta, "kind") === "WECHAT_MP_BENCHMARK_ARTICLE"
         && this.readMetaString(meta, "articleId") === articleId;
@@ -8434,7 +8435,8 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async findWechatSearchItemAssetByItemId(brandId: string, itemId: string) {
-    const asset = await this.findCollectorAssetByPredicate(brandId, (candidate) => {
+    const assets = await this.listCollectorAssets(brandId);
+    const asset = assets.find((candidate) => {
       const meta = this.asMeta(candidate.metadataJson);
       return this.readMetaString(meta, "kind") === "WECHAT_SEARCH_ITEM"
         && this.readMetaString(meta, "itemId") === itemId;
