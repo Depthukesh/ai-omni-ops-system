@@ -1632,7 +1632,7 @@ export function WechatWorkspaceShell() {
                                 <div className="wechat-stage-copy">
                                   <span className="wechat-stage-kicker">Step 4</span>
                                   <strong>生成最终公众号 HTML</strong>
-                                  <p className="wechat-inline-tip">把主题风格、布局方式、字体和阅读节奏整理成一套排版方案，再交给 `wechat-html-renderer` 输出可直接发布的 HTML。</p>
+                                  <p className="wechat-inline-tip">选择文章排版风格后，系统会调用对应的通用排版、极简排版、空间艺术排版或通知类排版技能，生成可直接发布的公众号 HTML。</p>
                                 </div>
                                 <div className="wechat-stage-toolbar">
                                   <button

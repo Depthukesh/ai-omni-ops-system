@@ -491,12 +491,28 @@ description: AI 全域智能体网站能力总入口 Skill。先识别用户要�
 - \`manage_xiaohongshu_video\`
 - \`manage_douyin_video_production\`
 
+
+同时，你也要熟悉这些高频直连工具：
+- \`get_unified_material_library_items\`
+- \`get_douyin_material_library_items\`
+- \`get_wechat_collection_workspace\`
+- \`sync_wechat_benchmark_articles\`
+- \`sync_wechat_search_articles\`
+- \`update_wechat_article_stats\`
+- \`delete_xhs_collected_note\`
+- \`delete_douyin_collected_work\`
+- \`delete_wechat_collected_article\`
+- \`get_openclaw_lobster_diaries\`
+- \`create_openclaw_lobster_diary\`
+- \`delete_openclaw_lobster_diary\`
 如果执行计划推荐其他站内 MCP 工具，也应按计划调用。
+
 
 ## 四、你要覆盖的网站能力范围
 
 你默认要覆盖这些网站域：
 - \`brand_growth\`：品牌增长工作台、增长报告、可视化报告、半年营销规划、机会洞察
+- \`openclaw\`：OpenClaw专区、龙虾日记、安装中心联动能力
 - \`brand_archive\` 与 \`brand_assets\`：品牌背景、产品、问卷、账号、竞品、行业资料、业务资产、知识库、飞书绑定
 - \`xiaohongshu\`：小红书采集、图文、视频、营销策划、营销日历
 - \`douyin\`：抖音采集、视频、直接生视频、混剪短视频、数字人、口型驱动、RunningHub、广告预审、营销策划、热点选题
@@ -539,14 +555,22 @@ description: AI 全域智能体网站能力总入口 Skill。先识别用户要�
 ### 6. 品牌增长扩展链路
 
 - 优先调用：\`manage_growth_reports\`
-- 用于增长报告、可视化增长报告、半年营销规划、小红书/抖音营销策划、热点选题、营销日历
+- 用于增长报告、可视化增长报告、半年营销规划、小红书/抖音营销策划、热点选题、营销日历、统一素材库
 
-### 7. 小红书视频笔记
+### 7. 统一素材库与采集数据
+
+- 当用户提到“素材库”“统一素材库”“公众号采集”“删除采集内容”“更新公众号阅读量/点赞量”时，先判断：
+  - 是否要看统一素材库：\`get_unified_material_library_items\` / \`get_douyin_material_library_items\`
+  - 是否要看公众号采集工作区：\`get_wechat_collection_workspace\`
+  - 是否要同步公众号数据：\`sync_wechat_benchmark_articles\` / \`sync_wechat_search_articles\` / \`update_wechat_article_stats\`
+  - 是否要删除采集结果：\`delete_xhs_collected_note\` / \`delete_douyin_collected_work\` / \`delete_wechat_collected_article\`
+
+### 8. 小红书视频笔记
 
 - 优先调用：\`manage_xiaohongshu_video\`
 - 用于列表、模型选项、生成、故事板重生、继续生成、找回结果、更新、删除
 
-### 8. 抖音视频生产
+### 9. 抖音视频生产
 
 - 优先调用：\`manage_douyin_video_production\`
 - 支持这些 section：
@@ -557,6 +581,19 @@ description: AI 全域智能体网站能力总入口 Skill。先识别用户要�
   - \`lip_sync\`
   - \`runninghub\`
   - \`ad_preaudit\`
+
+### 10. OpenClaw 专区
+
+- 当用户提到 OpenClaw 专区、龙虾日记、安装页、品牌运营助手 Skill 时，优先使用：
+  - \`get_openclaw_lobster_diaries\`
+  - \`create_openclaw_lobster_diary\`
+  - \`delete_openclaw_lobster_diary\`
+  - \`get_website_function_catalog\`
+  - \`get_website_function_execution_plan\`
+- 对“龙虾日记”场景要记住：
+  - 页面端用户只能查看和删除
+  - 新建由 OpenClaw Agent 发起
+  - 输入只需要日期、标题、内容
 
 ## 六、追问规则
 
@@ -610,7 +647,7 @@ description: AI 全域智能体网站能力总入口 Skill。先识别用户要�
 4. 导入后将该 Skill 绑定到 ai-omni-ops MCP。
 5. 首次使用时先验证查询、生成和任务回读是否正常。
 
-建议先用下面 4 句话做安装验收：
+建议先用下面这些话做安装验收：
 - 帮我看一下个人中心总览
 - 帮我提取当前品牌档案摘要，并更新一个产品资料
 - 帮我看品牌资料库里抖音和小红书搜集数据板块
@@ -619,6 +656,10 @@ description: AI 全域智能体网站能力总入口 Skill。先识别用户要�
 - 帮我看当前品牌机会洞察做到哪一步了
 - 帮我看当前品牌成员和邀请列表
 - 帮我看第三方接口配置摘要，并告诉我现在网站里还能调用哪些功能
+- 帮我看统一素材库里最近新增了哪些小红书、抖音、公众号素材
+- 帮我看公众号采集工作区，并把最近一批文章的阅读量和点赞量更新一下
+- 帮我删除一批采集错误的公众号/小红书/抖音内容
+- 帮我创建一篇龙虾日记，然后再把当前品牌的龙虾日记列表读给我
 `;
   }
 

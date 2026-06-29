@@ -16402,13 +16402,7 @@ export class WorksService {
                 attemptTrail.push(`${attemptLabel} -> 返回为空`);
                 continue;
               }
-              const parsed = this.parseJsonObject(responseText);
-              const rawHtmlContent = String(parsed.htmlContent ?? "").trim();
-              if (!rawHtmlContent) {
-                lastError = `${provider.provider}/${modelName} 返回 htmlContent 为空`;
-                attemptTrail.push(`${attemptLabel} -> 返回 htmlContent 为空`);
-                continue;
-              }
+              const rawHtmlContent = this.parseWechatHtmlModelResponse(responseText);
               const htmlContent = this.normalizeWechatGeneratedHtmlDocument({
                 title: params.title,
                 author: params.author,
@@ -16527,6 +16521,95 @@ export class WorksService {
       "</section>",
       "</section></main></body></html>",
     ].join(""));
+  }
+
+  private parseWechatHtmlModelResponse(content: string) {
+    const normalizedContent = String(content || "").trim();
+    if (!normalizedContent) {
+      const error = new ServiceUnavailableException("模型未返回有效 HTML") as ServiceUnavailableException & {
+        rawModelContent?: string;
+      };
+      error.rawModelContent = content;
+      throw error;
+    }
+    try {
+      const parsed = this.parseJsonObject(normalizedContent);
+      const htmlContent = String(parsed.htmlContent ?? "").trim();
+      if (htmlContent) {
+        return htmlContent;
+      }
+    } catch {
+      // 公众号 HTML 单独做宽松提取，避免带整段 HTML 的响应被严格 JSON 误杀。
+    }
+    const extractedHtml = this.extractWechatHtmlContentFromLooseResponse(normalizedContent);
+    if (extractedHtml) {
+      return extractedHtml;
+    }
+    const error = new ServiceUnavailableException("模型未返回有效 HTML") as ServiceUnavailableException & {
+      rawModelContent?: string;
+    };
+    error.rawModelContent = content;
+    throw error;
+  }
+
+  private extractWechatHtmlContentFromLooseResponse(content: string) {
+    const stripped = this.stripMarkdownCodeFence(String(content || "")).trim();
+    if (!stripped) {
+      return "";
+    }
+    if (this.looksLikeWechatHtmlContent(stripped)) {
+      return stripped;
+    }
+    const wrappedPatterns = [
+      /"htmlContent"\s*:\s*"([\s\S]*)"\s*}\s*$/i,
+      /'htmlContent'\s*:\s*'([\s\S]*)'\s*}\s*$/i,
+      /htmlContent\s*:\s*"([\s\S]*)"\s*}\s*$/i,
+      /htmlContent\s*:\s*'([\s\S]*)'\s*}\s*$/i,
+    ];
+    for (const pattern of wrappedPatterns) {
+      const matched = stripped.match(pattern);
+      if (!matched?.[1]) {
+        continue;
+      }
+      const decoded = this.decodeLooseJsonStringValue(matched[1]);
+      if (this.looksLikeWechatHtmlContent(decoded)) {
+        return decoded;
+      }
+    }
+    const keyMatch = stripped.match(/["']?htmlContent["']?\s*:\s*/i);
+    if (!keyMatch?.[0]) {
+      return "";
+    }
+    const tailContent = stripped.slice((keyMatch.index || 0) + keyMatch[0].length).trim();
+    const looselyUnwrapped = tailContent
+      .replace(/^[`'"]/, "")
+      .replace(/[`'"]?\s*}\s*$/, "")
+      .trim();
+    const decoded = this.decodeLooseJsonStringValue(looselyUnwrapped);
+    return this.looksLikeWechatHtmlContent(decoded) ? decoded : "";
+  }
+
+  private decodeLooseJsonStringValue(content: string) {
+    return String(content || "")
+      .replace(/\\u([0-9a-fA-F]{4})/g, (_, hex: string) => String.fromCharCode(Number.parseInt(hex, 16)))
+      .replace(/\\r\\n/g, "\n")
+      .replace(/\\n/g, "\n")
+      .replace(/\\r/g, "\n")
+      .replace(/\\t/g, "\t")
+      .replace(/\\"/g, "\"")
+      .replace(/\\'/g, "'")
+      .replace(/\\\\/g, "\\")
+      .trim();
+  }
+
+  private looksLikeWechatHtmlContent(content: string) {
+    const normalized = String(content || "").trim();
+    if (!normalized) {
+      return false;
+    }
+    return /<!doctype html/i.test(normalized)
+      || /<html[\s>]/i.test(normalized)
+      || /<(body|main|section|article|div|h1|h2|h3|p)\b/i.test(normalized);
   }
 
   private extractWechatPlainTextFromHtml(htmlContent: string) {

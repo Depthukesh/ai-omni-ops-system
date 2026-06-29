@@ -110,6 +110,37 @@ OpenClaw 调用任何工具时，服务端都必须基于绑定关系解析：
 - 总结高表现内容规律
 - 做时间段对比
 
+## 3.7 当前已落地增量能力
+
+截至 `2026-06-30`，第一阶段之外，系统里已经新增并开放了几组与 OpenClaw 高度相关的实用工具，后续 Skill 和安装验收都应按这些真实能力来描述：
+
+- 网站功能路由：
+  - `get_website_function_catalog`
+  - `get_website_function_detail`
+  - `route_website_function_by_intent`
+  - `get_website_function_execution_plan`
+- OpenClaw 专区：
+  - `get_openclaw_lobster_diaries`
+  - `create_openclaw_lobster_diary`
+  - `delete_openclaw_lobster_diary`
+- 统一素材库：
+  - `get_unified_material_library_items`
+  - `get_douyin_material_library_items`
+  - `add_xiaohongshu_note_to_material_library`
+  - `add_douyin_work_to_material_library`
+  - `add_wechat_article_to_material_library`
+  - `remove_xiaohongshu_note_from_material_library`
+  - `remove_douyin_work_from_material_library`
+- 公众号采集工作区：
+  - `get_wechat_collection_workspace`
+  - `sync_wechat_benchmark_articles`
+  - `sync_wechat_search_articles`
+  - `update_wechat_article_stats`
+  - `delete_wechat_collected_article`
+- 采集数据删除：
+  - `delete_xhs_collected_note`
+  - `delete_douyin_collected_work`
+
 ---
 
 ## 4. 工具清单

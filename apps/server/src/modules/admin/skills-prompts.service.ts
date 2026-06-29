@@ -817,6 +817,11 @@ const RETIRED_OPEN_DESIGN_PROMPT_SCENES = [
   "Open Design-知识架构蓝图 Deck",
 ] as const;
 
+const RETIRED_WECHAT_HTML_SKILL_IDS = ["skill_wechat_html_render"] as const;
+const RETIRED_WECHAT_HTML_SKILL_SLUGS = ["wechat-html-renderer"] as const;
+const RETIRED_WECHAT_HTML_PROMPT_IDS = ["prompt_wechat_html_render"] as const;
+const RETIRED_WECHAT_HTML_PROMPT_SCENES = ["公众号HTML渲染"] as const;
+
 @Injectable()
 export class SkillsPromptsService implements OnModuleInit {
   private registryBootstrapPromise?: Promise<boolean>;
@@ -1594,6 +1599,7 @@ export class SkillsPromptsService implements OnModuleInit {
     }
 
     await this.removeRetiredOpenDesignArtifacts();
+    await this.removeRetiredWechatHtmlArtifacts();
     await this.backfillDouyinOriginalCopyPromptContents();
     await this.backfillXhsOriginalCopyPromptContents();
     await this.backfillWechatHtmlStylePromptContents();
@@ -1641,6 +1647,42 @@ export class SkillsPromptsService implements OnModuleInit {
     );
     database.promptTemplates = database.promptTemplates.filter(
       (item) => !RETIRED_OPEN_DESIGN_PROMPT_IDS.includes(item.id as (typeof RETIRED_OPEN_DESIGN_PROMPT_IDS)[number]),
+    );
+    this.legacySkillPromptBindings = undefined;
+  }
+
+  private async removeRetiredWechatHtmlArtifacts() {
+    await this.prismaService.$executeRaw(
+      Prisma.sql`
+        DELETE FROM "SkillPromptBinding"
+        WHERE "skillId" IN (${Prisma.join([...RETIRED_WECHAT_HTML_SKILL_IDS])})
+          OR "promptId" IN (${Prisma.join([...RETIRED_WECHAT_HTML_PROMPT_IDS])})
+          OR "skillSlug" IN (${Prisma.join([...RETIRED_WECHAT_HTML_SKILL_SLUGS])})
+          OR "promptScene" IN (${Prisma.join([...RETIRED_WECHAT_HTML_PROMPT_SCENES])})
+      `,
+    );
+
+    await this.prismaService.$executeRaw(
+      Prisma.sql`
+        DELETE FROM "PromptTemplate"
+        WHERE "id" IN (${Prisma.join([...RETIRED_WECHAT_HTML_PROMPT_IDS])})
+          OR "scene" IN (${Prisma.join([...RETIRED_WECHAT_HTML_PROMPT_SCENES])})
+      `,
+    );
+
+    await this.prismaService.$executeRaw(
+      Prisma.sql`
+        DELETE FROM "SkillConfig"
+        WHERE "id" IN (${Prisma.join([...RETIRED_WECHAT_HTML_SKILL_IDS])})
+          OR "slug" IN (${Prisma.join([...RETIRED_WECHAT_HTML_SKILL_SLUGS])})
+      `,
+    );
+
+    database.skillConfigs = database.skillConfigs.filter(
+      (item) => !RETIRED_WECHAT_HTML_SKILL_IDS.includes(item.id as (typeof RETIRED_WECHAT_HTML_SKILL_IDS)[number]),
+    );
+    database.promptTemplates = database.promptTemplates.filter(
+      (item) => !RETIRED_WECHAT_HTML_PROMPT_IDS.includes(item.id as (typeof RETIRED_WECHAT_HTML_PROMPT_IDS)[number]),
     );
     this.legacySkillPromptBindings = undefined;
   }
