@@ -29,8 +29,8 @@ export type MaterialOption = {
   title?: string;
   videoUrl?: string;
   label?: string;
-  platform?: "XIAOHONGSHU" | "DOUYIN";
-  platformLabel?: "小红书" | "抖音";
+  platform?: "XIAOHONGSHU" | "DOUYIN" | "WECHAT_MP";
+  platformLabel?: "小红书" | "抖音" | "公众号";
 };
 
 export type PlatformAccount = {
