@@ -73,6 +73,22 @@ export type RevealOpenClawInstallTokenResult = {
   token: string;
 };
 
+export type OpenClawLobsterDiaryRecord = {
+  id: string;
+  brandId: string;
+  createdByUserId: string;
+  diaryDate: string;
+  title: string;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type OpenClawLobsterDiaryWorkspace = {
+  items: OpenClawLobsterDiaryRecord[];
+  total: number;
+};
+
 export async function getOpenClawInstallationWorkspace() {
   return request<OpenClawInstallWorkspace>("/openclaw/installation-hub");
 }
@@ -96,4 +112,18 @@ export async function revealOpenClawInstallToken(tokenId: string) {
 
 export async function downloadOpenClawSkillPackage(downloadPath: string) {
   return requestBlobByUrl(downloadPath);
+}
+
+export async function getOpenClawLobsterDiaryWorkspace(brandId: string, limit?: number) {
+  const query = typeof limit === "number" ? `?limit=${encodeURIComponent(String(limit))}` : "";
+  return request<OpenClawLobsterDiaryWorkspace>(`/openclaw/brands/${brandId}/lobster-diaries${query}`);
+}
+
+export async function deleteOpenClawLobsterDiary(diaryId: string, brandId: string) {
+  return request<{ item: OpenClawLobsterDiaryRecord; workspace: OpenClawLobsterDiaryWorkspace }>(
+    `/openclaw/brands/${brandId}/lobster-diaries/${diaryId}`,
+    {
+      method: "DELETE",
+    },
+  );
 }

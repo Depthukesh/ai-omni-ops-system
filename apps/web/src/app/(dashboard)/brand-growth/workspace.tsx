@@ -32,6 +32,7 @@ import {
   buildVisualReportPreviewDocument,
   renderMarkdownToHtml,
 } from "./markdown-render";
+import { OpenClawLobsterDiaryWorkspace } from "./openclaw-lobster-diary-workspace";
 import { OpportunityInsightStepInputModal } from "./opportunity-insight-step-input-modal";
 import { ReportMaterialLibraryWorkspace } from "./report-material-library-workspace";
 import { NoteCreateModalShell } from "../xiaohongshu/note-create-modal-shell";
@@ -158,6 +159,11 @@ import {
   xiaohongshuMarketingPlanSeed,
 } from "../../../services/reports";
 import {
+  deleteOpenClawLobsterDiary,
+  getOpenClawLobsterDiaryWorkspace,
+  type OpenClawLobsterDiaryWorkspace as OpenClawLobsterDiaryWorkspaceRecord,
+} from "../../../services/openclaw";
+import {
   getDailyHotspotWorkspace,
   syncDailyHotspots,
   type DailyHotspotWorkspace,
@@ -172,7 +178,7 @@ const stepOrder: BrandArchiveStepKey[] = [
   "businessAssets",
 ];
 
-type StrategySectionKey = "library" | "collection" | "report";
+type StrategySectionKey = "library" | "collection" | "report" | "openclaw";
 type StrategyPageKey =
   | BrandArchiveStepKey
   | "feishuCollection"
@@ -186,7 +192,8 @@ type StrategyPageKey =
   | "annualMarketingPlan"
   | "xiaohongshuMarketingCalendar"
   | "reportTopicLibrary"
-  | "reportMaterialLibrary";
+  | "reportMaterialLibrary"
+  | "openclawLobsterDiary";
 type BrandGrowthLoadScope = "library" | "collection" | "report";
 type OpportunityInsightStep = 1 | 2 | 3;
 type OpportunityInsightStepModalState = {
@@ -289,6 +296,13 @@ const strategySections: Array<{
       { key: "reportMaterialLibrary", label: "素材库", description: "统一归集小红书与抖音素材，供所有平台创作作品共用。" },
     ],
   },
+  {
+    key: "openclaw",
+    label: "OpenClaw专区",
+    pages: [
+      { key: "openclawLobsterDiary", label: "龙虾日记", description: "展示由 OpenClaw Agent 创建的日记，页面只支持查看与删除。" },
+    ],
+  },
 ];
 
 const FEISHU_XHS_TEMPLATE_URL = "https://acn8dzidreuv.feishu.cn/base/Q4UNbUmY1acU9rsiYaAcobZwnte?from=from_copylink";
@@ -312,6 +326,7 @@ const strategyPagePermissionMap: Record<StrategyPageKey, BrandPermissionKey> = {
   xiaohongshuMarketingCalendar: "xiaohongshu.calendar",
   reportTopicLibrary: "brandGrowth.report.topicLibrary",
   reportMaterialLibrary: "brandGrowth.report.topicLibrary",
+  openclawLobsterDiary: "brandGrowth.report.topicLibrary",
 };
 
 function cloneSeed(): BrandArchiveBundle {
@@ -418,6 +433,13 @@ function createEmptyAnnualMarketingPlanWorkspace(): AnnualMarketingPlanWorkspace
   return {
     latest: undefined,
     history: [],
+  };
+}
+
+function createEmptyOpenClawLobsterDiaryWorkspace(): OpenClawLobsterDiaryWorkspaceRecord {
+  return {
+    items: [],
+    total: 0,
   };
 }
 
@@ -608,6 +630,7 @@ type ReportScopeSnapshot = {
   xiaohongshuMarketingPlanWorkspace: XiaohongshuMarketingPlanWorkspace;
   marketingCalendarWorkspace: XiaohongshuMarketingCalendarWorkspace;
   douyinTopicLibraryWorkspace: DouyinHotTopicCandidatesWorkspace;
+  openClawLobsterDiaryWorkspace: OpenClawLobsterDiaryWorkspaceRecord;
 };
 
 function buildReportScopeSnapshotKey(brandId: string) {
@@ -962,6 +985,8 @@ export function BrandGrowthWorkspace() {
   const [marketingCalendarWorkspace, setMarketingCalendarWorkspace] = useState<XiaohongshuMarketingCalendarWorkspace>({ history: [] });
   const [douyinTopicLibraryWorkspace, setDouyinTopicLibraryWorkspace] =
     useState<DouyinHotTopicCandidatesWorkspace>(douyinHotTopicCandidatesSeed);
+  const [openClawLobsterDiaryWorkspace, setOpenClawLobsterDiaryWorkspace] =
+    useState<OpenClawLobsterDiaryWorkspaceRecord>(createEmptyOpenClawLobsterDiaryWorkspace);
   const [feishuBinding, setFeishuBinding] = useState<FeishuBindingRecord | null>(null);
   const [feishuAppConfig, setFeishuAppConfig] = useState<FeishuAppConfigRecord | null>(null);
   const [feishuAuthStatus, setFeishuAuthStatus] = useState<FeishuAuthStatusRecord | null>(null);
@@ -986,6 +1011,7 @@ export function BrandGrowthWorkspace() {
     library: true,
     collection: false,
     report: false,
+    openclaw: false,
   });
   const [activeXhsCollectionCard, setActiveXhsCollectionCard] = useState<XiaohongshuCollectionCardKey>("brandAccount");
   const [activeDouyinCollectionCard, setActiveDouyinCollectionCard] = useState<DouyinCollectionCardKey>("brandAccount");
@@ -1008,6 +1034,7 @@ export function BrandGrowthWorkspace() {
   const [xhsSubCommentPaginationMap, setXhsSubCommentPaginationMap] = useState<Record<string, XhsSubCommentPaginationState>>({});
   const [isSyncingDailyHotspots, setIsSyncingDailyHotspots] = useState(false);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+  const [deletingOpenClawLobsterDiaryId, setDeletingOpenClawLobsterDiaryId] = useState("");
   const [isGeneratingOpportunityInsight, setIsGeneratingOpportunityInsight] = useState(false);
   const [isSavingReport, setIsSavingReport] = useState(false);
   const [isGeneratingVisualReport, setIsGeneratingVisualReport] = useState(false);
@@ -1389,6 +1416,7 @@ export function BrandGrowthWorkspace() {
     setXiaohongshuMarketingPlanWorkspace(cachedSnapshot.xiaohongshuMarketingPlanWorkspace);
     setMarketingCalendarWorkspace(cachedSnapshot.marketingCalendarWorkspace);
     setDouyinTopicLibraryWorkspace(cachedSnapshot.douyinTopicLibraryWorkspace || douyinHotTopicCandidatesSeed);
+    setOpenClawLobsterDiaryWorkspace(cachedSnapshot.openClawLobsterDiaryWorkspace || createEmptyOpenClawLobsterDiaryWorkspace());
     setLoadedScopes((current) => (current.report ? current : { ...current, report: true }));
   }, []);
 
@@ -1570,6 +1598,7 @@ export function BrandGrowthWorkspace() {
       xiaohongshuMarketingPlanWorkspace,
       marketingCalendarWorkspace,
       douyinTopicLibraryWorkspace,
+      openClawLobsterDiaryWorkspace,
     });
   }, [
     activeBrandId,
@@ -1582,6 +1611,7 @@ export function BrandGrowthWorkspace() {
     visualReportWorkspace,
     xiaohongshuMarketingPlanWorkspace,
     douyinTopicLibraryWorkspace,
+    openClawLobsterDiaryWorkspace,
   ]);
 
   async function loadArchive(options?: { targetPage?: StrategyPageKey; force?: boolean }) {
@@ -1725,6 +1755,7 @@ export function BrandGrowthWorkspace() {
           xiaohongshuMarketingPlanResult,
           marketingCalendarResult,
           douyinTopicLibraryResult,
+          openClawLobsterDiaryResult,
         ] = await Promise.allSettled([
           getXiaohongshuCollectionWorkspace(resolvedActiveBrandId),
           getGrowthReportWorkspace(resolvedActiveBrandId),
@@ -1734,6 +1765,7 @@ export function BrandGrowthWorkspace() {
           getXiaohongshuMarketingPlanWorkspace(resolvedActiveBrandId),
           getXiaohongshuMarketingCalendarWorkspace(resolvedActiveBrandId),
           getDouyinHotTopicCandidatesWorkspace(resolvedActiveBrandId),
+          getOpenClawLobsterDiaryWorkspace(resolvedActiveBrandId),
         ]);
 
         if (collectionResult.status === "fulfilled") {
@@ -1782,6 +1814,12 @@ export function BrandGrowthWorkspace() {
           setDouyinTopicLibraryWorkspace(douyinTopicLibraryResult.value);
         } else {
           partialFailures.push("选题库");
+        }
+
+        if (openClawLobsterDiaryResult.status === "fulfilled") {
+          setOpenClawLobsterDiaryWorkspace(openClawLobsterDiaryResult.value);
+        } else {
+          partialFailures.push("龙虾日记");
         }
 
         setLoadedScopes((current) => ({ ...current, report: true }));
@@ -3122,6 +3160,29 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     }
   }
 
+  async function handleDeleteOpenClawDiary(diaryId: string) {
+    if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.report.topicLibrary"]?.edit) {
+      setErrorMessage("当前账号没有删除龙虾日记的权限。");
+      return;
+    }
+    if (!diaryId) {
+      return;
+    }
+
+    setDeletingOpenClawLobsterDiaryId(diaryId);
+    clearMessages();
+    try {
+      const response = await deleteOpenClawLobsterDiary(diaryId, activeBrandId || archive.brand.id);
+      setOpenClawLobsterDiaryWorkspace(response.workspace);
+      setNotice("已删除龙虾日记。");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "删除失败";
+      setErrorMessage(`删除龙虾日记失败：${message}`);
+    } finally {
+      setDeletingOpenClawLobsterDiaryId("");
+    }
+  }
+
   async function handleAddWechatBenchmarkArticleToMaterial(articleId: string) {
     if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.collection.wechatMpCollection"]?.edit) {
       setErrorMessage("当前账号没有编辑公众号收集数据的权限。");
@@ -4111,6 +4172,24 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
           }}
           formatDateTime={formatDateTime}
           formatCount={formatCount}
+        />
+      );
+    }
+
+    if (activePage === "openclawLobsterDiary") {
+      return (
+        <OpenClawLobsterDiaryWorkspace
+          sectionLabel={currentPage.label}
+          sectionDescription={currentPage.description}
+          isLoading={isHydrating}
+          canDelete={hasCurrentPageEditPermission}
+          items={openClawLobsterDiaryWorkspace.items}
+          deletingDiaryId={deletingOpenClawLobsterDiaryId}
+          onRefresh={async () => {
+            await loadArchive({ targetPage: activePage, force: true });
+          }}
+          onDelete={handleDeleteOpenClawDiary}
+          formatDateTime={formatDateTime}
         />
       );
     }

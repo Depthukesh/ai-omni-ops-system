@@ -11,14 +11,16 @@ import { WorksModule } from "../works/works.module";
 import { OpenClawController } from "./openclaw.controller";
 import { OpenClawInstallationController } from "./openclaw-installation.controller";
 import { OpenClawInstallationService } from "./openclaw-installation.service";
+import { OpenClawLobsterDiaryController } from "./openclaw-lobster-diary.controller";
+import { OpenClawLobsterDiaryService } from "./openclaw-lobster-diary.service";
 import { OpenClawService } from "./openclaw.service";
 import { OrdersModule } from "../orders/orders.module";
 import { ThirdPartyPlatformsModule } from "../third-party-platforms/third-party-platforms.module";
 
 @Module({
   imports: [AuthModule, TasksModule, BrandsModule, ReportsModule, UserSkillsModule, WorksModule, CollectorsModule, FeedbackModule, PublishingModule, ThirdPartyPlatformsModule, OrdersModule],
-  controllers: [OpenClawController, OpenClawInstallationController],
-  providers: [OpenClawService, OpenClawInstallationService],
-  exports: [OpenClawService, OpenClawInstallationService],
+  controllers: [OpenClawController, OpenClawInstallationController, OpenClawLobsterDiaryController],
+  providers: [OpenClawService, OpenClawInstallationService, OpenClawLobsterDiaryService],
+  exports: [OpenClawService, OpenClawInstallationService, OpenClawLobsterDiaryService],
 })
 export class OpenClawModule {}

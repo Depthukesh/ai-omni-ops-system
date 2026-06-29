@@ -15,6 +15,7 @@ import {
 } from "../collectors/collectors.service";
 import { FeedbackService } from "../feedback/feedback.service";
 import { OpenClawInstallationService } from "./openclaw-installation.service";
+import { OpenClawLobsterDiaryService } from "./openclaw-lobster-diary.service";
 import { OrdersService } from "../orders/orders.service";
 import { PublishingService } from "../publishing/publishing.service";
 import { ReportsService } from "../reports/reports.service";
@@ -1552,6 +1553,43 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
     },
   },
   {
+    name: "get_openclaw_lobster_diaries",
+    description: "查看当前品牌 OpenClaw 专区下的龙虾日记列表。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        limit: { type: "integer", minimum: 1, maximum: 100 },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "create_openclaw_lobster_diary",
+    description: "为当前品牌创建一篇龙虾日记，供 OpenClaw 专区查看。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        diaryDate: { type: "string", description: "日期，格式为 YYYY-MM-DD。" },
+        title: { type: "string", description: "日记标题。" },
+        content: { type: "string", description: "日记正文内容。" },
+      },
+      required: ["diaryDate", "title", "content"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "delete_openclaw_lobster_diary",
+    description: "删除一篇龙虾日记。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        diaryId: { type: "string", description: "龙虾日记 ID。" },
+      },
+      required: ["diaryId"],
+      additionalProperties: false,
+    },
+  },
+  {
     name: "create_xiaohongshu_rewrite_note",
     description: "基于素材库中的对标作品触发小红书二创图文生成。",
     inputSchema: {
@@ -1728,6 +1766,7 @@ export class OpenClawService {
     private readonly userSkillsService: UserSkillsService,
     private readonly worksService: WorksService,
     private readonly openClawInstallationService: OpenClawInstallationService,
+    private readonly openClawLobsterDiaryService: OpenClawLobsterDiaryService,
   ) {}
 
   async getCurrentBrandContext(headers: HeadersMap) {
@@ -5266,6 +5305,100 @@ export class OpenClawService {
         })),
       },
       links: [{ label: "打开小红书工作区", url: "/xiaohongshu" }],
+    });
+  }
+
+  async getOpenClawLobsterDiaries(
+    headers: HeadersMap,
+    options?: {
+      limit?: number;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "view", auth);
+
+    const workspace = await this.openClawLobsterDiaryService.listWorkspace(brandId, options?.limit);
+    const items = workspace.items.slice(0, this.normalizeLimit(options?.limit));
+
+    return this.buildSummaryResponse({
+      title: "龙虾日记",
+      summary: workspace.total
+        ? `当前品牌 OpenClaw 专区共有 ${workspace.total} 篇龙虾日记。`
+        : "当前品牌还没有龙虾日记，OpenClaw Agent 可先创建首篇日记。",
+      highlights: items.length
+        ? items.slice(0, 5).map((item) => `${item.diaryDate}｜${item.title}`)
+        : ["日记数：0"],
+      data: {
+        total: workspace.total,
+        items,
+      },
+      links: [{ label: "打开品牌增长工作台", url: "/brand-growth" }],
+      resourceKind: "openclaw_lobster_diary",
+    });
+  }
+
+  async createOpenClawLobsterDiary(
+    headers: HeadersMap,
+    options?: {
+      diaryDate?: string;
+      title?: string;
+      content?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "edit", auth);
+
+    const item = await this.openClawLobsterDiaryService.createDiary({
+      brandId,
+      createdByUserId: auth.userId,
+      diaryDate: options?.diaryDate,
+      title: options?.title,
+      content: options?.content,
+    });
+
+    return this.buildSummaryResponse({
+      title: "龙虾日记已创建",
+      summary: `已创建 ${item.diaryDate} 的龙虾日记《${item.title}》。`,
+      highlights: [
+        `日期：${item.diaryDate}`,
+        `标题：${item.title}`,
+      ],
+      data: item,
+      links: [{ label: "打开品牌增长工作台", url: "/brand-growth" }],
+      resourceKind: "openclaw_lobster_diary",
+      resultStatus: "COMPLETED",
+    });
+  }
+
+  async deleteOpenClawLobsterDiary(
+    headers: HeadersMap,
+    options?: {
+      diaryId?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "edit", auth);
+    const diaryId = String(options?.diaryId || "").trim();
+    if (!diaryId) {
+      throw new BadRequestException("请提供 diaryId");
+    }
+
+    const item = await this.openClawLobsterDiaryService.deleteDiary(brandId, diaryId);
+
+    return this.buildSummaryResponse({
+      title: "龙虾日记已删除",
+      summary: `已删除龙虾日记《${item.title}》。`,
+      highlights: [
+        `日期：${item.diaryDate}`,
+        `日记 ID：${item.id}`,
+      ],
+      data: item,
+      links: [{ label: "打开品牌增长工作台", url: "/brand-growth" }],
+      resourceKind: "openclaw_lobster_diary",
+      resultStatus: "COMPLETED",
     });
   }
 
@@ -9131,6 +9264,20 @@ export class OpenClawService {
       case "get_recent_xiaohongshu_original_works":
         return this.getRecentXiaohongshuOriginalWorks(headers, {
           limit: typeof toolArgs.limit === "number" ? toolArgs.limit : undefined,
+        });
+      case "get_openclaw_lobster_diaries":
+        return this.getOpenClawLobsterDiaries(headers, {
+          limit: typeof toolArgs.limit === "number" ? toolArgs.limit : undefined,
+        });
+      case "create_openclaw_lobster_diary":
+        return this.createOpenClawLobsterDiary(headers, {
+          diaryDate: typeof toolArgs.diaryDate === "string" ? toolArgs.diaryDate : undefined,
+          title: typeof toolArgs.title === "string" ? toolArgs.title : undefined,
+          content: typeof toolArgs.content === "string" ? toolArgs.content : undefined,
+        });
+      case "delete_openclaw_lobster_diary":
+        return this.deleteOpenClawLobsterDiary(headers, {
+          diaryId: typeof toolArgs.diaryId === "string" ? toolArgs.diaryId : undefined,
         });
       case "get_latest_brand_growth_report_summary":
         return this.getLatestBrandGrowthReportSummary(headers);
