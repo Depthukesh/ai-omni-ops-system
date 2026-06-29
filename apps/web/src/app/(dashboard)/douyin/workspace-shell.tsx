@@ -1303,14 +1303,14 @@ export function DouyinWorkspaceShell() {
   }, [latestHotTopicResult?.id, latestHotTopicResult?.generatedAt, latestHotTopicResult?.items]);
 
   useEffect(() => {
-    if (!materialWorks.length) {
+    if (!unifiedMaterialOptions.length) {
       setSelectedMaterialId("");
       return;
     }
-    if (!materialWorks.some((item) => item.id === selectedMaterialId)) {
-      setSelectedMaterialId(materialWorks[0]?.id || "");
+    if (!unifiedMaterialOptions.some((item) => item.id === selectedMaterialId)) {
+      setSelectedMaterialId(unifiedMaterialOptions[0]?.id || "");
     }
-  }, [materialWorks, selectedMaterialId]);
+  }, [selectedMaterialId, unifiedMaterialOptions]);
 
   useEffect(() => {
     if (!isTaskActive) {
