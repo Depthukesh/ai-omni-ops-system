@@ -2869,7 +2869,7 @@ type WechatHtmlGenerationModelResult = {
   attemptTrail: string[];
 };
 
-type ImagePromptMode = "social_graphic" | "video_storyboard";
+type ImagePromptMode = "social_graphic" | "video_storyboard" | "wechat_graphic";
 
 type ImageProviderConfig = ThirdPartyChatConfig & {
   provider: "IMAGE_API";
@@ -7418,7 +7418,7 @@ export class WorksService {
           executionPrompt: "",
           prompt: coverPrompt,
           referenceImageUrls: [],
-          promptMode: "social_graphic",
+          promptMode: "wechat_graphic",
           imageSizeOverride: coverImageSize,
           attemptTimeoutMs: WECHAT_IMAGE_MODEL_ATTEMPT_TIMEOUT_MS,
           pollTotalTimeoutMs: WECHAT_IMAGE_POLL_TOTAL_TIMEOUT_MS,
@@ -7476,7 +7476,7 @@ export class WorksService {
             executionPrompt: "",
             prompt: bodyPrompts[index] || "",
             referenceImageUrls: [],
-            promptMode: "social_graphic",
+            promptMode: "wechat_graphic",
             imageSizeOverride: bodyImageSize,
             attemptTimeoutMs: WECHAT_IMAGE_MODEL_ATTEMPT_TIMEOUT_MS,
             pollTotalTimeoutMs: WECHAT_IMAGE_POLL_TOTAL_TIMEOUT_MS,
@@ -27335,6 +27335,24 @@ export class WorksService {
         "必须严格按提示词中的角色、场景、动作、镜头关系和情绪出图，优先保证叙事一致性，不能只保留泛化氛围。",
         "如果输入中带有参考图，必须继承角色外观、构图、机位、光线和连续性，避免换脸、换服装、换场景。",
         "输出应接近电影分镜或关键帧画面，突出主体、动作瞬间、景别和镜头语言，避免做成电商海报或封面排版图。",
+      ]
+        .filter(Boolean)
+        .join("\n");
+    }
+    if (promptMode === "wechat_graphic") {
+      const aspectRatio = imageSizeOverride?.apiz || "16:9";
+      const pixelSize = imageSizeOverride?.openai || "1600x900";
+      const isLandscape = aspectRatio === "16:9" || aspectRatio === "4:3";
+      const orientationText = isLandscape ? "横版" : aspectRatio === "1:1" ? "正方形" : "竖版";
+      return [
+        executionPrompt?.trim() || "",
+        "",
+        prompt.trim(),
+        "",
+        `补充强制要求：这是公众号${role === "COVER" ? "封面图" : `正文配图${order + 1}`}，生成纯视觉图片，不要在画面中排版中文标题或标签。`,
+        `画面必须为${orientationText}比例，严格按 ${pixelSize}（宽${aspectRatio.split(":")[0]}:高${aspectRatio.split(":")[1]}）构图，禁止输出其他比例。`,
+        "画面要简洁干净，突出主视觉和品牌感，不要堆砌文字、标签或按钮元素。",
+        "如果输入中带有参考图，必须显著继承其构图、视角、主体摆位、光线和留白关系，不能只保留泛化氛围。",
       ]
         .filter(Boolean)
         .join("\n");
