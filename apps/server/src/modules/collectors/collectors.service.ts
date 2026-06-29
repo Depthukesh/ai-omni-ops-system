@@ -7594,14 +7594,14 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       try {
         const statsBody: Record<string, unknown> = { url: article.url, raw: false };
         const statsRaw = await this.fetchTikHubPost("/api/v1/wechat_mp/v2/fetch_article_stats", statsBody, brandId);
-        const statsData = this.asMeta(this.asMeta(statsRaw).data);
-        article.readNum = this.readMetaNumber(statsData, "read_num") || undefined;
-        article.likeCount = this.readMetaNumber(statsData, "like_count") || undefined;
-        article.oldLikeCount = this.readMetaNumber(statsData, "old_like_count") || undefined;
-        article.shareCount = this.readMetaNumber(statsData, "share_count") || undefined;
-        article.collectCount = this.readMetaNumber(statsData, "collect_count") || undefined;
-        article.commentCount = this.readMetaNumber(statsData, "comment_count") || undefined;
-        article.starNum = this.readMetaNumber(statsData, "star_num") || undefined;
+        const stats = this.extractWechatArticleStats(statsRaw);
+        article.readNum = stats.readNum;
+        article.likeCount = stats.likeCount;
+        article.oldLikeCount = stats.oldLikeCount;
+        article.shareCount = stats.shareCount;
+        article.collectCount = stats.collectCount;
+        article.commentCount = stats.commentCount;
+        article.starNum = stats.starNum;
         article.statsUpdatedAt = new Date().toISOString();
         // 更新已存储的 metadata
         const statsAssets = await this.listCollectorAssets(brandId);
@@ -7654,16 +7654,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       raw: false,
     };
     const raw = await this.fetchTikHubPost("/api/v1/wechat_mp/v2/fetch_article_stats", body, brandId);
-    const data = this.asMeta(this.asMeta(raw).data);
-    const stats = {
-      readNum: this.readMetaNumber(data, "read_num"),
-      likeCount: this.readMetaNumber(data, "like_count"),
-      oldLikeCount: this.readMetaNumber(data, "old_like_count"),
-      shareCount: this.readMetaNumber(data, "share_count"),
-      collectCount: this.readMetaNumber(data, "collect_count"),
-      commentCount: this.readMetaNumber(data, "comment_count"),
-      starNum: this.readMetaNumber(data, "star_num"),
-    };
+    const stats = this.extractWechatArticleStats(raw);
     // 找到对应的文章 asset 并更新
     const assets = await this.listCollectorAssets(brandId);
     const target = assets.find((asset) => {
@@ -7836,15 +7827,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       raw: false,
     };
     const raw = await this.fetchTikHubPost("/api/v1/wechat_mp/v2/fetch_article_stats", body, brandId);
-    const data = this.asMeta(this.asMeta(raw).data);
-    const stats = {
-      readNum: this.readMetaNumber(data, "read_num"),
-      likeCount: this.readMetaNumber(data, "like_count"),
-      shareCount: this.readMetaNumber(data, "share_count"),
-      collectCount: this.readMetaNumber(data, "collect_count"),
-      commentCount: this.readMetaNumber(data, "comment_count"),
-      starNum: this.readMetaNumber(data, "star_num"),
-    };
+    const stats = this.extractWechatArticleStats(raw);
     // 找到对应的对标文章 asset
     const assets = await this.listCollectorAssets(brandId);
     const target = assets.find((asset) => {
@@ -8100,15 +8083,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       raw: false,
     };
     const raw = await this.fetchTikHubPost("/api/v1/wechat_mp/v2/fetch_article_stats", body, brandId);
-    const data = this.asMeta(this.asMeta(raw).data);
-    const stats = {
-      readNum: this.readMetaNumber(data, "read_num"),
-      likeCount: this.readMetaNumber(data, "like_count"),
-      shareCount: this.readMetaNumber(data, "share_count"),
-      collectCount: this.readMetaNumber(data, "collect_count"),
-      commentCount: this.readMetaNumber(data, "comment_count"),
-      starNum: this.readMetaNumber(data, "star_num"),
-    };
+    const stats = this.extractWechatArticleStats(raw);
     // 找到对应的搜索结果 asset
     const assets = await this.listCollectorAssets(brandId);
     const target = assets.find((asset) => {
@@ -8141,6 +8116,18 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     const item = this.mapWechatSearchItem(updated);
     const workspace = await this.getWechatSearchWorkspace(brandId);
     return { item, workspace };
+  }
+
+  private extractWechatArticleStats(raw: unknown) {
+    return {
+      readNum: this.pickNumber(raw, ["read_num", "readNum", "read_count", "readCount", "int_page_read_count", "page_read_count"]),
+      likeCount: this.pickNumber(raw, ["like_count", "likeCount", "like_num", "liked_count", "likedCount"]),
+      oldLikeCount: this.pickNumber(raw, ["old_like_count", "oldLikeCount", "old_like_num"]),
+      shareCount: this.pickNumber(raw, ["share_count", "shareCount", "shared_count", "share_num"]),
+      collectCount: this.pickNumber(raw, ["collect_count", "collectCount", "collected_count", "collect_num"]),
+      commentCount: this.pickNumber(raw, ["comment_count", "commentCount", "comments_count", "comment_num"]),
+      starNum: this.pickNumber(raw, ["star_num", "starNum", "star_count", "favorite_count"]),
+    };
   }
 
   // ─── 删除方法 ───

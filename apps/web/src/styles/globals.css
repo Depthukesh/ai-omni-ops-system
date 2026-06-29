@@ -4648,11 +4648,15 @@ button {
 }
 
 .douyin-data-table tbody tr {
-  height: 76px;
+  height: 80px;
+  max-height: 80px;
 }
 
-.douyin-data-table tbody td {
+.douyin-data-table tbody td:not([colspan]) {
   position: relative;
+  height: 80px;
+  max-height: 80px;
+  overflow: hidden;
 }
 
 .table-cell-wide {
@@ -4765,6 +4769,24 @@ button {
 .wechat-mp-article-cell {
   position: relative;
   max-width: 280px;
+}
+
+.wechat-mp-title-cell {
+  max-width: 280px;
+}
+
+.wechat-mp-title-text {
+  display: -webkit-box;
+  width: 100%;
+  overflow: hidden;
+  color: var(--site-hero-text);
+  font-size: 12px;
+  line-height: 1.45;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  text-overflow: ellipsis;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
 }
 
 .wechat-mp-article-cell .table-text-shell {

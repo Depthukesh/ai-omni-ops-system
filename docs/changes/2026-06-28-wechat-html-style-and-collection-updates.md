@@ -24,13 +24,13 @@
 - `apps/web/src/app/(dashboard)/brand-growth/collection-workspace.tsx`：视频文案复制增加 CopyToastPortal 浮动弹窗
 - `apps/web/src/services/works.ts`：WechatHtmlStyleConfig 类型简化为 { styleType } 单字段
 - `apps/web/src/services/collectors.ts`：新增公众号采集和对标作品相关 API 函数和类型
-- `apps/web/src/styles/globals.css`：新增 copy-toast 样式和 wechat-mp-article-table-shell 固定高度样式
+- `apps/web/src/styles/globals.css`：新增 copy-toast 样式和 wechat-mp-article-table-shell 固定高度样式，并补充收集数据表格 80px 行高约束与公众号标题多行截断
 
 ### 3.2 后端
 
 - `apps/server/src/modules/admin/skills-prompts.service.ts`：删除旧 prompt_wechat_html_render 常量和绑定，新增 4 个排版技能提示词常量、绑定和 backfill 方法
 - `apps/server/src/modules/works/works.service.ts`：WechatHtmlStyleConfig 简化为 { styleType }，generateWechatHtmlByModel 根据 styleType 动态选择 promptId
-- `apps/server/src/modules/collectors/collectors.service.ts`：新增公众号采集方法（品牌账号绑定、文章列表获取、GLM reader 读取正文、TikHub stats 更新、微信搜一搜）
+- `apps/server/src/modules/collectors/collectors.service.ts`：新增公众号采集方法（品牌账号绑定、文章列表获取、GLM reader 读取正文、TikHub stats 更新、微信搜一搜），并增强 fetch_article_stats 的深层字段解析兼容性
 - `apps/server/src/modules/collectors/collectors.controller.ts`：新增 WechatMpCollectorsController（公众号采集+对标作品+搜一搜路由）
 - `apps/server/src/modules/collectors/collectors.module.ts`：注册新 controller
 - `apps/server/src/common/mock-data.ts`：新增 4 个 prompt 种子和 4 个 skill 种子
@@ -47,8 +47,10 @@
 
 - 简化公众号排版体验：从 6 个参数的复杂选择简化为一键选择排版风格
 - 排版技能提示词从文件自动入库：通过 mock-data.ts 种子 + prompt-source-loader.ts 文件路径 + backfill 方法三层保障
-- 公众号采集链路完整：品牌账号绑定 → TikHub 获取文章列表（raw=true 提取阅读量/点赞数）→ GLM reader 读取正文 → TikHub fetch_article_stats 更新互动数据
+- 公众号采集链路完整：品牌账号绑定 → TikHub 获取文章列表 → GLM reader 读取正文 → TikHub fetch_article_stats 更新阅读量、点赞数等互动数据
 - 微信搜一搜：关键词搜索 + 类型/排序/时间筛选 + 翻页 + GLM reader 读正文 + TikHub stats 更新
+- 收集数据表格高度约束补强：不仅锁定 `tr/td` 为 80px，也对公众号标题单元格增加 3 行截断，避免长标题继续撑高整行
+- 公众号互动数据兼容性补强：`fetch_article_stats` 统一使用深层多键名数值提取，兼容返回体中的嵌套结构与字符串数值
 
 ## 5. 影响范围
 

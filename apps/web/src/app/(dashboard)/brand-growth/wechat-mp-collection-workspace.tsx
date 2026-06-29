@@ -774,7 +774,9 @@ function WechatSearchPanel(props: WechatSearchPanelProps) {
                       <td>
                         <input type="checkbox" checked={isChecked} onChange={(event) => props.onToggle(item.id, event.target.checked)} />
                       </td>
-                      <td><span className="note-data-link" title={item.title}>{item.title || "-"}</span></td>
+                      <td className="wechat-mp-title-cell">
+                        <span className="wechat-mp-title-text" title={item.title}>{item.title || "-"}</span>
+                      </td>
                       <td>{item.url ? <a href={item.url} target="_blank" rel="noopener noreferrer" className="note-data-link">查看</a> : <span>-</span>}</td>
                       <td className="wechat-mp-article-cell">
                         {hasContent ? (
@@ -842,7 +844,9 @@ function WechatMpArticleTable(props: {
             const hasContent = Boolean(article.articleContent?.trim());
             return (
               <tr key={article.id}>
-                <td><span className="note-data-link" title={article.digest || undefined}>{article.title || "-"}</span></td>
+                <td className="wechat-mp-title-cell">
+                  <span className="wechat-mp-title-text" title={article.digest || undefined}>{article.title || "-"}</span>
+                </td>
                 <td>{article.url ? <a href={article.url} target="_blank" rel="noopener noreferrer" className="note-data-link">查看</a> : <span>-</span>}</td>
                 <td className="wechat-mp-article-cell">
                   {hasContent ? (
@@ -957,7 +961,9 @@ function BenchmarkWorkPanel(props: BenchmarkWorkPanelProps) {
                       <td>
                         <input type="checkbox" checked={isChecked} onChange={(event) => props.onToggle(article.id, event.target.checked)} />
                       </td>
-                      <td><span className="note-data-link" title={article.title}>{article.title || "-"}</span></td>
+                      <td className="wechat-mp-title-cell">
+                        <span className="wechat-mp-title-text" title={article.title}>{article.title || "-"}</span>
+                      </td>
                       <td>{article.url ? <a href={article.url} target="_blank" rel="noopener noreferrer" className="note-data-link">查看</a> : <span>-</span>}</td>
                       <td className="wechat-mp-article-cell">
                         {hasContent ? (
