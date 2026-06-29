@@ -9722,7 +9722,7 @@ export class WorksService {
   ) {
     const sourceMaterialId = payload.sourceMaterialId?.trim();
     if (!sourceMaterialId) {
-      throw new BadRequestException("请选择一个素材库作品，再开始二创。");
+      throw new BadRequestException("请选择一个统一素材库作品，再开始二创。");
     }
 
     const archive = await this.brandsService.getArchive(brandId);
@@ -9733,12 +9733,9 @@ export class WorksService {
       throw new BadRequestException("请先生成小红书营销策划方案，再创作二创笔记。");
     }
 
-    const collectionWorkspace = await this.collectorsService.getXiaohongshuWorkspace(brandId);
-    const sourceMaterial = collectionWorkspace.benchmarkNotes.find(
-      (item) => item.id === sourceMaterialId && item.isInMaterialLibrary,
-    );
+    const sourceMaterial = await this.collectorsService.findUnifiedMaterialLibraryItem(brandId, sourceMaterialId);
     if (!sourceMaterial) {
-      throw new BadRequestException("未找到你选择的素材库作品，请先确认该作品已加入素材库。");
+      throw new BadRequestException("未找到你选择的素材库作品，请先确认该作品已加入统一素材库。");
     }
 
     const selectedProduct = payload.productId
@@ -17766,17 +17763,16 @@ export class WorksService {
       : undefined;
     let material: ResolvedVideoComposerContext["material"];
     if (payload.materialId?.trim()) {
-      const workspace = await this.collectorsService.getXiaohongshuWorkspace(brandId);
-      const target = workspace.benchmarkNotes.find((item) => item.id === payload.materialId?.trim() && item.isInMaterialLibrary);
+      const target = await this.collectorsService.findUnifiedMaterialLibraryItem(brandId, payload.materialId?.trim());
       if (!target) {
-        throw new BadRequestException("未找到你选择的素材库作品，请确认该素材已加入素材库。");
+        throw new BadRequestException("未找到你选择的素材库作品，请确认该素材已加入统一素材库。");
       }
       material = {
         id: target.id,
         title: target.title,
         description: target.description || undefined,
-        noteUrl: target.noteUrl || undefined,
-        sourceUrl: target.sourceUrl || undefined,
+        noteUrl: target.detailUrl || undefined,
+        sourceUrl: target.sourceUrl || target.detailUrl || undefined,
         videoUrl: target.videoUrl || "",
       };
     }
@@ -17853,20 +17849,19 @@ export class WorksService {
       : undefined;
     let material: ResolvedVideoComposerContext["material"];
     if (payload.materialId?.trim()) {
-      const workspace = await this.collectorsService.getDouyinWorkspace(brandId);
-      const target = this.findDouyinMaterialLibraryWork(workspace, payload.materialId);
+      const target = await this.collectorsService.findUnifiedMaterialLibraryItem(brandId, payload.materialId);
       if (!target) {
-        throw new BadRequestException("未找到你选择的抖音素材，请确认该作品已加入抖音素材库。");
+        throw new BadRequestException("未找到你选择的素材，请确认该作品已加入统一素材库。");
       }
       if (videoKind === "REMIX" && !target.videoUrl) {
-        throw new BadRequestException("复刻视频必须选择视频类型素材，请重新选择抖音素材库中的视频素材。");
+        throw new BadRequestException("复刻视频必须选择带视频链接的素材，请重新选择统一素材库中的视频素材。");
       }
       material = {
         id: target.id,
         title: target.title,
         description: target.description || undefined,
-        noteUrl: target.workUrl || undefined,
-        sourceUrl: target.videoUrl || target.workUrl || undefined,
+        noteUrl: target.detailUrl || undefined,
+        sourceUrl: target.sourceUrl || target.detailUrl || undefined,
         videoUrl: target.videoUrl || "",
       };
     } else if (videoKind === "REMIX") {
@@ -17946,20 +17941,19 @@ export class WorksService {
       : undefined;
     let material: ResolvedVideoComposerContext["material"];
     if (payload.materialId?.trim()) {
-      const workspace = await this.collectorsService.getDouyinWorkspace(brandId);
-      const target = this.findDouyinMaterialLibraryWork(workspace, payload.materialId);
+      const target = await this.collectorsService.findUnifiedMaterialLibraryItem(brandId, payload.materialId);
       if (!target) {
-        throw new BadRequestException("未找到你选择的抖音素材，请确认该作品已加入抖音素材库。");
+        throw new BadRequestException("未找到你选择的素材，请确认该作品已加入统一素材库。");
       }
       if (videoKind === "REMIX" && !target.videoUrl) {
-        throw new BadRequestException("复刻视频必须选择视频类型素材，请重新选择抖音素材库中的视频素材。");
+        throw new BadRequestException("复刻视频必须选择带视频链接的素材，请重新选择统一素材库中的视频素材。");
       }
       material = {
         id: target.id,
         title: target.title,
         description: target.description || undefined,
-        noteUrl: target.workUrl || undefined,
-        sourceUrl: target.videoUrl || target.workUrl || undefined,
+        noteUrl: target.detailUrl || undefined,
+        sourceUrl: target.sourceUrl || target.detailUrl || undefined,
         videoUrl: target.videoUrl || "",
       };
     } else if (videoKind === "REMIX") {
@@ -18050,19 +18044,18 @@ export class WorksService {
       videoUrl?: string;
     } | undefined;
     if (sourceMaterialId) {
-      const workspace = await this.collectorsService.getDouyinWorkspace(brandId);
-      const target = this.findDouyinMaterialLibraryWork(workspace, sourceMaterialId);
+      const target = await this.collectorsService.findUnifiedMaterialLibraryItem(brandId, sourceMaterialId);
       if (!target) {
-        throw new BadRequestException("未找到你选择的抖音素材，请确认该作品已加入抖音素材库。");
+        throw new BadRequestException("未找到你选择的素材，请确认该作品已加入统一素材库。");
       }
       if (!target.videoUrl) {
-        throw new BadRequestException("复刻短视频必须选择带视频链接的抖音素材，请重新选择。");
+        throw new BadRequestException("复刻短视频必须选择带视频链接的素材，请重新选择统一素材库中的视频素材。");
       }
       selectedMaterial = {
         id: target.id,
         title: target.title,
         description: target.description || undefined,
-        workUrl: target.workUrl || undefined,
+        workUrl: target.detailUrl || undefined,
         videoUrl: target.videoUrl || undefined,
       };
     }
@@ -18071,7 +18064,7 @@ export class WorksService {
       || undefined;
     const sourceVideoUrl = persistedSourceVideo?.url || selectedMaterial?.videoUrl || sourceMaterialUrl;
     if (!sourceVideoUrl) {
-      throw new BadRequestException("请先从抖音素材库选择一个短视频素材，或上传一个短视频文件。");
+      throw new BadRequestException("请先从统一素材库选择一个短视频素材，或上传一个短视频文件。");
     }
     const requestedVideoProvider = await this.resolveVideoProviderWithoutReferenceFallback(
       brandId,
@@ -18115,36 +18108,6 @@ export class WorksService {
       sourceDurationSec,
       injectBrandProfile,
     };
-  }
-
-  private listDouyinMaterialLibraryWorks(workspace: Awaited<ReturnType<CollectorsService["getDouyinWorkspace"]>>) {
-    const deduped = new Map<string, (typeof workspace.benchmarkWorks)[number]>();
-    [
-      ...workspace.competitorWorks,
-      ...workspace.benchmarkWorks,
-      ...workspace.searchWorks,
-      ...workspace.lowFanExplosiveWorks,
-      ...workspace.highCompletionRateWorks,
-      ...workspace.highLikeRateWorks,
-    ]
-      .filter((item) => item.isInMaterialLibrary)
-      .forEach((item) => {
-        if (!deduped.has(item.id)) {
-          deduped.set(item.id, item);
-        }
-      });
-    return Array.from(deduped.values());
-  }
-
-  private findDouyinMaterialLibraryWork(
-    workspace: Awaited<ReturnType<CollectorsService["getDouyinWorkspace"]>>,
-    materialId?: string | null,
-  ) {
-    const normalizedMaterialId = String(materialId || "").trim();
-    if (!normalizedMaterialId) {
-      return undefined;
-    }
-    return this.listDouyinMaterialLibraryWorks(workspace).find((item) => item.id === normalizedMaterialId);
   }
 
   private async saveVideoWorkMetadataSnapshot(

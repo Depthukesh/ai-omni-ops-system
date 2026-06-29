@@ -217,7 +217,7 @@ export function DouyinRemixCopyWorkspace(props: DouyinRemixCopyWorkspaceProps) {
             <div>
               <strong>抖音二创文案</strong>
               <p className="panel-subtext" style={{ margin: 0 }}>
-                基于素材库视频、拆解结果和品牌资料，生成品牌独立存储的抖音二创文案。
+                基于统一素材库视频、拆解结果和品牌资料，生成品牌独立存储的抖音二创文案。
               </p>
             </div>
             <div className="report-editor-actions">
@@ -232,7 +232,7 @@ export function DouyinRemixCopyWorkspace(props: DouyinRemixCopyWorkspaceProps) {
           </div>
 
           {!props.materialOptions.length ? (
-            <div className="report-inline-tip">当前素材库还没有可用视频素材，请先在抖音素材库中加入带视频链接的素材。</div>
+            <div className="report-inline-tip">当前统一素材库还没有可用视频素材，请先把带视频链接的素材加入品牌增长策略 → 品牌增长报告 → 素材库。</div>
           ) : null}
 
           {props.latestTask?.phaseText ? (

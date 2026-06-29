@@ -23,7 +23,7 @@ export function RewriteCreateBasicFields(props: RewriteCreateBasicFieldsProps) {
         <select value={props.materialValue} onChange={(event) => props.onMaterialChange(event.target.value)}>
           {props.materials.map((item) => (
             <option key={item.id} value={item.id}>
-              {item.title}
+              {item.label || item.title}
             </option>
           ))}
         </select>

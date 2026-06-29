@@ -256,7 +256,7 @@ function RunningHubCreateDialog(props: {
                                 ))}
                               </select>
                               <small className="personal-meta">
-                                默认同步抖音素材库及已沉淀的视频作品；选择后会自动把视频链接作为参考视频参数提交。
+                                默认同步统一素材库及已沉淀的视频作品；选择后会自动把视频链接作为参考视频参数提交。
                               </small>
                             </label>
                             {selectedMaterial ? (

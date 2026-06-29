@@ -178,7 +178,7 @@ export function DouyinRemixShortVideoWorkspace(props: DouyinRemixShortVideoWorks
       return "当前还没有可用的生图大模型，请先刷新页面或检查生图模型配置。";
     }
     if (!sourceMaterialId && !sourceVideoFile) {
-      return "请先从抖音素材库选择一个短视频素材，或上传一个短视频文件。";
+      return "请先从统一素材库选择一个短视频素材，或上传一个短视频文件。";
     }
     if (injectMarketingPlanValue === "yes" && !props.hasMarketingPlan) {
       return "当前品牌还没有抖音营销策划方案；请先生成方案，或将“是否植入营销策划方案”改为“否”。";
@@ -632,16 +632,16 @@ export function DouyinRemixShortVideoWorkspace(props: DouyinRemixShortVideoWorks
         onCreate={handleCreate}
       >
         <label className="field-full">
-          <span>素材库（同步抖音-素材库）</span>
+          <span>素材库（统一素材库）</span>
           <select value={sourceMaterialId} onChange={(event) => setSourceMaterialId(event.target.value)}>
-            <option value="">不植入素材库，改为上传短视频</option>
+            <option value="">不植入统一素材库，改为上传短视频</option>
             {materialOptions.map((item) => (
               <option key={item.id} value={item.id}>
                 {item.label}
               </option>
             ))}
           </select>
-          <p className="panel-subtext">默认只展示已加入抖音素材库且带视频链接的素材；若不选，请至少上传一个短视频文件。</p>
+          <p className="panel-subtext">默认只展示统一素材库中带视频链接的素材；若不选，请至少上传一个短视频文件。</p>
         </label>
         <label>
           <span>是否植入品牌资料</span>

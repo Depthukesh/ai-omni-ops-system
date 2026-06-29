@@ -3820,7 +3820,7 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                 <div className="collection-result-head">
                   <div>
                     <h3>搜索笔记</h3>
-                    <p>调用 Tikhub 搜索笔记接口，按关键词检索小红书笔记，左侧素材库按钮可直接同步到小红书素材库。</p>
+                    <p>调用 Tikhub 搜索笔记接口，按关键词检索小红书笔记，左侧素材库按钮可直接同步到统一素材库。</p>
                   </div>
                   <button
                     type="button"
@@ -3844,7 +3844,7 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                 <div className="collection-result-head">
                   <div>
                     <h3>搜索笔记结果</h3>
-                    <p>调用 Tikhub 搜索笔记接口，结果结构与对标作品列表保持一致，可直接加入小红书素材库。</p>
+                    <p>调用 Tikhub 搜索笔记接口，结果结构与对标作品列表保持一致，可直接加入统一素材库。</p>
                   </div>
                   <span className={`archive-pill ${props.sortedSearchNotes.length ? "status-ready" : "status-pending"}`}>
                     已同步 {props.sortedSearchNotes.length} 条
@@ -4277,7 +4277,7 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                 <div className="collection-result-head">
                   <div>
                     <h3>搜索关键词结果</h3>
-                    <p>调用 TikHub 抖音综合搜索接口，返回关键词下的视频结果，支持加入抖音素材库。</p>
+                    <p>调用 TikHub 抖音综合搜索接口，返回关键词下的视频结果，支持加入统一素材库。</p>
                   </div>
                 </div>
                 {douyinPreviewItems.length ? (

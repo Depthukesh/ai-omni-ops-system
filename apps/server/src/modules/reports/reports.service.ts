@@ -2340,12 +2340,12 @@ export class ReportsService {
   }
 
   async getDouyinRemixCopyWorkspace(brandId: string): Promise<DouyinRemixCopyWorkspace> {
-    const [marketingPlanWorkspace, collectionWorkspace, archive] = await Promise.all([
+    const [marketingPlanWorkspace, unifiedMaterialLibraryItems, archive] = await Promise.all([
       this.getDouyinMarketingPlanWorkspace(brandId),
-      this.collectorsService.getDouyinWorkspace(brandId),
+      this.collectorsService.listUnifiedMaterialLibraryItems(brandId),
       this.brandsService.getArchive(brandId),
     ]);
-    const materialOptions = this.buildDouyinRemixMaterialOptions(collectionWorkspace);
+    const materialOptions = this.buildDouyinRemixMaterialOptions(unifiedMaterialLibraryItems);
     const productOptions = this.buildDouyinRemixProductOptions(archive.products);
     const hasMarketingPlan = Boolean(marketingPlanWorkspace.latest);
     const marketingPlanTitle = marketingPlanWorkspace.latest?.title;
@@ -10481,19 +10481,11 @@ ${normalizedMarkdown}`;
   }
 
   private buildDouyinRemixMaterialOptions(
-    collectionWorkspace: Awaited<ReturnType<CollectorsService["getDouyinWorkspace"]>>,
+    materialLibraryItems: Awaited<ReturnType<CollectorsService["listUnifiedMaterialLibraryItems"]>>,
   ): DouyinRemixCopyMaterialOption[] {
-    const sourceItems = [
-      ...collectionWorkspace.competitorWorks,
-      ...collectionWorkspace.benchmarkWorks,
-      ...collectionWorkspace.searchWorks,
-      ...collectionWorkspace.lowFanExplosiveWorks,
-      ...collectionWorkspace.highCompletionRateWorks,
-      ...collectionWorkspace.highLikeRateWorks,
-    ];
     const deduped = new Map<string, { option: DouyinRemixCopyMaterialOption; sortAt: string }>();
-    for (const item of sourceItems) {
-      if (!item?.isInMaterialLibrary || !item.videoUrl) {
+    for (const item of materialLibraryItems) {
+      if (!item?.videoUrl) {
         continue;
       }
       const id = String(item.id || "").trim();
@@ -10503,10 +10495,10 @@ ${normalizedMarkdown}`;
       deduped.set(id, {
         option: {
           id,
-          title: item.title?.trim() || item.description?.trim() || item.workId?.trim() || "素材视频",
+          title: `[${item.platformLabel}] ${item.title?.trim() || item.description?.trim() || "素材视频"}`,
           videoUrl: item.videoUrl,
           authorName: item.authorName?.trim() || undefined,
-          workUrl: item.workUrl?.trim() || undefined,
+          workUrl: item.detailUrl?.trim() || undefined,
         },
         sortAt: item.materialAddedAt || item.collectedAt || "",
       });

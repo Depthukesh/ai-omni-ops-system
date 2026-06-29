@@ -2,7 +2,6 @@
 
 import { useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { getStoredCurrentBrandId } from "../../../services/auth-session";
-import { type XhsCollectedNoteRecord } from "../../../services/collectors";
 import {
   generateXiaohongshuVideoWork,
   generateXiaohongshuOriginalWork,
@@ -13,7 +12,7 @@ import {
   type XiaohongshuRewriteWorkRecord,
   type XiaohongshuVideoWorkRecord,
 } from "../../../services/works";
-import { type CalendarOption, type ProductOption } from "./shared-types";
+import { type CalendarOption, type MaterialOption, type ProductOption } from "./shared-types";
 
 type OriginalComposerState = {
   calendarValue: string;
@@ -40,7 +39,7 @@ type RewriteComposerState = {
   injectMarketingPlanValue: string;
   additionalInstruction: string;
   closeModal: () => void;
-  resetComposer: (materials: XhsCollectedNoteRecord[], products: ProductOption[]) => void;
+  resetComposer: (materials: MaterialOption[], products: ProductOption[]) => void;
   cancelEdit: () => void;
   setWorks: Dispatch<SetStateAction<XiaohongshuRewriteWorkRecord[]>>;
   setSelectedWorkId: (workId: string) => void;
@@ -73,7 +72,7 @@ export function useWorkComposerActions(options: {
   brandId?: string;
   calendarItems: CalendarOption[];
   products: ProductOption[];
-  materialNotes: XhsCollectedNoteRecord[];
+  materialNotes: MaterialOption[];
   videoProviderOptions: VideoProviderOptionRecord[];
   storyboardImageModelOptions: StoryboardImageModelOptionRecord[];
   noProductOption: string;

@@ -33,6 +33,7 @@ import {
   renderMarkdownToHtml,
 } from "./markdown-render";
 import { OpportunityInsightStepInputModal } from "./opportunity-insight-step-input-modal";
+import { ReportMaterialLibraryWorkspace } from "./report-material-library-workspace";
 import { NoteCreateModalShell } from "../xiaohongshu/note-create-modal-shell";
 import { type NoteCreateModalCopy } from "../xiaohongshu/note-create-modal-copy";
 import type {
@@ -46,6 +47,7 @@ import {
 import {
   addDouyinBenchmarkWorkToMaterialLibrary,
   addBenchmarkNoteToMaterialLibrary,
+  buildUnifiedMaterialLibraryItems,
   extractDouyinWorkTranscript,
   getDouyinCollectionWorkspace,
   getXiaohongshuCommentReplies,
@@ -179,7 +181,8 @@ type StrategyPageKey =
   | "visualGrowthReport"
   | "annualMarketingPlan"
   | "xiaohongshuMarketingCalendar"
-  | "reportTopicLibrary";
+  | "reportTopicLibrary"
+  | "reportMaterialLibrary";
 type BrandGrowthLoadScope = "library" | "collection" | "report";
 type OpportunityInsightStep = 1 | 2 | 3;
 type OpportunityInsightStepModalState = {
@@ -279,6 +282,7 @@ const strategySections: Array<{
       { key: "annualMarketingPlan", label: "半年营销规划", description: "形成未来半年节奏、战役安排与重点营销规划。" },
       { key: "xiaohongshuMarketingCalendar", label: "营销日历", description: "基于品牌背景资料、机会洞察总报告和品牌增长报告生成品牌全平台营销日历。" },
       { key: "reportTopicLibrary", label: "选题库", description: "承接营销日历后的选题沉淀与热点选题管理，支持生成热点选题、勾选加入选题库和手动补充选题。" },
+      { key: "reportMaterialLibrary", label: "素材库", description: "统一归集小红书与抖音素材，供所有平台创作作品共用。" },
     ],
   },
 ];
@@ -303,6 +307,7 @@ const strategyPagePermissionMap: Record<StrategyPageKey, BrandPermissionKey> = {
   annualMarketingPlan: "brandGrowth.report.halfYearMarketingPlan",
   xiaohongshuMarketingCalendar: "xiaohongshu.calendar",
   reportTopicLibrary: "brandGrowth.report.topicLibrary",
+  reportMaterialLibrary: "brandGrowth.report.topicLibrary",
 };
 
 function cloneSeed(): BrandArchiveBundle {
@@ -1122,6 +1127,10 @@ export function BrandGrowthWorkspace() {
   const sortedBrandNotes = useMemo(
     () => sortByCollectedAtDesc(collectionWorkspace.brandNotes),
     [collectionWorkspace.brandNotes],
+  );
+  const unifiedMaterialLibraryItems = useMemo(
+    () => buildUnifiedMaterialLibraryItems(collectionWorkspace, douyinCollectionWorkspace),
+    [collectionWorkspace, douyinCollectionWorkspace],
   );
   const sortedBenchmarkNotes = useMemo(
     () => sortByCollectedAtDesc(collectionWorkspace.benchmarkNotes),
@@ -3029,7 +3038,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     try {
       const response = await addBenchmarkNoteToMaterialLibrary(assetId, activeBrandId || archive.brand.id);
       setCollectionWorkspace(response.workspace);
-      setNotice("已加入小红书素材库。");
+      setNotice("已加入统一素材库。");
     } catch (error) {
       const message = error instanceof Error ? error.message : "加入素材库失败";
       setErrorMessage(`加入素材库失败：${message}`);
@@ -3055,10 +3064,10 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
         ? await removeDouyinBenchmarkWorkFromMaterialLibrary(item.id, activeBrandId || archive.brand.id)
         : await addDouyinBenchmarkWorkToMaterialLibrary(item.id, activeBrandId || archive.brand.id);
       setDouyinCollectionWorkspace(response.workspace);
-      setNotice(item.isInMaterialLibrary ? "已取消加入抖音素材库。" : "已加入抖音素材库。");
+      setNotice(item.isInMaterialLibrary ? "已从统一素材库移除。" : "已加入统一素材库。");
     } catch (error) {
-      const message = error instanceof Error ? error.message : item.isInMaterialLibrary ? "取消加入素材库失败" : "加入素材库失败";
-      setErrorMessage(item.isInMaterialLibrary ? `取消加入抖音素材库失败：${message}` : `加入抖音素材库失败：${message}`);
+      const message = error instanceof Error ? error.message : item.isInMaterialLibrary ? "移出素材库失败" : "加入素材库失败";
+      setErrorMessage(item.isInMaterialLibrary ? `移出统一素材库失败：${message}` : `加入统一素材库失败：${message}`);
     } finally {
       setAddingMaterialAssetId("");
     }
@@ -3984,6 +3993,22 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
             onToggleTopic: handleToggleDouyinTopic,
             onAddSelectedTopics: handleAddSelectedDouyinTopics,
           }}
+        />
+      );
+    }
+
+    if (activePage === "reportMaterialLibrary") {
+      return (
+        <ReportMaterialLibraryWorkspace
+          sectionLabel={currentPage.label}
+          sectionDescription={currentPage.description}
+          isLoading={isHydrating}
+          items={unifiedMaterialLibraryItems}
+          onRefresh={async () => {
+            await loadArchive({ targetPage: activePage, force: true });
+          }}
+          formatDateTime={formatDateTime}
+          formatCount={formatCount}
         />
       );
     }

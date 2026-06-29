@@ -58,7 +58,7 @@ export function VideoCreateConfigFields(props: VideoCreateConfigFieldsProps) {
             .filter((item) => ("videoUrl" in item ? Boolean((item as { videoUrl?: string }).videoUrl) : true))
             .map((item) => (
               <option key={item.id} value={item.id}>
-                {item.title}
+                {item.label || item.title}
               </option>
             ))}
         </select>

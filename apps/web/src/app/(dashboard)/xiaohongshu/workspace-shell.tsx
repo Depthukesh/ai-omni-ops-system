@@ -28,7 +28,6 @@ import { useWorkComposerActions } from "./use-work-composer-actions";
 import { useWorkEditors } from "./use-work-editors";
 import { useWorkMutationActions } from "./use-work-mutation-actions";
 import { useWorkspaceSelectionSync } from "./use-workspace-selection-sync";
-import { AssetsWorkspace } from "./assets-workspace";
 import { renderMarkdownToHtml } from "./markdown-render";
 import { MediaLightbox } from "./media-lightbox";
 import { PlanWorkspace } from "./plan-workspace";
@@ -83,18 +82,16 @@ import {
 } from "../../../services/works";
 import { formatCollaboratorRoleLabel } from "../personal-center/route-helpers";
 
-type XiaohongshuSectionKey = "plan" | "assets" | "original" | "remix" | "video";
+type XiaohongshuSectionKey = "plan" | "original" | "remix" | "video";
 const MARKETING_PLAN_REQUIRED_INPUTS = ["品牌背景资料", "产品资料库", "机会洞察总报告", "品牌增长报告"] as const;
 const xiaohongshuSections: Array<{ key: XiaohongshuSectionKey; label: string; description: string }> = [
   { key: "plan", label: "营销策划方案", description: "围绕品牌背景资料、产品资料库、机会洞察总报告和品牌增长报告生成小红书策划与选题方案。" },
-  { key: "assets", label: "素材库", description: "沉淀已生成的笔记、封面、源文件与作品记录。" },
   { key: "original", label: "原创笔记", description: "统一管理原创图文笔记成品，支持新增、编辑、删除与查看配图结果。" },
   { key: "remix", label: "二创笔记", description: "基于已有选题和作品延展二创版本与差异化角度。" },
   { key: "video", label: "视频笔记", description: "把现有主题整理成视频脚本、镜头结构和封面文案。" },
 ];
 const xiaohongshuSectionPermissionMap: Record<XiaohongshuSectionKey, BrandPermissionKey> = {
   plan: "xiaohongshu.plan",
-  assets: "xiaohongshu.assets",
   original: "xiaohongshu.original",
   remix: "xiaohongshu.remix",
   video: "xiaohongshu.video",
@@ -489,6 +486,7 @@ export function XiaohongshuWorkspaceShell() {
 
   const xhsMedia = useMemo(() => getXiaohongshuMedia(workspace.media), [workspace.media]);
   const materialNotes = useMemo(() => workspace.materialNotes, [workspace.materialNotes]);
+  const composerMaterialOptions = useMemo(() => workspace.materialOptions, [workspace.materialOptions]);
   const selectedWork = xhsMedia.find((item) => item.id === selectedWorkId) || xhsMedia[0];
   const selectedWorkDraft = useMemo(() => getMatchedDraft(selectedWork, noteDrafts), [noteDrafts, selectedWork]);
   const relatedWorks = useMemo(() => getRelatedWorks(xhsMedia, selectedWork), [selectedWork, xhsMedia]);
@@ -553,7 +551,7 @@ export function XiaohongshuWorkspaceShell() {
     brandId: getStoredCurrentBrandId(workspace.archive.brand.id) || workspace.archive.brand.id,
     calendarItems: calendarAllItems,
     products: workspace.archive.products,
-    materialNotes,
+    materialNotes: composerMaterialOptions,
     videoProviderOptions,
     storyboardImageModelOptions,
     noProductOption: NO_PRODUCT_OPTION,
@@ -749,7 +747,7 @@ export function XiaohongshuWorkspaceShell() {
     activeSection === "original"
       ? "当前聚焦【原创笔记】主链路：选择营销日历选题与产品，生成图文内容和图片作品，并统一管理已完成作品。"
       : activeSection === "remix"
-        ? "当前聚焦【二创笔记】主链路：从素材库选择作品，结合产品与用户要求生成差异化二创图文，并统一管理成品。"
+        ? "当前聚焦【二创笔记】主链路：从统一素材库选择作品，结合产品与用户要求生成差异化二创图文，并统一管理成品。"
         : activeSection === "video"
           ? "当前聚焦【视频笔记】主链路：先生成创意剧本与故事板，确认后再继续生成短视频，并支持离开页面后回来查看阶段状态。"
         : "当前先聚焦【营销策划方案】主链路：读取品牌背景资料、产品资料库、机会洞察总报告和品牌增长报告，生成可编辑保存的 Markdown 方案。";
@@ -813,7 +811,7 @@ export function XiaohongshuWorkspaceShell() {
     setOriginalCalendarValue,
     rewriteProductValue,
     setRewriteProductValue,
-    materialNotes,
+    materialNotes: composerMaterialOptions,
     selectedMaterialId,
     setSelectedMaterialId,
     rewriteMaterialValue,
@@ -1135,7 +1133,7 @@ export function XiaohongshuWorkspaceShell() {
   }
 
   function handleOpenRewriteModal() {
-    openRewriteModal(materialNotes, workspace.archive.products);
+    openRewriteModal(composerMaterialOptions, workspace.archive.products);
   }
 
   function handleCloseRewriteModal() {
@@ -1225,33 +1223,13 @@ export function XiaohongshuWorkspaceShell() {
       );
     }
 
-    if (activeSection === "assets") {
-      return (
-        <AssetsWorkspace
-          sectionLabel={currentSection.label}
-          sectionDescription={currentSection.description}
-          brandId={workspace.archive.brand.id}
-          isLoading={isLoading}
-          isPublishing={isPublishing}
-          items={materialNotes}
-          selectedMaterialId={selectedMaterialId}
-          previewIndexMap={materialPreviewIndexMap}
-          onRefresh={() => loadWorkspace()}
-          onSelectMaterial={setSelectedMaterialId}
-          onShiftPreview={shiftMaterialPreview}
-          onOpenLightbox={openMaterialLightbox}
-          formatDateTime={formatDateTime}
-        />
-      );
-    }
-
     return (
       <NoteWorkspaceSectionContainers
         activeSection={activeSection === "original" || activeSection === "remix" ? activeSection : "video"}
         currentSection={currentSection}
         isLoading={isLoading}
         products={workspace.archive.products}
-        materialNotes={materialNotes}
+        materialNotes={composerMaterialOptions}
         calendarAllItems={calendarAllItems.map((item) => ({
           ...item,
           topicName: resolveMarketingCalendarTopic(item),

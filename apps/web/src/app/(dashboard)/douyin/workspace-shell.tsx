@@ -11,7 +11,16 @@ import {
   type BrandPermissionKey,
   type BrandPermissionSettingsRecord,
 } from "../../../services/brand-growth";
-import { douyinCollectionSeed, getDouyinCollectionWorkspace, type DouyinCollectionWorkspace } from "../../../services/collectors";
+import {
+  buildUnifiedMaterialLibraryItems,
+  buildUnifiedMaterialOptions,
+  douyinCollectionSeed,
+  getDouyinCollectionWorkspace,
+  getXiaohongshuCollectionWorkspace,
+  xhsCollectionSeed,
+  type DouyinCollectionWorkspace,
+  type XhsCollectionWorkspace,
+} from "../../../services/collectors";
 import {
   annualMarketingPlanSeed,
   deleteDouyinOriginalCopy,
@@ -126,7 +135,6 @@ import {
 } from "../../../services/works";
 import { MediaLightbox } from "../xiaohongshu/media-lightbox";
 import { type MediaLightboxState } from "../xiaohongshu/shared-types";
-import { DouyinAssetsWorkspace } from "./assets-workspace";
 import { DouyinAdPreAuditWorkspace } from "./ad-preaudit-workspace";
 import { DouyinDigitalHumanWorkspace } from "./digital-human-workspace";
 import { DouyinRunningHubWorkspace } from "./douyin-runninghub-workspace";
@@ -147,7 +155,6 @@ import { WechatChannelPublishModal } from "./wechat-channel-publish-modal";
 type LoadState = "loading" | "api" | "partial";
 type DouyinSectionKey =
   | "plan"
-  | "assets"
   | "hotTopics"
   | "topicLibrary"
   | "originalCopy"
@@ -162,12 +169,11 @@ type DouyinSectionKey =
 const MARKETING_PLAN_REQUIRED_INPUTS = ["品牌背景资料", "产品资料库", "机会洞察总报告", "品牌增长报告"] as const;
 const douyinSections: Array<{ key: DouyinSectionKey; label: string; description: string }> = [
   { key: "plan", label: "营销策划方案", description: "围绕品牌背景资料、产品资料库、机会洞察总报告和品牌增长报告生成可编辑的 Markdown 方案。" },
-  { key: "assets", label: "素材库", description: "展示已经从品牌增长策略 → 收集数据 → 抖音加入素材库的采集作品，包括竞品作品、对标作品、搜索关键词结果和各类榜单作品。" },
   { key: "originalCopy", label: "原创文案", description: "基于选题库、营销日历和抖音营销策划方案，按不同文案类型生成品牌独立存储的原创文案。" },
-  { key: "remixCopy", label: "二创文案", description: "基于素材库视频、品牌资料、产品资料和营销策划方案，提取视频文案后生成品牌独立存储的二创文案。" },
+  { key: "remixCopy", label: "二创文案", description: "基于统一素材库视频、品牌资料、产品资料和营销策划方案，提取视频文案后生成品牌独立存储的二创文案。" },
   { key: "remixShortVideo", label: "复刻短视频", description: "基于短视频链接或上传视频，按 15 秒一段完成复刻分析、角色卡、分镜图，并在第二阶段逐段生成后自动拼接完整短视频。" },
-  { key: "video", label: "AI生视频（故事板）", description: "基于营销日历、抖音素材库、产品与营销策划方案，先生成剧本和故事板，再继续生成短视频。" },
-  { key: "videoDirect", label: "AI生视频", description: "基于营销日历、抖音素材库、产品与营销策划方案直接生成 Seedance 2.0 生视频提示词，确认后继续生成短视频。" },
+  { key: "video", label: "AI生视频（故事板）", description: "基于营销日历、统一素材库、产品与营销策划方案，先生成剧本和故事板，再继续生成短视频。" },
+  { key: "videoDirect", label: "AI生视频", description: "基于营销日历、统一素材库、产品与营销策划方案直接生成 Seedance 2.0 生视频提示词，确认后继续生成短视频。" },
   { key: "digitalHuman", label: "数字人", description: "对接蝉镜 OpenAPI，支持公共模板库、数字人口播视频创建、结果找回和作品中心管理。" },
   { key: "runningHub", label: "RunningHub应用", description: "独立承载 RunningHub AI 应用卡片、参数弹窗与作品中心，当前先接入 Animate 动作迁移应用。" },
   { key: "adPreAudit", label: "广告预审", description: "对接火山引擎 VOD 广告预审，对已上传到 VOD 的 Vid 发起审核并查看通过、驳回和原因。" },
@@ -175,7 +181,6 @@ const douyinSections: Array<{ key: DouyinSectionKey; label: string; description:
 
 const douyinSectionPermissionMap: Record<DouyinSectionKey, BrandPermissionKey> = {
   plan: "douyin.plan",
-  assets: "douyin.assets",
   hotTopics: "brandGrowth.report.topicLibrary",
   topicLibrary: "brandGrowth.report.topicLibrary",
   originalCopy: "douyin.original",
@@ -243,6 +248,7 @@ export function DouyinWorkspaceShell() {
   const [brandArchive, setBrandArchive] = useState<BrandArchiveBundle>(brandArchiveSeed);
   const [brandPermissionSettings, setBrandPermissionSettings] = useState<BrandPermissionSettingsRecord | null>(null);
   const [collectionWorkspace, setCollectionWorkspace] = useState<DouyinCollectionWorkspace>(douyinCollectionSeed);
+  const [xhsCollectionWorkspace, setXhsCollectionWorkspace] = useState<XhsCollectionWorkspace>(xhsCollectionSeed);
   const [growthReportWorkspace, setGrowthReportWorkspace] = useState(growthReportSeed);
   const [annualPlanWorkspace, setAnnualPlanWorkspace] = useState(annualMarketingPlanSeed);
   const [opportunityInsightWorkspace, setOpportunityInsightWorkspace] = useState(opportunityInsightSeed);
@@ -365,40 +371,25 @@ export function DouyinWorkspaceShell() {
   const canEditCurrentSection = brandPermissionSettings
     ? Boolean(permissionMap?.[douyinSectionPermissionMap[activeSection]]?.edit)
     : true;
-  const materialWorks = useMemo(() => {
-    const deduped = new Map<string, (typeof collectionWorkspace.benchmarkWorks)[number]>();
-    [
-      ...collectionWorkspace.competitorWorks,
-      ...collectionWorkspace.benchmarkWorks,
-      ...collectionWorkspace.searchWorks,
-      ...collectionWorkspace.lowFanExplosiveWorks,
-      ...collectionWorkspace.highCompletionRateWorks,
-      ...collectionWorkspace.highLikeRateWorks,
-    ]
-      .filter((item) => item.isInMaterialLibrary)
-      .forEach((item) => {
-        if (!deduped.has(item.id)) {
-          deduped.set(item.id, item);
-        }
-      });
-    return Array.from(deduped.values());
-  }, [
-    collectionWorkspace.competitorWorks,
-    collectionWorkspace.benchmarkWorks,
-    collectionWorkspace.searchWorks,
-    collectionWorkspace.lowFanExplosiveWorks,
-    collectionWorkspace.highCompletionRateWorks,
-    collectionWorkspace.highLikeRateWorks,
-  ]);
+  const unifiedMaterialLibraryItems = useMemo(
+    () => buildUnifiedMaterialLibraryItems(xhsCollectionWorkspace, collectionWorkspace),
+    [collectionWorkspace, xhsCollectionWorkspace],
+  );
+  const unifiedMaterialOptions = useMemo(
+    () => buildUnifiedMaterialOptions(xhsCollectionWorkspace, collectionWorkspace),
+    [collectionWorkspace, xhsCollectionWorkspace],
+  );
   const materialLibraryItems = useMemo(
     () => {
-      const collectedItems = materialWorks.map((item) => ({
+      const collectedItems = unifiedMaterialLibraryItems
+        .filter((item) => item.videoUrl)
+        .map((item) => ({
         id: `collected:${item.id}`,
-        label: item.title,
+        label: `[${item.platformLabel}] ${item.title}`,
         videoUrl: item.videoUrl,
         coverUrl: item.coverUrl,
-        workUrl: item.workUrl,
-        sourceLabel: "采集作品",
+        workUrl: item.detailUrl,
+        sourceLabel: `${item.platformLabel}采集素材`,
       }));
       const generatedVideoItems = videoWorks
         .filter((item) => item.videoUrl || item.coverImageUrl)
@@ -448,7 +439,7 @@ export function DouyinWorkspaceShell() {
         ...generatedLipSyncItems,
       ];
     },
-    [digitalHumanLipSyncWorks, digitalHumanWorks, directVideoWorks, materialWorks, videoWorks],
+    [digitalHumanLipSyncWorks, digitalHumanWorks, directVideoWorks, unifiedMaterialLibraryItems, videoWorks],
   );
   const hasMarketingPlanBrandBackground = Boolean(
     brandArchive.brand.brandName?.trim()
@@ -464,7 +455,7 @@ export function DouyinWorkspaceShell() {
   );
   const currentSection = visibleSections.find((item) => item.key === activeSection) ?? visibleSections[0] ?? douyinSections[0];
   const heroTitle = "抖音工作台";
-  const heroDescription = "当前开放营销策划方案、选题库、素材库、原创文案、二创文案、AI 生视频（故事板）、AI 生视频、数字人和广告预审，可直接复用品牌增长策略里沉淀的抖音采集作品、每日热点与品牌资料。";
+  const heroDescription = "当前开放营销策划方案、选题库、原创文案、二创文案、AI 生视频（故事板）、AI 生视频、数字人和广告预审，可直接复用品牌增长策略里沉淀的统一素材库、每日热点与品牌资料。";
   const videoMarketingPlanTitle = marketingPlanWorkspace.latest?.title || originalCopyWorkspace.marketingPlanTitle || remixCopyWorkspace.marketingPlanTitle;
   const hasVideoMarketingPlan = Boolean(marketingPlanWorkspace.latest || originalCopyWorkspace.hasMarketingPlan || remixCopyWorkspace.hasMarketingPlan);
 
@@ -759,9 +750,10 @@ export function DouyinWorkspaceShell() {
     const failedInterfaceNames: string[] = [];
     const currentSectionFailedInterfaceNames: string[] = [];
 
-    const [permissionResult, collectionResult, growthResult, annualResult, opportunityInsightResult] = await Promise.allSettled([
+    const [permissionResult, collectionResult, xhsCollectionResult, growthResult, annualResult, opportunityInsightResult] = await Promise.allSettled([
       getBrandPermissionSettings(activeBrandId),
       getDouyinCollectionWorkspace(activeBrandId),
+      getXiaohongshuCollectionWorkspace(activeBrandId),
       getGrowthReportWorkspace(activeBrandId),
       getAnnualMarketingPlanWorkspace(activeBrandId),
       getOpportunityInsightWorkspace(activeBrandId),
@@ -824,6 +816,14 @@ export function DouyinWorkspaceShell() {
       hasFallback = true;
       failedInterfaceNames.push("素材库工作台");
       setCollectionWorkspace(douyinCollectionSeed);
+    }
+
+    if (xhsCollectionResult.status === "fulfilled") {
+      setXhsCollectionWorkspace(xhsCollectionResult.value);
+    } else {
+      hasFallback = true;
+      failedInterfaceNames.push("统一素材库（小红书侧）数据");
+      setXhsCollectionWorkspace(xhsCollectionSeed);
     }
 
     if (growthResult.status === "fulfilled") {
@@ -1062,9 +1062,6 @@ export function DouyinWorkspaceShell() {
       failedInterfaceNames.push("数字人试听任务");
     }
 
-    if (activeSection === "assets" && collectionResult.status !== "fulfilled") {
-      currentSectionFailedInterfaceNames.push("素材库工作台");
-    }
     if (activeSection === "plan") {
       if (growthResult.status !== "fulfilled") {
         currentSectionFailedInterfaceNames.push("品牌增长报告");
@@ -3051,21 +3048,7 @@ export function DouyinWorkspaceShell() {
                   </div>
                 </article>
 
-                {activeSection === "assets" ? (
-                  <DouyinAssetsWorkspace
-                    sectionLabel={currentSection.label}
-                    sectionDescription={currentSection.description}
-                    isLoading={isLoading}
-                    items={materialWorks}
-                    selectedMaterialId={selectedMaterialId}
-                    previewIndexMap={materialPreviewIndexMap}
-                    onRefresh={() => loadWorkspace()}
-                    onSelectMaterial={setSelectedMaterialId}
-                    onShiftPreview={shiftMaterialPreview}
-                    onOpenLightbox={openMaterialLightbox}
-                    formatDateTime={formatDateTime}
-                  />
-                ) : activeSection === "hotTopics" ? (
+                {activeSection === "hotTopics" ? (
                   <DouyinHotTopicCandidatesWorkspacePanel
                     sectionLabel={currentSection.label}
                     sectionDescription={currentSection.description}
@@ -3170,7 +3153,7 @@ export function DouyinWorkspaceShell() {
                     isSubmitting={isSubmittingVideo}
                     canEdit={canEditRemixShortVideo}
                     items={remixShortVideoWorks}
-                    materialOptions={materialWorks.map((item) => ({ id: item.id, label: item.title, videoUrl: item.videoUrl }))}
+                    materialOptions={unifiedMaterialOptions.map((item) => ({ id: item.id, label: item.label, videoUrl: item.videoUrl }))}
                     productOptions={remixCopyWorkspace.productOptions.map((item) => ({ id: item.id, label: item.productName }))}
                     videoProviderOptions={videoProviderOptions}
                     storyboardImageModelOptions={storyboardImageModelOptions}
@@ -3195,7 +3178,7 @@ export function DouyinWorkspaceShell() {
                     items={videoWorks}
                     calendarOptions={originalCopyWorkspace.calendarOptions.map((item) => ({ id: item.id, label: item.label }))}
                     productOptions={remixCopyWorkspace.productOptions.map((item) => ({ id: item.id, label: item.productName }))}
-                    materialOptions={materialWorks.map((item) => ({ id: item.id, label: item.title, videoUrl: item.videoUrl }))}
+                    materialOptions={unifiedMaterialOptions.map((item) => ({ id: item.id, label: item.label, videoUrl: item.videoUrl }))}
                     videoProviderOptions={videoProviderOptions}
                     storyboardImageModelOptions={storyboardImageModelOptions}
                     hasMarketingPlan={hasVideoMarketingPlan}
@@ -3224,7 +3207,7 @@ export function DouyinWorkspaceShell() {
                     items={directVideoWorks}
                     calendarOptions={originalCopyWorkspace.calendarOptions.map((item) => ({ id: item.id, label: item.label }))}
                     productOptions={remixCopyWorkspace.productOptions.map((item) => ({ id: item.id, label: item.productName }))}
-                    materialOptions={materialWorks.map((item) => ({ id: item.id, label: item.title, videoUrl: item.videoUrl }))}
+                    materialOptions={unifiedMaterialOptions.map((item) => ({ id: item.id, label: item.label, videoUrl: item.videoUrl }))}
                     videoProviderOptions={directVideoProviderOptions}
                     hasMarketingPlan={hasVideoMarketingPlan}
                     marketingPlanTitle={videoMarketingPlanTitle}

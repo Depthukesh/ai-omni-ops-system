@@ -327,6 +327,142 @@ export type DouyinCollectionWorkspace = {
   cityOptions: DouyinCityOption[];
 };
 
+export type UnifiedMaterialPlatform = "XIAOHONGSHU" | "DOUYIN";
+
+export type UnifiedMaterialLibraryRecord = {
+  id: string;
+  platform: UnifiedMaterialPlatform;
+  platformLabel: "小红书" | "抖音";
+  sourceKind: string;
+  title: string;
+  description?: string;
+  authorName?: string;
+  publishTimeText?: string;
+  mediaTypeLabel: string;
+  imageCount: number;
+  detailUrl?: string;
+  videoUrl?: string;
+  coverUrl?: string;
+  likeCount?: number;
+  commentCount?: number;
+  shareCount?: number;
+  collectCount?: number;
+  playCount?: number;
+  materialAddedAt?: string;
+  collectedAt: string;
+};
+
+export type UnifiedMaterialOption = {
+  id: string;
+  title: string;
+  videoUrl?: string;
+  platform: UnifiedMaterialPlatform;
+  platformLabel: "小红书" | "抖音";
+  label: string;
+};
+
+export function listXhsMaterialLibraryNotes(workspace: XhsCollectionWorkspace): XhsCollectedNoteRecord[] {
+  const deduped = new Map<string, XhsCollectedNoteRecord>();
+  [...workspace.benchmarkNotes, ...workspace.searchNotes]
+    .filter((item) => item.isInMaterialLibrary)
+    .forEach((item) => {
+      if (!deduped.has(item.id)) {
+        deduped.set(item.id, item);
+      }
+    });
+  return Array.from(deduped.values());
+}
+
+export function listDouyinMaterialLibraryWorks(workspace: DouyinCollectionWorkspace): DouyinCollectedWorkRecord[] {
+  const deduped = new Map<string, DouyinCollectedWorkRecord>();
+  [
+    ...workspace.competitorWorks,
+    ...workspace.benchmarkWorks,
+    ...workspace.searchWorks,
+    ...workspace.lowFanExplosiveWorks,
+    ...workspace.highCompletionRateWorks,
+    ...workspace.highLikeRateWorks,
+  ]
+    .filter((item) => item.isInMaterialLibrary)
+    .forEach((item) => {
+      if (!deduped.has(item.id)) {
+        deduped.set(item.id, item);
+      }
+    });
+  return Array.from(deduped.values());
+}
+
+function resolveUnifiedMaterialSortTime(item: { materialAddedAt?: string; collectedAt: string }) {
+  const timestamp = Date.parse(item.materialAddedAt || item.collectedAt || "");
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+export function buildUnifiedMaterialLibraryItems(
+  xhsWorkspace: XhsCollectionWorkspace,
+  douyinWorkspace: DouyinCollectionWorkspace,
+): UnifiedMaterialLibraryRecord[] {
+  const xhsItems: UnifiedMaterialLibraryRecord[] = listXhsMaterialLibraryNotes(xhsWorkspace).map((item) => ({
+    id: item.id,
+    platform: "XIAOHONGSHU",
+    platformLabel: "小红书",
+    sourceKind: item.noteType || (item.videoUrl ? "视频笔记" : "图文笔记"),
+    title: item.title,
+    description: item.description,
+    authorName: item.nickname,
+    publishTimeText: item.createdAtText,
+    mediaTypeLabel: item.videoUrl ? "视频" : "图文",
+    imageCount: item.imageList?.length || 0,
+    detailUrl: item.noteUrl || item.sourceUrl,
+    videoUrl: item.videoUrl,
+    coverUrl: item.imageList?.[0],
+    likeCount: item.likeCount,
+    commentCount: item.commentCount,
+    shareCount: item.shareCount,
+    collectCount: item.collectCount,
+    materialAddedAt: item.materialAddedAt,
+    collectedAt: item.collectedAt,
+  }));
+  const douyinItems: UnifiedMaterialLibraryRecord[] = listDouyinMaterialLibraryWorks(douyinWorkspace).map((item) => ({
+    id: item.id,
+    platform: "DOUYIN",
+    platformLabel: "抖音",
+    sourceKind: item.workType || "抖音作品",
+    title: item.title,
+    description: item.description || item.title,
+    authorName: item.authorName,
+    publishTimeText: item.publishTimeText,
+    mediaTypeLabel: item.videoUrl ? "视频" : item.imageList?.length ? "图文" : "未知",
+    imageCount: item.imageList?.length || 0,
+    detailUrl: item.workUrl,
+    videoUrl: item.videoUrl,
+    coverUrl: item.coverUrl || item.imageList?.[0],
+    likeCount: item.likeCount,
+    commentCount: item.commentCount,
+    shareCount: item.shareCount,
+    collectCount: item.collectCount,
+    playCount: item.playCount,
+    materialAddedAt: item.materialAddedAt,
+    collectedAt: item.collectedAt,
+  }));
+  return [...xhsItems, ...douyinItems].sort(
+    (left, right) => resolveUnifiedMaterialSortTime(right) - resolveUnifiedMaterialSortTime(left),
+  );
+}
+
+export function buildUnifiedMaterialOptions(
+  xhsWorkspace: XhsCollectionWorkspace,
+  douyinWorkspace: DouyinCollectionWorkspace,
+): UnifiedMaterialOption[] {
+  return buildUnifiedMaterialLibraryItems(xhsWorkspace, douyinWorkspace).map((item) => ({
+    id: item.id,
+    title: item.title,
+    videoUrl: item.videoUrl,
+    platform: item.platform,
+    platformLabel: item.platformLabel,
+    label: `[${item.platformLabel}] ${item.title}`,
+  }));
+}
+
 export type DouyinSyncPayload = {
   scope?:
     | "brandAccount"

@@ -1,6 +1,5 @@
 "use client";
 
-import { type XhsCollectedNoteRecord } from "../../../services/collectors";
 import { type TaskRecord } from "../../../services/personal-center";
 import {
   type StoryboardImageModelOptionRecord,
@@ -11,7 +10,7 @@ import {
   type XhsOriginalReferenceTemplateCategoryRecord,
   type XhsOriginalReferenceTemplateRecord,
 } from "../../../services/works";
-import { type OptionalDateFormatter, type ProductOption, type SelectOption } from "./shared-types";
+import { type MaterialOption, type OptionalDateFormatter, type ProductOption, type SelectOption } from "./shared-types";
 import { type useNoteComposerForms } from "./use-note-composer-forms";
 import { OriginalWorkspaceSectionContainer } from "./original-workspace-section-container";
 import { RewriteWorkspaceSectionContainer } from "./rewrite-workspace-section-container";
@@ -189,7 +188,7 @@ export interface NoteWorkspaceSectionContainerSharedProps {
   };
   isLoading: boolean;
   products: ProductOption[];
-  materialNotes: XhsCollectedNoteRecord[];
+  materialNotes: MaterialOption[];
   calendarAllItems: Array<{ id: string; date: string; topicName: string }>;
   originalAccountRoleOptions: SelectOption[];
   originalWorks: XiaohongshuOriginalWorkRecord[];

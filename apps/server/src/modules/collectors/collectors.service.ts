@@ -168,6 +168,30 @@ export type WechatSearchResult = {
   count: number;
   items: WechatSearchItemRecord[];
 };
+
+export type UnifiedMaterialLibraryItemRecord = {
+  id: string;
+  platform: "XIAOHONGSHU" | "DOUYIN";
+  platformLabel: "小红书" | "抖音";
+  title: string;
+  description?: string;
+  detailUrl?: string;
+  sourceUrl?: string;
+  videoUrl?: string;
+  imageList: string[];
+  coverUrl?: string;
+  authorName?: string;
+  materialAddedAt?: string;
+  collectedAt: string;
+  publishTimeText?: string;
+  sourceKind: string;
+  noteType?: string;
+  likeCount?: number;
+  collectCount?: number;
+  commentCount?: number;
+  shareCount?: number;
+  playCount?: number;
+};
 type XhsSyncAccountEntry = {
   locator: string;
   accountRole?: XhsAccountRole;
@@ -704,6 +728,69 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     }
 
     return this.getDouyinWorkspaceFromMock(brandId, contentTags, cityOptions);
+  }
+
+  async listUnifiedMaterialLibraryItems(brandId: string): Promise<UnifiedMaterialLibraryItemRecord[]> {
+    const [xhsWorkspace, douyinWorkspace] = await Promise.all([
+      this.getXiaohongshuWorkspace(brandId),
+      this.getDouyinWorkspace(brandId),
+    ]);
+    return [
+      ...this.listXhsMaterialLibraryNotes(xhsWorkspace).map((item) => ({
+        id: item.id,
+        platform: "XIAOHONGSHU" as const,
+        platformLabel: "小红书" as const,
+        title: item.title,
+        description: item.description || undefined,
+        detailUrl: item.noteUrl || item.sourceUrl || undefined,
+        sourceUrl: item.noteUrl || item.sourceUrl || undefined,
+        videoUrl: item.videoUrl || undefined,
+        imageList: item.imageList || [],
+        coverUrl: item.imageList?.[0] || undefined,
+        authorName: item.nickname || undefined,
+        materialAddedAt: item.materialAddedAt || undefined,
+        collectedAt: item.collectedAt,
+        publishTimeText: item.createdAtText || undefined,
+        sourceKind: item.noteType || (item.videoUrl ? "视频笔记" : "图文笔记"),
+        noteType: item.noteType || undefined,
+        likeCount: item.likeCount,
+        collectCount: item.collectCount,
+        commentCount: item.commentCount,
+        shareCount: item.shareCount,
+      })),
+      ...this.listDouyinMaterialLibraryWorks(douyinWorkspace).map((item) => ({
+        id: item.id,
+        platform: "DOUYIN" as const,
+        platformLabel: "抖音" as const,
+        title: item.title,
+        description: item.description || item.title,
+        detailUrl: item.workUrl || undefined,
+        sourceUrl: item.videoUrl || item.workUrl || undefined,
+        videoUrl: item.videoUrl || undefined,
+        imageList: item.imageList || [],
+        coverUrl: item.coverUrl || item.imageList?.[0] || undefined,
+        authorName: item.authorName || undefined,
+        materialAddedAt: item.materialAddedAt || undefined,
+        collectedAt: item.collectedAt,
+        publishTimeText: item.publishTimeText || undefined,
+        sourceKind: item.workType || "抖音作品",
+        noteType: item.workType || undefined,
+        likeCount: item.likeCount,
+        collectCount: item.collectCount,
+        commentCount: item.commentCount,
+        shareCount: item.shareCount,
+        playCount: item.playCount,
+      })),
+    ].sort((left, right) => this.resolveMaterialLibrarySortTime(right) - this.resolveMaterialLibrarySortTime(left));
+  }
+
+  async findUnifiedMaterialLibraryItem(brandId: string, materialId?: string | null) {
+    const normalizedMaterialId = String(materialId || "").trim();
+    if (!normalizedMaterialId) {
+      return undefined;
+    }
+    const items = await this.listUnifiedMaterialLibraryItems(brandId);
+    return items.find((item) => item.id === normalizedMaterialId);
   }
 
   async syncBrandAccounts(brandId: string, input: XhsSyncInput = {}) {
@@ -1491,6 +1578,18 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     return { brandAccounts, competitorAccounts, brandNotes, benchmarkNotes, searchNotes, commentData, targetUsers };
   }
 
+  private listXhsMaterialLibraryNotes(workspace: XhsCollectionWorkspace) {
+    const deduped = new Map<string, XhsCollectionWorkspace["benchmarkNotes"][number]>();
+    [...workspace.benchmarkNotes, ...workspace.searchNotes]
+      .filter((item) => item.isInMaterialLibrary)
+      .forEach((item) => {
+        if (!deduped.has(item.id)) {
+          deduped.set(item.id, item);
+        }
+      });
+    return Array.from(deduped.values());
+  }
+
   private buildDouyinWorkspaceFromAssets(
     assets: AssetRecord[],
     contentTags: DouyinContentTagOption[] = [],
@@ -1550,6 +1649,30 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       contentTags,
       cityOptions,
     };
+  }
+
+  private listDouyinMaterialLibraryWorks(workspace: DouyinCollectionWorkspace) {
+    const deduped = new Map<string, DouyinCollectionWorkspace["benchmarkWorks"][number]>();
+    [
+      ...workspace.competitorWorks,
+      ...workspace.benchmarkWorks,
+      ...workspace.searchWorks,
+      ...workspace.lowFanExplosiveWorks,
+      ...workspace.highCompletionRateWorks,
+      ...workspace.highLikeRateWorks,
+    ]
+      .filter((item) => item.isInMaterialLibrary)
+      .forEach((item) => {
+        if (!deduped.has(item.id)) {
+          deduped.set(item.id, item);
+        }
+      });
+    return Array.from(deduped.values());
+  }
+
+  private resolveMaterialLibrarySortTime(item: { materialAddedAt?: string; collectedAt: string }) {
+    const timestamp = Date.parse(item.materialAddedAt || item.collectedAt || "");
+    return Number.isFinite(timestamp) ? timestamp : 0;
   }
 
   private mapCollectedAccount(asset: AssetRecord, kind: CollectorAccountKind): XhsCollectedAccountRecord {

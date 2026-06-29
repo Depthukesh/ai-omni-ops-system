@@ -525,19 +525,19 @@ export function DouyinVideoStoryboardWorkspace(props: DouyinVideoStoryboardWorks
           </select>
         </label>
         <label>
-          <span>素材库（抖音区素材库）</span>
+          <span>素材库（统一素材库）</span>
           <select value={materialValue} onChange={(event) => setMaterialValue(event.target.value)}>
             <option value="">不添加素材</option>
             {materialNotes
               .filter((item) => Boolean(item.videoUrl))
               .map((item) => (
                 <option key={item.id} value={item.id}>
-                  {item.title}
+                  {item.label || item.title}
                 </option>
               ))}
           </select>
           <p className="panel-subtext">
-            {videoKindValue === "REMIX" ? "复刻视频必须选择一个抖音视频素材。" : "可选：默认只展示已加入抖音素材库的视频素材。"}
+            {videoKindValue === "REMIX" ? "复刻视频必须选择一个带视频链接的统一素材。" : "可选：默认只展示统一素材库中带视频链接的素材。"}
           </p>
         </label>
         <label className="field-full">

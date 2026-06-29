@@ -28,6 +28,9 @@ export type MaterialOption = {
   id?: string;
   title?: string;
   videoUrl?: string;
+  label?: string;
+  platform?: "XIAOHONGSHU" | "DOUYIN";
+  platformLabel?: "小红书" | "抖音";
 };
 
 export type PlatformAccount = {

@@ -1,7 +1,6 @@
 "use client";
 
 import { type TaskRecord } from "../../../services/personal-center";
-import { type XhsCollectedNoteRecord } from "../../../services/collectors";
 import {
   type StoryboardImageModelOptionRecord,
   type XiaohongshuOriginalWorkRecord,
@@ -22,6 +21,7 @@ import { OriginalWorkspaceModals, RewriteWorkspaceModals } from "./note-workspac
 import { VideoWorkspaceModals } from "./video-workspace-modals";
 import {
   type AsyncAction,
+  type MaterialOption,
   type OptionalDateFormatter,
   type ProductOption,
   type SelectOption,
@@ -184,7 +184,7 @@ export interface RewriteWorkspaceProps {
   canCancelTask: boolean;
   latestPublishTask?: TaskRecord;
   items: XiaohongshuRewriteWorkRecord[];
-  materialNotes: XhsCollectedNoteRecord[];
+  materialNotes: MaterialOption[];
   previewIndexMap: Record<string, number>;
   deletingWorkId?: string;
   editingWork?: XiaohongshuRewriteWorkRecord;
@@ -276,7 +276,7 @@ export function RewriteWorkspace(props: RewriteWorkspaceProps) {
         <div className="empty-state">
           {props.materialNotes.length
             ? "当前还没有二创笔记，点击右上角“添加二创笔记”开始创作。"
-            : "素材库里还没有可用作品。请先到“小红书 → 素材库”确认已有作品加入素材库，再开始二创。"}
+            : "统一素材库里还没有可用作品。请先到“品牌增长策略 → 品牌增长报告 → 素材库”确认已有作品加入素材库，再开始二创。"}
         </div>
       ) : (
         <RewriteWorkCardGrid
@@ -313,7 +313,7 @@ export interface VideoWorkspaceProps {
   isCancellingTask: boolean;
   canCancelTask: boolean;
   items: XiaohongshuVideoWorkRecord[];
-  materialNotes: XhsCollectedNoteRecord[];
+  materialNotes: MaterialOption[];
   selectedWork?: XiaohongshuVideoWorkRecord;
   deletingWorkId?: string;
   editingWork?: XiaohongshuVideoWorkRecord;

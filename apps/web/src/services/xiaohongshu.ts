@@ -7,7 +7,17 @@ import {
   type BrandArchiveBundle,
   type BrandProduct,
 } from "./brand-growth";
-import { getXiaohongshuCollectionWorkspace, xhsCollectionSeed, type XhsCollectedNoteRecord, type XhsCollectionWorkspace } from "./collectors";
+import {
+  buildUnifiedMaterialOptions,
+  douyinCollectionSeed,
+  getDouyinCollectionWorkspace,
+  getXiaohongshuCollectionWorkspace,
+  listXhsMaterialLibraryNotes,
+  xhsCollectionSeed,
+  type UnifiedMaterialOption,
+  type XhsCollectedNoteRecord,
+  type XhsCollectionWorkspace,
+} from "./collectors";
 import { getMedia, getTasks, mediaSeed, taskSeed, type MediaRecord, type TaskRecord } from "./personal-center";
 
 export type XiaohongshuGoal = "种草曝光" | "门店转化" | "新品上新" | "会员拉新";
@@ -35,17 +45,19 @@ export type XiaohongshuWorkspaceData = {
   media: MediaRecord[];
   collection: XhsCollectionWorkspace;
   materialNotes: XhsCollectedNoteRecord[];
+  materialOptions: UnifiedMaterialOption[];
 };
 
 export const xiaohongshuGoalOptions: XiaohongshuGoal[] = ["种草曝光", "门店转化", "新品上新", "会员拉新"];
 export const xiaohongshuToneOptions: XiaohongshuTone[] = ["专业种草", "生活方式", "门店日常", "促销转化"];
 
 export async function getXiaohongshuWorkspace() {
-  const [archive, tasks, media, collection] = await Promise.all([
+  const [archive, tasks, media, collection, douyinCollection] = await Promise.all([
     getBrandArchive(),
     getTasks(),
     getMedia(),
     getXiaohongshuCollectionWorkspace(),
+    getDouyinCollectionWorkspace(),
   ]);
 
   return {
@@ -53,7 +65,8 @@ export async function getXiaohongshuWorkspace() {
     tasks,
     media,
     collection,
-    materialNotes: collection.benchmarkNotes.filter((item) => item.isInMaterialLibrary),
+    materialNotes: listXhsMaterialLibraryNotes(collection),
+    materialOptions: buildUnifiedMaterialOptions(collection, douyinCollection),
   } satisfies XiaohongshuWorkspaceData;
 }
 
@@ -63,7 +76,8 @@ export function getXiaohongshuWorkspaceSeed(): XiaohongshuWorkspaceData {
     tasks: [...taskSeed],
     media: [...mediaSeed],
     collection: JSON.parse(JSON.stringify(xhsCollectionSeed)) as XhsCollectionWorkspace,
-    materialNotes: xhsCollectionSeed.benchmarkNotes.filter((item) => item.isInMaterialLibrary),
+    materialNotes: listXhsMaterialLibraryNotes(xhsCollectionSeed),
+    materialOptions: buildUnifiedMaterialOptions(xhsCollectionSeed, douyinCollectionSeed),
   };
 }
 

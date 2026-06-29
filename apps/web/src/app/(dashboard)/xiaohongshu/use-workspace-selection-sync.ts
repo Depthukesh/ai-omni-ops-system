@@ -2,14 +2,13 @@
 
 import { useEffect, type Dispatch, type SetStateAction } from "react";
 import type { XiaohongshuMarketingCalendarItem } from "../../../services/reports";
-import type { XhsCollectedNoteRecord } from "../../../services/collectors";
 import type {
   XiaohongshuOriginalWorkRecord,
   XiaohongshuRewriteWorkRecord,
   XiaohongshuVideoWorkRecord,
 } from "../../../services/works";
 import type { MediaRecord } from "../../../services/personal-center";
-import type { PlatformAccount, ProductOption } from "./shared-types";
+import type { MaterialOption, PlatformAccount, ProductOption } from "./shared-types";
 
 type StringSetter = Dispatch<SetStateAction<string>>;
 
@@ -39,7 +38,7 @@ export function useWorkspaceSelectionSync(options: {
   setOriginalCalendarValue: StringSetter;
   rewriteProductValue: string;
   setRewriteProductValue: StringSetter;
-  materialNotes: XhsCollectedNoteRecord[];
+  materialNotes: MaterialOption[];
   selectedMaterialId: string;
   setSelectedMaterialId: StringSetter;
   rewriteMaterialValue: string;

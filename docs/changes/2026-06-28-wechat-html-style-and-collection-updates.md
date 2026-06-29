@@ -89,3 +89,37 @@
 - `apps/web/src/services/collectors.ts`
 - `packages/shared/src/brand-permissions.ts`
 - `packages/shared/src/skill-center-manifest.ts`
+
+## 9. 后续增量：统一素材库改造
+
+### 9.1 变更目标
+
+- 将“小红书素材库”和“抖音素材库”从各自工作台中收口，统一迁移到 `品牌增长策略 -> 品牌增长报告 -> 素材库`
+- 统一素材库以表格列表展示，字段融合小红书与抖音素材，并增加平台类型列
+- 小红书创作、抖音二创文案、抖音复刻短视频、抖音 AI 生视频、RunningHub、数字人等需要选素材的入口，统一消费同一份素材源
+
+### 9.2 前端调整
+
+- `apps/web/src/services/collectors.ts`：新增统一素材库类型、统一表格项构建函数、统一下拉选项构建函数
+- `apps/web/src/app/(dashboard)/brand-growth/report-material-library-workspace.tsx`：新增品牌增长报告下的统一素材库表格页面
+- `apps/web/src/app/(dashboard)/brand-growth/workspace.tsx`：在“选题库”下新增“素材库”子版块，并挂载统一素材库数据
+- `apps/web/src/app/(dashboard)/xiaohongshu/workspace-shell.tsx`：移除小红书独立素材库入口，二创/视频创作改为读取统一素材库选项
+- `apps/web/src/app/(dashboard)/douyin/workspace-shell.tsx`：移除抖音独立素材库入口，二创文案 / 复刻短视频 / AI 生视频 / RunningHub / 数字人改为统一素材口径
+- `apps/web/src/app/(dashboard)/douyin/remix-copy-workspace.tsx`
+- `apps/web/src/app/(dashboard)/douyin/remix-short-video-workspace.tsx`
+- `apps/web/src/app/(dashboard)/douyin/video-storyboard-workspace.tsx`
+- `apps/web/src/app/(dashboard)/douyin/video-direct-workspace.tsx`
+- `apps/web/src/app/(dashboard)/douyin/douyin-runninghub-workspace.tsx`
+- `apps/web/src/app/(dashboard)/brand-growth/collection-workspace.tsx`：收集数据页的提示文案统一改为“加入统一素材库”
+
+### 9.3 后端调整
+
+- `apps/server/src/modules/collectors/collectors.service.ts`：新增统一素材库聚合与按 ID 查找能力，供各工作流跨平台取材
+- `apps/server/src/modules/reports/reports.service.ts`：抖音二创文案工作区的 `materialOptions` 改为基于统一素材库构建，不再只读取抖音采集素材
+- `apps/server/src/modules/works/works.service.ts`：小红书二创 / 视频笔记、抖音复刻短视频 / AI 生视频 / AI 直出视频统一改为按 `findUnifiedMaterialLibraryItem(...)` 查找素材
+
+### 9.4 结果影响
+
+- 素材采集入口仍位于品牌增长策略 -> 收集数据，但所有被加入素材库的内容都会统一沉淀到品牌增长报告下
+- 小红书与抖音创作侧都可以直接复用对方平台中已入库且满足条件的素材
+- 统一素材库表格沿用抖音数据表格风格，继续兼容固定 80px 行高与多行截断约束
