@@ -121,6 +121,8 @@ export type WechatMpBenchmarkArticleRecord = {
   starNum?: number;
   statsUpdatedAt?: string;
   contentReadAt?: string;
+  isInMaterialLibrary?: boolean;
+  materialAddedAt?: string;
   collectedAt: string;
 };
 
@@ -156,6 +158,8 @@ export type WechatSearchItemRecord = {
   starNum?: number;
   statsUpdatedAt?: string;
   contentReadAt?: string;
+  isInMaterialLibrary?: boolean;
+  materialAddedAt?: string;
   collectedAt: string;
 };
 
@@ -171,8 +175,8 @@ export type WechatSearchResult = {
 
 export type UnifiedMaterialLibraryItemRecord = {
   id: string;
-  platform: "XIAOHONGSHU" | "DOUYIN";
-  platformLabel: "小红书" | "抖音";
+  platform: "XIAOHONGSHU" | "DOUYIN" | "WECHAT_MP";
+  platformLabel: "小红书" | "抖音" | "公众号";
   title: string;
   description?: string;
   detailUrl?: string;
@@ -731,9 +735,11 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
   }
 
   async listUnifiedMaterialLibraryItems(brandId: string): Promise<UnifiedMaterialLibraryItemRecord[]> {
-    const [xhsWorkspace, douyinWorkspace] = await Promise.all([
+    const [xhsWorkspace, douyinWorkspace, wechatBenchmarkWorkspace, wechatSearchWorkspace] = await Promise.all([
       this.getXiaohongshuWorkspace(brandId),
       this.getDouyinWorkspace(brandId),
+      this.getWechatMpBenchmarkWorkspace(brandId),
+      this.getWechatSearchWorkspace(brandId),
     ]);
     return [
       ...this.listXhsMaterialLibraryNotes(xhsWorkspace).map((item) => ({
@@ -780,6 +786,28 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
         commentCount: item.commentCount,
         shareCount: item.shareCount,
         playCount: item.playCount,
+      })),
+      ...this.listWechatMaterialLibraryItems(wechatBenchmarkWorkspace, wechatSearchWorkspace).map((item) => ({
+        id: item.id,
+        platform: "WECHAT_MP" as const,
+        platformLabel: "公众号" as const,
+        title: item.title,
+        description: "desc" in item ? item.desc || undefined : undefined,
+        detailUrl: item.url || undefined,
+        sourceUrl: item.url || undefined,
+        imageList: "images" in item ? item.images || [] : [],
+        coverUrl: "images" in item ? item.images?.[0] || undefined : undefined,
+        authorName: "jumpInfoNickName" in item ? item.jumpInfoNickName || undefined : undefined,
+        materialAddedAt: item.materialAddedAt || undefined,
+        collectedAt: item.collectedAt,
+        publishTimeText: "publishTime" in item ? item.publishTime || undefined : undefined,
+        sourceKind: "公众号文章",
+        noteType: "公众号文章",
+        likeCount: item.likeCount,
+        collectCount: item.collectCount,
+        commentCount: item.commentCount,
+        shareCount: item.shareCount,
+        playCount: item.readNum,
       })),
     ].sort((left, right) => this.resolveMaterialLibrarySortTime(right) - this.resolveMaterialLibrarySortTime(left));
   }
@@ -1091,6 +1119,19 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
+  async deleteXhsCollectedNote(brandId: string, assetId: string) {
+    this.ensureBrandExistsInMockOrDatabase(brandId);
+    const asset = await this.getCollectorAssetById(brandId, assetId);
+    const kind = this.readMetaString(this.asMeta(asset.metadataJson), "kind");
+    if (kind !== "XHS_BENCHMARK_NOTE" && kind !== "XHS_SEARCH_NOTE") {
+      throw new BadRequestException("仅支持删除小红书对标作品或搜索笔记");
+    }
+    await this.deleteCollectorAssetById(brandId, assetId);
+    return {
+      workspace: await this.getXiaohongshuWorkspace(brandId),
+    };
+  }
+
   async addDouyinBenchmarkWorkToMaterialLibrary(brandId: string, assetId: string) {
     this.ensureBrandExistsInMockOrDatabase(brandId);
     const asset = await this.getCollectorAssetById(brandId, assetId);
@@ -1120,6 +1161,60 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
         materialAddedAt,
       },
       workspace: await this.getDouyinWorkspace(brandId),
+    };
+  }
+
+  async addWechatBenchmarkArticleToMaterialLibrary(brandId: string, articleId: string) {
+    this.ensureBrandExistsInMockOrDatabase(brandId);
+    const asset = await this.findWechatBenchmarkArticleAssetByArticleId(brandId, articleId);
+    const meta = this.asMeta(asset.metadataJson);
+    const materialAddedAt = this.readMetaString(meta, "materialAddedAt") || new Date().toISOString();
+    await this.updateCollectorAssetMeta(brandId, asset.id, {
+      inMaterialLibrary: true,
+      materialAddedAt,
+    });
+    const workspace = await this.getWechatMpBenchmarkWorkspace(brandId);
+    return {
+      item: workspace.benchmarkArticles.find((item) => item.id === articleId) || {
+        ...this.mapWechatMpBenchmarkArticle({
+          ...asset,
+          metadataJson: {
+            ...meta,
+            inMaterialLibrary: true,
+            materialAddedAt,
+          },
+        }),
+        isInMaterialLibrary: true,
+        materialAddedAt,
+      },
+      workspace,
+    };
+  }
+
+  async addWechatSearchItemToMaterialLibrary(brandId: string, itemId: string) {
+    this.ensureBrandExistsInMockOrDatabase(brandId);
+    const asset = await this.findWechatSearchItemAssetByItemId(brandId, itemId);
+    const meta = this.asMeta(asset.metadataJson);
+    const materialAddedAt = this.readMetaString(meta, "materialAddedAt") || new Date().toISOString();
+    await this.updateCollectorAssetMeta(brandId, asset.id, {
+      inMaterialLibrary: true,
+      materialAddedAt,
+    });
+    const workspace = await this.getWechatSearchWorkspace(brandId);
+    return {
+      item: workspace.items.find((item) => item.id === itemId) || {
+        ...this.mapWechatSearchItem({
+          ...asset,
+          metadataJson: {
+            ...meta,
+            inMaterialLibrary: true,
+            materialAddedAt,
+          },
+        }),
+        isInMaterialLibrary: true,
+        materialAddedAt,
+      },
+      workspace,
     };
   }
 
@@ -1153,6 +1248,19 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
         isInMaterialLibrary: undefined,
         materialAddedAt: undefined,
       },
+      workspace: await this.getDouyinWorkspace(brandId),
+    };
+  }
+
+  async deleteDouyinCollectedWork(brandId: string, assetId: string) {
+    this.ensureBrandExistsInMockOrDatabase(brandId);
+    const asset = await this.getCollectorAssetById(brandId, assetId);
+    const kind = this.readMetaString(this.asMeta(asset.metadataJson), "kind");
+    if (!this.isDouyinMaterialLibrarySupportedKind(kind)) {
+      throw new BadRequestException("仅支持删除抖音竞品作品、对标作品、搜索作品或榜单作品");
+    }
+    await this.deleteCollectorAssetById(brandId, assetId);
+    return {
       workspace: await this.getDouyinWorkspace(brandId),
     };
   }
@@ -1661,6 +1769,21 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       ...workspace.highCompletionRateWorks,
       ...workspace.highLikeRateWorks,
     ]
+      .filter((item) => item.isInMaterialLibrary)
+      .forEach((item) => {
+        if (!deduped.has(item.id)) {
+          deduped.set(item.id, item);
+        }
+      });
+    return Array.from(deduped.values());
+  }
+
+  private listWechatMaterialLibraryItems(
+    benchmarkWorkspace: WechatMpBenchmarkWorkspace,
+    searchWorkspace: { items: WechatSearchItemRecord[] },
+  ) {
+    const deduped = new Map<string, WechatMpBenchmarkArticleRecord | WechatSearchItemRecord>();
+    [...benchmarkWorkspace.benchmarkArticles, ...searchWorkspace.items]
       .filter((item) => item.isInMaterialLibrary)
       .forEach((item) => {
         if (!deduped.has(item.id)) {
@@ -8000,6 +8123,8 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       starNum: this.readMetaNumber(meta, "starNum"),
       statsUpdatedAt: this.readMetaString(meta, "statsUpdatedAt") || undefined,
       contentReadAt: this.readMetaString(meta, "contentReadAt") || undefined,
+      isInMaterialLibrary: this.readMetaBoolean(meta, "inMaterialLibrary") || undefined,
+      materialAddedAt: this.readMetaString(meta, "materialAddedAt") || undefined,
       collectedAt: this.readMetaString(meta, "collectedAt") || new Date().toISOString(),
     };
   }
@@ -8153,6 +8278,8 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       starNum: this.readMetaNumber(meta, "starNum"),
       statsUpdatedAt: this.readMetaString(meta, "statsUpdatedAt") || undefined,
       contentReadAt: this.readMetaString(meta, "contentReadAt") || undefined,
+      isInMaterialLibrary: this.readMetaBoolean(meta, "inMaterialLibrary") || undefined,
+      materialAddedAt: this.readMetaString(meta, "materialAddedAt") || undefined,
       collectedAt: this.readMetaString(meta, "collectedAt") || new Date().toISOString(),
     };
   }
@@ -8292,5 +8419,29 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     }
     const workspace = await this.getWechatSearchWorkspace(brandId);
     return { workspace };
+  }
+
+  private async findWechatBenchmarkArticleAssetByArticleId(brandId: string, articleId: string) {
+    const asset = await this.findCollectorAssetByPredicate(brandId, (candidate) => {
+      const meta = this.asMeta(candidate.metadataJson);
+      return this.readMetaString(meta, "kind") === "WECHAT_MP_BENCHMARK_ARTICLE"
+        && this.readMetaString(meta, "articleId") === articleId;
+    });
+    if (!asset) {
+      throw new NotFoundException("未找到对应的公众号对标文章。");
+    }
+    return asset;
+  }
+
+  private async findWechatSearchItemAssetByItemId(brandId: string, itemId: string) {
+    const asset = await this.findCollectorAssetByPredicate(brandId, (candidate) => {
+      const meta = this.asMeta(candidate.metadataJson);
+      return this.readMetaString(meta, "kind") === "WECHAT_SEARCH_ITEM"
+        && this.readMetaString(meta, "itemId") === itemId;
+    });
+    if (!asset) {
+      throw new NotFoundException("未找到对应的微信搜一搜结果。");
+    }
+    return asset;
   }
 }

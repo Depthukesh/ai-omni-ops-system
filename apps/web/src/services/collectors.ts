@@ -327,12 +327,12 @@ export type DouyinCollectionWorkspace = {
   cityOptions: DouyinCityOption[];
 };
 
-export type UnifiedMaterialPlatform = "XIAOHONGSHU" | "DOUYIN";
+export type UnifiedMaterialPlatform = "XIAOHONGSHU" | "DOUYIN" | "WECHAT_MP";
 
 export type UnifiedMaterialLibraryRecord = {
   id: string;
   platform: UnifiedMaterialPlatform;
-  platformLabel: "小红书" | "抖音";
+  platformLabel: "小红书" | "抖音" | "公众号";
   sourceKind: string;
   title: string;
   description?: string;
@@ -362,7 +362,7 @@ export type UnifiedMaterialOption = {
   title: string;
   videoUrl?: string;
   platform: UnifiedMaterialPlatform;
-  platformLabel: "小红书" | "抖音";
+  platformLabel: "小红书" | "抖音" | "公众号";
   label: string;
 };
 
@@ -397,6 +397,21 @@ export function listDouyinMaterialLibraryWorks(workspace: DouyinCollectionWorksp
   return Array.from(deduped.values());
 }
 
+export function listWechatMaterialLibraryItems(
+  benchmarkWorkspace: WechatMpBenchmarkWorkspace,
+  searchWorkspace: WechatSearchWorkspace,
+): Array<WechatMpBenchmarkArticleRecord | WechatSearchItemRecord> {
+  const deduped = new Map<string, WechatMpBenchmarkArticleRecord | WechatSearchItemRecord>();
+  [...benchmarkWorkspace.benchmarkArticles, ...searchWorkspace.items]
+    .filter((item) => item.isInMaterialLibrary)
+    .forEach((item) => {
+      if (!deduped.has(item.id)) {
+        deduped.set(item.id, item);
+      }
+    });
+  return Array.from(deduped.values());
+}
+
 function resolveUnifiedMaterialSortTime(item: { materialAddedAt?: string; collectedAt: string }) {
   const timestamp = Date.parse(item.materialAddedAt || item.collectedAt || "");
   return Number.isFinite(timestamp) ? timestamp : 0;
@@ -405,6 +420,8 @@ function resolveUnifiedMaterialSortTime(item: { materialAddedAt?: string; collec
 export function buildUnifiedMaterialLibraryItems(
   xhsWorkspace: XhsCollectionWorkspace,
   douyinWorkspace: DouyinCollectionWorkspace,
+  wechatBenchmarkWorkspace: WechatMpBenchmarkWorkspace = wechatMpBenchmarkSeed,
+  wechatSearchWorkspace: WechatSearchWorkspace = wechatSearchSeed,
 ): UnifiedMaterialLibraryRecord[] {
   const buildImageUrls = (urls: Array<string | undefined>) =>
     Array.from(new Set(urls.filter((value): value is string => Boolean(value))));
@@ -462,7 +479,33 @@ export function buildUnifiedMaterialLibraryItems(
     materialAddedAt: item.materialAddedAt,
     collectedAt: item.collectedAt,
   }));
-  return [...xhsItems, ...douyinItems].sort(
+  const wechatItems: UnifiedMaterialLibraryRecord[] = listWechatMaterialLibraryItems(
+    wechatBenchmarkWorkspace,
+    wechatSearchWorkspace,
+  ).map((item) => ({
+    id: item.id,
+    platform: "WECHAT_MP",
+    platformLabel: "公众号",
+    sourceKind: "公众号文章",
+    title: item.title,
+    description: "desc" in item ? item.desc : undefined,
+    workContent: item.articleContent || ("desc" in item ? item.desc : undefined) || item.title,
+    authorName: "jumpInfoNickName" in item ? item.jumpInfoNickName : undefined,
+    publishTimeText: "publishTime" in item ? item.publishTime : undefined,
+    mediaTypeLabel: "图文",
+    imageCount: "images" in item ? item.images?.length || 0 : 0,
+    imageUrls: "images" in item ? buildImageUrls(item.images || []) : [],
+    detailUrl: item.url,
+    workUrl: item.url,
+    likeCount: item.likeCount,
+    commentCount: item.commentCount,
+    shareCount: item.shareCount,
+    collectCount: item.collectCount,
+    playCount: item.readNum,
+    materialAddedAt: item.materialAddedAt,
+    collectedAt: item.collectedAt,
+  }));
+  return [...xhsItems, ...douyinItems, ...wechatItems].sort(
     (left, right) => resolveUnifiedMaterialSortTime(right) - resolveUnifiedMaterialSortTime(left),
   );
 }
@@ -470,8 +513,15 @@ export function buildUnifiedMaterialLibraryItems(
 export function buildUnifiedMaterialOptions(
   xhsWorkspace: XhsCollectionWorkspace,
   douyinWorkspace: DouyinCollectionWorkspace,
+  wechatBenchmarkWorkspace: WechatMpBenchmarkWorkspace = wechatMpBenchmarkSeed,
+  wechatSearchWorkspace: WechatSearchWorkspace = wechatSearchSeed,
 ): UnifiedMaterialOption[] {
-  return buildUnifiedMaterialLibraryItems(xhsWorkspace, douyinWorkspace).map((item) => ({
+  return buildUnifiedMaterialLibraryItems(
+    xhsWorkspace,
+    douyinWorkspace,
+    wechatBenchmarkWorkspace,
+    wechatSearchWorkspace,
+  ).map((item) => ({
     id: item.id,
     title: item.title,
     videoUrl: item.videoUrl,
@@ -744,6 +794,14 @@ export async function removeDouyinBenchmarkWorkFromMaterialLibrary(assetId: stri
   );
 }
 
+export async function deleteDouyinCollectedWork(assetId: string, brandId?: string) {
+  return jsonRequest<{ workspace: DouyinCollectionWorkspace }>(
+    `/collectors/douyin/brands/${resolveBrandId(brandId)}/works/${assetId}`,
+    "DELETE",
+    {},
+  );
+}
+
 export async function extractDouyinWorkTranscript(assetId: string, brandId?: string) {
   return jsonRequest<{ item: DouyinCollectedWorkRecord; workspace: DouyinCollectionWorkspace }>(
     `/collectors/douyin/brands/${resolveBrandId(brandId)}/transcripts`,
@@ -889,6 +947,14 @@ export async function addBenchmarkNoteToMaterialLibrary(assetId: string, brandId
   );
 }
 
+export async function deleteXhsCollectedNote(assetId: string, brandId?: string) {
+  return jsonRequest<{ workspace: XhsCollectionWorkspace }>(
+    `/collectors/xiaohongshu/brands/${resolveBrandId(brandId)}/notes/${assetId}`,
+    "DELETE",
+    {},
+  );
+}
+
 // ─── 公众号采集 ───
 
 export type WechatMpBrandAccountRecord = {
@@ -1000,6 +1066,8 @@ export type WechatMpBenchmarkArticleRecord = {
   starNum?: number;
   statsUpdatedAt?: string;
   contentReadAt?: string;
+  isInMaterialLibrary?: boolean;
+  materialAddedAt?: string;
   collectedAt: string;
 };
 
@@ -1028,6 +1096,14 @@ export async function updateWechatMpBenchmarkArticleStats(url: string, brandId?:
     `/collectors/wechat-mp/brands/${resolveBrandId(brandId)}/benchmark-articles/stats`,
     "POST",
     { url },
+  );
+}
+
+export async function addWechatMpBenchmarkArticleToMaterialLibrary(articleId: string, brandId?: string) {
+  return jsonRequest<{ item: WechatMpBenchmarkArticleRecord; workspace: WechatMpBenchmarkWorkspace }>(
+    `/collectors/wechat-mp/brands/${resolveBrandId(brandId)}/benchmark-articles/material-library`,
+    "POST",
+    { articleId },
   );
 }
 
@@ -1084,6 +1160,8 @@ export type WechatSearchItemRecord = {
   starNum?: number;
   statsUpdatedAt?: string;
   contentReadAt?: string;
+  isInMaterialLibrary?: boolean;
+  materialAddedAt?: string;
   collectedAt: string;
 };
 
@@ -1137,5 +1215,13 @@ export async function updateWechatSearchItemStats(url: string, brandId?: string)
     `/collectors/wechat-mp/brands/${resolveBrandId(brandId)}/search-items/stats`,
     "POST",
     { url },
+  );
+}
+
+export async function addWechatSearchItemToMaterialLibrary(itemId: string, brandId?: string) {
+  return jsonRequest<{ item: WechatSearchItemRecord; workspace: WechatSearchWorkspace }>(
+    `/collectors/wechat-mp/brands/${resolveBrandId(brandId)}/search-items/material-library`,
+    "POST",
+    { itemId },
   );
 }

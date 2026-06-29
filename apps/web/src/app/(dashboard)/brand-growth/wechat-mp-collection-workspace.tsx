@@ -84,6 +84,9 @@ export type WechatMpCollectionWorkspaceProps = {
   searchWorkspace: WechatSearchWorkspace;
   setSearchWorkspace: Dispatch<SetStateAction<WechatSearchWorkspace>>;
   activeBrandId?: string;
+  addingMaterialAssetId?: string;
+  onAddBenchmarkArticleToMaterial: (articleId: string) => void | Promise<void>;
+  onAddSearchItemToMaterial: (itemId: string) => void | Promise<void>;
   formatDateTime: OptionalDateFormatter;
   formatCount: OptionalNumberFormatter;
 };
@@ -107,6 +110,7 @@ export function WechatMpCollectionWorkspace(props: WechatMpCollectionWorkspacePr
   const [selectedBenchmarkIds, setSelectedBenchmarkIds] = useState<string[]>([]);
   const [updatingBenchmarkIds, setUpdatingBenchmarkIds] = useState<string[]>([]);
   const [isUpdatingBenchmark, setIsUpdatingBenchmark] = useState(false);
+  const [isAddingBenchmark, setIsAddingBenchmark] = useState(false);
   const [isDeletingBenchmark, setIsDeletingBenchmark] = useState(false);
 
   // 微信搜一搜状态
@@ -120,6 +124,7 @@ export function WechatMpCollectionWorkspace(props: WechatMpCollectionWorkspacePr
   const [selectedSearchIds, setSelectedSearchIds] = useState<string[]>([]);
   const [updatingSearchIds, setUpdatingSearchIds] = useState<string[]>([]);
   const [isUpdatingSearch, setIsUpdatingSearch] = useState(false);
+  const [isAddingSearch, setIsAddingSearch] = useState(false);
   const [isDeletingSearch, setIsDeletingSearch] = useState(false);
 
   const showNotice = (type: "success" | "error", text: string) => {
@@ -280,6 +285,30 @@ export function WechatMpCollectionWorkspace(props: WechatMpCollectionWorkspacePr
     showNotice("success", "已删除勾选的文章。");
   };
 
+  const handleAddBenchmarkArticlesToMaterial = async () => {
+    const selected = props.benchmarkWorkspace.benchmarkArticles.filter((item) => selectedBenchmarkIds.includes(item.id));
+    if (!selected.length) {
+      showNotice("error", "请先勾选需要加入素材库的文章。");
+      return;
+    }
+    const pendingItems = selected.filter((item) => !item.isInMaterialLibrary);
+    if (!pendingItems.length) {
+      showNotice("success", "勾选文章已在素材库中。");
+      return;
+    }
+    setIsAddingBenchmark(true);
+    try {
+      for (const article of pendingItems) {
+        await props.onAddBenchmarkArticleToMaterial(article.id);
+      }
+      showNotice("success", `已加入 ${pendingItems.length} 篇文章到素材库。`);
+    } catch (error) {
+      showNotice("error", error instanceof Error ? error.message : "加入素材库失败。");
+    } finally {
+      setIsAddingBenchmark(false);
+    }
+  };
+
   // 微信搜一搜 handler
   const handleSearchWechat = async (offset: number) => {
     const trimmed = searchKeyword.trim();
@@ -366,6 +395,30 @@ export function WechatMpCollectionWorkspace(props: WechatMpCollectionWorkspacePr
     showNotice("success", "已删除勾选的结果。");
   };
 
+  const handleAddSearchItemsToMaterial = async () => {
+    const selected = props.searchWorkspace.items.filter((item) => selectedSearchIds.includes(item.id));
+    if (!selected.length) {
+      showNotice("error", "请先勾选需要加入素材库的结果。");
+      return;
+    }
+    const pendingItems = selected.filter((item) => !item.isInMaterialLibrary);
+    if (!pendingItems.length) {
+      showNotice("success", "勾选结果已在素材库中。");
+      return;
+    }
+    setIsAddingSearch(true);
+    try {
+      for (const item of pendingItems) {
+        await props.onAddSearchItemToMaterial(item.id);
+      }
+      showNotice("success", `已加入 ${pendingItems.length} 条结果到素材库。`);
+    } catch (error) {
+      showNotice("error", error instanceof Error ? error.message : "加入素材库失败。");
+    } finally {
+      setIsAddingSearch(false);
+    }
+  };
+
   return (
     <div className="workspace-panel strategy-page-card">
       <div className="strategy-card-toolbar">
@@ -439,6 +492,9 @@ export function WechatMpCollectionWorkspace(props: WechatMpCollectionWorkspacePr
           onUpdateStats={handleUpdateBenchmarkStats}
           isUpdating={isUpdatingBenchmark}
           updatingIds={updatingBenchmarkIds}
+          onAddToMaterial={handleAddBenchmarkArticlesToMaterial}
+          isAdding={isAddingBenchmark}
+          addingMaterialAssetId={props.addingMaterialAssetId}
           onDelete={handleDeleteBenchmarkArticles}
           isDeleting={isDeletingBenchmark}
           onCopyContent={handleCopyContent}
@@ -470,6 +526,9 @@ export function WechatMpCollectionWorkspace(props: WechatMpCollectionWorkspacePr
           onUpdateData={handleUpdateSearchItems}
           isUpdating={isUpdatingSearch}
           updatingIds={updatingSearchIds}
+          onAddToMaterial={handleAddSearchItemsToMaterial}
+          isAdding={isAddingSearch}
+          addingMaterialAssetId={props.addingMaterialAssetId}
           onDelete={handleDeleteSearchItems}
           isDeleting={isDeletingSearch}
           onCopyContent={handleCopyContent}
@@ -662,6 +721,9 @@ type WechatSearchPanelProps = {
   onUpdateData: () => void;
   isUpdating: boolean;
   updatingIds: string[];
+  onAddToMaterial: () => void;
+  isAdding: boolean;
+  addingMaterialAssetId?: string;
   onDelete: () => void;
   isDeleting: boolean;
   onCopyContent: (content: string) => void;
@@ -736,6 +798,16 @@ function WechatSearchPanel(props: WechatSearchPanelProps) {
               </button>
             ) : null}
             {props.canEdit && props.items.length > 0 ? (
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={props.onAddToMaterial}
+                disabled={props.isAdding || props.isDeleting || props.selectedIds.length === 0}
+              >
+                {props.isAdding ? "加入中..." : "加入素材库"}
+              </button>
+            ) : null}
+            {props.canEdit && props.items.length > 0 ? (
               <button type="button" className="note-inline-button" onClick={props.onDelete} disabled={props.isDeleting || props.selectedIds.length === 0}>
                 {props.isDeleting ? "删除中..." : "删除"}
               </button>
@@ -750,6 +822,7 @@ function WechatSearchPanel(props: WechatSearchPanelProps) {
                   <th>
                     <input type="checkbox" checked={props.allSelected} onChange={(event) => props.onSelectAll(event.target.checked)} />
                   </th>
+                  <th>素材库</th>
                   <th>标题</th>
                   <th>链接</th>
                   <th className="table-cell-wide">文章</th>
@@ -767,6 +840,7 @@ function WechatSearchPanel(props: WechatSearchPanelProps) {
                 {props.items.map((item) => {
                   const isChecked = props.selectedIds.includes(item.id);
                   const isUpdating = props.updatingIds.includes(item.id);
+                  const isAdding = props.addingMaterialAssetId === item.id && props.isAdding;
                   const hasContent = Boolean(item.articleContent?.trim());
                   const images = item.images || [];
                   return (
@@ -774,6 +848,7 @@ function WechatSearchPanel(props: WechatSearchPanelProps) {
                       <td>
                         <input type="checkbox" checked={isChecked} onChange={(event) => props.onToggle(item.id, event.target.checked)} />
                       </td>
+                      <td>{item.isInMaterialLibrary ? "已加入" : isAdding ? "加入中..." : "-"}</td>
                       <td className="wechat-mp-title-cell">
                         <span className="wechat-mp-title-text" title={item.title}>{item.title || "-"}</span>
                       </td>
@@ -888,6 +963,9 @@ type BenchmarkWorkPanelProps = {
   onUpdateStats: () => void;
   isUpdating: boolean;
   updatingIds: string[];
+  onAddToMaterial: () => void;
+  isAdding: boolean;
+  addingMaterialAssetId?: string;
   onDelete: () => void;
   isDeleting: boolean;
   onCopyContent: (content: string) => void;
@@ -927,6 +1005,16 @@ function BenchmarkWorkPanel(props: BenchmarkWorkPanelProps) {
             </button>
           ) : null}
           {props.canEdit && props.articles.length > 0 ? (
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={props.onAddToMaterial}
+              disabled={props.isAdding || props.isDeleting || props.selectedIds.length === 0}
+            >
+              {props.isAdding ? "加入中..." : "加入素材库"}
+            </button>
+          ) : null}
+          {props.canEdit && props.articles.length > 0 ? (
             <button type="button" className="note-inline-button" onClick={props.onDelete} disabled={props.isDeleting || props.selectedIds.length === 0}>
               {props.isDeleting ? "删除中..." : "删除"}
             </button>
@@ -940,6 +1028,7 @@ function BenchmarkWorkPanel(props: BenchmarkWorkPanelProps) {
                   <th>
                     <input type="checkbox" checked={props.allSelected} onChange={(event) => props.onSelectAll(event.target.checked)} />
                   </th>
+                  <th>素材库</th>
                   <th>标题</th>
                   <th>链接</th>
                   <th className="table-cell-wide">文章</th>
@@ -955,12 +1044,14 @@ function BenchmarkWorkPanel(props: BenchmarkWorkPanelProps) {
                 {props.articles.map((article) => {
                   const isChecked = props.selectedIds.includes(article.id);
                   const isUpdating = props.updatingIds.includes(article.id);
+                  const isAdding = props.addingMaterialAssetId === article.id && props.isAdding;
                   const hasContent = Boolean(article.articleContent?.trim());
                   return (
                     <tr key={article.id}>
                       <td>
                         <input type="checkbox" checked={isChecked} onChange={(event) => props.onToggle(article.id, event.target.checked)} />
                       </td>
+                      <td>{article.isInMaterialLibrary ? "已加入" : isAdding ? "加入中..." : "-"}</td>
                       <td className="wechat-mp-title-cell">
                         <span className="wechat-mp-title-text" title={article.title}>{article.title || "-"}</span>
                       </td>

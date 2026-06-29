@@ -104,6 +104,17 @@ export class CollectorsController {
     return this.collectorsService.addBenchmarkNoteToMaterialLibrary(brandId, payload.assetId);
   }
 
+  @Delete("brands/:brandId/notes/:assetId")
+  async deleteCollectedNote(
+    @Param("brandId") brandId: string,
+    @Param("assetId") assetId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(brandId, auth);
+    return this.collectorsService.deleteXhsCollectedNote(brandId, assetId);
+  }
+
   @Post("brands/:brandId/target-users/sync")
   async syncTargetUsers(
     @Param("brandId") brandId: string,
@@ -251,6 +262,17 @@ export class DouyinCollectorsController {
     return this.collectorsService.removeDouyinBenchmarkWorkFromMaterialLibrary(brandId, assetId);
   }
 
+  @Delete("brands/:brandId/works/:assetId")
+  async deleteCollectedWork(
+    @Param("brandId") brandId: string,
+    @Param("assetId") assetId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(brandId, auth);
+    return this.collectorsService.deleteDouyinCollectedWork(brandId, assetId);
+  }
+
   @Post("brands/:brandId/transcripts")
   async extractWorkTranscript(
     @Param("brandId") brandId: string,
@@ -372,6 +394,17 @@ export class WechatMpCollectorsController {
     return this.collectorsService.updateWechatMpBenchmarkArticleStats(brandId, payload.url);
   }
 
+  @Post("brands/:brandId/benchmark-articles/material-library")
+  async addBenchmarkArticleToMaterialLibrary(
+    @Param("brandId") brandId: string,
+    @Body() payload: { articleId: string },
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(brandId, auth);
+    return this.collectorsService.addWechatBenchmarkArticleToMaterialLibrary(brandId, payload.articleId);
+  }
+
   @Get("brands/:brandId/search-workspace")
   async searchWorkspace(@Param("brandId") brandId: string, @Headers() headers: Record<string, string | string[] | undefined>) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
@@ -417,6 +450,17 @@ export class WechatMpCollectorsController {
     const auth = await this.authService.resolveRequestAuthContext(headers);
     await this.authService.assertBrandAccess(brandId, auth);
     return this.collectorsService.updateWechatSearchItemStats(brandId, payload.url);
+  }
+
+  @Post("brands/:brandId/search-items/material-library")
+  async addSearchItemToMaterialLibrary(
+    @Param("brandId") brandId: string,
+    @Body() payload: { itemId: string },
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(brandId, auth);
+    return this.collectorsService.addWechatSearchItemToMaterialLibrary(brandId, payload.itemId);
   }
 
   @Delete("brands/:brandId/articles/:articleId")

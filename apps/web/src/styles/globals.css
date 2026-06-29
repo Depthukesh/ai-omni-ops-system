@@ -4684,6 +4684,26 @@ button {
   overflow: hidden;
 }
 
+.report-material-library-image-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  padding: 0;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.report-material-library-image-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
 .report-material-library-image {
   width: 46px;
   height: 46px;
@@ -4691,6 +4711,22 @@ button {
   object-fit: cover;
   border: 1px solid var(--site-hero-border);
   background: var(--card-surface);
+}
+
+.report-material-library-image-placeholder {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  padding: 0 6px;
+  border: 1px dashed var(--site-hero-border);
+  border-radius: 10px;
+  background: var(--card-surface);
+  color: var(--site-hero-muted);
+  font-size: 11px;
+  line-height: 1.2;
+  text-align: center;
 }
 
 .report-material-library-image-more {
@@ -4706,6 +4742,10 @@ button {
   color: var(--site-hero-muted);
   font-size: 11px;
   font-weight: 600;
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  pointer-events: none;
 }
 
 .report-material-library-text-cell {

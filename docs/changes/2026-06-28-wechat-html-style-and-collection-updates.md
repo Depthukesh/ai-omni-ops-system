@@ -123,3 +123,31 @@
 - 素材采集入口仍位于品牌增长策略 -> 收集数据，但所有被加入素材库的内容都会统一沉淀到品牌增长报告下
 - 小红书与抖音创作侧都可以直接复用对方平台中已入库且满足条件的素材
 - 统一素材库表格沿用抖音数据表格风格，继续兼容固定 80px 行高与多行截断约束
+
+## 10. 后续增量：公众号接入统一素材库 + 统一素材库预览修复
+
+### 10.1 变更目标
+
+- 让 `公众号 -> 对标作品信息及数据` 与 `公众号 -> 微信搜一搜` 也支持勾选后批量加入统一素材库
+- 统一素材库补齐公众号来源，真正实现“小红书 / 抖音 / 公众号”三端采集结果共用
+- 修复统一素材库图片在受保护地址下无法直接打开的问题，改为缩略图 + 点击预览
+
+### 10.2 前端调整
+
+- `apps/web/src/services/collectors.ts`：扩展 `UnifiedMaterialPlatform` 为 `WECHAT_MP`，补充公众号素材库字段与加入素材库 API
+- `apps/web/src/app/(dashboard)/brand-growth/workspace.tsx`：统一素材库聚合改为同时接入公众号对标文章与搜一搜工作区，并新增公众号加入素材库 handler
+- `apps/web/src/app/(dashboard)/brand-growth/wechat-mp-collection-workspace.tsx`：公众号两个列表新增批量 `加入素材库 / 删除 / 更新数据` 按钮，列表中新增素材库状态列
+- `apps/web/src/app/(dashboard)/brand-growth/report-material-library-workspace.tsx`：统一素材库图片单元格改为受保护媒体加载、缩略图展示与弹层预览
+- `apps/web/src/styles/globals.css`：补充统一素材库缩略图按钮、占位态与预览覆盖样式，继续锁定 80px 行高
+
+### 10.3 后端调整
+
+- `apps/server/src/modules/collectors/collectors.service.ts`：新增公众号对标文章 / 微信搜一搜加入素材库方法，映射输出增加 `isInMaterialLibrary` 与 `materialAddedAt`
+- `apps/server/src/modules/collectors/collectors.controller.ts`：新增公众号素材库入库接口
+- 统一素材库聚合接口同步纳入公众号来源，便于后续跨工作流按素材 ID 查找
+
+### 10.4 结果影响
+
+- 收集数据页现在三端列表都能通过勾选批量沉淀到统一素材库
+- 统一素材库中的公众号文章会展示为 `平台类型=公众号`，并复用阅读量到统一的播放列口径
+- 素材库图片对受保护媒体地址不再依赖直接外链打开，改为先拉取 blob 再本地预览

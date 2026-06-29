@@ -447,7 +447,9 @@ export interface BrandGrowthCollectionWorkspaceProps {
   addingMaterialAssetId: string;
   extractingDouyinTranscriptAssetId: string;
   onAddBenchmarkNoteToMaterial: ValueAction<string>;
+  onDeleteXhsCollectedNote: ValueAction<string>;
   onAddDouyinBenchmarkWorkToMaterial: ValueAction<DouyinCollectedWorkRecord>;
+  onDeleteDouyinCollectedWork: ValueAction<string>;
   onExtractDouyinTranscript: ValueAction<DouyinCollectedWorkRecord>;
   onRemoveDouyinKeywordRecommendation: ValueAction<string>;
   onPreviewMedia: ValueAction<MediaPreviewState>;
@@ -2382,6 +2384,56 @@ function MaterialLibraryCheckbox(props: {
   );
 }
 
+function TableSelectionCheckbox(props: {
+  checked: boolean;
+  disabled?: boolean;
+  title: string;
+  onChange: ValueAction<boolean>;
+}) {
+  return (
+    <input
+      type="checkbox"
+      checked={props.checked}
+      disabled={props.disabled}
+      aria-label={props.title}
+      title={props.title}
+      onChange={(event) => props.onChange(event.target.checked)}
+    />
+  );
+}
+
+function CollectionBatchActionButtons(props: {
+  selectedCount: number;
+  isAdding: boolean;
+  isDeleting: boolean;
+  onAdd: AsyncAction;
+  onDelete: AsyncAction;
+}) {
+  return (
+    <div className="strategy-inline-actions">
+      <span className={`archive-pill ${props.selectedCount ? "status-ready" : "status-pending"}`}>
+        已勾选 {props.selectedCount} 条
+      </span>
+      <button
+        type="button"
+        className="secondary-button"
+        onClick={() => void props.onAdd()}
+        disabled={!props.selectedCount || props.isAdding || props.isDeleting}
+      >
+        {props.isAdding ? "加入中..." : "加入素材库"}
+      </button>
+      <button
+        type="button"
+        className="note-inline-button"
+        onClick={() => void props.onDelete()}
+        disabled={!props.selectedCount || props.isDeleting || props.isAdding}
+      >
+        {props.isDeleting ? "删除中..." : "删除"}
+      </button>
+    </div>
+  );
+}
+
 function DouyinAccountTable(props: {
   items: DouyinCollectedAccountRecord[];
   formatDateTime: OptionalDateFormatter;
@@ -2444,13 +2496,27 @@ function DouyinBrandWorksTable(props: {
   formatDateTime: OptionalDateFormatter;
   formatCount: OptionalNumberFormatter;
   onPreviewMedia: ValueAction<MediaPreviewState>;
+  selectedIds?: string[];
+  allSelected?: boolean;
+  onToggleSelect?: (id: string, checked: boolean) => void;
+  onSelectAll?: (checked: boolean) => void;
 }) {
   const showMaterialLibraryColumn = Boolean(props.onAddToMaterialLibrary);
+  const showSelectionColumn = Boolean(props.selectedIds && props.onToggleSelect && props.onSelectAll);
   return (
     <ScrollableTableShell>
       <table className="soft-table douyin-data-table">
         <thead>
           <tr>
+            {showSelectionColumn ? (
+              <th>
+                <TableSelectionCheckbox
+                  checked={Boolean(props.allSelected)}
+                  title="全选当前列表"
+                  onChange={(checked) => props.onSelectAll?.(checked)}
+                />
+              </th>
+            ) : null}
             {showMaterialLibraryColumn ? <th>素材库</th> : null}
             <th>作品 ID</th>
             <th>作者昵称</th>
@@ -2473,6 +2539,15 @@ function DouyinBrandWorksTable(props: {
         <tbody>
           {props.items.map((item) => (
             <tr key={item.id}>
+              {showSelectionColumn ? (
+                <td>
+                  <TableSelectionCheckbox
+                    checked={Boolean(props.selectedIds?.includes(item.id))}
+                    title={`勾选 ${item.title || item.workId || "作品"}`}
+                    onChange={(checked) => props.onToggleSelect?.(item.id, checked)}
+                  />
+                </td>
+              ) : null}
               {showMaterialLibraryColumn ? (
                 <td>
                   <MaterialLibraryCheckbox
@@ -2529,15 +2604,29 @@ function DouyinMaterialReadyWorksTable(props: {
   showBillboardColumns?: boolean;
   showWorkUrlColumn?: boolean;
   videoColumnLabel?: string;
+  selectedIds?: string[];
+  allSelected?: boolean;
+  onToggleSelect?: (id: string, checked: boolean) => void;
+  onSelectAll?: (checked: boolean) => void;
 }) {
   const showBillboardColumns = props.showBillboardColumns ?? true;
   const showWorkUrlColumn = props.showWorkUrlColumn ?? false;
   const videoColumnLabel = props.videoColumnLabel || "视频地址";
+  const showSelectionColumn = Boolean(props.selectedIds && props.onToggleSelect && props.onSelectAll);
   return (
     <ScrollableTableShell>
       <table className="soft-table douyin-data-table">
         <thead>
           <tr>
+            {showSelectionColumn ? (
+              <th>
+                <TableSelectionCheckbox
+                  checked={Boolean(props.allSelected)}
+                  title="全选当前列表"
+                  onChange={(checked) => props.onSelectAll?.(checked)}
+                />
+              </th>
+            ) : null}
             <th>素材库</th>
             <th>作品 ID</th>
             <th>作者昵称</th>
@@ -2565,6 +2654,15 @@ function DouyinMaterialReadyWorksTable(props: {
         <tbody>
           {props.items.map((item) => (
             <tr key={item.id}>
+              {showSelectionColumn ? (
+                <td>
+                  <TableSelectionCheckbox
+                    checked={Boolean(props.selectedIds?.includes(item.id))}
+                    title={`勾选 ${item.title || item.workId || "作品"}`}
+                    onChange={(checked) => props.onToggleSelect?.(item.id, checked)}
+                  />
+                </td>
+              ) : null}
               <td>
                 <MaterialLibraryCheckbox
                   checked={Boolean(item.isInMaterialLibrary)}
@@ -3150,45 +3248,112 @@ function XhsNotesTable(props: {
 function XhsBenchmarkNotesTable(props: {
   items: XhsCollectedNoteRecord[];
   addingMaterialAssetId: string;
-  onAddToMaterialLibrary: ValueAction<string>;
   formatDateTime: OptionalDateFormatter;
   formatCount: OptionalNumberFormatter;
   formatMetric: OptionalNumberFormatter;
   onPreviewMedia: ValueAction<MediaPreviewState>;
+  selectedIds: string[];
+  allSelected: boolean;
+  onToggleSelect: (id: string, checked: boolean) => void;
+  onSelectAll: (checked: boolean) => void;
 }) {
   return (
-    <div className="xhs-note-card-list">
-      {props.items.map((item) => (
-        <XhsNoteCard
-          key={item.id}
-          item={item}
-          formatDateTime={props.formatDateTime}
-          formatCount={props.formatCount}
-          formatMetric={props.formatMetric}
-          onPreviewMedia={props.onPreviewMedia}
-          showRatioMetrics
-          linkUrl={item.sourceUrl || item.noteUrl}
-          materialAction={(
-            <button
-              type="button"
-              className="note-inline-button"
-              onClick={() => void props.onAddToMaterialLibrary(item.id)}
-              disabled={props.addingMaterialAssetId === item.id || Boolean(item.isInMaterialLibrary)}
-            >
-              {item.isInMaterialLibrary
-                ? "已加入素材库"
-                : props.addingMaterialAssetId === item.id
-                  ? "加入中..."
-                  : "加入素材库"}
-            </button>
-          )}
-        />
-      ))}
-    </div>
+    <ScrollableTableShell>
+      <table className="soft-table douyin-data-table">
+        <thead>
+          <tr>
+            <th>
+              <TableSelectionCheckbox
+                checked={props.allSelected}
+                title="全选当前列表"
+                onChange={props.onSelectAll}
+              />
+            </th>
+            <th>素材库</th>
+            <th>笔记 ID</th>
+            <th>作者昵称</th>
+            <th>标题/文案</th>
+            <th>发布时间</th>
+            <th>笔记类型</th>
+            <th>图片</th>
+            <th>视频</th>
+            <th>作品链接</th>
+            <th>点赞</th>
+            <th>评论</th>
+            <th>分享</th>
+            <th>收藏</th>
+            <th>赞藏率</th>
+            <th>赞评率</th>
+            <th>分享率</th>
+            <th>采集时间</th>
+          </tr>
+        </thead>
+        <tbody>
+          {props.items.map((item) => (
+            <tr key={item.id}>
+              <td>
+                <TableSelectionCheckbox
+                  checked={props.selectedIds.includes(item.id)}
+                  title={`勾选 ${item.title || item.noteId || "笔记"}`}
+                  onChange={(checked) => props.onToggleSelect(item.id, checked)}
+                />
+              </td>
+              <td>{item.isInMaterialLibrary ? "已加入" : props.addingMaterialAssetId === item.id ? "加入中..." : "未加入"}</td>
+              <td><CopyableCell value={item.noteId} /></td>
+              <td className="table-cell-wide">
+                <ExpandableTextCell value={item.nickname} emptyText="-" compactRows={2} />
+              </td>
+              <td className="table-cell-wide">
+                <ExpandableTextCell value={item.description || item.title} emptyText="暂无作品文案" compactRows={2} />
+              </td>
+              <td>{item.createdAtText || "-"}</td>
+              <td>{item.noteType || (item.videoUrl ? "视频笔记" : "图文笔记")}</td>
+              <td className="table-cell-wide">
+                {item.imageList?.length ? (
+                  <ProtectedImageGallery
+                    sourceUrls={item.imageList}
+                    title={item.title || item.noteId || "小红书图片"}
+                    onPreviewMedia={props.onPreviewMedia}
+                  />
+                ) : (
+                  <span className="table-cell-empty">-</span>
+                )}
+              </td>
+              <td>
+                <ProtectedVideoLink
+                  sourceUrl={item.videoUrl}
+                  title={item.title || item.noteId || "小红书视频"}
+                  onPreviewMedia={props.onPreviewMedia}
+                />
+              </td>
+              <td>
+                {item.sourceUrl || item.noteUrl ? (
+                  <a href={item.sourceUrl || item.noteUrl} target="_blank" rel="noreferrer" className="note-data-link">
+                    打开作品
+                  </a>
+                ) : "-"}
+              </td>
+              <td>{props.formatCount(item.likeCount)}</td>
+              <td>{props.formatCount(item.commentCount)}</td>
+              <td>{props.formatCount(item.shareCount)}</td>
+              <td>{props.formatCount(item.collectCount)}</td>
+              <td>{props.formatMetric(item.likeCollectRatio)}</td>
+              <td>{props.formatMetric(item.likeCommentRatio)}</td>
+              <td>{props.formatMetric(item.shareRatio)}</td>
+              <td>{props.formatDateTime(item.collectedAt)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </ScrollableTableShell>
   );
 }
 
 export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorkspaceProps) {
+  const [selectedXhsNoteIds, setSelectedXhsNoteIds] = useState<string[]>([]);
+  const [selectedDouyinWorkIds, setSelectedDouyinWorkIds] = useState<string[]>([]);
+  const [isBatchAddingToMaterial, setIsBatchAddingToMaterial] = useState(false);
+  const [isBatchDeletingItems, setIsBatchDeletingItems] = useState(false);
   const xiaohongshuSyncedCount =
     props.sortedBrandAccounts.length +
     props.sortedCompetitorAccounts.length +
@@ -3217,6 +3382,11 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
   const xhsCommentRequestCount = props.xhsCommentPagination.length;
   const douyinCommentHasMoreCount = props.douyinCommentPagination.filter((item) => item.hasMore).length;
   const douyinCommentRequestCount = props.douyinCommentPagination.length;
+  const currentXhsSelectableItems = props.activeXhsCollectionCard === "benchmarkWorks"
+    ? props.sortedBenchmarkNotes
+    : props.activeXhsCollectionCard === "searchNotes"
+      ? props.sortedSearchNotes
+      : [];
   const douyinPreviewItems =
     props.activeDouyinCollectionCard === "brandAccount"
       ? props.sortedDouyinBrandAccounts
@@ -3235,6 +3405,91 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                 : props.activeDouyinCollectionCard === "highCompletionRateWorks"
                   ? props.sortedDouyinHighCompletionRateWorks
                   : props.sortedDouyinHighLikeRateWorks;
+  const currentDouyinSelectableItems = [
+    "competitorWorks",
+    "benchmarkWorks",
+    "searchWorks",
+    "lowFanExplosiveWorks",
+    "highCompletionRateWorks",
+    "highLikeRateWorks",
+  ].includes(props.activeDouyinCollectionCard)
+    ? (douyinPreviewItems as DouyinCollectedWorkRecord[])
+    : [];
+  const allXhsSelected = currentXhsSelectableItems.length > 0 && currentXhsSelectableItems.every((item) => selectedXhsNoteIds.includes(item.id));
+  const allDouyinSelected =
+    currentDouyinSelectableItems.length > 0 && currentDouyinSelectableItems.every((item) => selectedDouyinWorkIds.includes(item.id));
+
+  useEffect(() => {
+    const currentIds = new Set(currentXhsSelectableItems.map((item) => item.id));
+    setSelectedXhsNoteIds((current) => current.filter((id) => currentIds.has(id)));
+  }, [currentXhsSelectableItems]);
+
+  useEffect(() => {
+    const currentIds = new Set(currentDouyinSelectableItems.map((item) => item.id));
+    setSelectedDouyinWorkIds((current) => current.filter((id) => currentIds.has(id)));
+  }, [currentDouyinSelectableItems]);
+
+  async function handleBatchAddXhsNotesToMaterial() {
+    const selectedItems = currentXhsSelectableItems.filter((item) => selectedXhsNoteIds.includes(item.id) && !item.isInMaterialLibrary);
+    if (!selectedItems.length) {
+      return;
+    }
+    setIsBatchAddingToMaterial(true);
+    try {
+      for (const item of selectedItems) {
+        await props.onAddBenchmarkNoteToMaterial(item.id);
+      }
+    } finally {
+      setIsBatchAddingToMaterial(false);
+    }
+  }
+
+  async function handleBatchDeleteXhsNotes() {
+    const selectedItems = currentXhsSelectableItems.filter((item) => selectedXhsNoteIds.includes(item.id));
+    if (!selectedItems.length) {
+      return;
+    }
+    setIsBatchDeletingItems(true);
+    try {
+      for (const item of selectedItems) {
+        await props.onDeleteXhsCollectedNote(item.id);
+      }
+      setSelectedXhsNoteIds([]);
+    } finally {
+      setIsBatchDeletingItems(false);
+    }
+  }
+
+  async function handleBatchAddDouyinWorksToMaterial() {
+    const selectedItems = currentDouyinSelectableItems.filter((item) => selectedDouyinWorkIds.includes(item.id) && !item.isInMaterialLibrary);
+    if (!selectedItems.length) {
+      return;
+    }
+    setIsBatchAddingToMaterial(true);
+    try {
+      for (const item of selectedItems) {
+        await props.onAddDouyinBenchmarkWorkToMaterial(item);
+      }
+    } finally {
+      setIsBatchAddingToMaterial(false);
+    }
+  }
+
+  async function handleBatchDeleteDouyinWorks() {
+    const selectedItems = currentDouyinSelectableItems.filter((item) => selectedDouyinWorkIds.includes(item.id));
+    if (!selectedItems.length) {
+      return;
+    }
+    setIsBatchDeletingItems(true);
+    try {
+      for (const item of selectedItems) {
+        await props.onDeleteDouyinCollectedWork(item.id);
+      }
+      setSelectedDouyinWorkIds([]);
+    } finally {
+      setIsBatchDeletingItems(false);
+    }
+  }
   if (props.activePage === "dailyHotspot") {
     return (
       <article className="workspace-panel strategy-page-card hotspot-page-card">
@@ -3794,19 +4049,27 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                     <h3>对标作品信息及数据</h3>
                     <p>调用 Tikhub 作品详情接口获取单条作品的详情与互动数据。</p>
                   </div>
-                  <span className={`archive-pill ${props.sortedBenchmarkNotes.length ? "status-ready" : "status-pending"}`}>
-                    已同步 {props.sortedBenchmarkNotes.length} 条
-                  </span>
+                  <CollectionBatchActionButtons
+                    selectedCount={selectedXhsNoteIds.length}
+                    isAdding={isBatchAddingToMaterial}
+                    isDeleting={isBatchDeletingItems}
+                    onAdd={handleBatchAddXhsNotesToMaterial}
+                    onDelete={handleBatchDeleteXhsNotes}
+                  />
                 </div>
                 {props.sortedBenchmarkNotes.length ? (
                   <XhsBenchmarkNotesTable
                     items={props.sortedBenchmarkNotes}
                     addingMaterialAssetId={props.addingMaterialAssetId}
-                    onAddToMaterialLibrary={props.onAddBenchmarkNoteToMaterial}
                     formatDateTime={props.formatDateTime}
                     formatCount={props.formatCount}
                     formatMetric={props.formatMetric}
                     onPreviewMedia={props.onPreviewMedia}
+                    selectedIds={selectedXhsNoteIds}
+                    allSelected={allXhsSelected}
+                    onToggleSelect={(id, checked) =>
+                      setSelectedXhsNoteIds((current) => (checked ? [...current, id] : current.filter((item) => item !== id)))}
+                    onSelectAll={(checked) => setSelectedXhsNoteIds(checked ? props.sortedBenchmarkNotes.map((item) => item.id) : [])}
                   />
                 ) : (
                   <div className="note-empty-state">当前还没有对标作品结果，先提交作品链接或 note_id。</div>
@@ -3846,19 +4109,27 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                     <h3>搜索笔记结果</h3>
                     <p>调用 Tikhub 搜索笔记接口，结果结构与对标作品列表保持一致，可直接加入统一素材库。</p>
                   </div>
-                  <span className={`archive-pill ${props.sortedSearchNotes.length ? "status-ready" : "status-pending"}`}>
-                    已同步 {props.sortedSearchNotes.length} 条
-                  </span>
+                  <CollectionBatchActionButtons
+                    selectedCount={selectedXhsNoteIds.length}
+                    isAdding={isBatchAddingToMaterial}
+                    isDeleting={isBatchDeletingItems}
+                    onAdd={handleBatchAddXhsNotesToMaterial}
+                    onDelete={handleBatchDeleteXhsNotes}
+                  />
                 </div>
                 {props.sortedSearchNotes.length ? (
                   <XhsBenchmarkNotesTable
                     items={props.sortedSearchNotes}
                     addingMaterialAssetId={props.addingMaterialAssetId}
-                    onAddToMaterialLibrary={props.onAddBenchmarkNoteToMaterial}
                     formatDateTime={props.formatDateTime}
                     formatCount={props.formatCount}
                     formatMetric={props.formatMetric}
                     onPreviewMedia={props.onPreviewMedia}
+                    selectedIds={selectedXhsNoteIds}
+                    allSelected={allXhsSelected}
+                    onToggleSelect={(id, checked) =>
+                      setSelectedXhsNoteIds((current) => (checked ? [...current, id] : current.filter((item) => item !== id)))}
+                    onSelectAll={(checked) => setSelectedXhsNoteIds(checked ? props.sortedSearchNotes.map((item) => item.id) : [])}
                   />
                 ) : (
                   <div className="note-empty-state">当前还没有搜索笔记结果，先输入关键词并提交。</div>
@@ -4197,6 +4468,13 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                   <div>
                     <h3>竞品作品信息及数据</h3>
                   </div>
+                  <CollectionBatchActionButtons
+                    selectedCount={selectedDouyinWorkIds.length}
+                    isAdding={isBatchAddingToMaterial}
+                    isDeleting={isBatchDeletingItems}
+                    onAdd={handleBatchAddDouyinWorksToMaterial}
+                    onDelete={handleBatchDeleteDouyinWorks}
+                  />
                 </div>
                 {douyinPreviewItems.length ? (
                   <DouyinBrandWorksTable
@@ -4208,6 +4486,11 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                     extractingTranscriptAssetId={props.extractingDouyinTranscriptAssetId}
                     onExtractTranscript={props.onExtractDouyinTranscript}
                     onPreviewMedia={props.onPreviewMedia}
+                    selectedIds={selectedDouyinWorkIds}
+                    allSelected={allDouyinSelected}
+                    onToggleSelect={(id, checked) =>
+                      setSelectedDouyinWorkIds((current) => (checked ? [...current, id] : current.filter((item) => item !== id)))}
+                    onSelectAll={(checked) => setSelectedDouyinWorkIds(checked ? currentDouyinSelectableItems.map((item) => item.id) : [])}
                   />
                 ) : (
                   <div className="note-empty-state">当前还没有采集到竞品作品信息，请先同步竞品账号信息后再提交。</div>
@@ -4230,6 +4513,13 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                   <div>
                     <h3>对标作品信息及数据</h3>
                   </div>
+                  <CollectionBatchActionButtons
+                    selectedCount={selectedDouyinWorkIds.length}
+                    isAdding={isBatchAddingToMaterial}
+                    isDeleting={isBatchDeletingItems}
+                    onAdd={handleBatchAddDouyinWorksToMaterial}
+                    onDelete={handleBatchDeleteDouyinWorks}
+                  />
                 </div>
                 {douyinPreviewItems.length ? (
                   <DouyinMaterialReadyWorksTable
@@ -4244,6 +4534,11 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                     showBillboardColumns={false}
                     showWorkUrlColumn
                     videoColumnLabel="视频预览"
+                    selectedIds={selectedDouyinWorkIds}
+                    allSelected={allDouyinSelected}
+                    onToggleSelect={(id, checked) =>
+                      setSelectedDouyinWorkIds((current) => (checked ? [...current, id] : current.filter((item) => item !== id)))}
+                    onSelectAll={(checked) => setSelectedDouyinWorkIds(checked ? currentDouyinSelectableItems.map((item) => item.id) : [])}
                   />
                 ) : (
                   <div className="note-empty-state">当前还没有采集到对标作品信息，请先输入作品链接并提交。</div>
@@ -4279,6 +4574,13 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                     <h3>搜索关键词结果</h3>
                     <p>调用 TikHub 抖音综合搜索接口，返回关键词下的视频结果，支持加入统一素材库。</p>
                   </div>
+                  <CollectionBatchActionButtons
+                    selectedCount={selectedDouyinWorkIds.length}
+                    isAdding={isBatchAddingToMaterial}
+                    isDeleting={isBatchDeletingItems}
+                    onAdd={handleBatchAddDouyinWorksToMaterial}
+                    onDelete={handleBatchDeleteDouyinWorks}
+                  />
                 </div>
                 {douyinPreviewItems.length ? (
                   <DouyinMaterialReadyWorksTable
@@ -4293,6 +4595,11 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                     showBillboardColumns={false}
                     showWorkUrlColumn
                     videoColumnLabel="视频预览"
+                    selectedIds={selectedDouyinWorkIds}
+                    allSelected={allDouyinSelected}
+                    onToggleSelect={(id, checked) =>
+                      setSelectedDouyinWorkIds((current) => (checked ? [...current, id] : current.filter((item) => item !== id)))}
+                    onSelectAll={(checked) => setSelectedDouyinWorkIds(checked ? currentDouyinSelectableItems.map((item) => item.id) : [])}
                   />
                 ) : (
                   <div className="note-empty-state">当前还没有搜索结果，请先输入关键词并提交。</div>
@@ -4385,6 +4692,13 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                   <div>
                     <h3>低粉爆款榜</h3>
                   </div>
+                  <CollectionBatchActionButtons
+                    selectedCount={selectedDouyinWorkIds.length}
+                    isAdding={isBatchAddingToMaterial}
+                    isDeleting={isBatchDeletingItems}
+                    onAdd={handleBatchAddDouyinWorksToMaterial}
+                    onDelete={handleBatchDeleteDouyinWorks}
+                  />
                 </div>
                 {douyinPreviewItems.length ? (
                   <DouyinMaterialReadyWorksTable
@@ -4396,6 +4710,11 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                     formatDateTime={props.formatDateTime}
                     formatCount={props.formatCount}
                     onPreviewMedia={props.onPreviewMedia}
+                    selectedIds={selectedDouyinWorkIds}
+                    allSelected={allDouyinSelected}
+                    onToggleSelect={(id, checked) =>
+                      setSelectedDouyinWorkIds((current) => (checked ? [...current, id] : current.filter((item) => item !== id)))}
+                    onSelectAll={(checked) => setSelectedDouyinWorkIds(checked ? currentDouyinSelectableItems.map((item) => item.id) : [])}
                   />
                 ) : (
                   <div className="note-empty-state">当前还没有采集到低粉爆款榜结果，请先选择垂类分类并提交。</div>
@@ -4418,6 +4737,13 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                   <div>
                     <h3>高完播率榜</h3>
                   </div>
+                  <CollectionBatchActionButtons
+                    selectedCount={selectedDouyinWorkIds.length}
+                    isAdding={isBatchAddingToMaterial}
+                    isDeleting={isBatchDeletingItems}
+                    onAdd={handleBatchAddDouyinWorksToMaterial}
+                    onDelete={handleBatchDeleteDouyinWorks}
+                  />
                 </div>
                 {douyinPreviewItems.length ? (
                   <DouyinMaterialReadyWorksTable
@@ -4429,6 +4755,11 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                     formatDateTime={props.formatDateTime}
                     formatCount={props.formatCount}
                     onPreviewMedia={props.onPreviewMedia}
+                    selectedIds={selectedDouyinWorkIds}
+                    allSelected={allDouyinSelected}
+                    onToggleSelect={(id, checked) =>
+                      setSelectedDouyinWorkIds((current) => (checked ? [...current, id] : current.filter((item) => item !== id)))}
+                    onSelectAll={(checked) => setSelectedDouyinWorkIds(checked ? currentDouyinSelectableItems.map((item) => item.id) : [])}
                   />
                 ) : (
                   <div className="note-empty-state">当前还没有采集到高完播率榜结果，请先选择垂类分类并提交。</div>
@@ -4451,6 +4782,13 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                   <div>
                     <h3>高点赞率榜</h3>
                   </div>
+                  <CollectionBatchActionButtons
+                    selectedCount={selectedDouyinWorkIds.length}
+                    isAdding={isBatchAddingToMaterial}
+                    isDeleting={isBatchDeletingItems}
+                    onAdd={handleBatchAddDouyinWorksToMaterial}
+                    onDelete={handleBatchDeleteDouyinWorks}
+                  />
                 </div>
                 {douyinPreviewItems.length ? (
                   <DouyinMaterialReadyWorksTable
@@ -4462,6 +4800,11 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                     formatDateTime={props.formatDateTime}
                     formatCount={props.formatCount}
                     onPreviewMedia={props.onPreviewMedia}
+                    selectedIds={selectedDouyinWorkIds}
+                    allSelected={allDouyinSelected}
+                    onToggleSelect={(id, checked) =>
+                      setSelectedDouyinWorkIds((current) => (checked ? [...current, id] : current.filter((item) => item !== id)))}
+                    onSelectAll={(checked) => setSelectedDouyinWorkIds(checked ? currentDouyinSelectableItems.map((item) => item.id) : [])}
                   />
                 ) : (
                   <div className="note-empty-state">当前还没有采集到高点赞率榜结果，请先选择垂类分类并提交。</div>

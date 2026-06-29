@@ -47,7 +47,11 @@ import {
 import {
   addDouyinBenchmarkWorkToMaterialLibrary,
   addBenchmarkNoteToMaterialLibrary,
+  addWechatMpBenchmarkArticleToMaterialLibrary,
+  addWechatSearchItemToMaterialLibrary,
   buildUnifiedMaterialLibraryItems,
+  deleteDouyinCollectedWork,
+  deleteXhsCollectedNote,
   extractDouyinWorkTranscript,
   getDouyinCollectionWorkspace,
   getXiaohongshuCommentReplies,
@@ -1129,8 +1133,13 @@ export function BrandGrowthWorkspace() {
     [collectionWorkspace.brandNotes],
   );
   const unifiedMaterialLibraryItems = useMemo(
-    () => buildUnifiedMaterialLibraryItems(collectionWorkspace, douyinCollectionWorkspace),
-    [collectionWorkspace, douyinCollectionWorkspace],
+    () => buildUnifiedMaterialLibraryItems(
+      collectionWorkspace,
+      douyinCollectionWorkspace,
+      wechatMpBenchmarkWorkspace,
+      wechatSearchWorkspace,
+    ),
+    [collectionWorkspace, douyinCollectionWorkspace, wechatMpBenchmarkWorkspace, wechatSearchWorkspace],
   );
   const sortedBenchmarkNotes = useMemo(
     () => sortByCollectedAtDesc(collectionWorkspace.benchmarkNotes),
@@ -3047,6 +3056,26 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     }
   }
 
+  async function handleDeleteXhsCollectedNote(assetId: string) {
+    if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.collection.xiaohongshuCollection"]?.edit) {
+      setErrorMessage("当前账号没有编辑小红书收集数据的权限。");
+      return;
+    }
+    if (!assetId) {
+      return;
+    }
+
+    clearMessages();
+    try {
+      const response = await deleteXhsCollectedNote(assetId, activeBrandId || archive.brand.id);
+      setCollectionWorkspace(response.workspace);
+      setNotice("已删除小红书作品。");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "删除失败";
+      setErrorMessage(`删除小红书作品失败：${message}`);
+    }
+  }
+
   async function handleToggleDouyinBenchmarkWorkMaterial(item: DouyinCollectionWorkspace["benchmarkWorks"][number]) {
     if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.collection.douyinCollection"]?.edit) {
       setErrorMessage("当前账号没有编辑抖音收集数据的权限。");
@@ -3068,6 +3097,74 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     } catch (error) {
       const message = error instanceof Error ? error.message : item.isInMaterialLibrary ? "移出素材库失败" : "加入素材库失败";
       setErrorMessage(item.isInMaterialLibrary ? `移出统一素材库失败：${message}` : `加入统一素材库失败：${message}`);
+    } finally {
+      setAddingMaterialAssetId("");
+    }
+  }
+
+  async function handleDeleteDouyinCollectedWork(assetId: string) {
+    if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.collection.douyinCollection"]?.edit) {
+      setErrorMessage("当前账号没有编辑抖音收集数据的权限。");
+      return;
+    }
+    if (!assetId) {
+      return;
+    }
+
+    clearMessages();
+    try {
+      const response = await deleteDouyinCollectedWork(assetId, activeBrandId || archive.brand.id);
+      setDouyinCollectionWorkspace(response.workspace);
+      setNotice("已删除抖音作品。");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "删除失败";
+      setErrorMessage(`删除抖音作品失败：${message}`);
+    }
+  }
+
+  async function handleAddWechatBenchmarkArticleToMaterial(articleId: string) {
+    if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.collection.wechatMpCollection"]?.edit) {
+      setErrorMessage("当前账号没有编辑公众号收集数据的权限。");
+      return;
+    }
+    if (!articleId) {
+      return;
+    }
+
+    setAddingMaterialAssetId(articleId);
+    clearMessages();
+
+    try {
+      const response = await addWechatMpBenchmarkArticleToMaterialLibrary(articleId, activeBrandId || archive.brand.id);
+      setWechatMpBenchmarkWorkspace(response.workspace);
+      setNotice("已加入统一素材库。");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "加入素材库失败";
+      setErrorMessage(`加入素材库失败：${message}`);
+    } finally {
+      setAddingMaterialAssetId("");
+    }
+  }
+
+  async function handleAddWechatSearchItemToMaterial(itemId: string) {
+    if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.collection.wechatMpCollection"]?.edit) {
+      setErrorMessage("当前账号没有编辑公众号收集数据的权限。");
+      return;
+    }
+    if (!itemId) {
+      return;
+    }
+
+    setAddingMaterialAssetId(itemId);
+    clearMessages();
+
+    try {
+      const response = await addWechatSearchItemToMaterialLibrary(itemId, activeBrandId || archive.brand.id);
+      setWechatSearchWorkspace(response.workspace);
+      setNotice("已加入统一素材库。");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "加入素材库失败";
+      setErrorMessage(`加入素材库失败：${message}`);
     } finally {
       setAddingMaterialAssetId("");
     }
@@ -3793,6 +3890,9 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
           searchWorkspace={wechatSearchWorkspace}
           setSearchWorkspace={setWechatSearchWorkspace}
           activeBrandId={activeBrandId || archive.brand.id}
+          addingMaterialAssetId={addingMaterialAssetId}
+          onAddBenchmarkArticleToMaterial={handleAddWechatBenchmarkArticleToMaterial}
+          onAddSearchItemToMaterial={handleAddWechatSearchItemToMaterial}
           formatDateTime={formatDateTime}
           formatCount={formatCount}
         />
@@ -3893,7 +3993,9 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
         addingMaterialAssetId={addingMaterialAssetId}
         extractingDouyinTranscriptAssetId={extractingDouyinTranscriptAssetId}
         onAddBenchmarkNoteToMaterial={handleAddBenchmarkNoteToMaterial}
+        onDeleteXhsCollectedNote={handleDeleteXhsCollectedNote}
         onAddDouyinBenchmarkWorkToMaterial={handleToggleDouyinBenchmarkWorkMaterial}
+        onDeleteDouyinCollectedWork={handleDeleteDouyinCollectedWork}
         onExtractDouyinTranscript={handleExtractDouyinWorkTranscript}
         onRemoveDouyinKeywordRecommendation={handleRemoveDouyinKeywordRecommendation}
         onPreviewMedia={setMediaPreview}
