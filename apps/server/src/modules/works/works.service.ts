@@ -12097,6 +12097,7 @@ export class WorksService {
         params.role,
         params.order,
         promptMode,
+        params.imageSizeOverride,
       ),
       { includeFallback: params.includeFallbackPrompt ?? true },
     ));
@@ -27313,6 +27314,10 @@ export class WorksService {
     role: "COVER" | "GALLERY",
     order: number,
     promptMode: ImagePromptMode = "social_graphic",
+    imageSizeOverride?: {
+      apiz: string;
+      openai: string;
+    },
   ) {
     if (promptMode === "video_storyboard") {
       return [
@@ -27332,13 +27337,18 @@ export class WorksService {
     const title = this.normalizeImageTextValue(textPlan?.title, 20);
     const badges = (textPlan?.badges || []).map((item) => this.normalizeImageTextValue(item, 16)).filter(Boolean);
     const imageLabel = role === "COVER" ? "封面图" : `第${order + 1}张配图`;
+    // 根据 imageSizeOverride 动态生成尺寸指令
+    const aspectRatio = imageSizeOverride?.apiz || "3:4";
+    const pixelSize = imageSizeOverride?.openai || "1242x1660";
+    const isLandscape = aspectRatio === "16:9" || aspectRatio === "4:3";
+    const orientationText = isLandscape ? "横版" : aspectRatio === "1:1" ? "正方形" : "竖版";
     return [
       executionPrompt?.trim() || "",
       "",
       prompt.trim(),
       "",
       `补充强制要求：这是一张${imageLabel}，必须输出带清晰中文排版的社媒成品图，不能只生成纯场景摄影图。`,
-      "画面必须为竖版小红书图文比例，严格按 1242x1660（宽3:高4）构图，禁止输出横图、方图或接近方图的比例。",
+      `画面必须为${orientationText}比例，严格按 ${pixelSize}（宽${aspectRatio.split(":")[0]}:高${aspectRatio.split(":")[1]}）构图，禁止输出其他比例。`,
       title ? `画面主标题必须直接排版为：${title}` : "",
       badges.length ? `画面中还必须出现这些小标签：${badges.join("、")}` : "",
       "如果输入中带有参考图，必须显著继承其构图、视角、主体摆位、光线和留白关系，不能只保留泛化氛围。",
