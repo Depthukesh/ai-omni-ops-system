@@ -336,12 +336,17 @@ export type UnifiedMaterialLibraryRecord = {
   sourceKind: string;
   title: string;
   description?: string;
+  workContent?: string;
   authorName?: string;
   publishTimeText?: string;
   mediaTypeLabel: string;
   imageCount: number;
+  imageUrls: string[];
   detailUrl?: string;
+  workUrl?: string;
   videoUrl?: string;
+  videoDownloadUrl?: string;
+  videoCopy?: string;
   coverUrl?: string;
   likeCount?: number;
   commentCount?: number;
@@ -401,6 +406,9 @@ export function buildUnifiedMaterialLibraryItems(
   xhsWorkspace: XhsCollectionWorkspace,
   douyinWorkspace: DouyinCollectionWorkspace,
 ): UnifiedMaterialLibraryRecord[] {
+  const buildImageUrls = (urls: Array<string | undefined>) =>
+    Array.from(new Set(urls.filter((value): value is string => Boolean(value))));
+
   const xhsItems: UnifiedMaterialLibraryRecord[] = listXhsMaterialLibraryNotes(xhsWorkspace).map((item) => ({
     id: item.id,
     platform: "XIAOHONGSHU",
@@ -408,12 +416,17 @@ export function buildUnifiedMaterialLibraryItems(
     sourceKind: item.noteType || (item.videoUrl ? "视频笔记" : "图文笔记"),
     title: item.title,
     description: item.description,
+    workContent: item.description || item.title,
     authorName: item.nickname,
     publishTimeText: item.createdAtText,
     mediaTypeLabel: item.videoUrl ? "视频" : "图文",
     imageCount: item.imageList?.length || 0,
+    imageUrls: buildImageUrls(item.imageList || []),
     detailUrl: item.noteUrl || item.sourceUrl,
+    workUrl: item.noteUrl || item.sourceUrl,
     videoUrl: item.videoUrl,
+    videoDownloadUrl: item.videoUrl,
+    videoCopy: item.videoUrl ? item.description || item.title : undefined,
     coverUrl: item.imageList?.[0],
     likeCount: item.likeCount,
     commentCount: item.commentCount,
@@ -429,12 +442,17 @@ export function buildUnifiedMaterialLibraryItems(
     sourceKind: item.workType || "抖音作品",
     title: item.title,
     description: item.description || item.title,
+    workContent: item.description || item.title,
     authorName: item.authorName,
     publishTimeText: item.publishTimeText,
     mediaTypeLabel: item.videoUrl ? "视频" : item.imageList?.length ? "图文" : "未知",
-    imageCount: item.imageList?.length || 0,
+    imageCount: buildImageUrls([item.coverUrl, ...(item.imageList || [])]).length,
+    imageUrls: buildImageUrls([item.coverUrl, ...(item.imageList || [])]),
     detailUrl: item.workUrl,
+    workUrl: item.workUrl,
     videoUrl: item.videoUrl,
+    videoDownloadUrl: item.videoUrl,
+    videoCopy: item.transcript || (item.videoUrl ? item.description || item.title : undefined),
     coverUrl: item.coverUrl || item.imageList?.[0],
     likeCount: item.likeCount,
     commentCount: item.commentCount,

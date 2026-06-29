@@ -15,6 +15,26 @@ export interface ReportMaterialLibraryWorkspaceProps {
   formatCount: OptionalNumberFormatter;
 }
 
+function renderImageCell(item: UnifiedMaterialLibraryRecord) {
+  if (!item.imageUrls.length) {
+    return <span className="table-cell-empty">-</span>;
+  }
+
+  const previewImages = item.imageUrls.slice(0, 3);
+  const remainingCount = item.imageUrls.length - previewImages.length;
+
+  return (
+    <div className="report-material-library-images" title={`${item.imageUrls.length} 张图片`}>
+      {previewImages.map((url, index) => (
+        <a key={`${item.id}-image-${index}`} href={url} target="_blank" rel="noreferrer">
+          <img className="report-material-library-image" src={url} alt={`${item.title}-图片-${index + 1}`} />
+        </a>
+      ))}
+      {remainingCount > 0 ? <span className="report-material-library-image-more">+{remainingCount}</span> : null}
+    </div>
+  );
+}
+
 export function ReportMaterialLibraryWorkspace(props: ReportMaterialLibraryWorkspaceProps) {
   return (
     <article className="workspace-panel strategy-page-card">
@@ -35,19 +55,21 @@ export function ReportMaterialLibraryWorkspace(props: ReportMaterialLibraryWorks
           统一素材库里还没有内容。请先到品牌增长策略 → 收集数据，把小红书或抖音作品加入素材库。
         </div>
       ) : (
-        <div className="table-scroll-shell">
-          <table className="soft-table douyin-data-table">
+        <div className="table-scroll-shell report-material-library-table-shell">
+          <table className="soft-table douyin-data-table report-material-library-table">
             <thead>
               <tr>
                 <th>平台类型</th>
                 <th>素材 ID</th>
                 <th>作者昵称</th>
                 <th>标题/文案</th>
+                <th>作品正文</th>
                 <th>发布时间</th>
                 <th>素材类型</th>
-                <th>图片数</th>
-                <th>详情链接</th>
-                <th>视频地址</th>
+                <th>图片</th>
+                <th>作品链接</th>
+                <th>视频下载地址</th>
+                <th>视频文案</th>
                 <th>点赞</th>
                 <th>评论</th>
                 <th>分享</th>
@@ -68,22 +90,28 @@ export function ReportMaterialLibraryWorkspace(props: ReportMaterialLibraryWorks
                   <td className="table-cell-wide wechat-mp-title-cell">
                     <span className="wechat-mp-title-text" title={item.description || item.title}>{item.title || "-"}</span>
                   </td>
+                  <td className="table-cell-wide wechat-mp-title-cell report-material-library-text-cell">
+                    <span className="wechat-mp-title-text" title={item.workContent}>{item.workContent || "-"}</span>
+                  </td>
                   <td>{item.publishTimeText || "-"}</td>
                   <td>{item.sourceKind || item.mediaTypeLabel}</td>
-                  <td>{item.imageCount ? `${item.imageCount} 张` : "-"}</td>
+                  <td className="table-cell-wide">{renderImageCell(item)}</td>
                   <td>
-                    {item.detailUrl ? (
-                      <a href={item.detailUrl} target="_blank" rel="noreferrer" className="note-data-link">
-                        打开素材
+                    {item.workUrl ? (
+                      <a href={item.workUrl} target="_blank" rel="noreferrer" className="note-data-link">
+                        打开作品
                       </a>
                     ) : "-"}
                   </td>
                   <td>
-                    {item.videoUrl ? (
-                      <a href={item.videoUrl} target="_blank" rel="noreferrer" className="note-data-link">
-                        打开视频
+                    {item.videoDownloadUrl ? (
+                      <a href={item.videoDownloadUrl} target="_blank" rel="noreferrer" className="note-data-link">
+                        下载视频
                       </a>
                     ) : "-"}
+                  </td>
+                  <td className="table-cell-wide wechat-mp-title-cell report-material-library-text-cell">
+                    <span className="wechat-mp-title-text" title={item.videoCopy}>{item.videoCopy || "-"}</span>
                   </td>
                   <td>{props.formatCount(item.likeCount)}</td>
                   <td>{props.formatCount(item.commentCount)}</td>

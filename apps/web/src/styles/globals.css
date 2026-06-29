@@ -4610,6 +4610,15 @@ button {
   max-width: 100%;
 }
 
+.report-material-library-table-shell {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.report-material-library-table {
+  min-width: 1820px;
+}
+
 .table-scrollbar-top,
 .table-scrollbar-body {
   width: 100%;
@@ -4665,6 +4674,42 @@ button {
 
 .table-cell-empty {
   color: var(--site-hero-muted);
+}
+
+.report-material-library-images {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 220px;
+  overflow: hidden;
+}
+
+.report-material-library-image {
+  width: 46px;
+  height: 46px;
+  border-radius: 10px;
+  object-fit: cover;
+  border: 1px solid var(--site-hero-border);
+  background: var(--card-surface);
+}
+
+.report-material-library-image-more {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  height: 32px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid var(--site-hero-border);
+  background: var(--card-surface);
+  color: var(--site-hero-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.report-material-library-text-cell {
+  min-width: 260px;
 }
 
 .table-text-shell {
