@@ -143,7 +143,7 @@ export function useWorkspaceSelectionSync(options: {
     }
 
     if (!options.selectedMaterialId || !options.materialNotes.some((item) => item.id === options.selectedMaterialId)) {
-      options.setSelectedMaterialId(options.materialNotes[0].id);
+      options.setSelectedMaterialId(options.materialNotes[0]?.id || "");
     }
   }, [options.materialNotes, options.selectedMaterialId, options.setSelectedMaterialId]);
 
@@ -156,7 +156,7 @@ export function useWorkspaceSelectionSync(options: {
     }
 
     if (!options.rewriteMaterialValue || !options.materialNotes.some((item) => item.id === options.rewriteMaterialValue)) {
-      options.setRewriteMaterialValue(options.materialNotes[0].id);
+      options.setRewriteMaterialValue(options.materialNotes[0]?.id || "");
     }
   }, [options.materialNotes, options.rewriteMaterialValue, options.setRewriteMaterialValue]);
 
