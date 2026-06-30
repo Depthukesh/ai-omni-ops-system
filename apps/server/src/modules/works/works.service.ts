@@ -7974,13 +7974,7 @@ export class WorksService {
       throw new BadRequestException("请提供最终公众号 HTML。");
     }
     target.htmlStyleConfig = this.normalizeWechatHtmlStyleConfig(payload.htmlStyleConfig, target.htmlStyleConfig);
-    const htmlContent = this.normalizeWechatGeneratedHtmlDocument({
-      title: target.title,
-      author: target.author,
-      summary: target.summary,
-      themeColor: target.themeColor,
-      htmlContent: rawHtmlContent,
-    });
+    const htmlContent = this.wechatWorkflowHtmlRendererService.normalizeHtmlSpacing(rawHtmlContent);
     target.htmlContent = htmlContent;
     target.publishConfig = {
       ready: false,
