@@ -10,12 +10,26 @@ import {
   type SkillPackageRecord,
   type SkillPackageVersionRecord,
 } from "../../common/mock-data";
+import { readPromptSourceBundle } from "../../common/prompt-source-loader";
 import { PrismaService } from "../../prisma/prisma.service";
 import {
   SkillsPromptsService,
   type UpdateSkillConfigPayload as BaseUpdateSkillPackageProviderPayload,
   type UpdatePromptTemplatePayload as BaseUpdateSkillPackagePromptPayload,
 } from "./skills-prompts.service";
+
+const SOURCE_PINNED_PROMPT_IDS = new Set([
+  "prompt_opportunity_insight_brand_account",
+  "prompt_opportunity_insight_competitor_account",
+  "prompt_opportunity_insight_comment",
+  "prompt_opportunity_insight_final_report",
+  "prompt_xhs_calendar",
+  "prompt_wechat_body_image_compose",
+  "prompt_wechat_html_general",
+  "prompt_wechat_html_minimal",
+  "prompt_wechat_html_space",
+  "prompt_wechat_html_notice",
+]);
 
 export type SkillPackageListQuery = {
   keyword?: string;
@@ -1627,21 +1641,33 @@ export class SkillPackagesService {
   private async loadPromptTemplatesForDetail() {
     const canUseStorage = await this.tableExists("PromptTemplate");
     if (!canUseStorage) {
-      return database.promptTemplates.map((item) => ({ ...item }));
+      return database.promptTemplates.map((item) => this.hydrateSourcePinnedPromptForDetail({ ...item }));
     }
     const rows = await this.prismaService.promptTemplate.findMany();
-    return rows.map((row) => ({
-      id: row.id,
-      name: row.name,
-      scene: row.scene,
-      version: row.version,
-      status: row.status as PromptTemplateRecord["status"],
-      modelName: row.modelName,
-      temperature: row.temperature,
-      maxTokens: row.maxTokens,
-      content: row.content,
-      updatedAt: row.updatedAt.toISOString(),
-    }));
+    return rows.map((row) =>
+      this.hydrateSourcePinnedPromptForDetail({
+        id: row.id,
+        name: row.name,
+        scene: row.scene,
+        version: row.version,
+        status: row.status as PromptTemplateRecord["status"],
+        modelName: row.modelName,
+        temperature: row.temperature,
+        maxTokens: row.maxTokens,
+        content: row.content,
+        updatedAt: row.updatedAt.toISOString(),
+      }),
+    );
+  }
+
+  private hydrateSourcePinnedPromptForDetail(prompt: PromptTemplateRecord): PromptTemplateRecord {
+    if (!SOURCE_PINNED_PROMPT_IDS.has(prompt.id)) {
+      return prompt;
+    }
+    return {
+      ...prompt,
+      content: readPromptSourceBundle(prompt.id, prompt.content).content,
+    };
   }
 
   private async loadApiProvidersForDetail() {
