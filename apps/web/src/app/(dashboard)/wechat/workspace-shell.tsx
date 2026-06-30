@@ -215,12 +215,7 @@ function normalizeWechatHtmlSpacing(htmlContent: string) {
   }
   normalized = normalized
     .replace(/<(p|div|section|figure|figcaption)[^>]*>\s*(?:&nbsp;|\s|<br\s*\/?>)*\s*<\/\1>/gi, "")
-    .replace(/\bmin-height\s*:\s*\d+px/gi, "min-height:auto")
-    .replace(/\bpadding-top\s*:\s*(\d+)px/gi, (_match, value) => `padding-top:${Math.min(Number(value) || 0, 14)}px`)
-    .replace(/\bpadding-bottom\s*:\s*(\d+)px/gi, (_match, value) => `padding-bottom:${Math.min(Number(value) || 0, 14)}px`)
-    .replace(/\bmargin-top\s*:\s*(\d+)px/gi, (_match, value) => `margin-top:${Math.min(Number(value) || 0, 14)}px`)
-    .replace(/\bmargin-bottom\s*:\s*(\d+)px/gi, (_match, value) => `margin-bottom:${Math.min(Number(value) || 0, 14)}px`)
-    .replace(/\bgap\s*:\s*(\d+)px/gi, (_match, value) => `gap:${Math.min(Number(value) || 0, 12)}px`);
+    .replace(/\bmin-height\s*:\s*\d+px/gi, "min-height:auto");
   normalized = normalized.replace(/<figure\b([^>]*)>/gi, (_match, attrs) => {
     const nextAttrs = normalizeWechatHtmlInlineStyle(attrs, (style) => {
       const parts = String(style || "")
@@ -230,11 +225,10 @@ function normalizeWechatHtmlSpacing(htmlContent: string) {
         .filter((item) => !/^margin\s*:/i.test(item))
         .filter((item) => !/^margin-top\s*:/i.test(item))
         .filter((item) => !/^margin-bottom\s*:/i.test(item))
-        .filter((item) => !/^padding\s*:/i.test(item))
-        .filter((item) => !/^padding-top\s*:/i.test(item))
-        .filter((item) => !/^padding-bottom\s*:/i.test(item))
         .filter((item) => !/^min-height\s*:/i.test(item));
-      parts.push("margin:14px 0");
+      if (!parts.some((item) => /^margin\s*:/i.test(item) || /^margin-top\s*:/i.test(item) || /^margin-bottom\s*:/i.test(item))) {
+        parts.push("margin:14px 0");
+      }
       return parts.join(";");
     });
     return `<figure${nextAttrs}>`;
@@ -271,9 +265,7 @@ function buildWechatGeneratedImageFigure(params: {
   alt: string;
   aspectRatio?: string;
 }) {
-  const aspectRatio = String(params.aspectRatio || "").trim();
-  const ratioStyle = aspectRatio ? `aspect-ratio:${aspectRatio};object-fit:cover;` : "";
-  return `<figure data-wechat-generated-image="true" style="margin:14px 0;"><img src="${params.url}" alt="${params.alt}" style="display:block;width:100%;max-width:720px;margin:0 auto;${ratioStyle}border-radius:20px;border:1px solid #e8edf7;background:#fff;box-shadow:0 10px 28px rgba(37,51,90,0.08);" /></figure>`;
+  return `<figure data-wechat-generated-image="true" style="margin:14px 0;"><img src="${params.url}" alt="${params.alt}" style="display:block;width:100%;max-width:720px;height:auto;margin:0 auto;border-radius:20px;border:1px solid #e8edf7;background:#fff;box-shadow:0 10px 28px rgba(37,51,90,0.08);" /></figure>`;
 }
 
 function injectWechatCoverImageBlock(htmlContent: string, coverBlock: string) {
