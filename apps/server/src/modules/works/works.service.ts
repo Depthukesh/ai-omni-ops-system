@@ -7420,6 +7420,7 @@ export class WorksService {
           referenceImageUrls: [],
           promptMode: "wechat_graphic",
           imageSizeOverride: coverImageSize,
+          normalizeImageAspectRatio: false,
           attemptTimeoutMs: WECHAT_IMAGE_MODEL_ATTEMPT_TIMEOUT_MS,
           pollTotalTimeoutMs: WECHAT_IMAGE_POLL_TOTAL_TIMEOUT_MS,
         });
@@ -7478,6 +7479,7 @@ export class WorksService {
             referenceImageUrls: [],
             promptMode: "wechat_graphic",
             imageSizeOverride: bodyImageSize,
+            normalizeImageAspectRatio: false,
             attemptTimeoutMs: WECHAT_IMAGE_MODEL_ATTEMPT_TIMEOUT_MS,
             pollTotalTimeoutMs: WECHAT_IMAGE_POLL_TOTAL_TIMEOUT_MS,
           });
@@ -12070,6 +12072,7 @@ export class WorksService {
       apiz: string;
       openai: string;
     };
+    normalizeImageAspectRatio?: boolean;
     includeFallbackPrompt?: boolean;
     maxProvidersToTry?: number;
     maxModelsPerProvider?: number;
@@ -12180,12 +12183,14 @@ export class WorksService {
 
                 const fileName = `${params.taskId}-${params.role.toLowerCase()}-${params.order + 1}${asset.extension}`;
                 const base64Content = asset.base64
-                  ? (await this.normalizeGeneratedImageBuffer(
+                  ? ((params.normalizeImageAspectRatio ?? true)
+                    ? await this.normalizeGeneratedImageBuffer(
                     Buffer.from(asset.base64, "base64"),
                     asset.contentType,
                     fileName,
                     params.imageSizeOverride?.openai,
-                  )).toString("base64")
+                  )
+                    : Buffer.from(asset.base64, "base64")).toString("base64")
                   : undefined;
                 let finalUrl = "";
                 if (asset.url) {
@@ -12196,6 +12201,7 @@ export class WorksService {
                       asset.url,
                       asset.contentType,
                       params.imageSizeOverride?.openai,
+                      params.normalizeImageAspectRatio ?? true,
                     );
                   } catch (error) {
                     const canFallbackToRemoteUrl = /^https?:\/\//i.test(asset.url)
@@ -12255,6 +12261,7 @@ export class WorksService {
     remoteUrl: string,
     fallbackContentType: string,
     normalizeImageSpec?: string,
+    normalizeImageAspectRatio = true,
   ) {
     return this.cacheRemoteGeneratedFile({
       brandId,
@@ -12263,7 +12270,7 @@ export class WorksService {
       fallbackContentType: fallbackContentType || "image/png",
       resolveExtension: (contentType, nextFileName) => this.resolveImageExtensionFromMimeType(contentType, nextFileName),
       requestLabel: `下载远程生成图片 ${remoteUrl}`,
-      normalizeImageAspectRatio: true,
+      normalizeImageAspectRatio,
       normalizeImageSpec,
       fetchTimeoutMs: IMAGE_RESULT_FETCH_TIMEOUT_MS,
     });
