@@ -7199,11 +7199,40 @@ export class WorksService {
     target.content = String(payload.content || "").trim() || target.content;
     target.commentMode = payload.commentMode || target.commentMode;
     target.themeColor = String(payload.themeColor || "").trim() || target.themeColor;
+    const fallbackImageBriefs = this.buildWechatFallbackImageBriefsFromArticle({
+      title: target.title,
+      summary: target.summary,
+      content: target.content,
+      themeColor: target.themeColor,
+      selectedMarketingLabels: target.selectedMarketingLabels,
+      selectedProductLabels: target.selectedProductLabels,
+      selectedBrandLabels: target.selectedBrandLabels,
+      injectBrandProfile: target.injectBrandProfile,
+    });
+    try {
+      const generatedImageBriefs = await this.generateWechatImageBriefsFromArticle({
+        brandId,
+        title: target.title,
+        summary: target.summary,
+        content: target.content,
+        themeColor: target.themeColor,
+        selectedMarketingLabels: target.selectedMarketingLabels,
+        selectedProductLabels: target.selectedProductLabels,
+        selectedBrandLabels: target.selectedBrandLabels,
+        injectBrandProfile: target.injectBrandProfile,
+      });
+      target.coverImageBrief = generatedImageBriefs.coverImageBrief;
+      target.bodyImageBriefs = generatedImageBriefs.bodyImageBriefs;
+    } catch {
+      target.coverImageBrief = fallbackImageBriefs.coverImageBrief;
+      target.bodyImageBriefs = fallbackImageBriefs.bodyImageBriefs;
+    }
     target.htmlContent = "";
     target.imageBundle = undefined;
     target.publishConfig = undefined;
     target.status = "IMAGE_PENDING";
     target.currentStep = "image";
+    target.errorDetail = undefined;
     target.updatedAt = new Date().toISOString();
     await this.persistWechatWorkflowSessionStoreItem(target);
     return {
@@ -16215,7 +16244,11 @@ export class WorksService {
               );
               const bodyImageBriefs = this.normalizeWechatBodyImageBriefs(
                 parsed.bodyImageBriefs,
-                params,
+                {
+                  ...params,
+                  summary,
+                  content: body || params.inputContent,
+                },
               );
               if (!body) {
                 lastError = `${provider.provider}/${modelName} 返回 content 为空`;
@@ -16274,6 +16307,153 @@ export class WorksService {
     throw failure;
   }
 
+  private async generateWechatImageBriefsFromArticle(params: {
+    brandId: string;
+    title: string;
+    summary: string;
+    content: string;
+    themeColor: string;
+    selectedMarketingLabels: string[];
+    selectedProductLabels: string[];
+    selectedBrandLabels: string[];
+    injectBrandProfile: boolean;
+  }): Promise<Pick<WechatArticleGenerationModelResult, "coverImageBrief" | "bodyImageBriefs">> {
+    const fallbackBriefs = this.buildWechatFallbackImageBriefsFromArticle(params);
+    const [coverSkillPrompt, bodySkillPrompt] = await Promise.all([
+      this.skillsPromptsService.getActivePromptById("prompt_wechat_cover_image_compose"),
+      this.skillsPromptsService.getActivePromptById("prompt_wechat_body_image_compose"),
+    ]);
+    const combinedSkillPrompt = [
+      String(coverSkillPrompt?.content || "").trim(),
+      String(bodySkillPrompt?.content || "").trim(),
+    ].filter(Boolean).join("\n\n");
+    if (!combinedSkillPrompt) {
+      return fallbackBriefs;
+    }
+    const preference = await this.loadSkillModelPreference(
+      "wechat-body-image-designer",
+      "prompt_wechat_body_image_compose",
+      ["deepseek-v4-flash", "deepseek-v4-pro", "doubao-seed-2-0-mini-260215", "kimi-k2.6"],
+    );
+    const providers = await this.loadWechatTextProviders(params.brandId, preference);
+    const [coverKnowledgeContext, bodyKnowledgeContext] = await Promise.all([
+      this.buildWechatImageKnowledgeContext({
+        brandId: params.brandId,
+        kind: "cover",
+        title: params.title,
+        summary: params.summary || params.content,
+        themeColor: params.themeColor,
+        selectedMarketingLabels: params.selectedMarketingLabels,
+        selectedProductLabels: params.selectedProductLabels,
+        selectedBrandLabels: params.selectedBrandLabels,
+        coverImageBrief: fallbackBriefs.coverImageBrief,
+      }),
+      this.buildWechatImageKnowledgeContext({
+        brandId: params.brandId,
+        kind: "body",
+        title: params.title,
+        summary: params.summary || params.content,
+        themeColor: params.themeColor,
+        selectedMarketingLabels: params.selectedMarketingLabels,
+        selectedProductLabels: params.selectedProductLabels,
+        selectedBrandLabels: params.selectedBrandLabels,
+        bodyImageBriefs: fallbackBriefs.bodyImageBriefs,
+      }),
+    ]);
+    const sectionSeeds = this.extractWechatArticleSectionTopics(params.content, {
+      title: params.title,
+      summary: params.summary,
+      selectedMarketingLabels: params.selectedMarketingLabels,
+      selectedProductLabels: params.selectedProductLabels,
+      selectedBrandLabels: params.selectedBrandLabels,
+      injectBrandProfile: params.injectBrandProfile,
+    });
+    const inputPayload = {
+      title: params.title,
+      summary: params.summary,
+      content: params.content,
+      themeColor: params.themeColor,
+      marketingLabels: params.selectedMarketingLabels,
+      productLabels: params.selectedProductLabels,
+      brandLabels: params.selectedBrandLabels,
+      injectBrandProfile: params.injectBrandProfile,
+      sectionSeeds,
+      fallbackCoverImageBrief: fallbackBriefs.coverImageBrief,
+      fallbackBodyImageBriefs: fallbackBriefs.bodyImageBriefs,
+    };
+    const systemPrompt = [
+      combinedSkillPrompt,
+      "",
+      "你当前处于公众号工作流的手动文章生图预处理阶段，目标是从已经定稿的标题、摘要和正文中，拆解出封面图和正文配图各自对应的图片意图。",
+      "请严格只输出 JSON 对象，不要输出 Markdown 代码块或额外解释。",
+      "JSON 结构固定为：",
+      "{",
+      '  "coverImageBrief": "用于生成公众号封面图的详细中文提示词，必须同时覆盖标题主视觉、摘要核心信息、主题色、标题安全区与禁止元素",',
+      '  "bodyImageBriefs": ["对应正文第 1 个核心段落的中文配图提示词", "对应正文第 2 个核心段落的中文配图提示词"]',
+      "}",
+      "coverImageBrief 必须紧扣标题和文章主结论，不能只抓正文细节，更不能偏成正文插图。",
+      "bodyImageBriefs 必须按照正文叙事顺序对应 2-4 个真实章节主题，不能复用封面图语义，也不能输出泛化占位词。",
+      "如果正文没有产品卖点段或品牌故事段，就不要强行生成对应图片要求。",
+      "每条正文配图 brief 都要明确它服务的是哪一段内容，风格统一但画面主题不同。",
+      "不要改写标题、摘要和正文，只做图片意图拆解。",
+    ].join("\n");
+    const userPrompt = [
+      "以下是本次公众号手动文章的图片意图拆解输入：",
+      "",
+      JSON.stringify(inputPayload, null, 2),
+      coverKnowledgeContext,
+      bodyKnowledgeContext,
+    ].filter((item) => String(item || "").trim()).join("\n");
+
+    for (const provider of providers) {
+      for (const baseUrl of provider.baseUrls) {
+        for (const apiKey of provider.apiKeys) {
+          for (const modelName of provider.models) {
+            try {
+              const response = await this.requestModelCompletion(
+                baseUrl,
+                provider.completionPath,
+                apiKey,
+                this.buildTextProviderPayload(provider, modelName, systemPrompt, userPrompt, undefined, 2500),
+                this.resolveModelAttemptTimeoutMs(provider.requestTimeoutMs, TEXT_MODEL_ATTEMPT_TIMEOUT_MS),
+              );
+              if (!response.ok) {
+                continue;
+              }
+              const payload = await response.json() as {
+                choices?: Array<{ message?: { content?: string; reasoning_content?: string } }>;
+              };
+              const content = this.extractResponseText(payload);
+              if (!content) {
+                continue;
+              }
+              const parsed = this.parseJsonObject(content);
+              const coverImageBrief = this.normalizeWechatImageBrief(parsed.coverImageBrief, fallbackBriefs.coverImageBrief);
+              const bodyImageBriefs = this.normalizeWechatBodyImageBriefs(parsed.bodyImageBriefs, {
+                titleSeed: params.title,
+                selectedMarketingLabels: params.selectedMarketingLabels,
+                selectedProductLabels: params.selectedProductLabels,
+                selectedBrandLabels: params.selectedBrandLabels,
+                themeColor: params.themeColor,
+                summary: params.summary,
+                content: params.content,
+                injectBrandProfile: params.injectBrandProfile,
+              });
+              return {
+                coverImageBrief,
+                bodyImageBriefs,
+              };
+            } catch {
+              // 单次尝试失败继续下一个 provider/model
+            }
+          }
+        }
+      }
+    }
+
+    return fallbackBriefs;
+  }
+
   /**
    * 用文本模型把 Step 2 产出的 coverImageBrief / bodyImageBriefs 加工成正式的图片生图提示词。
    * 失败时调用方应回退到原来的 brief-based prompts，保证不中断图片生成流程。
@@ -16291,7 +16471,14 @@ export class WorksService {
     coverKnowledgeContext?: string;
     bodyKnowledgeContext?: string;
   }): Promise<{ coverPrompt: string; bodyPrompts: string[] }> {
-    const skillPrompt = String((await this.skillsPromptsService.getActivePromptById("prompt_wechat_cover_image_compose"))?.content || "").trim();
+    const [coverSkillPrompt, bodySkillPrompt] = await Promise.all([
+      this.skillsPromptsService.getActivePromptById("prompt_wechat_cover_image_compose"),
+      this.skillsPromptsService.getActivePromptById("prompt_wechat_body_image_compose"),
+    ]);
+    const combinedSkillPrompt = [
+      String(coverSkillPrompt?.content || "").trim(),
+      String(bodySkillPrompt?.content || "").trim(),
+    ].filter(Boolean).join("\n\n");
     const fallbackCoverPrompt = this.mergeWechatPromptWithKnowledgeContext(
       this.buildWechatCoverImagePrompt(params.title, params.summary, params.themeColor, params.coverImageBrief),
       params.coverKnowledgeContext,
@@ -16307,7 +16494,7 @@ export class WorksService {
       selectedBrandLabels: params.selectedBrandLabels,
     } as WechatWorkflowSessionRecord).map((prompt) => this.mergeWechatPromptWithKnowledgeContext(prompt, params.bodyKnowledgeContext));
 
-    if (!skillPrompt) {
+    if (!combinedSkillPrompt) {
       // 未配置提示词时直接回退，不调用文本模型
       return { coverPrompt: fallbackCoverPrompt, bodyPrompts: fallbackBodyPrompts };
     }
@@ -16331,7 +16518,7 @@ export class WorksService {
     };
 
     const systemPrompt = [
-      skillPrompt,
+      combinedSkillPrompt,
       "",
       "你当前处于公众号工作流的图片提示词生成阶段，需要把文章生成阶段产出的图片初步要求（brief）加工成可以直接传给文生图模型的正式生图提示词。",
       "正式生图提示词必须包含主体、构图、光线、色彩、风格、尺寸要求，并且是中文描述，能直接喂给文生图模型，不要再输出『请输出 prompt』之类的指令性内容。",
@@ -16348,6 +16535,8 @@ export class WorksService {
       "- 公众号封面图（coverPrompt）必须是横版 16:9 比例（1600x900），禁止竖版或方形。",
       "- 公众号正文配图（bodyPrompts）必须是横版 4:3 比例（1600x1200），禁止竖版或方形。",
       "- 所有尺寸指令必须直接写入每条 prompt 中，不要遗漏。",
+      "- coverPrompt 只能表达封面图主视觉，不要挪用正文插图语义。",
+      "- bodyPrompts 必须逐条对应正文章节，不能照搬封面图视觉，也不要生成海报式头图。",
     ].join("\n");
 
     const userPrompt = [
@@ -16625,6 +16814,9 @@ export class WorksService {
       selectedProductLabels: string[];
       selectedBrandLabels: string[];
       themeColor: string;
+      summary?: string;
+      content?: string;
+      injectBrandProfile?: boolean;
     },
   ) {
     const list = Array.isArray(value)
@@ -16636,11 +16828,86 @@ export class WorksService {
     if (list.length) {
       return list.slice(0, 4);
     }
-    return [
-      `公众号正文配图，章节主题：${params.selectedMarketingLabels[0] || params.titleSeed}，主题色 ${params.themeColor}，用于文章导语后第一张配图。`,
-      `公众号正文配图，突出${params.selectedProductLabels[0] || "产品亮点"}与使用场景，画面干净克制，适合正文中段。`,
-      `公众号正文配图，围绕${params.selectedBrandLabels[0] || "品牌故事"}与信任感展开，适合作为文章后段或结尾配图。`,
-    ];
+    return this.buildWechatFallbackImageBriefsFromArticle({
+      title: params.titleSeed,
+      summary: params.summary || "",
+      content: params.content || "",
+      themeColor: params.themeColor,
+      selectedMarketingLabels: params.selectedMarketingLabels,
+      selectedProductLabels: params.selectedProductLabels,
+      selectedBrandLabels: params.selectedBrandLabels,
+      injectBrandProfile: params.injectBrandProfile === true,
+    }).bodyImageBriefs;
+  }
+
+  private buildWechatFallbackImageBriefsFromArticle(params: {
+    title: string;
+    summary: string;
+    content: string;
+    themeColor: string;
+    selectedMarketingLabels: string[];
+    selectedProductLabels: string[];
+    selectedBrandLabels: string[];
+    injectBrandProfile: boolean;
+  }) {
+    const summarySource = String(params.summary || "").trim() || this.truncateText(params.content, 120);
+    const coverImageBrief = this.buildWechatCoverImagePrompt(params.title, summarySource || params.content, params.themeColor);
+    const sectionSeeds = this.extractWechatArticleSectionTopics(params.content, {
+      title: params.title,
+      summary: params.summary,
+      selectedMarketingLabels: params.selectedMarketingLabels,
+      selectedProductLabels: params.selectedProductLabels,
+      selectedBrandLabels: params.selectedBrandLabels,
+      injectBrandProfile: params.injectBrandProfile,
+    });
+    const bodyImageBriefs = sectionSeeds.map((seed, index) => (
+      `公众号正文配图，围绕“${seed}”展开，文章标题《${params.title}》，主题色 ${params.themeColor}，对应正文第 ${index + 1} 个核心段落，画面真实、编辑感强、适合横版文章插图，避免封面海报感。`
+    ));
+    return {
+      coverImageBrief,
+      bodyImageBriefs,
+    };
+  }
+
+  private extractWechatArticleSectionTopics(
+    content: string,
+    options: {
+      title: string;
+      summary: string;
+      selectedMarketingLabels: string[];
+      selectedProductLabels: string[];
+      selectedBrandLabels: string[];
+      injectBrandProfile: boolean;
+    },
+  ) {
+    const normalizeTopic = (value: string) => this.truncateText(
+      String(value || "")
+        .replace(/^#+\s*/g, "")
+        .replace(/^[（(]?(?:第?\s*[一二三四五六七八九十百0-9]+|[0-9]+)[）).、:：\-\s]*/g, "")
+        .replace(/^(导语|引言|开场|总结|结语|结尾|正文|小结)[：:\s-]*/g, "")
+        .trim(),
+      36,
+    );
+
+    const paragraphTopics = String(content || "")
+      .split(/\r?\n+/)
+      .map((item) => normalizeTopic(item))
+      .filter((item) => item.length >= 8);
+    const sentenceTopics = String(content || "")
+      .split(/[。！？!?；;\n]/)
+      .map((item) => normalizeTopic(item))
+      .filter((item) => item.length >= 8);
+    const fallbackTopics = [
+      options.summary,
+      options.selectedMarketingLabels[0],
+      options.selectedProductLabels[0],
+      options.injectBrandProfile ? options.selectedBrandLabels[0] : "",
+      options.title,
+    ]
+      .map((item) => normalizeTopic(item || ""))
+      .filter((item) => item.length >= 4);
+    const topics = Array.from(new Set([...paragraphTopics, ...sentenceTopics, ...fallbackTopics])).filter(Boolean);
+    return (topics.length ? topics : [normalizeTopic(options.title)]).slice(0, 4);
   }
 
   private normalizeWechatGeneratedHtmlDocument(params: {
@@ -17077,11 +17344,16 @@ export class WorksService {
     if (session.bodyImageBriefs?.length) {
       return session.bodyImageBriefs.map((brief) => this.stripWechatImageVerticalSizeHints(brief));
     }
-    return [
-      `公众号正文配图，章节主题：${session.selectedMarketingLabels[0] || session.title}，场景真实、明亮、适合长文阅读插图，保留人物或环境叙事感。`,
-      `公众号正文配图，重点突出${session.selectedProductLabels[0] || "产品卖点"}，构图干净克制，适合放在正文中段作为辅助说明。`,
-      `公众号正文配图，围绕${session.selectedBrandLabels[0] || "品牌故事"}展开，偏编辑感和暖色调，用于正文情绪收束或品牌段落。`,
-    ];
+    return this.buildWechatFallbackImageBriefsFromArticle({
+      title: session.title,
+      summary: session.summary,
+      content: session.content,
+      themeColor: session.themeColor,
+      selectedMarketingLabels: session.selectedMarketingLabels,
+      selectedProductLabels: session.selectedProductLabels,
+      selectedBrandLabels: session.selectedBrandLabels,
+      injectBrandProfile: session.injectBrandProfile,
+    }).bodyImageBriefs.map((brief) => this.stripWechatImageVerticalSizeHints(brief));
   }
 
   private buildWechatBodyOnlyCoverPrompt(title: string, summary: string) {
