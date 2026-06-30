@@ -16407,7 +16407,6 @@ export class WorksService {
               const finalHtmlContent = this.ensureWechatHtmlContainsFullArticleContent({
                 htmlContent,
                 sourceContent: params.content,
-                themeColor: params.themeColor,
               });
               return {
                 htmlContent: finalHtmlContent,
@@ -16619,7 +16618,6 @@ export class WorksService {
   private ensureWechatHtmlContainsFullArticleContent(params: {
     htmlContent: string;
     sourceContent: string;
-    themeColor: string;
   }) {
     const sourceParagraphs = String(params.sourceContent || "")
       .split(/\r?\n/)
@@ -16634,9 +16632,8 @@ export class WorksService {
       return params.htmlContent;
     }
     const appendedSection = [
-      `<section data-wechat-full-content="true" style="margin-top:24px;padding:22px 20px;border-radius:24px;background:${this.escapeHtml(params.themeColor)}10;border:1px solid ${this.escapeHtml(params.themeColor)}2e;">`,
-      `<div style="font-size:13px;color:${this.escapeHtml(params.themeColor)};font-weight:700;">正文全文补齐</div>`,
-      ...missingParagraphs.map((item) => `<p style="margin:14px 0 0;color:#24314a;font-size:16px;line-height:1.95;">${this.escapeHtml(item)}</p>`),
+      `<section data-wechat-full-content="true" style="margin-top:24px;">`,
+      ...missingParagraphs.map((item) => `<p style="margin:0 0 18px;color:#24314a;font-size:16px;line-height:1.95;">${this.escapeHtml(item)}</p>`),
       "</section>",
     ].join("");
     return this.appendWechatHtmlBeforeClosingMain(params.htmlContent, appendedSection);
