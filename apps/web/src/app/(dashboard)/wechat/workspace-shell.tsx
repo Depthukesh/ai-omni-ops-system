@@ -15,6 +15,7 @@ import {
 } from "../../../services/reports";
 import {
   createWechatWorkflow,
+  deleteWechatWorkflow,
   type WechatHtmlStyleConfig,
   type WechatHtmlStyleType,
   generateWechatWorkflowImages,
@@ -462,6 +463,7 @@ export function WechatWorkspaceShell() {
   const [isSavingHtmlStyleConfig, setIsSavingHtmlStyleConfig] = useState(false);
   const [isSavingPublishConfirm, setIsSavingPublishConfirm] = useState(false);
   const [isPublishingWorkflow, setIsPublishingWorkflow] = useState(false);
+  const [deletingWorkflowId, setDeletingWorkflowId] = useState("");
   const [retryingPublishHistoryId, setRetryingPublishHistoryId] = useState("");
   const [publishingDraftId, setPublishingDraftId] = useState("");
   const [previewImage, setPreviewImage] = useState<{ url: string; alt: string } | null>(null);
@@ -831,6 +833,27 @@ export function WechatWorkspaceShell() {
       setErrorMessage(error instanceof Error ? error.message : "创建公众号工作流失败。");
     } finally {
       setIsCreatingWorkflow(false);
+    }
+  }
+
+  async function handleDeleteWorkflow(workflow: WechatWorkflowSessionRecord) {
+    if (!window.confirm(`确认删除工作流「${workflow.title}」吗？`)) {
+      return;
+    }
+    setDeletingWorkflowId(workflow.id);
+    setErrorMessage("");
+    try {
+      await deleteWechatWorkflow(brandId, workflow.id);
+      setSessions((current) => {
+        const nextItems = current.filter((item) => item.id !== workflow.id);
+        setSelectedWorkflowId((currentSelected) => (currentSelected === workflow.id ? (nextItems[0]?.id || "") : currentSelected));
+        return nextItems;
+      });
+      setNotice("公众号工作流已删除。");
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "删除公众号工作流失败。");
+    } finally {
+      setDeletingWorkflowId("");
     }
   }
 
@@ -1310,16 +1333,25 @@ export function WechatWorkspaceShell() {
                       </div>
                       <div className="wechat-session-list">
                         {sessions.map((item) => (
-                          <button
-                            key={item.id}
-                            type="button"
-                            className={`wechat-session-item ${item.id === selectedWorkflowId ? "is-active" : ""}`}
-                            onClick={() => setSelectedWorkflowId(item.id)}
-                          >
-                            <strong>{item.title}</strong>
-                            <span>{item.status}</span>
-                            <small>{item.accountName || "未绑定账号"}</small>
-                          </button>
+                          <div key={item.id} className={`wechat-session-item ${item.id === selectedWorkflowId ? "is-active" : ""}`}>
+                            <button
+                              type="button"
+                              className="wechat-session-select"
+                              onClick={() => setSelectedWorkflowId(item.id)}
+                            >
+                              <strong>{item.title}</strong>
+                              <span>{item.status}</span>
+                              <small>{item.accountName || "未绑定账号"}</small>
+                            </button>
+                            <button
+                              type="button"
+                              className="ghost-danger-button wechat-session-delete"
+                              onClick={() => void handleDeleteWorkflow(item)}
+                              disabled={deletingWorkflowId === item.id}
+                            >
+                              {deletingWorkflowId === item.id ? "删除中..." : "删除"}
+                            </button>
+                          </div>
                         ))}
                         {!sessions.length ? <div className="empty-state">还没有工作流，先在上方创建一个。</div> : null}
                       </div>
@@ -1978,7 +2010,7 @@ export function WechatWorkspaceShell() {
 
         .wechat-panel-head strong,
         .wechat-account-card strong,
-        .wechat-session-item strong,
+        .wechat-session-select strong,
         .wechat-history-body strong,
         .wechat-step-card strong {
           display: block;
@@ -2548,10 +2580,9 @@ export function WechatWorkspaceShell() {
         }
 
         .wechat-session-item {
-          text-align: left;
-          cursor: pointer;
           display: grid;
-          gap: 6px;
+          gap: 10px;
+          align-items: start;
         }
 
         .wechat-session-item.is-active {
@@ -2559,9 +2590,25 @@ export function WechatWorkspaceShell() {
           background: var(--subtle-surface-strong);
         }
 
-        .wechat-session-item span,
-        .wechat-session-item small {
+        .wechat-session-select {
+          padding: 0;
+          border: 0;
+          background: transparent;
+          text-align: left;
+          cursor: pointer;
+          display: grid;
+          gap: 6px;
+        }
+
+        .wechat-session-select span,
+        .wechat-session-select small {
           color: var(--site-hero-muted);
+        }
+
+        .wechat-session-delete {
+          justify-self: start;
+          min-width: 88px;
+          white-space: nowrap;
         }
 
         .wechat-step-grid {

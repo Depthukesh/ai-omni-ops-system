@@ -798,6 +798,24 @@ export type UpdateWechatWorkflowArticlePayload = {
   themeColor?: string;
 };
 
+export type SetWechatWorkflowImagesPayload = {
+  promptSummary?: string;
+  coverImageUrl?: string;
+  bodyImageUrls?: string[];
+  prompts?: string[];
+  coverProvider?: string;
+  coverRuntimeKey?: string;
+  coverModelName?: string;
+  bodyProvider?: string;
+  bodyRuntimeKey?: string;
+  bodyModelName?: string;
+};
+
+export type SetWechatWorkflowHtmlPayload = {
+  htmlContent: string;
+  htmlStyleConfig?: Partial<WechatHtmlStyleConfig>;
+};
+
 export type UpdateWechatWorkflowPublishPayload = {
   title?: string;
   summary?: string;
@@ -6837,6 +6855,18 @@ export class WorksService {
     };
   }
 
+  async deleteWechatWorkflow(brandId: string, workflowId: string) {
+    const target = await this.loadWechatWorkflowSessionStoreItem(brandId, workflowId);
+    if (target.imageBundle?.status === "RUNNING") {
+      throw new BadRequestException("当前工作流仍在执行生图任务，请等待完成后再删除。");
+    }
+    if (target.status === "PUBLISHING") {
+      throw new BadRequestException("当前工作流正在发布中，请等待完成后再删除。");
+    }
+    await this.deleteWechatWorkflowSessionStoreItem(brandId, workflowId);
+    return { success: true };
+  }
+
   async retryWechatPublishHistoryItem(brandId: string, historyId: string, auth?: RequestAuthContext) {
     const history = await this.loadWechatPublishHistoryStoreItem(brandId, historyId);
     const session = await this.loadWechatWorkflowSessionStoreItem(brandId, history.workflowId);
@@ -7175,6 +7205,59 @@ export class WorksService {
     target.status = "IMAGE_PENDING";
     target.currentStep = "image";
     target.updatedAt = new Date().toISOString();
+    await this.persistWechatWorkflowSessionStoreItem(target);
+    return {
+      item: this.toWechatWorkflowSessionRecord(target),
+    };
+  }
+
+  async setWechatWorkflowImages(brandId: string, workflowId: string, payload: SetWechatWorkflowImagesPayload = {}) {
+    const target = await this.loadWechatWorkflowSessionStoreItem(brandId, workflowId);
+    if (target.imageBundle?.status === "RUNNING") {
+      throw new BadRequestException("当前工作流生图仍在进行中，请等待本轮完成后再写入图片。");
+    }
+    const coverImageUrl = String(payload.coverImageUrl || "").trim();
+    const bodyImageUrls = Array.isArray(payload.bodyImageUrls)
+      ? payload.bodyImageUrls.map((item) => String(item || "").trim()).filter(Boolean)
+      : [];
+    if (!coverImageUrl && !bodyImageUrls.length) {
+      throw new BadRequestException("请至少提供封面图或正文配图。");
+    }
+    const promptSummary = String(payload.promptSummary || "").trim()
+      || target.imageBundle?.promptSummary
+      || this.buildWechatImagePrompt(target.title, target.summary || target.content, target.themeColor, target.imageMode);
+    const prompts = Array.isArray(payload.prompts)
+      ? payload.prompts.map((item) => String(item || "").trim()).filter(Boolean)
+      : [];
+    const totalCount = Math.max(coverImageUrl ? 1 : 0, 0) + bodyImageUrls.length;
+    const now = new Date().toISOString();
+    target.imageBundle = {
+      status: "SUCCESS",
+      taskId: target.imageBundle?.taskId,
+      promptSummary,
+      startedAt: target.imageBundle?.startedAt || now,
+      generatedAt: now,
+      lastGeneratedAt: now,
+      coverImageUrl: coverImageUrl || undefined,
+      bodyImageUrls,
+      prompts,
+      generatedCount: totalCount,
+      totalCount: prompts.length || totalCount,
+      failedCount: 0,
+      coverProvider: String(payload.coverProvider || "").trim() || target.imageBundle?.coverProvider,
+      coverRuntimeKey: String(payload.coverRuntimeKey || "").trim() || target.imageBundle?.coverRuntimeKey,
+      coverModelName: String(payload.coverModelName || "").trim() || target.imageBundle?.coverModelName,
+      bodyProvider: String(payload.bodyProvider || "").trim() || target.imageBundle?.bodyProvider,
+      bodyRuntimeKey: String(payload.bodyRuntimeKey || "").trim() || target.imageBundle?.bodyRuntimeKey,
+      bodyModelName: String(payload.bodyModelName || "").trim() || target.imageBundle?.bodyModelName,
+      errorDetail: undefined,
+    };
+    target.htmlContent = "";
+    target.publishConfig = undefined;
+    target.status = "HTML_PENDING";
+    target.currentStep = "html";
+    target.errorDetail = undefined;
+    target.updatedAt = now;
     await this.persistWechatWorkflowSessionStoreItem(target);
     return {
       item: this.toWechatWorkflowSessionRecord(target),
@@ -7828,6 +7911,47 @@ export class WorksService {
       });
       throw error;
     }
+  }
+
+  async setWechatWorkflowHtml(brandId: string, workflowId: string, payload: SetWechatWorkflowHtmlPayload) {
+    const target = await this.loadWechatWorkflowSessionStoreItem(brandId, workflowId);
+    const rawHtmlContent = String(payload.htmlContent || "").trim();
+    if (!rawHtmlContent) {
+      throw new BadRequestException("请提供最终公众号 HTML。");
+    }
+    target.htmlStyleConfig = this.normalizeWechatHtmlStyleConfig(payload.htmlStyleConfig, target.htmlStyleConfig);
+    const htmlContent = this.normalizeWechatGeneratedHtmlDocument({
+      title: target.title,
+      author: target.author,
+      summary: target.summary,
+      themeColor: target.themeColor,
+      htmlContent: rawHtmlContent,
+    });
+    const finalHtmlContent = this.ensureWechatHtmlContainsFullArticleContent({
+      htmlContent,
+      sourceContent: target.content,
+    });
+    target.htmlContent = finalHtmlContent;
+    target.publishConfig = {
+      ready: false,
+      accountId: target.accountId,
+      accountName: target.accountName,
+      coverImageUrl: target.imageBundle?.coverImageUrl || target.publishConfig?.coverImageUrl,
+      commentMode: target.commentMode,
+      fanCommentsOnly: target.publishConfig?.fanCommentsOnly ?? false,
+      checklist: target.publishConfig?.checklist || [],
+      mediaId: target.publishConfig?.mediaId,
+      publishedAt: target.publishConfig?.publishedAt,
+      publishTaskId: target.publishConfig?.publishTaskId,
+    };
+    target.status = "PUBLISH_CONFIRM_PENDING";
+    target.currentStep = "publish";
+    target.errorDetail = undefined;
+    target.updatedAt = new Date().toISOString();
+    await this.persistWechatWorkflowSessionStoreItem(target);
+    return {
+      item: this.toWechatWorkflowSessionRecord(target),
+    };
   }
 
   async updateWechatWorkflowPublishConfirm(
@@ -14592,6 +14716,25 @@ export class WorksService {
         "createdAt" = EXCLUDED."createdAt",
         "updatedAt" = EXCLUDED."updatedAt"
     `;
+  }
+
+  private async deleteWechatWorkflowSessionStoreItem(brandId: string, workflowId: string) {
+    if (!(await this.canUseWechatPersistenceDatabase())) {
+      const index = wechatWorkflowSessionMockStore.findIndex((item) => item.brandId === brandId && item.id === workflowId);
+      if (index === -1) {
+        throw new NotFoundException("公众号工作流不存在。");
+      }
+      wechatWorkflowSessionMockStore.splice(index, 1);
+      return;
+    }
+    await this.ensureWechatPersistenceTablesReady();
+    const deletedCount = await this.prismaService.$executeRaw`
+      DELETE FROM "WechatWorkflowSession"
+      WHERE "brandId" = ${brandId} AND "id" = ${workflowId}
+    `;
+    if (!deletedCount) {
+      throw new NotFoundException("公众号工作流不存在。");
+    }
   }
 
   private async persistWechatArticleDraftRecord(item: WechatArticleDraftRecord) {

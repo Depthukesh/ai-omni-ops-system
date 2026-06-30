@@ -1605,6 +1605,12 @@ export async function createWechatWorkflow(brandId: string, form: CreateWechatWo
   return jsonRequest<{ item: WechatWorkflowSessionRecord }>(`/works/brands/${brandId}/wechat/workflows`, "POST", form);
 }
 
+export async function deleteWechatWorkflow(brandId: string, workflowId: string) {
+  return request<{ success: boolean }>(`/works/brands/${brandId}/wechat/workflows/${workflowId}`, {
+    method: "DELETE",
+  });
+}
+
 export async function updateWechatWorkflowInput(brandId: string, workflowId: string, payload: UpdateWechatWorkflowInputForm) {
   return jsonRequest<{ item: WechatWorkflowSessionRecord }>(
     `/works/brands/${brandId}/wechat/workflows/${workflowId}/input`,

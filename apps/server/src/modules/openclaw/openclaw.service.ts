@@ -1727,7 +1727,7 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
     inputSchema: {
       type: "object",
       properties: {
-        action: { type: "string", description: "例如 list_drafts、save_preferences、create_workflow、generate_article、generate_images、generate_html、publish_workflow。" },
+        action: { type: "string", description: "例如 list_drafts、save_preferences、create_workflow、set_article、set_images、set_html、generate_article、generate_images、generate_html、delete_workflow、publish_workflow。" },
         workflowId: { type: "string" },
         draftId: { type: "string" },
         historyId: { type: "string" },
@@ -6839,6 +6839,7 @@ export class OpenClawService {
           resourceKind: "wechat",
         });
       }
+      case "set_article":
       case "update_article": {
         const auth = await this.requireAuth(headers);
         const brandId = await this.requireCurrentBrandId(auth);
@@ -6869,7 +6870,12 @@ export class OpenClawService {
           throw new BadRequestException("请提供 workflowId");
         }
         await this.authService.assertBrandPermission(brandId, "wechat.original", "edit", auth);
-        const result = await this.worksService.generateWechatWorkflowImages(brandId, workflowId, undefined, auth);
+        const result = await this.worksService.generateWechatWorkflowImages(
+          brandId,
+          workflowId,
+          payload as Parameters<WorksService["generateWechatWorkflowImages"]>[2],
+          auth,
+        );
         return this.buildManagedOperationResponse({
           title: "公众号配图生成已触发",
           action,
@@ -6877,6 +6883,28 @@ export class OpenClawService {
           url: "/wechat",
           label: "打开公众号工作台",
           resultStatus: "IN_PROGRESS",
+          resourceKind: "wechat",
+        });
+      }
+      case "set_images": {
+        const auth = await this.requireAuth(headers);
+        const brandId = await this.requireCurrentBrandId(auth);
+        const workflowId = String(options?.workflowId || "").trim();
+        if (!workflowId) {
+          throw new BadRequestException("请提供 workflowId");
+        }
+        await this.authService.assertBrandPermission(brandId, "wechat.original", "edit", auth);
+        const result = await this.worksService.setWechatWorkflowImages(
+          brandId,
+          workflowId,
+          payload as Parameters<WorksService["setWechatWorkflowImages"]>[2],
+        );
+        return this.buildManagedOperationResponse({
+          title: "公众号图片已写入工作流",
+          action,
+          data: result,
+          url: "/wechat",
+          label: "打开公众号工作台",
           resourceKind: "wechat",
         });
       }
@@ -6901,6 +6929,28 @@ export class OpenClawService {
           url: "/wechat",
           label: "打开公众号工作台",
           resultStatus: "IN_PROGRESS",
+          resourceKind: "wechat",
+        });
+      }
+      case "set_html": {
+        const auth = await this.requireAuth(headers);
+        const brandId = await this.requireCurrentBrandId(auth);
+        const workflowId = String(options?.workflowId || "").trim();
+        if (!workflowId) {
+          throw new BadRequestException("请提供 workflowId");
+        }
+        await this.authService.assertBrandPermission(brandId, "wechat.original", "edit", auth);
+        const result = await this.worksService.setWechatWorkflowHtml(
+          brandId,
+          workflowId,
+          payload as Parameters<WorksService["setWechatWorkflowHtml"]>[2],
+        );
+        return this.buildManagedOperationResponse({
+          title: "公众号 HTML 已写入工作流",
+          action,
+          data: result,
+          url: "/wechat",
+          label: "打开公众号工作台",
           resourceKind: "wechat",
         });
       }
@@ -6980,6 +7030,24 @@ export class OpenClawService {
         return this.publishWechatArticle(headers, { draftId: options?.draftId });
       case "publish_workflow":
         return this.publishWechatWorkflow(headers, { workflowId: options?.workflowId });
+      case "delete_workflow": {
+        const auth = await this.requireAuth(headers);
+        const brandId = await this.requireCurrentBrandId(auth);
+        const workflowId = String(options?.workflowId || "").trim();
+        if (!workflowId) {
+          throw new BadRequestException("请提供 workflowId");
+        }
+        await this.authService.assertBrandPermission(brandId, "wechat.original", "edit", auth);
+        const result = await this.worksService.deleteWechatWorkflow(brandId, workflowId);
+        return this.buildManagedOperationResponse({
+          title: "公众号工作流已删除",
+          action,
+          data: result,
+          url: "/wechat",
+          label: "打开公众号工作台",
+          resourceKind: "wechat",
+        });
+      }
       case "retry_publish_history":
         return this.retryWechatPublishHistory(headers, { historyId: options?.historyId });
       default:
