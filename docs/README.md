@@ -39,6 +39,8 @@
   - 个人中心、多用户、品牌协作与权限设计
 - `docs/system-refactor-roadmap.md`
   - 当前结构收口与重构路线
+- `docs/wechat-infrastructure-refactor-plan.md`
+  - 公众号 Step 2-5 单一事实源、服务拆分与底层改造方案
 - `docs/production-web-port-conflict-recovery.md`
   - 生产前端端口冲突与 PM2 接管排障
 - `docs/openclaw/README.md`
@@ -65,6 +67,12 @@
 - 只保留当前仍需要交付或汇报的 HTML 报告
 - 不再保留与 Markdown 一一重复的展示镜像
 - 面向站点用户公开访问的交付型 HTML，如 OpenClaw 安装说明页，放在 `apps/web/public/docs/`，不计入 `docs/` 源文档体系
+
+### 6. 外部表达资产
+
+- `../文章/`
+- 存放面向外部传播的长文、配图和深度讲解材料
+- 不作为系统开发真相来源，但可以作为对外介绍系统技术架构、业务链路和方法论的交付资产
 
 ## 当前推荐阅读顺序
 
@@ -104,8 +112,20 @@
 
 ## 最近应优先关注的文档
 
+- `docs/changes/2026-06-30-wechat-infrastructure-refactor-phase-5.md`
+  - 公众号 Step 5 发布前收口下沉与 `WechatWorkflowPublishService`
+- `docs/changes/2026-06-30-wechat-infrastructure-refactor-phase-4.md`
+  - 清理 `WorksService` 中历史遗留的公众号 HTML helper
+- `docs/changes/2026-06-30-wechat-infrastructure-refactor-phase-3.md`
+  - Step 4 覆盖率校验、规则渲染 fallback 与 HTML renderer service
+- `docs/changes/2026-06-30-wechat-infrastructure-refactor-phase-2.md`
+  - Step 2 canonical 正文正式接入与 Step 3/4 开始消费 canonical
+- `docs/changes/2026-06-30-wechat-infrastructure-refactor-phase-1.md`
+  - 公众号 canonical service 初始拆分与底层改造第一阶段
 - `docs/2026-06-14-docs-audit-report.html`
   - 本轮系统文档全面清理、代码对照和删改结果总报告
+- `docs/changes/2026-06-22-system-deep-dive-article-and-doc-index.md`
+  - 技术与业务深度长文、文章目录资产与文档索引补充说明
 - `docs/changes/2026-06-13-docs-baseline-cleanup.md`
   - 本轮文档清理、修复和删除说明
 - `docs/changes/2026-06-16-douyin-ad-preaudit-and-vod-upload.md`

@@ -46,6 +46,9 @@ import {
   type ChanjingUploadUrlRecord,
   type ChanjingVideoDetail,
 } from "./chanjing-open-api.service";
+import { type WechatArticleCanonicalRecord, WechatWorkflowCanonicalService } from "./wechat-workflow-canonical.service";
+import { WechatWorkflowHtmlRendererService } from "./wechat-workflow-html-renderer.service";
+import { WechatWorkflowPublishService } from "./wechat-workflow-publish.service";
 import { WechatOfficialAccountApiService } from "./wechat-official-account-api.service";
 
 const TEXT_MODEL_ATTEMPT_TIMEOUT_MS = 120 * 1000;
@@ -1236,6 +1239,7 @@ export type WechatArticleDraftRecord = {
   articleProvider: string;
   articleRuntimeKey: string;
   articleModelName: string;
+  articleCanonical?: WechatArticleCanonicalRecord;
   coverImageBrief?: string;
   bodyImageBriefs?: string[];
   imageTasks?: WechatImageTaskRecord[];
@@ -1288,6 +1292,7 @@ export type WechatWorkflowSessionRecord = {
   articleProvider?: string;
   articleRuntimeKey?: string;
   articleModelName?: string;
+  articleCanonical?: WechatArticleCanonicalRecord;
   coverImageBrief?: string;
   bodyImageBriefs?: string[];
   themeColor: string;
@@ -1445,6 +1450,7 @@ type WechatWorkflowSessionRow = {
   articleProvider: string | null;
   articleRuntimeKey: string | null;
   articleModelName: string | null;
+  articleCanonicalJson: Prisma.JsonValue | null;
   coverImageBrief: string | null;
   bodyImageBriefsJson: Prisma.JsonValue | null;
   themeColor: string;
@@ -1489,6 +1495,7 @@ type WechatArticleDraftRow = {
   articleProvider: string;
   articleRuntimeKey: string;
   articleModelName: string;
+  articleCanonicalJson: Prisma.JsonValue | null;
   coverImageBrief: string | null;
   bodyImageBriefsJson: Prisma.JsonValue | null;
   imageTasksJson: Prisma.JsonValue | null;
@@ -2995,6 +3002,12 @@ export class WorksService {
     private readonly thirdPartyPlatformsService: ThirdPartyPlatformsService,
     @Inject(ChanjingOpenApiService)
     private readonly chanjingOpenApiService: ChanjingOpenApiService,
+    @Inject(WechatWorkflowCanonicalService)
+    private readonly wechatWorkflowCanonicalService: WechatWorkflowCanonicalService,
+    @Inject(WechatWorkflowHtmlRendererService)
+    private readonly wechatWorkflowHtmlRendererService: WechatWorkflowHtmlRendererService,
+    @Inject(WechatWorkflowPublishService)
+    private readonly wechatWorkflowPublishService: WechatWorkflowPublishService,
     @Inject(WechatOfficialAccountApiService)
     private readonly wechatOfficialAccountApiService: WechatOfficialAccountApiService,
   ) {}
@@ -6130,7 +6143,7 @@ export class WorksService {
                 baseUrl,
                 provider.completionPath,
                 apiKey,
-                this.buildTextProviderPayload(provider, modelName, systemPrompt, userPrompt),
+                this.buildTextProviderPayload(provider, modelName, systemPrompt, userPrompt, undefined, 10000),
                 this.resolveModelAttemptTimeoutMs(provider.requestTimeoutMs, TEXT_MODEL_ATTEMPT_TIMEOUT_MS),
               );
               if (!response.ok) {
@@ -7138,6 +7151,10 @@ export class WorksService {
       target.summary = articleResult.summary;
       target.author = articleResult.author;
       target.content = articleResult.content;
+      target.articleCanonical = this.wechatWorkflowCanonicalService.buildArticleCanonical({
+        content: articleResult.content,
+        inputType: target.inputType,
+      });
       target.htmlContent = "";
       target.articleProvider = articleResult.provider;
       target.articleRuntimeKey = articleResult.runtimeKey;
@@ -7197,12 +7214,17 @@ export class WorksService {
     target.summary = String(payload.summary || "").trim() || target.summary || this.buildWechatWorkflowSummary(target);
     target.author = String(payload.author || "").trim() || target.author;
     target.content = String(payload.content || "").trim() || target.content;
+    target.articleCanonical = this.wechatWorkflowCanonicalService.buildArticleCanonical({
+      content: target.content,
+      inputType: target.inputType,
+    });
     target.commentMode = payload.commentMode || target.commentMode;
     target.themeColor = String(payload.themeColor || "").trim() || target.themeColor;
     const fallbackImageBriefs = this.buildWechatFallbackImageBriefsFromArticle({
       title: target.title,
       summary: target.summary,
       content: target.content,
+      articleCanonical: target.articleCanonical,
       themeColor: target.themeColor,
       selectedMarketingLabels: target.selectedMarketingLabels,
       selectedProductLabels: target.selectedProductLabels,
@@ -7216,6 +7238,7 @@ export class WorksService {
         summary: target.summary,
         content: target.content,
         themeColor: target.themeColor,
+        articleCanonical: target.articleCanonical,
         selectedMarketingLabels: target.selectedMarketingLabels,
         selectedProductLabels: target.selectedProductLabels,
         selectedBrandLabels: target.selectedBrandLabels,
@@ -7873,11 +7896,13 @@ export class WorksService {
         summary: target.summary,
         author: target.author,
         content: target.content,
+        articleCanonical: target.articleCanonical,
         themeColor: target.themeColor,
         commentMode: target.commentMode,
         htmlStyleConfig: target.htmlStyleConfig,
         coverImageUrl: target.imageBundle?.coverImageUrl,
         bodyImageUrls: target.imageBundle?.bodyImageUrls || [],
+        bodyImageAspectRatio: this.resolveWechatBodyImageAspectRatio(target.bodyImageSize),
         bodyImageBriefs: target.bodyImageBriefs || [],
         selectedMarketingLabels: target.selectedMarketingLabels,
         selectedProductLabels: target.selectedProductLabels,
@@ -7998,28 +8023,14 @@ export class WorksService {
       target.publishConfig?.coverImageUrl ||
       target.imageBundle?.coverImageUrl ||
       "";
-    const checklist = [
-      config?.appId && config?.appSecret ? "已配置 AppID / AppSecret" : "缺少 AppID / AppSecret",
-      config?.whitelistIps?.length ? "已配置 IP 白名单" : "缺少 IP 白名单",
-      coverImageUrl ? "已生成封面图" : "缺少封面图",
-      target.htmlContent ? "已生成 HTML" : "缺少 HTML",
-      "已确认评论策略",
-    ];
-    const ready = Boolean(config?.appId && config?.appSecret && config?.whitelistIps?.length && coverImageUrl && target.htmlContent);
-    target.publishConfig = {
-      ready,
-      accountId: target.accountId,
-      accountName: target.accountName,
+    target.publishConfig = this.wechatWorkflowPublishService.buildWorkflowPublishConfig({
+      target,
+      config,
       coverImageUrl,
-      commentMode: target.commentMode,
       fanCommentsOnly,
-      checklist,
-      mediaId: target.publishConfig?.mediaId,
-      publishedAt: target.publishConfig?.publishedAt,
-      publishTaskId: target.publishConfig?.publishTaskId,
-    };
+    });
     target.updatedAt = new Date().toISOString();
-    target.errorDetail = ready ? undefined : "发布确认未完成，请检查 API 凭证、白名单、封面图和 HTML。";
+    target.errorDetail = this.wechatWorkflowPublishService.buildPublishConfirmErrorDetail(target.publishConfig);
     await this.persistWechatWorkflowSessionStoreItem(target);
     return {
       item: this.toWechatWorkflowSessionRecord(target),
@@ -8057,20 +8068,16 @@ export class WorksService {
       target.status = "PUBLISHING";
       target.updatedAt = new Date().toISOString();
       await this.persistWechatWorkflowSessionStoreItem(target);
+      const resolvedHtml = this.buildWechatWorkflowResolvedHtmlContent(target, { preferExisting: true });
       const publishResult = await this.wechatOfficialAccountApiService.publishDraft(
         {
           appId: config.appId,
           appSecret: config.appSecret,
         },
-        {
-          title: target.title,
-          author: target.author,
-          summary: target.summary,
-          htmlContent: this.buildWechatWorkflowResolvedHtmlContent(target, { preferExisting: true }),
-          coverImageUrl: target.publishConfig.coverImageUrl || "",
-          needOpenComment: this.resolveWechatNeedOpenComment(target.commentMode),
-          onlyFansCanComment: this.resolveWechatOnlyFansCanComment(target.commentMode, target.publishConfig.fanCommentsOnly),
-        },
+        this.wechatWorkflowPublishService.buildWorkflowPublishPayload({
+          target,
+          resolvedHtml,
+        }),
       );
       const mediaId = publishResult.mediaId;
       const now = new Date().toISOString();
@@ -8105,7 +8112,7 @@ export class WorksService {
         summary: target.summary,
         author: target.author,
         content: target.content,
-        htmlContent: this.buildWechatWorkflowResolvedHtmlContent(target, { preferExisting: true }),
+        htmlContent: resolvedHtml,
         outputFormat: "HTML",
         coverMode: "ai",
         commentMode: target.commentMode,
@@ -8134,7 +8141,7 @@ export class WorksService {
       nextDraft.summary = target.summary;
       nextDraft.author = target.author;
       nextDraft.content = target.content;
-      nextDraft.htmlContent = this.buildWechatWorkflowResolvedHtmlContent(target, { preferExisting: true });
+      nextDraft.htmlContent = resolvedHtml;
       nextDraft.commentMode = target.commentMode;
       nextDraft.imageMode = target.imageMode;
       nextDraft.themeColor = target.themeColor;
@@ -8188,18 +8195,12 @@ export class WorksService {
       target.linkedDraftId = nextDraft.id;
       target.status = "PUBLISHED";
       target.currentStep = "result";
-      target.publishConfig = {
-        ready: true,
-        accountId: target.accountId,
-        accountName: target.accountName,
-        coverImageUrl: target.publishConfig.coverImageUrl,
-        commentMode: target.commentMode,
-        fanCommentsOnly: target.publishConfig.fanCommentsOnly,
-        checklist: target.publishConfig.checklist,
+      target.publishConfig = this.wechatWorkflowPublishService.buildPublishedWorkflowPublishConfig({
+        target,
         mediaId,
         publishedAt: now,
         publishTaskId: task.id,
-      };
+      });
       target.updatedAt = now;
       target.errorDetail = undefined;
       await this.persistWechatWorkflowSessionStoreItem(target);
@@ -8321,6 +8322,10 @@ export class WorksService {
         articleProvider: articleResult.provider,
         articleRuntimeKey: articleResult.runtimeKey,
         articleModelName: articleResult.modelName,
+        articleCanonical: this.wechatWorkflowCanonicalService.buildArticleCanonical({
+          content: articleResult.content,
+          inputType: "plain-text",
+        }),
         coverImageBrief: articleResult.coverImageBrief,
         bodyImageBriefs: articleResult.bodyImageBriefs,
         imageTasks: this.buildWechatDraftImageTasks({
@@ -8385,6 +8390,10 @@ export class WorksService {
     target.summary = String(payload.summary || "").trim() || target.summary;
     target.author = String(payload.author || "").trim() || target.author;
     target.content = String(payload.content || "").trim() || target.content;
+    target.articleCanonical = this.wechatWorkflowCanonicalService.buildArticleCanonical({
+      content: target.content,
+      inputType: "plain-text",
+    });
     target.coverMode = payload.coverMode || target.coverMode;
     target.commentMode = payload.commentMode || target.commentMode;
     target.imageMode = payload.imageMode || target.imageMode;
@@ -8458,20 +8467,16 @@ export class WorksService {
     });
     try {
       await this.markTaskRunning(task.id);
+      const resolvedHtml = this.buildWechatDraftResolvedHtmlContent(target, { preferExisting: true });
       const publishResult = await this.wechatOfficialAccountApiService.publishDraft(
         {
           appId: config.appId,
           appSecret: config.appSecret,
         },
-        {
-          title: target.title,
-          author: target.author,
-          summary: target.summary,
-          htmlContent: this.buildWechatDraftResolvedHtmlContent(target, { preferExisting: true }),
-          coverImageUrl: this.resolveWechatDraftCoverImageUrl(target),
-          needOpenComment: this.resolveWechatNeedOpenComment(target.commentMode),
-          onlyFansCanComment: this.resolveWechatOnlyFansCanComment(target.commentMode, target.commentMode === "fans"),
-        },
+        this.wechatWorkflowPublishService.buildDraftPublishPayload({
+          draft: target,
+          resolvedHtml,
+        }),
       );
       const now = new Date().toISOString();
       target.publishStatus = "PUBLISHED";
@@ -14277,6 +14282,7 @@ export class WorksService {
         "articleProvider" TEXT NULL,
         "articleRuntimeKey" TEXT NULL,
         "articleModelName" TEXT NULL,
+        "articleCanonicalJson" JSONB NULL,
         "coverImageBrief" TEXT NULL,
         "bodyImageBriefsJson" JSONB NULL,
         "themeColor" TEXT NOT NULL DEFAULT '#25554a',
@@ -14298,6 +14304,10 @@ export class WorksService {
     await this.prismaService.$executeRawUnsafe(`
       ALTER TABLE "WechatWorkflowSession"
       ADD COLUMN IF NOT EXISTS "htmlStyleConfigJson" JSONB NOT NULL DEFAULT '{}'::jsonb
+    `);
+    await this.prismaService.$executeRawUnsafe(`
+      ALTER TABLE "WechatWorkflowSession"
+      ADD COLUMN IF NOT EXISTS "articleCanonicalJson" JSONB NULL
     `);
     await this.prismaService.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS "WechatArticleDraft" (
@@ -14325,6 +14335,7 @@ export class WorksService {
         "articleProvider" TEXT NOT NULL DEFAULT '',
         "articleRuntimeKey" TEXT NOT NULL DEFAULT '',
         "articleModelName" TEXT NOT NULL DEFAULT '',
+        "articleCanonicalJson" JSONB NULL,
         "coverImageBrief" TEXT NULL,
         "bodyImageBriefsJson" JSONB NULL,
         "imageTasksJson" JSONB NULL,
@@ -14357,6 +14368,10 @@ export class WorksService {
         "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
         "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
+    `);
+    await this.prismaService.$executeRawUnsafe(`
+      ALTER TABLE "WechatArticleDraft"
+      ADD COLUMN IF NOT EXISTS "articleCanonicalJson" JSONB NULL
     `);
     await this.prismaService.$executeRawUnsafe(
       `CREATE INDEX IF NOT EXISTS "WechatOfficialAccount_brandId_updatedAt_idx" ON "WechatOfficialAccount" ("brandId", "updatedAt" DESC)`,
@@ -14694,14 +14709,14 @@ export class WorksService {
     await this.prismaService.$executeRaw`
       INSERT INTO "WechatWorkflowSession" (
         "id","brandId","accountId","accountName","status","currentStep","inputType","inputContent","title","summary","author","content",
-        "htmlContent","htmlStyleConfigJson","articleProvider","articleRuntimeKey","articleModelName","coverImageBrief","bodyImageBriefsJson","themeColor","commentMode",
+        "htmlContent","htmlStyleConfigJson","articleProvider","articleRuntimeKey","articleModelName","articleCanonicalJson","coverImageBrief","bodyImageBriefsJson","themeColor","commentMode",
         "imageMode","bodyImageSize","injectBrandProfile","selectedMarketingLabelsJson","selectedProductLabelsJson","selectedBrandLabelsJson","imageBundleJson",
         "publishConfigJson","linkedDraftId","errorDetail","createdAt","updatedAt"
       )
       VALUES (
         ${item.id},${item.brandId},${item.accountId ?? null},${item.accountName ?? null},${item.status},${item.currentStep},${item.inputType},
         ${item.inputContent ?? null},${item.title},${item.summary},${item.author},${item.content},${item.htmlContent},${JSON.stringify(item.htmlStyleConfig || buildDefaultWechatHtmlStyleConfig())}::jsonb,${item.articleProvider ?? null},
-        ${item.articleRuntimeKey ?? null},${item.articleModelName ?? null},${item.coverImageBrief ?? null},${JSON.stringify(item.bodyImageBriefs || [])}::jsonb,
+        ${item.articleRuntimeKey ?? null},${item.articleModelName ?? null},${item.articleCanonical ? JSON.stringify(item.articleCanonical) : null}::jsonb,${item.coverImageBrief ?? null},${JSON.stringify(item.bodyImageBriefs || [])}::jsonb,
         ${item.themeColor},${item.commentMode},${item.imageMode},${item.bodyImageSize},${item.injectBrandProfile},${JSON.stringify(item.selectedMarketingLabels || [])}::jsonb,
         ${JSON.stringify(item.selectedProductLabels || [])}::jsonb,${JSON.stringify(item.selectedBrandLabels || [])}::jsonb,
         ${item.imageBundle ? JSON.stringify(item.imageBundle) : null}::jsonb,${item.publishConfig ? JSON.stringify(item.publishConfig) : null}::jsonb,
@@ -14724,6 +14739,7 @@ export class WorksService {
         "articleProvider" = EXCLUDED."articleProvider",
         "articleRuntimeKey" = EXCLUDED."articleRuntimeKey",
         "articleModelName" = EXCLUDED."articleModelName",
+        "articleCanonicalJson" = EXCLUDED."articleCanonicalJson",
         "coverImageBrief" = EXCLUDED."coverImageBrief",
         "bodyImageBriefsJson" = EXCLUDED."bodyImageBriefsJson",
         "themeColor" = EXCLUDED."themeColor",
@@ -14777,7 +14793,7 @@ export class WorksService {
       INSERT INTO "WechatArticleDraft" (
         "id","taskId","brandId","title","summary","author","content","htmlContent","outputFormat","coverMode","commentMode","imageMode","themeColor",
         "injectMarketingCalendar","injectProducts","injectBrandProfile","selectedMarketingLabelsJson","selectedProductLabelsJson","selectedBrandLabelsJson",
-        "articleSkillSlug","articlePromptScene","articleProvider","articleRuntimeKey","articleModelName","coverImageBrief","bodyImageBriefsJson",
+        "articleSkillSlug","articlePromptScene","articleProvider","articleRuntimeKey","articleModelName","articleCanonicalJson","coverImageBrief","bodyImageBriefsJson",
         "imageTasksJson","publishStatus","publishedAt","publishTaskId","taskStatus","createdAt","updatedAt"
       )
       VALUES (
@@ -14785,7 +14801,7 @@ export class WorksService {
         ${item.coverMode},${item.commentMode},${item.imageMode},${item.themeColor},${item.injectMarketingCalendar},${item.injectProducts},
         ${item.injectBrandProfile},${JSON.stringify(item.selectedMarketingLabels || [])}::jsonb,${JSON.stringify(item.selectedProductLabels || [])}::jsonb,
         ${JSON.stringify(item.selectedBrandLabels || [])}::jsonb,${item.articleSkillSlug},${item.articlePromptScene},${item.articleProvider},
-        ${item.articleRuntimeKey},${item.articleModelName},${item.coverImageBrief ?? null},${JSON.stringify(item.bodyImageBriefs || [])}::jsonb,
+        ${item.articleRuntimeKey},${item.articleModelName},${item.articleCanonical ? JSON.stringify(item.articleCanonical) : null}::jsonb,${item.coverImageBrief ?? null},${JSON.stringify(item.bodyImageBriefs || [])}::jsonb,
         ${item.imageTasks ? JSON.stringify(item.imageTasks) : null}::jsonb,${item.publishStatus},${item.publishedAt ? new Date(item.publishedAt) : null},
         ${item.publishTaskId ?? null},${item.taskStatus},${new Date(item.createdAt)},${new Date(item.updatedAt)}
       )
@@ -14813,6 +14829,7 @@ export class WorksService {
         "articleProvider" = EXCLUDED."articleProvider",
         "articleRuntimeKey" = EXCLUDED."articleRuntimeKey",
         "articleModelName" = EXCLUDED."articleModelName",
+        "articleCanonicalJson" = EXCLUDED."articleCanonicalJson",
         "coverImageBrief" = EXCLUDED."coverImageBrief",
         "bodyImageBriefsJson" = EXCLUDED."bodyImageBriefsJson",
         "imageTasksJson" = EXCLUDED."imageTasksJson",
@@ -15049,6 +15066,7 @@ export class WorksService {
       articleProvider: this.readOptionalString(row.articleProvider),
       articleRuntimeKey: this.readOptionalString(row.articleRuntimeKey),
       articleModelName: this.readOptionalString(row.articleModelName),
+      articleCanonical: this.normalizeWechatArticleCanonical(row.articleCanonicalJson),
       coverImageBrief: this.readOptionalString(row.coverImageBrief),
       bodyImageBriefs: this.normalizeStringArray(row.bodyImageBriefsJson, []),
       themeColor: row.themeColor || "#25554a",
@@ -15095,6 +15113,7 @@ export class WorksService {
       articleProvider: row.articleProvider || "",
       articleRuntimeKey: row.articleRuntimeKey || "",
       articleModelName: row.articleModelName || "",
+      articleCanonical: this.normalizeWechatArticleCanonical(row.articleCanonicalJson),
       coverImageBrief: this.readOptionalString(row.coverImageBrief),
       bodyImageBriefs: this.normalizeStringArray(row.bodyImageBriefsJson, []),
       imageTasks: Array.isArray(row.imageTasksJson) ? row.imageTasksJson as WechatImageTaskRecord[] : undefined,
@@ -15104,6 +15123,48 @@ export class WorksService {
       taskStatus: this.normalizeWechatTaskStatusValue(row.taskStatus),
       createdAt: this.normalizeWechatTimestamp(row.createdAt),
       updatedAt: this.normalizeWechatTimestamp(row.updatedAt),
+    };
+  }
+
+  private normalizeWechatArticleCanonical(value: Prisma.JsonValue | null | undefined): WechatArticleCanonicalRecord | undefined {
+    const record = this.asRecord(value);
+    if (!record) {
+      return undefined;
+    }
+    const plainText = this.readOptionalString(record.plainText) || "";
+    const headings = this.normalizeStringArray(record.headings, []);
+    const rawBlocks = Array.isArray(record.blocks) ? record.blocks : [];
+    const blocks = rawBlocks
+      .map((item, index) => {
+        const blockRecord = this.asRecord(item);
+        if (!blockRecord) {
+          return null;
+        }
+        const type = blockRecord.type === "heading" ? "heading" : blockRecord.type === "paragraph" ? "paragraph" : "";
+        const text = this.readOptionalString(blockRecord.text) || "";
+        if (!type || !text) {
+          return null;
+        }
+        const depthValue = Number(blockRecord.depth);
+        return {
+          id: this.readOptionalString(blockRecord.id) || `${type}-${index + 1}`,
+          type,
+          text,
+          depth: type === "heading" && [1, 2, 3].includes(depthValue) ? depthValue as 1 | 2 | 3 : undefined,
+        };
+      })
+      .filter(Boolean) as WechatArticleCanonicalRecord["blocks"];
+    if (!plainText && !blocks.length) {
+      return undefined;
+    }
+    return {
+      version: 1,
+      sourceFormat: record.sourceFormat === "html" ? "html" : record.sourceFormat === "markdown" ? "markdown" : "plain-text",
+      plainText: plainText || blocks.map((item) => item.text).join("\n\n"),
+      headings,
+      blocks,
+      paragraphCount: Number(record.paragraphCount) > 0 ? Number(record.paragraphCount) : blocks.filter((item) => item.type === "paragraph").length,
+      updatedAt: this.readOptionalString(record.updatedAt) || new Date().toISOString(),
     };
   }
 
@@ -15293,29 +15354,6 @@ export class WorksService {
     return normalized.length ? normalized : fallback;
   }
 
-  private resolveWechatNeedOpenComment(commentMode: WechatCommentMode) {
-    return commentMode !== "close";
-  }
-
-  private resolveWechatOnlyFansCanComment(commentMode: WechatCommentMode, fanCommentsOnly: boolean) {
-    if (commentMode === "close") {
-      return false;
-    }
-    if (commentMode === "fans") {
-      return true;
-    }
-    return fanCommentsOnly;
-  }
-
-  private resolveWechatDraftCoverImageUrl(draft: WechatArticleDraftRecord) {
-    const coverTask = draft.imageTasks?.find((item) => item.kind === "cover");
-    const coverImageUrl = coverTask?.generatedImageUrls.find((item) => Boolean(String(item || "").trim()));
-    if (!coverImageUrl) {
-      throw new BadRequestException("请先为公众号文章生成封面图，再执行 API 发布。");
-    }
-    return coverImageUrl;
-  }
-
   private buildWechatWorkflowDefaultTitle(labels?: string[]) {
     const normalized = this.normalizeWechatLabels(labels, []);
     return normalized[0] ? `${normalized[0]}：公众号创作工作流` : "公众号创作工作流";
@@ -15388,6 +15426,7 @@ export class WorksService {
     title: string;
     summary: string;
     content: string;
+    articleCanonical?: WechatArticleCanonicalRecord;
     themeColor: string;
     selectedMarketingLabels: string[];
     selectedProductLabels: string[];
@@ -15402,8 +15441,11 @@ export class WorksService {
       params.selectedMarketingLabels.length ? `营销主题：${params.selectedMarketingLabels.join("、")}` : "",
       params.selectedProductLabels.length ? `产品：${params.selectedProductLabels.join("、")}` : "",
       params.selectedBrandLabels.length ? `品牌标签：${params.selectedBrandLabels.join("、")}` : "",
+      params.articleCanonical?.headings?.length ? `正文结构：${params.articleCanonical.headings.join("、")}` : "",
       params.bodyImageBriefs.length ? `配图主题：${this.truncateText(params.bodyImageBriefs.join("；"), 160)}` : "",
-      params.content ? `正文概要：${this.truncateText(params.content, 180)}` : "",
+      (params.articleCanonical?.plainText || params.content)
+        ? `正文概要：${this.truncateText(params.articleCanonical?.plainText || params.content, 180)}`
+        : "",
       "请召回企业知识库中与品牌口吻、排版风格、视觉规范、内容栏目结构、行动引导和营销合规相关的内容",
     ]
       .filter((item) => item.trim())
@@ -16233,7 +16275,7 @@ export class WorksService {
               const summary = String(parsed.summary ?? "").trim();
               const author = String(parsed.author ?? "").trim() || params.author || "品牌内容中心";
               const body = String(parsed.content ?? "").trim()
-                || this.extractWechatPlainTextFromHtml(String(parsed.htmlContent ?? "").trim());
+                || this.wechatWorkflowCanonicalService.extractPlainTextFromHtml(String(parsed.htmlContent ?? "").trim());
               const coverImageBrief = this.normalizeWechatImageBrief(
                 parsed.coverImageBrief,
                 this.buildWechatCoverImagePrompt(title, summary || params.inputContent, params.themeColor),
@@ -16308,6 +16350,7 @@ export class WorksService {
     title: string;
     summary: string;
     content: string;
+    articleCanonical?: WechatArticleCanonicalRecord;
     themeColor: string;
     selectedMarketingLabels: string[];
     selectedProductLabels: string[];
@@ -16357,6 +16400,7 @@ export class WorksService {
       }),
     ]);
     const sectionSeeds = this.extractWechatArticleSectionTopics(params.content, {
+      articleCanonical: params.articleCanonical,
       title: params.title,
       summary: params.summary,
       selectedMarketingLabels: params.selectedMarketingLabels,
@@ -16613,11 +16657,13 @@ export class WorksService {
     summary: string;
     author: string;
     content: string;
+    articleCanonical?: WechatArticleCanonicalRecord;
     themeColor: string;
     commentMode: WechatCommentMode;
     htmlStyleConfig: WechatHtmlStyleConfig;
     coverImageUrl?: string;
     bodyImageUrls: string[];
+    bodyImageAspectRatio?: string;
     bodyImageBriefs: string[];
     selectedMarketingLabels: string[];
     selectedProductLabels: string[];
@@ -16654,6 +16700,7 @@ export class WorksService {
       summary: params.summary,
       author: params.author,
       content: params.content,
+      articleCanonical: params.articleCanonical ?? null,
       themeColor: params.themeColor,
       commentMode: params.commentMode,
       styleType,
@@ -16673,6 +16720,7 @@ export class WorksService {
       "{",
       '  "htmlContent": "<!DOCTYPE html>..."',
       "}",
+      "input.articleCanonical 是系统整理后的正文单一事实源，包含 blocks / headings / plainText；渲染正文结构时优先依据它，而不是自行重写文章。",
       "htmlContent 必须是结构完整的公众号 HTML 文档，包含标题区、摘要区、正文区，并把封面图和正文配图自然植入对应位置。",
       "必须完整保留 input.content 中的正文全文，禁止删节、概括、提炼成提纲或只保留部分段落。",
       "htmlContent 必须输出单行 HTML 字符串，禁止在 JSON 字符串里直接输出原始换行。",
@@ -16687,6 +16735,7 @@ export class WorksService {
       title: params.title,
       summary: params.summary,
       content: params.content,
+      articleCanonical: params.articleCanonical,
       themeColor: params.themeColor,
       selectedMarketingLabels: params.selectedMarketingLabels,
       selectedProductLabels: params.selectedProductLabels,
@@ -16739,14 +16788,35 @@ export class WorksService {
                 themeColor: params.themeColor,
                 htmlContent: rawHtmlContent,
               });
-              return {
+              const coverage = this.wechatWorkflowCanonicalService.inspectHtmlCoverage({
                 htmlContent,
+                sourceContent: params.content,
+                articleCanonical: params.articleCanonical,
+              });
+              const finalHtmlContent = coverage.shouldFallback
+                ? this.wechatWorkflowHtmlRendererService.renderWorkflowResolvedHtml({
+                  title: params.title,
+                  summary: params.summary,
+                  author: params.author,
+                  content: params.content,
+                  articleCanonical: params.articleCanonical,
+                  themeColor: params.themeColor,
+                  commentMode: params.commentMode,
+                  coverImageUrl: params.coverImageUrl,
+                  bodyImageUrls: params.bodyImageUrls,
+                  bodyImageAspectRatio: params.bodyImageAspectRatio,
+                })
+                : htmlContent;
+              return {
+                htmlContent: finalHtmlContent,
                 provider: provider.providerName || provider.provider,
                 runtimeKey: this.resolveWechatTextProviderRuntimeKey(provider),
                 modelName,
                 preferredModelName: preference.preferredModelName,
                 attemptedModels: Array.from(attemptedModels),
-                attemptTrail: [...attemptTrail, `${attemptLabel} -> 成功`],
+                attemptTrail: [...attemptTrail, coverage.shouldFallback
+                  ? `${attemptLabel} -> 覆盖率 ${(coverage.coverageRatio * 100).toFixed(0)}%，降级规则渲染器`
+                  : `${attemptLabel} -> 成功`],
               };
             } catch (error) {
               const parsedError = error instanceof Error ? error.message : "调用失败";
@@ -16808,6 +16878,7 @@ export class WorksService {
       themeColor: string;
       summary?: string;
       content?: string;
+      articleCanonical?: WechatArticleCanonicalRecord;
       injectBrandProfile?: boolean;
     },
   ) {
@@ -16824,6 +16895,7 @@ export class WorksService {
       title: params.titleSeed,
       summary: params.summary || "",
       content: params.content || "",
+      articleCanonical: params.articleCanonical,
       themeColor: params.themeColor,
       selectedMarketingLabels: params.selectedMarketingLabels,
       selectedProductLabels: params.selectedProductLabels,
@@ -16836,6 +16908,7 @@ export class WorksService {
     title: string;
     summary: string;
     content: string;
+    articleCanonical?: WechatArticleCanonicalRecord;
     themeColor: string;
     selectedMarketingLabels: string[];
     selectedProductLabels: string[];
@@ -16845,6 +16918,7 @@ export class WorksService {
     const summarySource = String(params.summary || "").trim() || this.truncateText(params.content, 120);
     const coverImageBrief = this.buildWechatCoverImagePrompt(params.title, summarySource || params.content, params.themeColor);
     const sectionSeeds = this.extractWechatArticleSectionTopics(params.content, {
+      articleCanonical: params.articleCanonical,
       title: params.title,
       summary: params.summary,
       selectedMarketingLabels: params.selectedMarketingLabels,
@@ -16864,6 +16938,7 @@ export class WorksService {
   private extractWechatArticleSectionTopics(
     content: string,
     options: {
+      articleCanonical?: WechatArticleCanonicalRecord;
       title: string;
       summary: string;
       selectedMarketingLabels: string[];
@@ -16872,34 +16947,16 @@ export class WorksService {
       injectBrandProfile: boolean;
     },
   ) {
-    const normalizeTopic = (value: string) => this.truncateText(
-      String(value || "")
-        .replace(/^#+\s*/g, "")
-        .replace(/^[（(]?(?:第?\s*[一二三四五六七八九十百0-9]+|[0-9]+)[）).、:：\-\s]*/g, "")
-        .replace(/^(导语|引言|开场|总结|结语|结尾|正文|小结)[：:\s-]*/g, "")
-        .trim(),
-      36,
-    );
-
-    const paragraphTopics = String(content || "")
-      .split(/\r?\n+/)
-      .map((item) => normalizeTopic(item))
-      .filter((item) => item.length >= 8);
-    const sentenceTopics = String(content || "")
-      .split(/[。！？!?；;\n]/)
-      .map((item) => normalizeTopic(item))
-      .filter((item) => item.length >= 8);
-    const fallbackTopics = [
-      options.summary,
-      options.selectedMarketingLabels[0],
-      options.selectedProductLabels[0],
-      options.injectBrandProfile ? options.selectedBrandLabels[0] : "",
-      options.title,
-    ]
-      .map((item) => normalizeTopic(item || ""))
-      .filter((item) => item.length >= 4);
-    const topics = Array.from(new Set([...paragraphTopics, ...sentenceTopics, ...fallbackTopics])).filter(Boolean);
-    return (topics.length ? topics : [normalizeTopic(options.title)]).slice(0, 4);
+    return this.wechatWorkflowCanonicalService.extractSectionTopics({
+      content,
+      articleCanonical: options.articleCanonical,
+      title: options.title,
+      summary: options.summary,
+      selectedMarketingLabels: options.selectedMarketingLabels,
+      selectedProductLabels: options.selectedProductLabels,
+      selectedBrandLabels: options.selectedBrandLabels,
+      injectBrandProfile: options.injectBrandProfile,
+    });
   }
 
   private normalizeWechatGeneratedHtmlDocument(params: {
@@ -16911,9 +16968,9 @@ export class WorksService {
   }) {
     const htmlContent = String(params.htmlContent || "").trim();
     if (/<!doctype html/i.test(htmlContent) || /<html[\s>]/i.test(htmlContent)) {
-      return this.normalizeWechatHtmlSpacing(htmlContent);
+      return this.wechatWorkflowHtmlRendererService.normalizeHtmlSpacing(htmlContent);
     }
-    return this.normalizeWechatHtmlSpacing([
+    return this.wechatWorkflowHtmlRendererService.normalizeHtmlSpacing([
       "<!DOCTYPE html>",
       `<html lang="zh-CN"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${this.escapeHtml(params.title)}</title></head>`,
       `<body style="margin:0;background:linear-gradient(180deg,#f7f8fc 0%,#eef2ff 100%);font-family:'PingFang SC','Microsoft YaHei',sans-serif;color:#24314a;">`,
@@ -17022,25 +17079,6 @@ export class WorksService {
     return /^<!doctype html/i.test(normalized)
       || /^<html[\s>]/i.test(normalized)
       || /^<(body|main|section|article|div|h1|h2|h3|p)\b/i.test(normalized);
-  }
-
-  private extractWechatPlainTextFromHtml(htmlContent: string) {
-    return String(htmlContent || "")
-      .replace(/<style[\s\S]*?<\/style>/gi, "\n")
-      .replace(/<script[\s\S]*?<\/script>/gi, "\n")
-      .replace(/<\/(p|div|section|article|li|h1|h2|h3|h4|blockquote|pre)>/gi, "\n")
-      .replace(/<br\s*\/?>/gi, "\n")
-      .replace(/<[^>]+>/g, " ")
-      .replace(/&nbsp;/gi, " ")
-      .replace(/&amp;/gi, "&")
-      .replace(/&lt;/gi, "<")
-      .replace(/&gt;/gi, ">")
-      .replace(/&#39;/gi, "'")
-      .replace(/&quot;/gi, '"')
-      .replace(/[ \t]+\n/g, "\n")
-      .replace(/\n{3,}/g, "\n\n")
-      .replace(/[ \t]{2,}/g, " ")
-      .trim();
   }
 
   private buildWechatWorkflowImagePrompts(
@@ -17563,12 +17601,8 @@ export class WorksService {
     params: WechatWorkflowSessionRecord,
     options?: { preferExisting?: boolean },
   ) {
-    const baseHtml = options?.preferExisting && String(params.htmlContent || "").trim()
-      ? String(params.htmlContent || "").trim()
-      : this.renderWechatWorkflowArticleHtml(params);
-    return this.injectWechatImagesIntoHtml(baseHtml, {
-      coverImageUrl: params.imageBundle?.coverImageUrl,
-      bodyImageUrls: params.imageBundle?.bodyImageUrls || [],
+    return this.wechatWorkflowHtmlRendererService.buildWorkflowResolvedHtmlContent(params, {
+      preferExisting: options?.preferExisting,
       bodyImageAspectRatio: this.resolveWechatBodyImageAspectRatio(params.bodyImageSize),
     });
   }
@@ -17577,300 +17611,10 @@ export class WorksService {
     params: WechatArticleDraftRecord,
     options?: { preferExisting?: boolean },
   ) {
-    const baseHtml = options?.preferExisting && String(params.htmlContent || "").trim()
-      ? String(params.htmlContent || "").trim()
-      : this.renderWechatArticleHtml(params);
-    const coverTask = params.imageTasks?.find((item) => item.kind === "cover");
-    const bodyTask = params.imageTasks?.find((item) => item.kind === "body");
-    return this.injectWechatImagesIntoHtml(baseHtml, {
-      coverImageUrl: coverTask?.generatedImageUrls[0],
-      bodyImageUrls: bodyTask?.generatedImageUrls || [],
+    return this.wechatWorkflowHtmlRendererService.buildDraftResolvedHtmlContent(params, {
+      preferExisting: options?.preferExisting,
       bodyImageAspectRatio: this.resolveWechatBodyImageAspectRatio("landscape-4-3"),
     });
-  }
-
-  private injectWechatImagesIntoHtml(
-    htmlContent: string,
-    params: {
-      coverImageUrl?: string;
-      bodyImageUrls?: string[];
-      bodyImageAspectRatio?: string;
-    },
-  ) {
-    const normalizedHtml = this.stripWechatGeneratedImageArtifacts(htmlContent);
-    if (!normalizedHtml) {
-      return normalizedHtml;
-    }
-    const imageQueue = [
-      String(params.coverImageUrl || "").trim(),
-      ...(params.bodyImageUrls || []).map((item) => String(item || "").trim()),
-    ].filter(Boolean);
-    if (!imageQueue.length) {
-      return normalizedHtml;
-    }
-
-    let cursor = 0;
-    const replacedHtml = normalizedHtml.replace(/<img\b[^>]*>/gi, (tag) => {
-      const nextUrl = imageQueue[cursor];
-      if (!nextUrl) {
-        return tag;
-      }
-      const alt = cursor === 0 ? "公众号封面图" : `公众号正文配图${cursor}`;
-      cursor += 1;
-      return this.replaceWechatImageTag(tag, nextUrl, alt);
-    });
-    const remainingUrls = imageQueue.slice(cursor);
-    if (!remainingUrls.length) {
-      return this.normalizeWechatHtmlSpacing(replacedHtml);
-    }
-    return this.normalizeWechatHtmlSpacing(this.injectWechatGeneratedImageBlocks(replacedHtml, {
-      coverImageUrl: cursor === 0 ? imageQueue[0] : undefined,
-      bodyImageUrls: cursor === 0 ? imageQueue.slice(1) : remainingUrls,
-      bodyImageAspectRatio: params.bodyImageAspectRatio,
-    }));
-  }
-
-  private normalizeWechatHtmlSpacing(htmlContent: string) {
-    let normalized = String(htmlContent || "").trim();
-    if (!normalized) {
-      return normalized;
-    }
-    normalized = normalized
-      .replace(/<(p|div|section|figure|figcaption)[^>]*>\s*(?:&nbsp;|\s|<br\s*\/?>)*\s*<\/\1>/gi, "")
-      .replace(/\bmin-height\s*:\s*\d+px/gi, "min-height:auto");
-    normalized = normalized.replace(/<figure\b([^>]*)>/gi, (_match, attrs) => {
-      const nextAttrs = this.normalizeWechatHtmlInlineStyle(attrs, (style) => {
-        const parts = String(style || "")
-          .split(";")
-          .map((item) => item.trim())
-          .filter(Boolean)
-          .filter((item) => !/^margin\s*:/i.test(item))
-          .filter((item) => !/^margin-top\s*:/i.test(item))
-          .filter((item) => !/^margin-bottom\s*:/i.test(item))
-          .filter((item) => !/^min-height\s*:/i.test(item));
-        if (!parts.some((item) => /^margin\s*:/i.test(item) || /^margin-top\s*:/i.test(item) || /^margin-bottom\s*:/i.test(item))) {
-          parts.push("margin:14px 0");
-        }
-        return parts.join(";");
-      });
-      return `<figure${nextAttrs}>`;
-    });
-    normalized = normalized.replace(/<img\b([^>]*)>/gi, (_match, attrs) => {
-      const nextAttrs = this.normalizeWechatHtmlInlineStyle(attrs, (style) => {
-        const parts = String(style || "")
-          .split(";")
-          .map((item) => item.trim())
-          .filter(Boolean)
-          .filter((item) => !/^margin\s*:/i.test(item))
-          .filter((item) => !/^margin-top\s*:/i.test(item))
-          .filter((item) => !/^margin-bottom\s*:/i.test(item))
-          .filter((item) => !/^display\s*:/i.test(item))
-          .filter((item) => !/^height\s*:/i.test(item));
-        parts.push("display:block");
-        parts.push("margin:0 auto");
-        parts.push("height:auto");
-        if (!parts.some((item) => /^max-width\s*:/i.test(item))) {
-          parts.push("max-width:100%");
-        }
-        return parts.join(";");
-      });
-      return `<img${nextAttrs}>`;
-    });
-    return normalized
-      .replace(/\n{3,}/g, "\n\n")
-      .replace(/>\s+</g, "><")
-      .trim();
-  }
-
-  private stripWechatGeneratedImageArtifacts(htmlContent: string) {
-    return String(htmlContent || "")
-      .replace(/<figure\b[^>]*data-wechat-generated-image="true"[^>]*>[\s\S]*?<\/figure>/gi, "")
-      .trim();
-  }
-
-  private normalizeWechatHtmlInlineStyle(
-    attrs: string,
-    transform: (style: string) => string,
-  ) {
-    const rawAttrs = String(attrs || "");
-    if (/\bstyle\s*=\s*"/i.test(rawAttrs)) {
-      return rawAttrs.replace(/\bstyle\s*=\s*"([^"]*)"/i, (_match, style) => ` style="${transform(style)}"`);
-    }
-    if (/\bstyle\s*=\s*'/i.test(rawAttrs)) {
-      return rawAttrs.replace(/\bstyle\s*=\s*'([^']*)'/i, (_match, style) => ` style="${transform(style)}"`);
-    }
-    const trimmed = rawAttrs.trimEnd();
-    return `${trimmed}${trimmed ? " " : ""}style="${transform("")}"`;
-  }
-
-  private replaceWechatImageTag(tag: string, url: string, alt: string) {
-    const normalizedUrl = this.escapeHtml(url);
-    const normalizedAlt = this.escapeHtml(alt);
-    let nextTag = tag;
-    if (/\bsrc\s*=/i.test(nextTag)) {
-      nextTag = nextTag.replace(/\bsrc\s*=\s*(['"])(.*?)\1/i, `src="${normalizedUrl}"`);
-    } else {
-      nextTag = nextTag.replace(/<img\b/i, `<img src="${normalizedUrl}"`);
-    }
-    if (/\balt\s*=/i.test(nextTag)) {
-      nextTag = nextTag.replace(/\balt\s*=\s*(['"])(.*?)\1/i, `alt="${normalizedAlt}"`);
-    } else {
-      nextTag = nextTag.replace(/<img\b/i, `<img alt="${normalizedAlt}"`);
-    }
-    return nextTag;
-  }
-
-  private injectWechatGeneratedImageBlocks(
-    htmlContent: string,
-    params: {
-      coverImageUrl?: string;
-      bodyImageUrls: string[];
-      bodyImageAspectRatio?: string;
-    },
-  ) {
-    let normalizedHtml = String(htmlContent || "").trim();
-    if (!normalizedHtml) {
-      return normalizedHtml;
-    }
-
-    const coverImageUrl = String(params.coverImageUrl || "").trim();
-    const bodyImageUrls = params.bodyImageUrls.map((item) => String(item || "").trim()).filter(Boolean);
-    const bodyImageAspectRatio = String(params.bodyImageAspectRatio || "").trim() || "4 / 3";
-
-    if (coverImageUrl) {
-      const coverBlock = this.buildWechatGeneratedImageFigure({
-        url: coverImageUrl,
-        alt: "公众号封面图",
-      });
-      normalizedHtml = this.injectWechatCoverImageBlock(normalizedHtml, coverBlock);
-    }
-
-    if (bodyImageUrls.length) {
-      const bodyBlocks = bodyImageUrls.map((item, index) => this.buildWechatGeneratedImageFigure({
-        url: item,
-        alt: `公众号正文配图${index + 1}`,
-        aspectRatio: bodyImageAspectRatio,
-      }));
-      normalizedHtml = this.injectWechatBodyImageBlocks(normalizedHtml, bodyBlocks);
-    }
-
-    return normalizedHtml;
-  }
-
-  private injectWechatCoverImageBlock(htmlContent: string, coverBlock: string) {
-    if (!coverBlock) {
-      return htmlContent;
-    }
-    if (/<\/h1>/i.test(htmlContent)) {
-      return htmlContent.replace(/<\/h1>/i, `</h1>${coverBlock}`);
-    }
-    if (/<main\b[^>]*>/i.test(htmlContent)) {
-      return htmlContent.replace(/<main\b[^>]*>/i, (match) => `${match}${coverBlock}`);
-    }
-    if (/<body\b[^>]*>/i.test(htmlContent)) {
-      return htmlContent.replace(/<body\b[^>]*>/i, (match) => `${match}${coverBlock}`);
-    }
-    return `${coverBlock}${htmlContent}`;
-  }
-
-  private injectWechatBodyImageBlocks(htmlContent: string, bodyBlocks: string[]) {
-    if (!bodyBlocks.length) {
-      return htmlContent;
-    }
-
-    const paragraphCount = (htmlContent.match(/<\/p>/gi) || []).length;
-    if (paragraphCount > 0) {
-      const slots = new Map<number, string[]>();
-      bodyBlocks.forEach((block, index) => {
-        const slot = Math.min(
-          paragraphCount,
-          Math.max(1, Math.round(((index + 1) * (paragraphCount + 1)) / (bodyBlocks.length + 1))),
-        );
-        const items = slots.get(slot) || [];
-        items.push(block);
-        slots.set(slot, items);
-      });
-
-      let paragraphIndex = 0;
-      return htmlContent.replace(/<\/p>/gi, (tag) => {
-        paragraphIndex += 1;
-        const inserts = slots.get(paragraphIndex);
-        return inserts?.length ? `${tag}${inserts.join("")}` : tag;
-      });
-    }
-
-    const sectionCount = (htmlContent.match(/<\/section>/gi) || []).length;
-    if (sectionCount > 0) {
-      const slots = new Map<number, string[]>();
-      bodyBlocks.forEach((block, index) => {
-        const slot = Math.min(
-          sectionCount,
-          Math.max(1, Math.round(((index + 1) * (sectionCount + 1)) / (bodyBlocks.length + 1))),
-        );
-        const items = slots.get(slot) || [];
-        items.push(block);
-        slots.set(slot, items);
-      });
-
-      let sectionIndex = 0;
-      return htmlContent.replace(/<\/section>/gi, (tag) => {
-        sectionIndex += 1;
-        const inserts = slots.get(sectionIndex);
-        return inserts?.length ? `${tag}${inserts.join("")}` : tag;
-      });
-    }
-
-    return this.appendWechatGeneratedImageBlocks(htmlContent, bodyBlocks.join(""));
-  }
-
-  private appendWechatGeneratedImageBlocks(htmlContent: string, blocksHtml: string) {
-    if (!blocksHtml) {
-      return htmlContent;
-    }
-    if (/<\/main>/i.test(htmlContent)) {
-      return htmlContent.replace(/<\/main>/i, `${blocksHtml}</main>`);
-    }
-    if (/<\/body>/i.test(htmlContent)) {
-      return htmlContent.replace(/<\/body>/i, `${blocksHtml}</body>`);
-    }
-    return `${htmlContent}${blocksHtml}`;
-  }
-
-  private buildWechatGeneratedImageFigure(params: {
-    url: string;
-    alt: string;
-    aspectRatio?: string;
-  }) {
-    const normalizedUrl = this.escapeHtml(params.url);
-    const normalizedAlt = this.escapeHtml(params.alt);
-    return `<figure data-wechat-generated-image="true" style="margin:14px 0;"><img src="${normalizedUrl}" alt="${normalizedAlt}" style="display:block;width:100%;max-width:720px;height:auto;margin:0 auto;border-radius:20px;border:1px solid #e8edf7;background:#fff;box-shadow:0 10px 28px rgba(37,51,90,0.08);" /></figure>`;
-  }
-
-  private buildWechatGeneratedImageAppendBlock(params: {
-    coverImageUrl?: string;
-    bodyImageUrls: string[];
-    bodyImageAspectRatio?: string;
-  }) {
-    const coverImageUrl = String(params.coverImageUrl || "").trim();
-    const bodyImageUrls = params.bodyImageUrls.map((item) => String(item || "").trim()).filter(Boolean);
-    const bodyImageAspectRatio = String(params.bodyImageAspectRatio || "").trim() || "4 / 3";
-    if (!coverImageUrl && !bodyImageUrls.length) {
-      return "";
-    }
-    const coverBlock = coverImageUrl
-      ? this.buildWechatGeneratedImageFigure({
-        url: coverImageUrl,
-        alt: "公众号封面图",
-      })
-      : "";
-    const galleryBlock = bodyImageUrls
-      .map((item, index) => this.buildWechatGeneratedImageFigure({
-        url: item,
-        alt: `公众号正文配图${index + 1}`,
-        aspectRatio: bodyImageAspectRatio,
-      }))
-      .join("");
-    return `${coverBlock}${galleryBlock}`;
   }
 
   private resolveWechatBodyImageAspectRatio(bodyImageSize: WechatBodyImageSize) {
@@ -17887,53 +17631,11 @@ export class WorksService {
   }
 
   private renderWechatArticleHtml(params: WechatArticleDraftRecord) {
-    const paragraphs = params.content
-      .split(/\r?\n/)
-      .map((item) => item.trim())
-      .filter(Boolean)
-      .map((item) => `<p style="margin:0 0 14px;color:#24314a;font-size:16px;line-height:1.95;">${this.escapeHtml(item)}</p>`)
-      .join("");
-    const summary = params.summary
-      ? `<section style="margin:18px 0 0;padding:18px 20px;border-radius:22px;background:${this.escapeHtml(params.themeColor)}12;border:1px solid ${this.escapeHtml(params.themeColor)}33;"><div style="font-size:13px;color:${this.escapeHtml(params.themeColor)};font-weight:700;">摘要</div><p style="margin:10px 0 0;color:#24314a;font-size:15px;line-height:1.9;">${this.escapeHtml(params.summary)}</p></section>`
-      : "";
-    return [
-      "<!DOCTYPE html>",
-      `<html lang="zh-CN"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${this.escapeHtml(params.title)}</title></head>`,
-      `<body style="margin:0;background:linear-gradient(180deg,#f7f8fc 0%,#eef2ff 100%);font-family:'PingFang SC','Microsoft YaHei',sans-serif;">`,
-      '<main style="max-width:900px;margin:0 auto;padding:28px 16px 48px;">',
-      '<section style="padding:26px;border-radius:30px;background:rgba(255,255,255,0.96);border:1px solid rgba(226,232,250,0.9);box-shadow:0 20px 56px rgba(52,68,118,0.12);">',
-      `<div style="display:inline-flex;align-items:center;padding:8px 14px;border-radius:999px;background:${this.escapeHtml(params.themeColor)}18;color:${this.escapeHtml(params.themeColor)};font-size:12px;font-weight:700;">公众号 HTML 草稿</div>`,
-      `<h1 style="margin:18px 0 8px;font-size:34px;line-height:1.25;color:#17233f;">${this.escapeHtml(params.title)}</h1>`,
-      `<div style="color:#63708a;font-size:13px;">${this.escapeHtml(params.author)} · 固定输出 HTML · 评论策略 ${this.escapeHtml(params.commentMode)}</div>`,
-      summary,
-      `<section style="margin-top:24px;">${paragraphs}</section>`,
-      "</section></main></body></html>",
-    ].join("");
+    return this.wechatWorkflowHtmlRendererService.renderDraftArticleHtml(params);
   }
 
   private renderWechatWorkflowArticleHtml(params: WechatWorkflowSessionRecord) {
-    const paragraphs = params.content
-      .split(/\r?\n/)
-      .map((item) => item.trim())
-      .filter(Boolean)
-      .map((item) => `<p style="margin:0 0 14px;color:#24314a;font-size:16px;line-height:1.95;">${this.escapeHtml(item)}</p>`)
-      .join("");
-    const summary = params.summary
-      ? `<section style="margin:18px 0 0;padding:18px 20px;border-radius:22px;background:${this.escapeHtml(params.themeColor)}12;border:1px solid ${this.escapeHtml(params.themeColor)}33;"><div style="font-size:13px;color:${this.escapeHtml(params.themeColor)};font-weight:700;">摘要</div><p style="margin:10px 0 0;color:#24314a;font-size:15px;line-height:1.9;">${this.escapeHtml(params.summary)}</p></section>`
-      : "";
-    return [
-      "<!DOCTYPE html>",
-      `<html lang="zh-CN"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${this.escapeHtml(params.title)}</title></head>`,
-      `<body style="margin:0;background:linear-gradient(180deg,#f7f8fc 0%,#eef2ff 100%);font-family:'PingFang SC','Microsoft YaHei',sans-serif;">`,
-      '<main style="max-width:900px;margin:0 auto;padding:28px 16px 48px;">',
-      '<section style="padding:26px;border-radius:30px;background:rgba(255,255,255,0.96);border:1px solid rgba(226,232,250,0.9);box-shadow:0 20px 56px rgba(52,68,118,0.12);">',
-      `<div style="display:inline-flex;align-items:center;padding:8px 14px;border-radius:999px;background:${this.escapeHtml(params.themeColor)}18;color:${this.escapeHtml(params.themeColor)};font-size:12px;font-weight:700;">公众号工作流文章稿</div>`,
-      `<h1 style="margin:18px 0 8px;font-size:34px;line-height:1.25;color:#17233f;">${this.escapeHtml(params.title)}</h1>`,
-      `<div style="color:#63708a;font-size:13px;">${this.escapeHtml(params.author)} · API 发布准备中 · 评论策略 ${this.escapeHtml(params.commentMode)}</div>`,
-      summary,
-      `<section style="margin-top:24px;">${paragraphs}</section>`,
-      "</section></main></body></html>",
-    ].join("");
+    return this.wechatWorkflowHtmlRendererService.renderWorkflowArticleHtml(params);
   }
 
   private renderGeneratedVideoNoteHtml(params: {

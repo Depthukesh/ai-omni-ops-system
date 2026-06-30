@@ -469,6 +469,7 @@ model WechatWorkflowSession {
   articleProvider           String?
   articleRuntimeKey         String?
   articleModelName          String?
+  articleCanonicalJson      Json?
   coverImageBrief           String?
   bodyImageBriefsJson       Json?
   themeColor                String
@@ -515,6 +516,7 @@ model WechatArticleDraft {
   articleProvider           String
   articleRuntimeKey         String
   articleModelName          String
+  articleCanonicalJson      Json?
   coverImageBrief           String?
   bodyImageBriefsJson       Json?
   imageTasksJson            Json?

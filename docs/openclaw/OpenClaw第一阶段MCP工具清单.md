@@ -137,6 +137,18 @@ OpenClaw 调用任何工具时，服务端都必须基于绑定关系解析：
   - `sync_wechat_search_articles`
   - `update_wechat_article_stats`
   - `delete_wechat_collected_article`
+- 公众号工作流：
+  - `manage_wechat_workflow`
+  - 当前已支持：
+    - 偏好读取与保存
+    - 工作流创建、查询与删除
+    - `set_article / set_images / set_html` 直写 Step 2-4 产物
+    - `generate_article / generate_images / generate_html` 继续推进网站内生成链路
+    - `rebuild_publish_config` 重新计算发布确认状态
+    - `publish_workflow` 正式调用公众号 API 发布
+  - 当前语义约束：
+    - `set_html` 代表外部已给出完整 HTML 草稿
+    - `generate_html` 代表系统基于正文 canonical、图片资产和风格规则重新渲染
 - 采集数据删除：
   - `delete_xhs_collected_note`
   - `delete_douyin_collected_work`

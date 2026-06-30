@@ -17,7 +17,12 @@
 
 ### 2.2 后端层
 
-- `works.service.ts`、`collectors.service.ts`、`reports.service.ts` 文件较大，业务编排、第三方调用、资源处理与运行时配置交织
+- `works.service.ts`、`collectors.service.ts`、`reports.service.ts` 文件仍偏大，业务编排、第三方调用、资源处理与运行时配置交织
+- 其中公众号工作流已经开始从 `works.service.ts` 中拆出独立 service：
+  - `WechatWorkflowCanonicalService`
+  - `WechatWorkflowHtmlRendererService`
+  - `WechatWorkflowPublishService`
+- 但 `works.service.ts` 仍保留公众号主编排、历史数据兼容和持久化链路，后续仍需继续收口
 - 部分 Service 仍存在手工 `new AppConfigService()`、直接读取 `process.env` 等做法，削弱 DI 边界
 - 外部 HTTP、飞书代理、CLI 调用、存储读取尚未完全沉淀为统一基础设施能力
 - 作品资源和受保护媒体仍主要通过应用层转发，后续资源规模继续扩大时会持续放大服务器读流量
@@ -176,3 +181,19 @@
 - `note-workspaces.tsx` 中视频详情区相关的阶段派生、props 装配与挂载层均已外移
 - 当前继续深挖创建弹窗内部的边际收益开始下降，后续更建议转向 `workspace-shell.tsx`、`publish-modal.tsx` 等仍偏厚的外层编排文件
 - 续接前优先查看：`docs/xiaohongshu-structure-governance-handoff-2026-05-19.md`
+
+### 2026-06-30 公众号工作流底层改造进度
+
+- 公众号 `Step 2-5` 已进入单一事实源收口阶段
+- 当前已完成：
+  - canonical 正文层接入
+  - Step 3 brief 从 canonical 派生
+  - Step 4 HTML 覆盖率校验与规则渲染 fallback
+  - Step 5 发布前收口下沉到独立 publish service
+- 当前公众号模块的推荐续接文档：
+  - `docs/wechat-infrastructure-refactor-plan.md`
+  - `docs/changes/2026-06-30-wechat-infrastructure-refactor-phase-1.md`
+  - `docs/changes/2026-06-30-wechat-infrastructure-refactor-phase-2.md`
+  - `docs/changes/2026-06-30-wechat-infrastructure-refactor-phase-3.md`
+  - `docs/changes/2026-06-30-wechat-infrastructure-refactor-phase-4.md`
+  - `docs/changes/2026-06-30-wechat-infrastructure-refactor-phase-5.md`

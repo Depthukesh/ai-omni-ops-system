@@ -169,9 +169,14 @@
 包含：
 
 - 账号配置
-- 原创创作
+- 原创创作工作流（Step 2 文章 / Step 3 生图 / Step 4 HTML / Step 5 发布确认与正式发布）
 - HTML 排版生成（4 种排版风格：通用排版 / 极简排版 / 空间艺术排版 / 通知类排版）
 - 一键发布
+- OpenClaw / WorkBuddy 可通过 `manage_wechat_workflow` 直接写入或推进同一条工作流
+- 当前底层已经按 3 层 service 收口：
+  - `WechatWorkflowCanonicalService`
+  - `WechatWorkflowHtmlRendererService`
+  - `WechatWorkflowPublishService`
 
 ### 4.5 设计工作台 `/more-features/design`
 

@@ -99,6 +99,20 @@
 - 如果用户没有要求原始明细，优先返回摘要
 - 如果已有可复用结果，不要重复触发新任务
 
+### 3. 网站功能优先先路由再执行
+
+- 如果用户说的是“网站里有没有这个功能”“这个板块怎么做”，优先先查网站功能目录和执行计划
+- 能通过统一管理工具完成的，不要拆成很多底层动作分别调用
+- 公众号工作流优先使用 `manage_wechat_workflow`
+
+### 4. 公众号工作流要区分“直写”和“生成”
+
+- `set_article / set_images / set_html` 代表外部已经给出 Step 2-4 结果，应该直接写入工作流
+- `generate_article / generate_images / generate_html` 代表继续调用网站内部链路推进生成
+- `set_html` 代表外部已给出完整 HTML 草稿
+- `generate_html` 代表系统基于正文 canonical、图片资产和排版风格重新渲染
+- 正式发布前，应优先调用 `rebuild_publish_config` 重新计算发布确认状态
+
 ### 3. 高风险动作要确认
 
 以下动作默认需要确认：
@@ -267,6 +281,22 @@
 ### 生成公众号文章
 
 - 优先使用：`create_wechat_article`
+
+### 处理公众号工作流
+
+- 优先使用：`manage_wechat_workflow`
+- 创建并自动推进时，优先使用：
+  - `create_workflow`
+  - `generate_article`
+  - `generate_images`
+  - `generate_html`
+- 外部已经有结果时，优先使用：
+  - `set_article`
+  - `set_images`
+  - `set_html`
+- 正式发布前，优先使用：
+  - `rebuild_publish_config`
+  - `publish_workflow`
 
 ### 新建知识库
 

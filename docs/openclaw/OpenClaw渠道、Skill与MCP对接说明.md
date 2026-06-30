@@ -218,6 +218,35 @@ OpenClaw 通过 MCP 获取：
 - 内容历史
 - 知识库历史
 - 技能配置摘要
+- 公众号工作流的创建、Step 2-4 直写与生成、发布确认和正式发布
+- 公众号工作流统一管理工具 `manage_wechat_workflow`
+
+### 4.3 公众号工作流在 OpenClaw 中的推荐语义
+
+对于公众号工作流，当前推荐始终优先使用统一工具：
+
+- `manage_wechat_workflow`
+
+该工具已经覆盖：
+
+- 工作流偏好
+- 工作流创建与详情读取
+- `set_article / set_images / set_html`
+- `generate_article / generate_images / generate_html`
+- `rebuild_publish_config`
+- `publish_workflow`
+- `delete_workflow`
+
+其中必须明确区分两组语义：
+
+- `set_article / set_images / set_html`
+  - 代表外部已经给出 Step 2-4 产物，OpenClaw 只负责写入网站工作流
+- `generate_article / generate_images / generate_html`
+  - 代表继续调用网站内部链路推进生成
+- `set_html`
+  - 代表外部已给出完整 HTML 草稿
+- `generate_html`
+  - 代表系统基于正文 canonical、图片资产和风格规则重新渲染
 - 第三方接口配置摘要
 - 订单中心摘要
 - 各类任务触发能力
