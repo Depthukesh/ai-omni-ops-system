@@ -64,6 +64,7 @@ export class WechatOfficialAccountApiService {
     return this.withAccessTokenRetry(credential, async (accessToken) => {
       const thumbMediaId = await this.uploadCoverImage(accessToken, payload.coverImageUrl);
       const resolvedHtmlContent = await this.uploadContentImages(accessToken, payload.htmlContent);
+      const normalizedDigest = this.normalizeWechatDigest(payload.summary, resolvedHtmlContent);
       const response = await this.requestJson<WechatDraftAddResponse>(
         `/cgi-bin/draft/add?access_token=${encodeURIComponent(accessToken)}`,
         {
@@ -73,7 +74,7 @@ export class WechatOfficialAccountApiService {
               {
                 title: payload.title,
                 author: payload.author || "",
-                digest: payload.summary || "",
+                digest: normalizedDigest,
                 content: resolvedHtmlContent,
                 thumb_media_id: thumbMediaId,
                 need_open_comment: payload.needOpenComment ? 1 : 0,
@@ -176,6 +177,53 @@ export class WechatOfficialAccountApiService {
 
   private isWechatHostedImageUrl(url: string) {
     return /^https?:\/\/mmbiz\.qpic\.cn\//i.test(String(url || "").trim());
+  }
+
+  private normalizeWechatDigest(summary: string | undefined, htmlContent: string) {
+    const preferred = String(summary || "").trim() || this.extractPlainTextFromHtml(htmlContent);
+    const normalized = preferred
+      .replace(/\s+/g, " ")
+      .replace(/[“”]/g, "\"")
+      .replace(/[‘’]/g, "'")
+      .trim();
+    return this.truncateUtf8ByByteLength(normalized, 120);
+  }
+
+  private truncateUtf8ByByteLength(content: string, maxBytes: number) {
+    const normalized = String(content || "").trim();
+    if (!normalized || maxBytes <= 0) {
+      return "";
+    }
+    let result = "";
+    let currentBytes = 0;
+    for (const char of normalized) {
+      const byteLength = Buffer.byteLength(char, "utf8");
+      if (currentBytes + byteLength > maxBytes) {
+        break;
+      }
+      result += char;
+      currentBytes += byteLength;
+    }
+    return result.trim();
+  }
+
+  private extractPlainTextFromHtml(htmlContent: string) {
+    return String(htmlContent || "")
+      .replace(/<style[\s\S]*?<\/style>/gi, "\n")
+      .replace(/<script[\s\S]*?<\/script>/gi, "\n")
+      .replace(/<\/(p|div|section|article|li|h1|h2|h3|h4|blockquote|pre)>/gi, "\n")
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/&nbsp;/gi, " ")
+      .replace(/&amp;/gi, "&")
+      .replace(/&lt;/gi, "<")
+      .replace(/&gt;/gi, ">")
+      .replace(/&#39;/gi, "'")
+      .replace(/&quot;/gi, "\"")
+      .replace(/[ \t]+\n/g, "\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .replace(/[ \t]{2,}/g, " ")
+      .trim();
   }
 
   private async withAccessTokenRetry<T>(credential: WechatCredential, run: (accessToken: string) => Promise<T>) {

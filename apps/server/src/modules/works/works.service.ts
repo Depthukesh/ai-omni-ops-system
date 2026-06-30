@@ -7770,11 +7770,7 @@ export class WorksService {
         selectedBrandLabels: target.selectedBrandLabels,
         preference: htmlPreference,
       });
-      target.htmlContent = this.injectWechatImagesIntoHtml(htmlResult.htmlContent, {
-        coverImageUrl: target.imageBundle?.coverImageUrl,
-        bodyImageUrls: target.imageBundle?.bodyImageUrls || [],
-        bodyImageAspectRatio: this.resolveWechatBodyImageAspectRatio(target.bodyImageSize),
-      });
+      target.htmlContent = htmlResult.htmlContent;
       target.publishConfig = {
         ready: false,
         accountId: target.accountId,
@@ -7871,9 +7867,6 @@ export class WorksService {
       publishedAt: target.publishConfig?.publishedAt,
       publishTaskId: target.publishConfig?.publishTaskId,
     };
-    if (target.htmlContent) {
-      target.htmlContent = this.buildWechatWorkflowResolvedHtmlContent(target, { preferExisting: true });
-    }
     target.updatedAt = new Date().toISOString();
     target.errorDetail = ready ? undefined : "发布确认未完成，请检查 API 凭证、白名单、封面图和 HTML。";
     await this.persistWechatWorkflowSessionStoreItem(target);
@@ -16346,6 +16339,7 @@ export class WorksService {
       '  "htmlContent": "<!DOCTYPE html>..."',
       "}",
       "htmlContent 必须是结构完整的公众号 HTML 文档，包含标题区、摘要区、正文区，并把封面图和正文配图自然植入对应位置。",
+      "必须完整保留 input.content 中的正文全文，禁止删节、概括、提炼成提纲或只保留部分段落。",
       "htmlContent 必须输出单行 HTML 字符串，禁止在 JSON 字符串里直接输出原始换行。",
       "htmlContent 内部所有 HTML 属性统一使用单引号，不要使用双引号，避免破坏 JSON。",
       "如果输入里已经给出 coverImageUrl 和 bodyImageUrls，就直接把这些真实图片 URL 写入 HTML，不要再使用空 src 占位。",
@@ -16410,8 +16404,13 @@ export class WorksService {
                 themeColor: params.themeColor,
                 htmlContent: rawHtmlContent,
               });
-              return {
+              const finalHtmlContent = this.ensureWechatHtmlContainsFullArticleContent({
                 htmlContent,
+                sourceContent: params.content,
+                themeColor: params.themeColor,
+              });
+              return {
+                htmlContent: finalHtmlContent,
                 provider: provider.providerName || provider.provider,
                 runtimeKey: this.resolveWechatTextProviderRuntimeKey(provider),
                 modelName,
@@ -16557,7 +16556,7 @@ export class WorksService {
     if (!stripped) {
       return "";
     }
-    if (this.looksLikeWechatHtmlContent(stripped)) {
+    if (this.startsWithWechatHtmlContent(stripped)) {
       return stripped;
     }
     const wrappedPatterns = [
@@ -16572,7 +16571,7 @@ export class WorksService {
         continue;
       }
       const decoded = this.decodeLooseJsonStringValue(matched[1]);
-      if (this.looksLikeWechatHtmlContent(decoded)) {
+      if (this.startsWithWechatHtmlContent(decoded)) {
         return decoded;
       }
     }
@@ -16586,7 +16585,12 @@ export class WorksService {
       .replace(/[`'"]?\s*}\s*$/, "")
       .trim();
     const decoded = this.decodeLooseJsonStringValue(looselyUnwrapped);
-    return this.looksLikeWechatHtmlContent(decoded) ? decoded : "";
+    const nestedHtmlStart = decoded.search(/<!doctype html|<html[\s>]|<(body|main|section|article|div)\b/i);
+    if (nestedHtmlStart > 0) {
+      const nestedHtml = decoded.slice(nestedHtmlStart).trim();
+      return this.startsWithWechatHtmlContent(nestedHtml) ? nestedHtml : "";
+    }
+    return this.startsWithWechatHtmlContent(decoded) ? decoded : "";
   }
 
   private decodeLooseJsonStringValue(content: string) {
@@ -16602,14 +16606,78 @@ export class WorksService {
       .trim();
   }
 
-  private looksLikeWechatHtmlContent(content: string) {
+  private startsWithWechatHtmlContent(content: string) {
     const normalized = String(content || "").trim();
     if (!normalized) {
       return false;
     }
-    return /<!doctype html/i.test(normalized)
-      || /<html[\s>]/i.test(normalized)
-      || /<(body|main|section|article|div|h1|h2|h3|p)\b/i.test(normalized);
+    return /^<!doctype html/i.test(normalized)
+      || /^<html[\s>]/i.test(normalized)
+      || /^<(body|main|section|article|div|h1|h2|h3|p)\b/i.test(normalized);
+  }
+
+  private ensureWechatHtmlContainsFullArticleContent(params: {
+    htmlContent: string;
+    sourceContent: string;
+    themeColor: string;
+  }) {
+    const sourceParagraphs = String(params.sourceContent || "")
+      .split(/\r?\n/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+    if (!sourceParagraphs.length) {
+      return params.htmlContent;
+    }
+    const generatedText = this.normalizeWechatComparableText(this.extractWechatPlainTextFromHtml(params.htmlContent));
+    const missingParagraphs = sourceParagraphs.filter((paragraph) => !this.wechatHtmlContainsParagraph(generatedText, paragraph));
+    if (!missingParagraphs.length) {
+      return params.htmlContent;
+    }
+    const appendedSection = [
+      `<section data-wechat-full-content="true" style="margin-top:24px;padding:22px 20px;border-radius:24px;background:${this.escapeHtml(params.themeColor)}10;border:1px solid ${this.escapeHtml(params.themeColor)}2e;">`,
+      `<div style="font-size:13px;color:${this.escapeHtml(params.themeColor)};font-weight:700;">正文全文补齐</div>`,
+      ...missingParagraphs.map((item) => `<p style="margin:14px 0 0;color:#24314a;font-size:16px;line-height:1.95;">${this.escapeHtml(item)}</p>`),
+      "</section>",
+    ].join("");
+    return this.appendWechatHtmlBeforeClosingMain(params.htmlContent, appendedSection);
+  }
+
+  private normalizeWechatComparableText(content: string) {
+    return String(content || "")
+      .replace(/\s+/g, "")
+      .replace(/[，。！？；：“”‘’、,.!?;:'"()[\]{}<>《》【】\-—_]/g, "")
+      .trim()
+      .toLowerCase();
+  }
+
+  private wechatHtmlContainsParagraph(generatedText: string, paragraph: string) {
+    const normalizedParagraph = this.normalizeWechatComparableText(paragraph);
+    if (!normalizedParagraph) {
+      return true;
+    }
+    if (generatedText.includes(normalizedParagraph)) {
+      return true;
+    }
+    if (normalizedParagraph.length <= 18) {
+      return false;
+    }
+    const head = normalizedParagraph.slice(0, 18);
+    const tail = normalizedParagraph.slice(-18);
+    return generatedText.includes(head) && generatedText.includes(tail);
+  }
+
+  private appendWechatHtmlBeforeClosingMain(htmlContent: string, sectionHtml: string) {
+    const normalizedHtml = String(htmlContent || "").trim();
+    if (!normalizedHtml || !sectionHtml) {
+      return normalizedHtml;
+    }
+    if (/<\/main>/i.test(normalizedHtml)) {
+      return normalizedHtml.replace(/<\/main>/i, `${sectionHtml}</main>`);
+    }
+    if (/<\/body>/i.test(normalizedHtml)) {
+      return normalizedHtml.replace(/<\/body>/i, `${sectionHtml}</body>`);
+    }
+    return `${normalizedHtml}${sectionHtml}`;
   }
 
   private extractWechatPlainTextFromHtml(htmlContent: string) {
@@ -17180,7 +17248,7 @@ export class WorksService {
       bodyImageAspectRatio?: string;
     },
   ) {
-    const normalizedHtml = String(htmlContent || "").trim();
+    const normalizedHtml = this.stripWechatGeneratedImageArtifacts(htmlContent);
     if (!normalizedHtml) {
       return normalizedHtml;
     }
@@ -17268,6 +17336,12 @@ export class WorksService {
     return normalized
       .replace(/\n{3,}/g, "\n\n")
       .replace(/>\s+</g, "><")
+      .trim();
+  }
+
+  private stripWechatGeneratedImageArtifacts(htmlContent: string) {
+    return String(htmlContent || "")
+      .replace(/<figure\b[^>]*data-wechat-generated-image="true"[^>]*>[\s\S]*?<\/figure>/gi, "")
       .trim();
   }
 
