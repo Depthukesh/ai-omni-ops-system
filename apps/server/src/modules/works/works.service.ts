@@ -17181,13 +17181,13 @@ export class WorksService {
       .map((item) => `<p style="margin:0 0 14px;color:#24314a;font-size:16px;line-height:1.9;">${this.escapeHtml(item)}</p>`)
       .join("");
     const gallery = params.imageUrls.length
-      ? `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-top:24px;">${params.imageUrls.map((item) => `<img src="${this.escapeHtml(item)}" alt="" style="width:100%;aspect-ratio:0.82;object-fit:cover;border-radius:20px;border:1px solid #e8edf7;background:#fff;" />`).join("")}</div>`
+      ? `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-top:24px;">${params.imageUrls.map((item) => `<img src="${this.escapeHtml(item)}" alt="" style="display:block;width:100%;height:auto;border-radius:20px;border:1px solid #e8edf7;background:#fff;" />`).join("")}</div>`
       : "";
     const tags = params.hashtags.length
       ? `<div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:20px;">${params.hashtags.map((item) => `<span style="display:inline-flex;align-items:center;padding:8px 12px;border-radius:999px;background:#f3f5ff;color:#5166ff;font-size:13px;font-weight:700;">#${this.escapeHtml(item.replace(/^#/, ""))}</span>`).join("")}</div>`
       : "";
     const cover = params.coverImageUrl
-      ? `<img src="${this.escapeHtml(params.coverImageUrl)}" alt="" style="width:100%;aspect-ratio:0.82;object-fit:cover;border-radius:28px;border:1px solid #dfe5f2;background:#fff;box-shadow:0 18px 40px rgba(37,51,90,0.12);" />`
+      ? `<img src="${this.escapeHtml(params.coverImageUrl)}" alt="" style="display:block;width:100%;height:auto;border-radius:28px;border:1px solid #dfe5f2;background:#fff;box-shadow:0 18px 40px rgba(37,51,90,0.12);" />`
       : "";
 
     return [
@@ -17497,9 +17497,7 @@ export class WorksService {
   }) {
     const normalizedUrl = this.escapeHtml(params.url);
     const normalizedAlt = this.escapeHtml(params.alt);
-    const aspectRatio = String(params.aspectRatio || "").trim();
-    const ratioStyle = aspectRatio ? `aspect-ratio:${this.escapeHtml(aspectRatio)};object-fit:cover;` : "";
-    return `<figure data-wechat-generated-image="true" style="margin:14px 0;"><img src="${normalizedUrl}" alt="${normalizedAlt}" style="display:block;width:100%;max-width:720px;margin:0 auto;${ratioStyle}border-radius:20px;border:1px solid #e8edf7;background:#fff;box-shadow:0 10px 28px rgba(37,51,90,0.08);" /></figure>`;
+    return `<figure data-wechat-generated-image="true" style="margin:14px 0;"><img src="${normalizedUrl}" alt="${normalizedAlt}" style="display:block;width:100%;max-width:720px;height:auto;margin:0 auto;border-radius:20px;border:1px solid #e8edf7;background:#fff;box-shadow:0 10px 28px rgba(37,51,90,0.08);" /></figure>`;
   }
 
   private buildWechatGeneratedImageAppendBlock(params: {
@@ -17617,7 +17615,7 @@ export class WorksService {
       ? `<div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:20px;">${params.hashtags.map((item) => `<span style="display:inline-flex;align-items:center;padding:8px 12px;border-radius:999px;background:#f3f5ff;color:#5166ff;font-size:13px;font-weight:700;">#${this.escapeHtml(item.replace(/^#/, ""))}</span>`).join("")}</div>`
       : "";
     const cover = params.coverImageUrl
-      ? `<img src="${this.escapeHtml(params.coverImageUrl)}" alt="" style="width:100%;aspect-ratio:0.82;object-fit:cover;border-radius:28px;border:1px solid #dfe5f2;background:#fff;box-shadow:0 18px 40px rgba(37,51,90,0.12);" />`
+      ? `<img src="${this.escapeHtml(params.coverImageUrl)}" alt="" style="display:block;width:100%;height:auto;border-radius:28px;border:1px solid #dfe5f2;background:#fff;box-shadow:0 18px 40px rgba(37,51,90,0.12);" />`
       : "";
     const storyboardImage = params.storyboardImageUrl
       ? [
