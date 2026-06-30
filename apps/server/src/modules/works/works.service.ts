@@ -7956,11 +7956,7 @@ export class WorksService {
       themeColor: target.themeColor,
       htmlContent: rawHtmlContent,
     });
-    const finalHtmlContent = this.ensureWechatHtmlContainsFullArticleContent({
-      htmlContent,
-      sourceContent: target.content,
-    });
-    target.htmlContent = finalHtmlContent;
+    target.htmlContent = htmlContent;
     target.publishConfig = {
       ready: false,
       accountId: target.accountId,
@@ -16743,12 +16739,8 @@ export class WorksService {
                 themeColor: params.themeColor,
                 htmlContent: rawHtmlContent,
               });
-              const finalHtmlContent = this.ensureWechatHtmlContainsFullArticleContent({
-                htmlContent,
-                sourceContent: params.content,
-              });
               return {
-                htmlContent: finalHtmlContent,
+                htmlContent,
                 provider: provider.providerName || provider.provider,
                 runtimeKey: this.resolveWechatTextProviderRuntimeKey(provider),
                 modelName,
@@ -17030,68 +17022,6 @@ export class WorksService {
     return /^<!doctype html/i.test(normalized)
       || /^<html[\s>]/i.test(normalized)
       || /^<(body|main|section|article|div|h1|h2|h3|p)\b/i.test(normalized);
-  }
-
-  private ensureWechatHtmlContainsFullArticleContent(params: {
-    htmlContent: string;
-    sourceContent: string;
-  }) {
-    const sourceParagraphs = String(params.sourceContent || "")
-      .split(/\r?\n/)
-      .map((item) => item.trim())
-      .filter(Boolean);
-    if (!sourceParagraphs.length) {
-      return params.htmlContent;
-    }
-    const generatedText = this.normalizeWechatComparableText(this.extractWechatPlainTextFromHtml(params.htmlContent));
-    const missingParagraphs = sourceParagraphs.filter((paragraph) => !this.wechatHtmlContainsParagraph(generatedText, paragraph));
-    if (!missingParagraphs.length) {
-      return params.htmlContent;
-    }
-    const appendedSection = [
-      `<section data-wechat-full-content="true" style="margin-top:24px;">`,
-      ...missingParagraphs.map((item) => `<p style="margin:0 0 18px;color:#24314a;font-size:16px;line-height:1.95;">${this.escapeHtml(item)}</p>`),
-      "</section>",
-    ].join("");
-    return this.appendWechatHtmlBeforeClosingMain(params.htmlContent, appendedSection);
-  }
-
-  private normalizeWechatComparableText(content: string) {
-    return String(content || "")
-      .replace(/\s+/g, "")
-      .replace(/[，。！？；：“”‘’、,.!?;:'"()[\]{}<>《》【】\-—_]/g, "")
-      .trim()
-      .toLowerCase();
-  }
-
-  private wechatHtmlContainsParagraph(generatedText: string, paragraph: string) {
-    const normalizedParagraph = this.normalizeWechatComparableText(paragraph);
-    if (!normalizedParagraph) {
-      return true;
-    }
-    if (generatedText.includes(normalizedParagraph)) {
-      return true;
-    }
-    if (normalizedParagraph.length <= 18) {
-      return false;
-    }
-    const head = normalizedParagraph.slice(0, 18);
-    const tail = normalizedParagraph.slice(-18);
-    return generatedText.includes(head) && generatedText.includes(tail);
-  }
-
-  private appendWechatHtmlBeforeClosingMain(htmlContent: string, sectionHtml: string) {
-    const normalizedHtml = String(htmlContent || "").trim();
-    if (!normalizedHtml || !sectionHtml) {
-      return normalizedHtml;
-    }
-    if (/<\/main>/i.test(normalizedHtml)) {
-      return normalizedHtml.replace(/<\/main>/i, `${sectionHtml}</main>`);
-    }
-    if (/<\/body>/i.test(normalizedHtml)) {
-      return normalizedHtml.replace(/<\/body>/i, `${sectionHtml}</body>`);
-    }
-    return `${normalizedHtml}${sectionHtml}`;
   }
 
   private extractWechatPlainTextFromHtml(htmlContent: string) {
