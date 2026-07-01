@@ -511,9 +511,14 @@ OpenClaw 调用任何工具时，服务端都必须基于绑定关系解析：
 
 #### 主要输入
 
-- `brandId`
-- `topic`，可选
-- `styleHint`，可选
+- `calendarItemId`，可选
+- `customTopicName`，可选；兼容旧写法 `topic`
+- `productId`，可选
+- `accountRole`，可选
+- `imageCount`，可选
+- `includeMarketingPlan`，可选
+- `additionalInstruction`，可选；兼容旧写法 `styleHint`
+- `noteContent`，可选；如果直接传入原创笔记正文，将跳过原创文案技能，直接进入原创配图提示词和图片生成链路
 
 #### 主要输出
 

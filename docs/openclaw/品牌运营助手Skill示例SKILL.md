@@ -277,6 +277,8 @@
 ### 做一版小红书原创图文
 
 - 优先使用：`create_xiaohongshu_original_note`
+- 如果用户或 OpenClaw 已经准备好完整原创笔记正文，优先把正文放进 `noteContent`
+- `noteContent` 非空时，会跳过原创文案技能，直接进入原创配图提示词与图片生成链路
 
 ### 生成公众号文章
 

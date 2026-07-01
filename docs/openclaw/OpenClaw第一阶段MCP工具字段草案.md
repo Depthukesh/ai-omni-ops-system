@@ -497,12 +497,18 @@
 ```json
 {
   "context": {
-    "brandId": "optional"
   },
   "input": {
-    "topic": "optional",
-    "styleHint": "optional",
-    "productId": "optional"
+    "calendarItemId": "optional",
+    "customTopicName": "optional",
+    "topic": "optional, legacy alias of customTopicName",
+    "productId": "optional",
+    "accountRole": "optional, BRAND | STAFF | TALENT",
+    "imageCount": "optional, 2-10",
+    "includeMarketingPlan": "optional, boolean",
+    "additionalInstruction": "optional",
+    "noteContent": "optional, direct note body for bypassing original-copy skill",
+    "styleHint": "optional, legacy alias of additionalInstruction"
   }
 }
 ```

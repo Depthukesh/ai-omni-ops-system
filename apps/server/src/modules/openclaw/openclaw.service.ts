@@ -1769,6 +1769,7 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
         imageCount: { type: "integer", minimum: 2, maximum: 10 },
         includeMarketingPlan: { type: "boolean" },
         additionalInstruction: { type: "string", description: "补充创作要求。" },
+        noteContent: { type: "string", description: "可选。直接提供原创笔记正文；有值时会跳过原创文案技能，直接进入配图提示词与图片生成链路。" },
         styleHint: { type: "string", description: "兼容旧写法，等同于 additionalInstruction。" },
       },
       additionalProperties: false,
@@ -6561,6 +6562,7 @@ export class OpenClawService {
       imageCount?: number;
       includeMarketingPlan?: boolean;
       additionalInstruction?: string;
+      noteContent?: string;
       styleHint?: string;
       productId?: string;
     },
@@ -6581,6 +6583,7 @@ export class OpenClawService {
           options?.additionalInstruction || options?.styleHint,
           "小红书原创补充要求",
         ) || undefined,
+        noteContent: String(options?.noteContent || "").trim() || undefined,
         includeMarketingPlan: typeof options?.includeMarketingPlan === "boolean" ? options.includeMarketingPlan : false,
       },
       auth,
@@ -6599,6 +6602,9 @@ export class OpenClawService {
         options?.additionalInstruction || options?.styleHint
           ? `补充要求：${String(options?.additionalInstruction || options?.styleHint || "").trim()}`
           : "补充要求：使用系统默认策略",
+        options?.noteContent
+          ? "正文来源：使用外部直写内容，跳过原创文案技能"
+          : "正文来源：使用原创文案技能生成",
       ],
       data: {
         taskId: this.readStringField(result, "taskId")
@@ -10270,6 +10276,7 @@ export class OpenClawService {
           imageCount: typeof toolArgs.imageCount === "number" ? toolArgs.imageCount : undefined,
           includeMarketingPlan: typeof toolArgs.includeMarketingPlan === "boolean" ? toolArgs.includeMarketingPlan : undefined,
           additionalInstruction: typeof toolArgs.additionalInstruction === "string" ? toolArgs.additionalInstruction : undefined,
+          noteContent: typeof toolArgs.noteContent === "string" ? toolArgs.noteContent : undefined,
           styleHint: typeof toolArgs.styleHint === "string" ? toolArgs.styleHint : undefined,
           productId: typeof toolArgs.productId === "string" ? toolArgs.productId : undefined,
         });

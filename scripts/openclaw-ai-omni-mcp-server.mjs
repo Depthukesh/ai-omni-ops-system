@@ -140,9 +140,16 @@ const TOOL_DEFINITIONS = [
     inputSchema: {
       type: "object",
       properties: {
+        calendarItemId: { type: "string" },
+        customTopicName: { type: "string" },
         topic: { type: "string" },
-        styleHint: { type: "string" },
         productId: { type: "string" },
+        accountRole: { type: "string" },
+        imageCount: { type: "integer", minimum: 2, maximum: 10 },
+        includeMarketingPlan: { type: "boolean" },
+        additionalInstruction: { type: "string" },
+        noteContent: { type: "string" },
+        styleHint: { type: "string" },
       },
       additionalProperties: false,
     },
