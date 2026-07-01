@@ -1020,6 +1020,34 @@ model OpenClawInstallToken {
   @@map("OpenClawInstallToken")
 }
 
+model OpenClawLobsterDiary {
+  id              String   @id
+  brandId         String
+  createdByUserId String
+  diaryDate       String
+  title           String   @default("")
+  content         String   @default("")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([brandId, diaryDate(sort: Desc), createdAt(sort: Desc)], map: "OpenClawLobsterDiary_brand_date_idx")
+  @@map("OpenClawLobsterDiary")
+}
+
+model OpenClawDailyPlan {
+  id              String   @id
+  brandId         String
+  createdByUserId String
+  planDate        String
+  title           String   @default("")
+  content         String   @default("")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([brandId, planDate(sort: Desc), createdAt(sort: Desc)], map: "OpenClawDailyPlan_brand_date_idx")
+  @@map("OpenClawDailyPlan")
+}
+
 model KnowledgeBase {
   id            String                 @id
   name          String
