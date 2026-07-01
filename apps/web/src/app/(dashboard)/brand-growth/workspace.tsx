@@ -332,6 +332,7 @@ const strategyPagePermissionMap: Record<StrategyPageKey, BrandPermissionKey> = {
   xiaohongshuMarketingCalendar: "xiaohongshu.calendar",
   reportTopicLibrary: "brandGrowth.report.topicLibrary",
   reportMaterialLibrary: "brandGrowth.report.topicLibrary",
+  openclawDailyPlan: "brandGrowth.report.topicLibrary",
   openclawLobsterDiary: "brandGrowth.report.topicLibrary",
 };
 
