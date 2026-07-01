@@ -540,7 +540,12 @@ export class ApiProvidersService {
   private async syncSystemProviderSeed(current: ApiProviderRecord, seed: ApiProviderRecord) {
     const nextName = current.name || seed.name;
     const nextProviderType = current.providerType || seed.providerType;
-    const nextStatus = current.status || seed.status;
+    const nextStatus =
+      current.status === "DISABLED"
+        ? current.status
+        : seed.status === "ACTIVE" && current.status === "DRAFT"
+          ? "ACTIVE"
+          : current.status || seed.status;
     const nextBaseUrl = this.resolveSystemSeedBaseUrl(current.baseUrl, seed.baseUrl);
     const nextTutorialUrl = current.tutorialUrl || seed.tutorialUrl || "";
     const nextModelWhitelist = this.mergeSystemSeedStringArray(current.modelWhitelist, seed.modelWhitelist);

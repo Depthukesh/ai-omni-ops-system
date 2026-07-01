@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getStoredCurrentBrandId } from "../../../services/auth-session";
 import {
   brandArchiveSeed,
@@ -266,6 +266,7 @@ export function DouyinWorkspaceShell() {
   const [isLoading, setIsLoading] = useState(true);
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [activeSection, setActiveSection] = useState<DouyinSectionKey>("plan");
+  const activeSectionRef = useRef<DouyinSectionKey>("plan");
   const [notice, setNotice] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [brandArchive, setBrandArchive] = useState<BrandArchiveBundle>(brandArchiveSeed);
@@ -387,6 +388,9 @@ export function DouyinWorkspaceShell() {
     () => visibleSections.filter((item) => isDouyinOpenClawSection(item.key)),
     [visibleSections],
   );
+  useEffect(() => {
+    activeSectionRef.current = activeSection;
+  }, [activeSection]);
   const hasWorkspaceAccess = visibleSections.length > 0;
   const canEditMarketingPlan = brandPermissionSettings ? (permissionMap?.["douyin.plan"]?.edit ?? false) : true;
   const canEditHotTopics = brandPermissionSettings ? (permissionMap?.["brandGrowth.report.topicLibrary"]?.edit ?? false) : true;
@@ -786,7 +790,8 @@ export function DouyinWorkspaceShell() {
     digitalHumanTemplateTagId,
   ]);
 
-  const loadWorkspace = useCallback(async () => {
+  const loadWorkspace = useCallback(async (sectionKey?: DouyinSectionKey) => {
+    const currentSectionKey = sectionKey || activeSectionRef.current;
     setIsLoading(true);
     setErrorMessage("");
     setNotice("");
@@ -832,29 +837,49 @@ export function DouyinWorkspaceShell() {
       canViewSection("video") || canViewSection("remixShortVideo") ? getDouyinVideoStoryboardImageProviders(activeBrandId) : Promise.resolve({ items: [] }),
       canViewSection("videoDirect") ? getDouyinDirectVideoWorks(activeBrandId) : Promise.resolve({ items: [] }),
       canViewSection("videoDirect") ? getDouyinDirectVideoProviders(activeBrandId) : Promise.resolve({ items: [] }),
-      canViewSection("digitalHuman") ? getDouyinDigitalHumanVideoWorks(activeBrandId) : Promise.resolve({ items: [] }),
+      canViewSection("digitalHuman") && currentSectionKey === "digitalHuman"
+        ? getDouyinDigitalHumanVideoWorks(activeBrandId)
+        : Promise.resolve({ items: [] }),
       canViewSection("openclawDailyPlan")
         ? getOpenClawDailyPlanWorkspace(activeBrandId, "douyin")
         : Promise.resolve({ items: [], total: 0 }),
       canViewSection("openclawLobsterDiary")
         ? getOpenClawLobsterDiaryWorkspace(activeBrandId, "douyin")
         : Promise.resolve({ items: [], total: 0 }),
-      canViewSection("adPreAudit") ? getDouyinAdPreAuditWorks(activeBrandId) : Promise.resolve({ items: [] }),
-      canViewSection("adPreAudit")
+      canViewSection("adPreAudit") && currentSectionKey === "adPreAudit"
+        ? getDouyinAdPreAuditWorks(activeBrandId)
+        : Promise.resolve({ items: [] }),
+      canViewSection("adPreAudit") && currentSectionKey === "adPreAudit"
         ? getDouyinAdPreAuditConfig(activeBrandId)
         : Promise.resolve({ item: { brandId: activeBrandId, defaultBusinessType: "ad", updatedAt: "" } }),
-      canViewSection("adPreAudit") ? getDouyinAdPreAuditMediaAssets(activeBrandId) : Promise.resolve({ items: [] }),
-      canViewSection("digitalHuman") ? getDouyinDigitalHumanCustomPersons(activeBrandId) : Promise.resolve({ items: [] }),
-      canViewSection("digitalHuman") ? getDouyinLipSyncWorks(activeBrandId) : Promise.resolve({ items: [] }),
-      canViewSection("digitalHuman")
+      canViewSection("adPreAudit") && currentSectionKey === "adPreAudit"
+        ? getDouyinAdPreAuditMediaAssets(activeBrandId)
+        : Promise.resolve({ items: [] }),
+      canViewSection("digitalHuman") && currentSectionKey === "digitalHuman"
+        ? getDouyinDigitalHumanCustomPersons(activeBrandId)
+        : Promise.resolve({ items: [] }),
+      canViewSection("digitalHuman") && currentSectionKey === "digitalHuman"
+        ? getDouyinLipSyncWorks(activeBrandId)
+        : Promise.resolve({ items: [] }),
+      canViewSection("digitalHuman") && currentSectionKey === "digitalHuman"
         ? getDouyinDigitalHumanTemplates(activeBrandId, { page: 1, size: 24, sort: "hottest", tagIds: digitalHumanTemplateTagId ? [Number(digitalHumanTemplateTagId)] : [] })
         : Promise.resolve({ list: [], pageInfo: undefined }),
-      canViewSection("digitalHuman") ? getDouyinDigitalHumanTemplateTags(activeBrandId) : Promise.resolve({ list: [] }),
-      canViewSection("digitalHuman") ? getDouyinDigitalHumanFavoriteTemplates(activeBrandId) : Promise.resolve({ items: [] }),
-      canViewSection("digitalHuman") ? getDouyinDigitalHumanScriptTemplates(activeBrandId) : Promise.resolve({ items: [] }),
-      canViewSection("digitalHuman") ? getDouyinVoiceLibrary(activeBrandId, { page: 1, size: 24 }) : Promise.resolve({ list: [], pageInfo: undefined }),
-      canViewSection("digitalHuman") ? getDouyinCustomVoices(activeBrandId, { page: 1, pageSize: 24 }) : Promise.resolve({ list: [], pageInfo: undefined }),
-      canViewSection("digitalHuman") && digitalHumanCurrentSpeechTaskId
+      canViewSection("digitalHuman") && currentSectionKey === "digitalHuman"
+        ? getDouyinDigitalHumanTemplateTags(activeBrandId)
+        : Promise.resolve({ list: [] }),
+      canViewSection("digitalHuman") && currentSectionKey === "digitalHuman"
+        ? getDouyinDigitalHumanFavoriteTemplates(activeBrandId)
+        : Promise.resolve({ items: [] }),
+      canViewSection("digitalHuman") && currentSectionKey === "digitalHuman"
+        ? getDouyinDigitalHumanScriptTemplates(activeBrandId)
+        : Promise.resolve({ items: [] }),
+      canViewSection("digitalHuman") && currentSectionKey === "digitalHuman"
+        ? getDouyinVoiceLibrary(activeBrandId, { page: 1, size: 24 })
+        : Promise.resolve({ list: [], pageInfo: undefined }),
+      canViewSection("digitalHuman") && currentSectionKey === "digitalHuman"
+        ? getDouyinCustomVoices(activeBrandId, { page: 1, pageSize: 24 })
+        : Promise.resolve({ list: [], pageInfo: undefined }),
+      canViewSection("digitalHuman") && currentSectionKey === "digitalHuman" && digitalHumanCurrentSpeechTaskId
         ? getDouyinSpeechTaskDetail(activeBrandId, digitalHumanCurrentSpeechTaskId)
         : Promise.resolve({ item: null }),
     ]);
@@ -1127,7 +1152,7 @@ export function DouyinWorkspaceShell() {
       failedInterfaceNames.push("数字人试听任务");
     }
 
-    if (activeSection === "plan") {
+    if (currentSectionKey === "plan") {
       if (growthResult.status !== "fulfilled") {
         currentSectionFailedInterfaceNames.push("品牌增长报告");
       }
@@ -1141,19 +1166,19 @@ export function DouyinWorkspaceShell() {
         currentSectionFailedInterfaceNames.push("营销策划方案");
       }
     }
-    if ((activeSection === "hotTopics" || activeSection === "topicLibrary") && hotTopicResult.status !== "fulfilled") {
+    if ((currentSectionKey === "hotTopics" || currentSectionKey === "topicLibrary") && hotTopicResult.status !== "fulfilled") {
       currentSectionFailedInterfaceNames.push("热点找选题");
     }
-    if (activeSection === "originalCopy" && originalCopyResult.status !== "fulfilled") {
+    if (currentSectionKey === "originalCopy" && originalCopyResult.status !== "fulfilled") {
       currentSectionFailedInterfaceNames.push("原创文案");
     }
-    if (activeSection === "remixCopy" && remixCopyResult.status !== "fulfilled") {
+    if (currentSectionKey === "remixCopy" && remixCopyResult.status !== "fulfilled") {
       currentSectionFailedInterfaceNames.push("二创文案");
     }
-    if (activeSection === "remixShortVideo" && remixShortVideoResult.status !== "fulfilled") {
+    if (currentSectionKey === "remixShortVideo" && remixShortVideoResult.status !== "fulfilled") {
       currentSectionFailedInterfaceNames.push("复刻短视频作品");
     }
-    if (activeSection === "video") {
+    if (currentSectionKey === "video") {
       if (videoResult.status !== "fulfilled") {
         currentSectionFailedInterfaceNames.push("AI 生视频作品");
       }
@@ -1164,7 +1189,7 @@ export function DouyinWorkspaceShell() {
         currentSectionFailedInterfaceNames.push("故事板模型");
       }
     }
-    if (activeSection === "videoDirect") {
+    if (currentSectionKey === "videoDirect") {
       if (directVideoResult.status !== "fulfilled") {
         currentSectionFailedInterfaceNames.push("AI 生视频直出作品");
       }
@@ -1172,7 +1197,7 @@ export function DouyinWorkspaceShell() {
         currentSectionFailedInterfaceNames.push("AI 生视频直出服务商");
       }
     }
-    if (activeSection === "digitalHuman") {
+    if (currentSectionKey === "digitalHuman") {
       if (digitalHumanResult.status !== "fulfilled") {
         currentSectionFailedInterfaceNames.push("数字人作品列表");
       }
@@ -1186,7 +1211,7 @@ export function DouyinWorkspaceShell() {
         currentSectionFailedInterfaceNames.push("公共数字人模板");
       }
     }
-    if (activeSection === "adPreAudit") {
+    if (currentSectionKey === "adPreAudit") {
       if (adPreAuditResult.status !== "fulfilled") {
         currentSectionFailedInterfaceNames.push("广告预审记录");
       }
@@ -1214,7 +1239,7 @@ export function DouyinWorkspaceShell() {
         data: {
           bundleMarker: debugBundleMarker,
           brandId: activeBrandId,
-          activeSection,
+          activeSection: currentSectionKey,
           hasFallback,
           failedInterfaceNames,
           currentSectionFailedInterfaceNames,
@@ -1229,7 +1254,7 @@ export function DouyinWorkspaceShell() {
       setErrorMessage(nextWorkspaceError);
     }
     setIsLoading(false);
-  }, [activeBrandId, activeSection, debugBundleMarker, digitalHumanCurrentSpeechTaskId, digitalHumanTemplateTagId]);
+  }, [activeBrandId, debugBundleMarker, digitalHumanCurrentSpeechTaskId, digitalHumanTemplateTagId]);
 
   const refreshPublishingWorkspace = useCallback(async () => {
     await Promise.all([
@@ -1298,6 +1323,41 @@ export function DouyinWorkspaceShell() {
   useEffect(() => {
     void loadWorkspace();
   }, [loadWorkspace]);
+
+  useEffect(() => {
+    if (isLoading) {
+      return;
+    }
+    if (activeSection === "digitalHuman") {
+      const hasDigitalHumanWorkspace =
+        digitalHumanWorks.length > 0
+        || digitalHumanTemplates.length > 0
+        || digitalHumanCustomPersons.length > 0
+        || digitalHumanFavoriteTemplates.length > 0;
+      if (!hasDigitalHumanWorkspace) {
+        void refreshDigitalHumanWorkspace().catch(() => undefined);
+      }
+      return;
+    }
+    if (activeSection === "adPreAudit") {
+      const hasAdPreAuditWorkspace = adPreAuditWorks.length > 0 || adPreAuditMediaAssets.length > 0 || Boolean(adPreAuditConfig.updatedAt);
+      if (!hasAdPreAuditWorkspace) {
+        void refreshAdPreAuditWorkspace().catch(() => undefined);
+      }
+    }
+  }, [
+    activeSection,
+    adPreAuditConfig.updatedAt,
+    adPreAuditMediaAssets.length,
+    adPreAuditWorks.length,
+    digitalHumanCustomPersons.length,
+    digitalHumanFavoriteTemplates.length,
+    digitalHumanTemplates.length,
+    digitalHumanWorks.length,
+    isLoading,
+    refreshAdPreAuditWorkspace,
+    refreshDigitalHumanWorkspace,
+  ]);
 
   useEffect(() => {
     // #region debug-point G:douyin-workspace-error-message-change

@@ -438,8 +438,8 @@ const VOLCENGINE_ARK_VIDEO_PROVIDER_SEEDS: ApiProviderSeedRecord[] = [
     backendKey: "volcengine_seedance_20_mini_260615",
     displayLabel: "Seedance 2.0 Mini 260615",
     displayOrder: 62,
-    status: "DRAFT",
-    remark: "火山方舟 Seedance 2.0 Mini 260615 已登记到平台目录；按官方文档当前仅支持控制台体验，暂不支持 API 调用，待开放后再切为 ACTIVE。",
+    status: "ACTIVE",
+    remark: "火山方舟 Seedance 2.0 Mini 260615 视频生成接口，已加入抖音视频模型下拉供按需选择。",
     durationOptions: [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
   }),
 ];

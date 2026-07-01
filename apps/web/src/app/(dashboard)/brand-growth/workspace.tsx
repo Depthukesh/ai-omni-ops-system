@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import { getStoredCurrentBrandId } from "../../../services/auth-session";
-import { getMe, switchBrand } from "../../../services/auth";
+import { getMe } from "../../../services/auth";
 import {
   formatCalendarDate,
   formatCalendarListValue,
@@ -1446,11 +1446,7 @@ export function BrandGrowthWorkspace() {
     const directCandidate = resolvedMe?.currentBrandId || storedBrandId || fallbackBrandId;
 
     if (preferredNonDemoBrandId && directCandidate === DEMO_BRAND_ID) {
-      const switched = await switchBrand(preferredNonDemoBrandId).catch(() => null);
-      const switchedBrandId = switched?.currentBrandId || preferredNonDemoBrandId;
-      if (switchedBrandId && switchedBrandId !== DEMO_BRAND_ID) {
-        return switchedBrandId;
-      }
+      return preferredNonDemoBrandId;
     }
 
     if (directCandidate && directCandidate !== DEMO_BRAND_ID) {
