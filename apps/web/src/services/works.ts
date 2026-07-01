@@ -815,6 +815,7 @@ export type GenerateXiaohongshuOriginalNoteForm = {
   imageCount?: number;
   includeMarketingPlan?: boolean;
   additionalInstruction?: string;
+  noteContent?: string;
   coverReferenceFile?: File | null;
   galleryReferenceFiles?: File[];
 };
@@ -1097,6 +1098,7 @@ export async function generateXiaohongshuOriginalWork(brandId: string, form: Gen
     imageCount: form.imageCount,
     includeMarketingPlan: form.includeMarketingPlan,
     additionalInstruction: form.additionalInstruction,
+    noteContent: form.noteContent,
     coverReferenceImage,
     galleryReferenceImages,
   });

@@ -64,6 +64,7 @@ export interface OriginalWorkspaceProps {
   imageCountValue: string;
   injectMarketingPlanValue: string;
   additionalInstruction: string;
+  noteContent: string;
   coverReferenceFile: File | null;
   galleryReferenceFiles: File[];
   referenceTemplateCategories: XhsOriginalReferenceTemplateCategoryRecord[];
@@ -93,6 +94,7 @@ export interface OriginalWorkspaceProps {
   onImageCountChange: StringChangeHandler;
   onInjectMarketingPlanChange: StringChangeHandler;
   onAdditionalInstructionChange: StringChangeHandler;
+  onNoteContentChange: StringChangeHandler;
   onCoverReferenceFileChange: (file: File | null) => void;
   onGalleryReferenceFilesChange: (files: File[]) => void;
   onReloadReferenceTemplates: AsyncAction;

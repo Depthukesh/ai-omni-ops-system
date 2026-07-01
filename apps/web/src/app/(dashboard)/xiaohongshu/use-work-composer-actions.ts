@@ -23,6 +23,7 @@ type OriginalComposerState = {
   imageCountValue: string;
   injectMarketingPlanValue: string;
   additionalInstruction: string;
+  noteContent: string;
   coverReferenceFile: File | null;
   galleryReferenceFiles: File[];
   closeModal: () => void;
@@ -125,6 +126,7 @@ export function useWorkComposerActions(options: {
             : Number(options.original.imageCountValue),
         includeMarketingPlan: options.original.injectMarketingPlanValue === "yes",
         additionalInstruction: options.original.additionalInstruction.trim() || undefined,
+        noteContent: options.original.noteContent.trim() || undefined,
         coverReferenceFile: options.original.coverReferenceFile,
         galleryReferenceFiles: options.original.galleryReferenceFiles,
       });

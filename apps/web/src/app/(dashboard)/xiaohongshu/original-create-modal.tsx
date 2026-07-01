@@ -33,6 +33,7 @@ export interface OriginalCreateModalProps {
   imageCountValue: string;
   injectMarketingPlanValue: string;
   additionalInstruction: string;
+  noteContent: string;
   coverReferenceFile: File | null;
   galleryReferenceFiles: File[];
   referenceTemplateCategories: XhsOriginalReferenceTemplateCategoryRecord[];
@@ -49,6 +50,7 @@ export interface OriginalCreateModalProps {
   onImageCountChange: StringChangeHandler;
   onInjectMarketingPlanChange: StringChangeHandler;
   onAdditionalInstructionChange: StringChangeHandler;
+  onNoteContentChange: StringChangeHandler;
   onCoverReferenceFileChange: (file: File | null) => void;
   onGalleryReferenceFilesChange: (files: File[]) => void;
   onReloadReferenceTemplates: () => void | Promise<void>;
@@ -96,9 +98,11 @@ export function OriginalCreateModal(props: OriginalCreateModalProps) {
         imageCountValue={props.imageCountValue}
         injectMarketingPlanValue={props.injectMarketingPlanValue}
         additionalInstruction={props.additionalInstruction}
+        noteContent={props.noteContent}
         onImageCountChange={props.onImageCountChange}
         onInjectMarketingPlanChange={props.onInjectMarketingPlanChange}
         onAdditionalInstructionChange={props.onAdditionalInstructionChange}
+        onNoteContentChange={props.onNoteContentChange}
       />
     </NoteCreateModalShell>
   );

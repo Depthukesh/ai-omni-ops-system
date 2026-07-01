@@ -7,9 +7,11 @@ export interface OriginalCreateTailFieldsProps {
   imageCountValue: string;
   injectMarketingPlanValue: string;
   additionalInstruction: string;
+  noteContent: string;
   onImageCountChange: StringChangeHandler;
   onInjectMarketingPlanChange: StringChangeHandler;
   onAdditionalInstructionChange: StringChangeHandler;
+  onNoteContentChange: StringChangeHandler;
 }
 
 export function OriginalCreateTailFields(props: OriginalCreateTailFieldsProps) {
@@ -37,9 +39,19 @@ export function OriginalCreateTailFields(props: OriginalCreateTailFieldsProps) {
         <span>用户要求</span>
         <textarea
           className="report-markdown-textarea"
+          style={{ minHeight: "200px", height: "200px" }}
           value={props.additionalInstruction}
           onChange={(event) => props.onAdditionalInstructionChange(event.target.value)}
           placeholder="例如：更偏生活方式感、门店场景感更强、语气更克制。"
+        />
+      </label>
+      <label className="field-full">
+        <span>笔记内容</span>
+        <textarea
+          className="report-markdown-textarea"
+          value={props.noteContent}
+          onChange={(event) => props.onNoteContentChange(event.target.value)}
+          placeholder="如果这里直接填写了原创笔记正文，将跳过原创笔记文案技能，直接进入原创配图提示词和图片生成链路。"
         />
       </label>
     </>

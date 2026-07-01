@@ -386,6 +386,7 @@ export type GenerateXiaohongshuOriginalNotePayload = {
   imageCount?: number;
   includeMarketingPlan?: boolean;
   additionalInstruction?: string;
+  noteContent?: string;
   coverReferenceImage?: UploadFilePayload;
   galleryReferenceImages?: UploadFilePayload[];
 };
@@ -9618,17 +9619,23 @@ export class WorksService {
     const resolvedNoteMode = this.resolveXiaohongshuOriginalNoteMode(payload.noteMode);
     const originalCopyProfile = this.getXiaohongshuOriginalCopyProfile(resolvedNoteMode);
     const taskTitle = `生成小红书${originalCopyProfile.label}：${selectedCalendarItem?.topicName || payload.customTopicName?.trim() || "自定义选题"}`;
-    const originalCopyPreference = await this.loadSkillModelPreference(
-      originalCopyProfile.skillSlug,
-      originalCopyProfile.promptId,
-      ["deepseek-v4-pro", "deepseek-v4-flash", "doubao-seed-2-0-pro-260215", "doubao-seed-2-0-mini-260215", "kimi-k2.6"],
-    );
-    const originalCopyProviders = await this.loadOriginalCopyProviders(brandId, originalCopyPreference);
+    const manualNoteContent = payload.noteContent?.trim() || "";
+    const usesManualNoteContent = Boolean(manualNoteContent);
+    const originalCopyPreference = usesManualNoteContent
+      ? null
+      : await this.loadSkillModelPreference(
+          originalCopyProfile.skillSlug,
+          originalCopyProfile.promptId,
+          ["deepseek-v4-pro", "deepseek-v4-flash", "doubao-seed-2-0-pro-260215", "doubao-seed-2-0-mini-260215", "kimi-k2.6"],
+        );
+    const originalCopyProviders = originalCopyPreference
+      ? await this.loadOriginalCopyProviders(brandId, originalCopyPreference)
+      : [];
     const task = await this.createOriginalTask({
       userId,
       brandId,
       taskTitle,
-      modelName: originalCopyProviders[0]?.models[0] || originalCopyPreference.preferredModelName,
+      modelName: originalCopyProviders[0]?.models[0] || originalCopyPreference?.preferredModelName,
     });
     const originalMarketingPlanMarkdown = includeMarketingPlan ? latestMarketingPlan?.reportMarkdown || "" : "";
 
@@ -9642,19 +9649,27 @@ export class WorksService {
         ? await this.analyzeReferenceImages(referenceFiles, originalMarketingPlanMarkdown, brandId)
         : { coverReferenceStyle: undefined, galleryReferenceStyles: [], modelName: undefined };
       await this.ensureTaskNotCancelled(task.id);
-      await this.updateTaskOutputJson(task.id, { stage: "GENERATING_COPY", title: taskTitle });
-
-      const copyResult = await this.generateOriginalCopy({
-        brandId,
-        accountRole: resolvedAccountRole,
-        noteMode: resolvedNoteMode,
-        marketingPlanMarkdown: originalMarketingPlanMarkdown,
-        selectedCalendarItem,
-        customTopicName: payload.customTopicName?.trim(),
-        product: normalizedProduct,
-        includeMarketingPlan,
-        additionalInstruction: payload.additionalInstruction?.trim(),
-      });
+      const copyResult = usesManualNoteContent
+        ? {
+            title: selectedCalendarItem?.topicName || payload.customTopicName?.trim() || "自定义选题",
+            content: manualNoteContent,
+            hashtags: this.extractHashtagsFromContent(manualNoteContent),
+            modelName: undefined,
+          }
+        : await (async () => {
+            await this.updateTaskOutputJson(task.id, { stage: "GENERATING_COPY", title: taskTitle });
+            return this.generateOriginalCopy({
+              brandId,
+              accountRole: resolvedAccountRole,
+              noteMode: resolvedNoteMode,
+              marketingPlanMarkdown: originalMarketingPlanMarkdown,
+              selectedCalendarItem,
+              customTopicName: payload.customTopicName?.trim(),
+              product: normalizedProduct,
+              includeMarketingPlan,
+              additionalInstruction: payload.additionalInstruction?.trim(),
+            });
+          })();
       await this.ensureTaskNotCancelled(task.id);
       await this.updateTaskOutputJson(task.id, {
         stage: "GENERATING_IMAGE_PROMPTS",
