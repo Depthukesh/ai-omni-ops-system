@@ -1610,6 +1610,22 @@ button {
   padding: 6px 0 0 12px;
 }
 
+.strategy-directory-group {
+  display: grid;
+  gap: 8px;
+  padding-top: 6px;
+  border-top: 1px solid var(--site-hero-border);
+}
+
+.strategy-directory-group__title {
+  padding-left: 2px;
+  color: var(--text-faint);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .strategy-section-group {
   display: grid;
   gap: 0;

@@ -57,8 +57,7 @@ export function OpenClawDailyPlanWorkspace(props: OpenClawDailyPlanWorkspaceProp
                   <th>标题</th>
                   <th>内容</th>
                   <th>创建时间</th>
-                  <th>查看</th>
-                  <th>删除</th>
+                  <th>操作</th>
                 </tr>
               </thead>
               <tbody>
@@ -73,19 +72,19 @@ export function OpenClawDailyPlanWorkspace(props: OpenClawDailyPlanWorkspaceProp
                     </td>
                     <td>{props.formatDateTime(item.createdAt)}</td>
                     <td>
-                      <button type="button" className="secondary-button" onClick={() => setSelectedPlan(item)}>
-                        查看
-                      </button>
-                    </td>
-                    <td>
-                      <button
-                        type="button"
-                        className="note-inline-button"
-                        onClick={() => void props.onDelete(item.id)}
-                        disabled={!props.canDelete || props.deletingPlanId === item.id}
-                      >
-                        {props.deletingPlanId === item.id ? "删除中..." : "删除"}
-                      </button>
+                      <div className="strategy-inline-actions">
+                        <button type="button" className="secondary-button" onClick={() => setSelectedPlan(item)}>
+                          查看
+                        </button>
+                        <button
+                          type="button"
+                          className="note-inline-button"
+                          onClick={() => void props.onDelete(item.id)}
+                          disabled={!props.canDelete || props.deletingPlanId === item.id}
+                        >
+                          {props.deletingPlanId === item.id ? "删除中..." : "删除"}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

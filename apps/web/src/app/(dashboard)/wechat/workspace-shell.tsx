@@ -4,6 +4,14 @@ import { useEffect, useMemo, useState } from "react";
 import { getStoredCurrentBrandId } from "../../../services/auth-session";
 import { DEMO_BRAND_ID, getBrandArchive, type BrandArchiveBundle, type BrandProduct } from "../../../services/brand-growth";
 import {
+  deleteOpenClawDailyPlan,
+  deleteOpenClawLobsterDiary,
+  getOpenClawDailyPlanWorkspace,
+  getOpenClawLobsterDiaryWorkspace,
+  type OpenClawDailyPlanWorkspace as OpenClawDailyPlanWorkspaceRecord,
+  type OpenClawLobsterDiaryWorkspace as OpenClawLobsterDiaryWorkspaceRecord,
+} from "../../../services/openclaw";
+import {
   publishWechatArticleToOfficialAccount,
   publishWechatWorkflowToOfficialAccount,
   retryWechatWorkflowPublishToOfficialAccount,
@@ -45,8 +53,10 @@ import {
   type WechatWorkflowSessionRecord,
   type WechatWorkflowStep,
 } from "../../../services/works";
+import { OpenClawDailyPlanWorkspace } from "../brand-growth/openclaw-daily-plan-workspace";
+import { OpenClawLobsterDiaryWorkspace } from "../brand-growth/openclaw-lobster-diary-workspace";
 
-type WechatSectionKey = "setup" | "workflow" | "history";
+type WechatSectionKey = "setup" | "workflow" | "history" | "openclawDailyPlan" | "openclawLobsterDiary";
 type ThemeOption = { label: string; color: string };
 const NO_PRODUCT_VALUE = "__no_product__";
 
@@ -60,11 +70,20 @@ const WECHAT_HTML_STYLE_OPTIONS: Array<{ value: WechatHtmlStyleType; label: stri
 function createDefaultWechatHtmlStyleConfig(): WechatHtmlStyleConfig {
   return { styleType: "general" };
 }
-const wechatSections: Array<{ key: WechatSectionKey; label: string; description: string }> = [
+const wechatPrimarySections: Array<{ key: WechatSectionKey; label: string; description: string }> = [
   { key: "setup", label: "配置初始化", description: "完成公众号 API 凭据、默认账号和发布基础设置。" },
   { key: "workflow", label: "创作工作流", description: "围绕营销日历、品牌资料和模型配置推进完整的公众号内容生产链路。" },
   { key: "history", label: "发布历史", description: "查看已发布记录、结果状态和失败重试入口。" },
 ];
+const wechatOpenClawSections: Array<{ key: WechatSectionKey; label: string; description: string }> = [
+  { key: "openclawDailyPlan", label: "每日计划", description: "展示由 OpenClaw Agent 创建的每日计划记录，页面只支持查看与删除。" },
+  { key: "openclawLobsterDiary", label: "每日复盘", description: "展示由 OpenClaw Agent 创建的每日复盘记录，页面只支持查看与删除。" },
+];
+const wechatSections = [...wechatPrimarySections, ...wechatOpenClawSections];
+
+function isWechatOpenClawSection(sectionKey: WechatSectionKey) {
+  return sectionKey === "openclawDailyPlan" || sectionKey === "openclawLobsterDiary";
+}
 
 const themeOptions: ThemeOption[] = [
   { label: "墨绿", color: "#25554a" },
@@ -425,7 +444,10 @@ function resolveDraftPreviewCoverUrl(draft: WechatArticleDraftRecord) {
   return sources.coverImageUrl || sources.bodyImageUrls[0] || "";
 }
 
-function formatWechatHistoryTime(value: string) {
+function formatWechatHistoryTime(value?: string) {
+  if (!value) {
+    return "-";
+  }
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
     return value;
@@ -450,6 +472,8 @@ export function WechatWorkspaceShell() {
   const [sessions, setSessions] = useState<WechatWorkflowSessionRecord[]>([]);
   const [drafts, setDrafts] = useState<WechatArticleDraftRecord[]>([]);
   const [publishHistory, setPublishHistory] = useState<WechatPublishHistoryRecord[]>([]);
+  const [openClawDailyPlanWorkspace, setOpenClawDailyPlanWorkspace] = useState<OpenClawDailyPlanWorkspaceRecord>({ items: [], total: 0 });
+  const [openClawLobsterDiaryWorkspace, setOpenClawLobsterDiaryWorkspace] = useState<OpenClawLobsterDiaryWorkspaceRecord>({ items: [], total: 0 });
   const [selectedWorkflowId, setSelectedWorkflowId] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSavingConfig, setIsSavingConfig] = useState(false);
@@ -464,6 +488,8 @@ export function WechatWorkspaceShell() {
   const [isSavingPublishConfirm, setIsSavingPublishConfirm] = useState(false);
   const [isPublishingWorkflow, setIsPublishingWorkflow] = useState(false);
   const [deletingWorkflowId, setDeletingWorkflowId] = useState("");
+  const [deletingOpenClawDailyPlanId, setDeletingOpenClawDailyPlanId] = useState("");
+  const [deletingOpenClawDiaryId, setDeletingOpenClawDiaryId] = useState("");
   const [retryingPublishHistoryId, setRetryingPublishHistoryId] = useState("");
   const [publishingDraftId, setPublishingDraftId] = useState("");
   const [previewImage, setPreviewImage] = useState<{ url: string; alt: string } | null>(null);
@@ -526,10 +552,28 @@ export function WechatWorkspaceShell() {
   }, [calendarWorkspace]);
 
   const products = archive?.products || [];
-  const activeSectionMeta = useMemo(
+  const visiblePrimarySections = useMemo(
+    () => wechatSections.filter((item) => !isWechatOpenClawSection(item.key)),
+    [],
+  );
+  const visibleOpenClawSections = useMemo(
+    () => wechatSections.filter((item) => isWechatOpenClawSection(item.key)),
+    [],
+  );
+  const currentSection = useMemo(
     () => wechatSections.find((item) => item.key === activeSection) ?? wechatSections[0],
     [activeSection],
   );
+  const heroTitle =
+    activeSection === "openclawDailyPlan" || activeSection === "openclawLobsterDiary"
+      ? "OpenClaw板块"
+      : currentSection.label;
+  const heroDescription =
+    activeSection === "openclawDailyPlan"
+      ? "当前展示由 OpenClaw Agent 在公众号板块下创建的每日计划记录，可只读查看并手动删除。"
+      : activeSection === "openclawLobsterDiary"
+        ? "当前展示由 OpenClaw Agent 在公众号板块下创建的每日复盘记录，可只读查看并手动删除。"
+        : currentSection.description;
   const selectedWorkflow = useMemo(
     () => sessions.find((item) => item.id === selectedWorkflowId) || null,
     [sessions, selectedWorkflowId],
@@ -545,6 +589,38 @@ export function WechatWorkspaceShell() {
     return response.items;
   }
 
+  async function refreshOpenClawWorkspaces(options?: { showNotice?: boolean }) {
+    setErrorMessage("");
+    const [dailyPlanResult, diaryResult] = await Promise.allSettled([
+      getOpenClawDailyPlanWorkspace(brandId),
+      getOpenClawLobsterDiaryWorkspace(brandId),
+    ]);
+    const failedLabels: string[] = [];
+
+    if (dailyPlanResult.status === "fulfilled") {
+      setOpenClawDailyPlanWorkspace(dailyPlanResult.value);
+    } else {
+      failedLabels.push("每日计划");
+      setOpenClawDailyPlanWorkspace({ items: [], total: 0 });
+    }
+
+    if (diaryResult.status === "fulfilled") {
+      setOpenClawLobsterDiaryWorkspace(diaryResult.value);
+    } else {
+      failedLabels.push("每日复盘");
+      setOpenClawLobsterDiaryWorkspace({ items: [], total: 0 });
+    }
+
+    if (failedLabels.length) {
+      setErrorMessage(`OpenClaw 板块刷新失败：${failedLabels.join("、")}。`);
+      return;
+    }
+
+    if (options?.showNotice) {
+      setNotice("OpenClaw 数据已刷新。");
+    }
+  }
+
   useEffect(() => {
     let disposed = false;
 
@@ -552,7 +628,18 @@ export function WechatWorkspaceShell() {
       setIsLoading(true);
       setErrorMessage("");
       try {
-        const [archiveResult, calendarResult, configResult, preferencesResult, accountsResult, sessionsResult, draftsResult, historyResult] =
+        const [
+          archiveResult,
+          calendarResult,
+          configResult,
+          preferencesResult,
+          accountsResult,
+          sessionsResult,
+          draftsResult,
+          historyResult,
+          openClawDailyPlanResult,
+          openClawLobsterDiaryResult,
+        ] =
           await Promise.allSettled([
             getBrandArchive(brandId),
             getXiaohongshuMarketingCalendarWorkspace(brandId),
@@ -562,6 +649,8 @@ export function WechatWorkspaceShell() {
             getWechatWorkflowSessions(brandId),
             getWechatArticleDrafts(brandId),
             getWechatPublishHistory(brandId),
+            getOpenClawDailyPlanWorkspace(brandId),
+            getOpenClawLobsterDiaryWorkspace(brandId),
           ]);
 
         if (disposed) {
@@ -595,6 +684,12 @@ export function WechatWorkspaceShell() {
         setSessions(sessionsResult.value.items);
         setDrafts(draftsResult.value.items);
         setPublishHistory(historyResult.value.items);
+        setOpenClawDailyPlanWorkspace(
+          openClawDailyPlanResult.status === "fulfilled" ? openClawDailyPlanResult.value : { items: [], total: 0 },
+        );
+        setOpenClawLobsterDiaryWorkspace(
+          openClawLobsterDiaryResult.status === "fulfilled" ? openClawLobsterDiaryResult.value : { items: [], total: 0 },
+        );
 
         setAppId(configResult.value.item.appId || "");
         setAppSecret("");
@@ -1099,12 +1194,40 @@ export function WechatWorkspaceShell() {
     }
   }
 
+  async function handleDeleteOpenClawDailyPlan(planId: string) {
+    setDeletingOpenClawDailyPlanId(planId);
+    setErrorMessage("");
+    try {
+      const response = await deleteOpenClawDailyPlan(planId, brandId);
+      setOpenClawDailyPlanWorkspace(response.workspace);
+      setNotice("每日计划已删除。");
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "删除每日计划失败。");
+    } finally {
+      setDeletingOpenClawDailyPlanId("");
+    }
+  }
+
+  async function handleDeleteOpenClawDiary(diaryId: string) {
+    setDeletingOpenClawDiaryId(diaryId);
+    setErrorMessage("");
+    try {
+      const response = await deleteOpenClawLobsterDiary(diaryId, brandId);
+      setOpenClawLobsterDiaryWorkspace(response.workspace);
+      setNotice("每日复盘已删除。");
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "删除每日复盘失败。");
+    } finally {
+      setDeletingOpenClawDiaryId("");
+    }
+  }
+
   return (
     <main className="archive-shell strategy-shell">
       <section className="strategy-layout">
           <aside className="strategy-level-panel strategy-level-panel--directory">
             <div className="strategy-level-button-list">
-              {wechatSections.map((item) => (
+              {visiblePrimarySections.map((item) => (
                 <button
                   key={item.key}
                   type="button"
@@ -1115,13 +1238,30 @@ export function WechatWorkspaceShell() {
                 </button>
               ))}
             </div>
+            {visibleOpenClawSections.length ? (
+              <div className="strategy-directory-group">
+                <div className="strategy-directory-group__title">OpenClaw板块</div>
+                <div className="strategy-level-button-list strategy-level-button-list--nested">
+                  {visibleOpenClawSections.map((item) => (
+                    <button
+                      key={item.key}
+                      type="button"
+                      className={`strategy-level-button strategy-level-button--nested ${item.key === activeSection ? "is-active" : ""}`}
+                      onClick={() => setActiveSection(item.key)}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </aside>
 
           <div className="strategy-content-panel wechat-stage">
             <article className="workspace-panel strategy-page-header">
               <div>
-                <strong>{activeSectionMeta.label}</strong>
-                <p>{activeSectionMeta.description}</p>
+                <strong>{heroTitle}</strong>
+                <p>{heroDescription}</p>
               </div>
               <div className="strategy-page-header-actions">
                 <div className="workspace-status">
@@ -1134,6 +1274,34 @@ export function WechatWorkspaceShell() {
             </article>
             {errorMessage ? <div className="wechat-banner wechat-banner--error">{errorMessage}</div> : null}
             {notice ? <div className="wechat-banner wechat-banner--notice">{notice}</div> : null}
+
+            {activeSection === "openclawDailyPlan" ? (
+              <OpenClawDailyPlanWorkspace
+                sectionLabel={currentSection.label}
+                sectionDescription={currentSection.description}
+                isLoading={isLoading}
+                canDelete
+                items={openClawDailyPlanWorkspace.items}
+                deletingPlanId={deletingOpenClawDailyPlanId}
+                onRefresh={refreshOpenClawWorkspaces}
+                onDelete={handleDeleteOpenClawDailyPlan}
+                formatDateTime={formatWechatHistoryTime}
+              />
+            ) : null}
+
+            {activeSection === "openclawLobsterDiary" ? (
+              <OpenClawLobsterDiaryWorkspace
+                sectionLabel={currentSection.label}
+                sectionDescription={currentSection.description}
+                isLoading={isLoading}
+                canDelete
+                items={openClawLobsterDiaryWorkspace.items}
+                deletingDiaryId={deletingOpenClawDiaryId}
+                onRefresh={refreshOpenClawWorkspaces}
+                onDelete={handleDeleteOpenClawDiary}
+                formatDateTime={formatWechatHistoryTime}
+              />
+            ) : null}
 
             {activeSection === "setup" ? (
               <article className="workspace-panel strategy-page-card">

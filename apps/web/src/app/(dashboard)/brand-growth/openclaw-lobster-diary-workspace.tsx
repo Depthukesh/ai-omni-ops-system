@@ -46,7 +46,7 @@ export function OpenClawLobsterDiaryWorkspace(props: OpenClawLobsterDiaryWorkspa
 
         {!sortedItems.length ? (
           <div className="note-empty-state">
-            当前还没有龙虾日记。请由 OpenClaw Agent 创建后再来此查看。
+            当前还没有每日复盘。请由 OpenClaw Agent 创建后再来此查看。
           </div>
         ) : (
           <div className="table-scroll-shell">
@@ -57,8 +57,7 @@ export function OpenClawLobsterDiaryWorkspace(props: OpenClawLobsterDiaryWorkspa
                   <th>标题</th>
                   <th>内容</th>
                   <th>创建时间</th>
-                  <th>查看</th>
-                  <th>删除</th>
+                  <th>操作</th>
                 </tr>
               </thead>
               <tbody>
@@ -73,19 +72,19 @@ export function OpenClawLobsterDiaryWorkspace(props: OpenClawLobsterDiaryWorkspa
                     </td>
                     <td>{props.formatDateTime(item.createdAt)}</td>
                     <td>
-                      <button type="button" className="secondary-button" onClick={() => setSelectedDiary(item)}>
-                        查看
-                      </button>
-                    </td>
-                    <td>
-                      <button
-                        type="button"
-                        className="note-inline-button"
-                        onClick={() => void props.onDelete(item.id)}
-                        disabled={!props.canDelete || props.deletingDiaryId === item.id}
-                      >
-                        {props.deletingDiaryId === item.id ? "删除中..." : "删除"}
-                      </button>
+                      <div className="strategy-inline-actions">
+                        <button type="button" className="secondary-button" onClick={() => setSelectedDiary(item)}>
+                          查看
+                        </button>
+                        <button
+                          type="button"
+                          className="note-inline-button"
+                          onClick={() => void props.onDelete(item.id)}
+                          disabled={!props.canDelete || props.deletingDiaryId === item.id}
+                        >
+                          {props.deletingDiaryId === item.id ? "删除中..." : "删除"}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

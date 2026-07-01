@@ -47,6 +47,14 @@ import { cancelTask, type MediaRecord, type TaskRecord } from "../../../services
 import { getStoredCurrentBrandId } from "../../../services/auth-session";
 import { type BrandPermissionKey, type BrandPermissionSettingsRecord } from "../../../services/brand-growth";
 import {
+  deleteOpenClawDailyPlan,
+  deleteOpenClawLobsterDiary,
+  getOpenClawDailyPlanWorkspace,
+  getOpenClawLobsterDiaryWorkspace,
+  type OpenClawDailyPlanWorkspace as OpenClawDailyPlanWorkspaceRecord,
+  type OpenClawLobsterDiaryWorkspace as OpenClawLobsterDiaryWorkspaceRecord,
+} from "../../../services/openclaw";
+import {
   annualMarketingPlanSeed,
   deleteXiaohongshuMarketingPlan,
   generateXiaohongshuMarketingCalendar,
@@ -80,22 +88,35 @@ import {
   type XhsOriginalReferenceTemplateCategoryRecord,
   type XhsOriginalReferenceTemplateRecord,
 } from "../../../services/works";
+import { OpenClawDailyPlanWorkspace } from "../brand-growth/openclaw-daily-plan-workspace";
+import { OpenClawLobsterDiaryWorkspace } from "../brand-growth/openclaw-lobster-diary-workspace";
 import { formatCollaboratorRoleLabel } from "../personal-center/route-helpers";
 
-type XiaohongshuSectionKey = "plan" | "original" | "remix" | "video";
+type XiaohongshuSectionKey = "plan" | "original" | "remix" | "video" | "openclawDailyPlan" | "openclawLobsterDiary";
 const MARKETING_PLAN_REQUIRED_INPUTS = ["品牌背景资料", "产品资料库", "机会洞察总报告", "品牌增长报告"] as const;
-const xiaohongshuSections: Array<{ key: XiaohongshuSectionKey; label: string; description: string }> = [
+const xiaohongshuPrimarySections: Array<{ key: XiaohongshuSectionKey; label: string; description: string }> = [
   { key: "plan", label: "营销策划方案", description: "围绕品牌背景资料、产品资料库、机会洞察总报告和品牌增长报告生成小红书策划与选题方案。" },
   { key: "original", label: "原创笔记", description: "统一管理原创图文笔记成品，支持新增、编辑、删除与查看配图结果。" },
   { key: "remix", label: "二创笔记", description: "基于已有选题和作品延展二创版本与差异化角度。" },
   { key: "video", label: "视频笔记", description: "把现有主题整理成视频脚本、镜头结构和封面文案。" },
 ];
+const xiaohongshuOpenClawSections: Array<{ key: XiaohongshuSectionKey; label: string; description: string }> = [
+  { key: "openclawDailyPlan", label: "每日计划", description: "展示由 OpenClaw Agent 创建的每日计划记录，页面只支持查看与删除。" },
+  { key: "openclawLobsterDiary", label: "每日复盘", description: "展示由 OpenClaw Agent 创建的每日复盘记录，页面只支持查看与删除。" },
+];
+const xiaohongshuSections = [...xiaohongshuPrimarySections, ...xiaohongshuOpenClawSections];
 const xiaohongshuSectionPermissionMap: Record<XiaohongshuSectionKey, BrandPermissionKey> = {
   plan: "xiaohongshu.plan",
   original: "xiaohongshu.original",
   remix: "xiaohongshu.remix",
   video: "xiaohongshu.video",
+  openclawDailyPlan: "brandGrowth.report.topicLibrary",
+  openclawLobsterDiary: "brandGrowth.report.topicLibrary",
 };
+
+function isXiaohongshuOpenClawSection(sectionKey: XiaohongshuSectionKey) {
+  return sectionKey === "openclawDailyPlan" || sectionKey === "openclawLobsterDiary";
+}
 const originalAccountRoleOptionsByBrandRole: Record<string, XiaohongshuAccountRole[]> = {
   ADMIN: ["BRAND", "STAFF", "TALENT"],
   STAFF: ["STAFF"],
@@ -171,6 +192,8 @@ export function XiaohongshuWorkspaceShell() {
   const [selectedRewriteWorkId, setSelectedRewriteWorkId] = useState("");
   const [deletingRewriteWorkId, setDeletingRewriteWorkId] = useState("");
   const [videoWorks, setVideoWorks] = useState<XiaohongshuVideoWorkRecord[]>([]);
+  const [openClawDailyPlanWorkspace, setOpenClawDailyPlanWorkspace] = useState<OpenClawDailyPlanWorkspaceRecord>({ items: [], total: 0 });
+  const [openClawLobsterDiaryWorkspace, setOpenClawLobsterDiaryWorkspace] = useState<OpenClawLobsterDiaryWorkspaceRecord>({ items: [], total: 0 });
   const [videoProviderOptions, setVideoProviderOptions] = useState<VideoProviderOptionRecord[]>(DEFAULT_VIDEO_PROVIDER_OPTIONS);
   const [storyboardImageModelOptions, setStoryboardImageModelOptions] = useState<StoryboardImageModelOptionRecord[]>(
     DEFAULT_STORYBOARD_IMAGE_MODEL_OPTIONS,
@@ -183,6 +206,8 @@ export function XiaohongshuWorkspaceShell() {
   const [originalReferenceTemplatesError, setOriginalReferenceTemplatesError] = useState("");
   const [selectedVideoWorkId, setSelectedVideoWorkId] = useState("");
   const [deletingVideoWorkId, setDeletingVideoWorkId] = useState("");
+  const [deletingOpenClawDailyPlanId, setDeletingOpenClawDailyPlanId] = useState("");
+  const [deletingOpenClawDiaryId, setDeletingOpenClawDiaryId] = useState("");
   const [selectedMaterialId, setSelectedMaterialId] = useState("");
   const [materialPreviewIndexMap, setMaterialPreviewIndexMap] = useState<Record<string, number>>({});
   const [materialLightbox, setMaterialLightbox] = useState<MediaLightboxState | null>(null);
@@ -372,6 +397,10 @@ export function XiaohongshuWorkspaceShell() {
     setErrorMessage,
     setDataSource,
   });
+  const activeBrandId = useMemo(
+    () => getStoredCurrentBrandId(workspace.archive.brand.id) || workspace.archive.brand.id,
+    [workspace.archive.brand.id],
+  );
   const currentDefaultAccount = useMemo(
     () => getDefaultXiaohongshuAccount(workspace.archive.platformAccounts),
     [workspace.archive.platformAccounts],
@@ -382,6 +411,32 @@ export function XiaohongshuWorkspaceShell() {
   useEffect(() => {
     void loadWorkspace();
   }, []);
+
+  useEffect(() => {
+    const loadOpenClawWorkspaces = async () => {
+      const [dailyPlanResult, diaryResult] = await Promise.allSettled([
+        getOpenClawDailyPlanWorkspace(activeBrandId),
+        getOpenClawLobsterDiaryWorkspace(activeBrandId),
+      ]);
+      const messages: string[] = [];
+      if (dailyPlanResult.status === "fulfilled") {
+        setOpenClawDailyPlanWorkspace(dailyPlanResult.value);
+      } else {
+        setOpenClawDailyPlanWorkspace({ items: [], total: 0 });
+        messages.push("OpenClaw 每日计划读取失败。");
+      }
+      if (diaryResult.status === "fulfilled") {
+        setOpenClawLobsterDiaryWorkspace(diaryResult.value);
+      } else {
+        setOpenClawLobsterDiaryWorkspace({ items: [], total: 0 });
+        messages.push("OpenClaw 每日复盘读取失败。");
+      }
+      if (messages.length) {
+        setErrorMessage((current) => (current ? `${current} ${messages.join(" ")}` : messages.join(" ")));
+      }
+    };
+    void loadOpenClawWorkspaces();
+  }, [activeBrandId, setErrorMessage]);
 
   useEffect(() => {
     const latestPlan = marketingPlanWorkspace.latest;
@@ -407,6 +462,14 @@ export function XiaohongshuWorkspaceShell() {
     }
     return xiaohongshuSections.filter((item) => permissionMap[xiaohongshuSectionPermissionMap[item.key]]?.view);
   }, [brandPermissionSettings]);
+  const visiblePrimarySections = useMemo(
+    () => visibleSections.filter((item) => !isXiaohongshuOpenClawSection(item.key)),
+    [visibleSections],
+  );
+  const visibleOpenClawSections = useMemo(
+    () => visibleSections.filter((item) => isXiaohongshuOpenClawSection(item.key)),
+    [visibleSections],
+  );
 
   const originalAccountRoleOptions = useMemo(() => {
     const values = originalAccountRoleOptionsByBrandRole[currentBrandRole] || ["BRAND"];
@@ -736,7 +799,9 @@ export function XiaohongshuWorkspaceShell() {
     setCalendarItemDraft(cloneMarketingCalendarItem(selectedCalendarItem));
   }, [isCalendarDetailOpen, isEditingCalendarItem, selectedCalendarItem]);
   const heroTitle =
-    activeSection === "original"
+    activeSection === "openclawDailyPlan" || activeSection === "openclawLobsterDiary"
+      ? "OpenClaw板块"
+      : activeSection === "original"
       ? "原创笔记工作区"
       : activeSection === "remix"
         ? "二创笔记工作区"
@@ -744,7 +809,11 @@ export function XiaohongshuWorkspaceShell() {
           ? "视频笔记工作区"
         : "小红书营销策划方案工作区";
   const heroDescription =
-    activeSection === "original"
+    activeSection === "openclawDailyPlan"
+      ? "当前展示由 OpenClaw Agent 在小红书板块下创建的每日计划记录，可只读查看并手动删除。"
+      : activeSection === "openclawLobsterDiary"
+        ? "当前展示由 OpenClaw Agent 在小红书板块下创建的每日复盘记录，可只读查看并手动删除。"
+      : activeSection === "original"
       ? "当前聚焦【原创笔记】主链路：选择营销日历选题与产品，生成图文内容和图片作品，并统一管理已完成作品。"
       : activeSection === "remix"
         ? "当前聚焦【二创笔记】主链路：从统一素材库选择作品，结合产品与用户要求生成差异化二创图文，并统一管理成品。"
@@ -1175,7 +1244,95 @@ export function XiaohongshuWorkspaceShell() {
     }
   }
 
+  async function refreshOpenClawWorkspaces() {
+    const [dailyPlanResult, diaryResult] = await Promise.allSettled([
+      getOpenClawDailyPlanWorkspace(activeBrandId),
+      getOpenClawLobsterDiaryWorkspace(activeBrandId),
+    ]);
+    if (dailyPlanResult.status === "fulfilled") {
+      setOpenClawDailyPlanWorkspace(dailyPlanResult.value);
+    }
+    if (diaryResult.status === "fulfilled") {
+      setOpenClawLobsterDiaryWorkspace(diaryResult.value);
+    }
+    if (dailyPlanResult.status === "rejected" || diaryResult.status === "rejected") {
+      setErrorMessage("OpenClaw 板块刷新失败，请稍后重试。");
+      return;
+    }
+    setNotice("OpenClaw 板块已刷新。");
+  }
+
+  async function handleDeleteOpenClawDailyPlan(planId: string) {
+    if (!hasCurrentSectionEditPermission) {
+      setErrorMessage("当前账号只有查看权限，不能删除每日计划。");
+      return;
+    }
+    setDeletingOpenClawDailyPlanId(planId);
+    setNotice("");
+    setErrorMessage("");
+    try {
+      const response = await deleteOpenClawDailyPlan(planId, activeBrandId);
+      setOpenClawDailyPlanWorkspace(response.workspace);
+      setNotice("每日计划已删除。");
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "删除每日计划失败。");
+    } finally {
+      setDeletingOpenClawDailyPlanId("");
+    }
+  }
+
+  async function handleDeleteOpenClawDiary(diaryId: string) {
+    if (!hasCurrentSectionEditPermission) {
+      setErrorMessage("当前账号只有查看权限，不能删除每日复盘。");
+      return;
+    }
+    setDeletingOpenClawDiaryId(diaryId);
+    setNotice("");
+    setErrorMessage("");
+    try {
+      const response = await deleteOpenClawLobsterDiary(diaryId, activeBrandId);
+      setOpenClawLobsterDiaryWorkspace(response.workspace);
+      setNotice("每日复盘已删除。");
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "删除每日复盘失败。");
+    } finally {
+      setDeletingOpenClawDiaryId("");
+    }
+  }
+
   function renderSectionCard() {
+    if (activeSection === "openclawDailyPlan") {
+      return (
+        <OpenClawDailyPlanWorkspace
+          sectionLabel={currentSection.label}
+          sectionDescription={currentSection.description}
+          isLoading={isLoading}
+          canDelete={hasCurrentSectionEditPermission}
+          items={openClawDailyPlanWorkspace.items}
+          deletingPlanId={deletingOpenClawDailyPlanId}
+          onRefresh={refreshOpenClawWorkspaces}
+          onDelete={handleDeleteOpenClawDailyPlan}
+          formatDateTime={formatDateTime}
+        />
+      );
+    }
+
+    if (activeSection === "openclawLobsterDiary") {
+      return (
+        <OpenClawLobsterDiaryWorkspace
+          sectionLabel={currentSection.label}
+          sectionDescription={currentSection.description}
+          isLoading={isLoading}
+          canDelete={hasCurrentSectionEditPermission}
+          items={openClawLobsterDiaryWorkspace.items}
+          deletingDiaryId={deletingOpenClawDiaryId}
+          onRefresh={refreshOpenClawWorkspaces}
+          onDelete={handleDeleteOpenClawDiary}
+          formatDateTime={formatDateTime}
+        />
+      );
+    }
+
     if (activeSection === "plan") {
       return (
         <PlanWorkspace
@@ -1299,7 +1456,7 @@ export function XiaohongshuWorkspaceShell() {
             <>
           <aside className="strategy-level-panel strategy-level-panel--directory">
             <div className="strategy-level-button-list">
-              {visibleSections.map((item) => (
+              {visiblePrimarySections.map((item) => (
                 <button
                   key={item.key}
                   type="button"
@@ -1310,6 +1467,23 @@ export function XiaohongshuWorkspaceShell() {
                 </button>
               ))}
             </div>
+            {visibleOpenClawSections.length ? (
+              <div className="strategy-directory-group">
+                <div className="strategy-directory-group__title">OpenClaw板块</div>
+                <div className="strategy-level-button-list strategy-level-button-list--nested">
+                  {visibleOpenClawSections.map((item) => (
+                    <button
+                      key={item.key}
+                      type="button"
+                      className={`strategy-level-button strategy-level-button--nested ${item.key === activeSection ? "is-active" : ""}`}
+                      onClick={() => setActiveSection(item.key)}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </aside>
 
           <div className="strategy-content-panel">
@@ -1337,7 +1511,15 @@ export function XiaohongshuWorkspaceShell() {
                   {!isLoading && topLevelErrorMessage ? <span className="status-text error-text">{topLevelErrorMessage}</span> : null}
                 </div>
                 <div className="strategy-inline-actions">
-                  <button type="button" className="secondary-button" onClick={() => void loadWorkspace()} disabled={isLoading || isPublishing}>
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() => {
+                      void loadWorkspace();
+                      void refreshOpenClawWorkspaces();
+                    }}
+                    disabled={isLoading || isPublishing}
+                  >
                     刷新数据
                   </button>
                 </div>
