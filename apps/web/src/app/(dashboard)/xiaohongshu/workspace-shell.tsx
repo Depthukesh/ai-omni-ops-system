@@ -415,8 +415,8 @@ export function XiaohongshuWorkspaceShell() {
   useEffect(() => {
     const loadOpenClawWorkspaces = async () => {
       const [dailyPlanResult, diaryResult] = await Promise.allSettled([
-        getOpenClawDailyPlanWorkspace(activeBrandId),
-        getOpenClawLobsterDiaryWorkspace(activeBrandId),
+        getOpenClawDailyPlanWorkspace(activeBrandId, "xiaohongshu"),
+        getOpenClawLobsterDiaryWorkspace(activeBrandId, "xiaohongshu"),
       ]);
       const messages: string[] = [];
       if (dailyPlanResult.status === "fulfilled") {
@@ -1246,8 +1246,8 @@ export function XiaohongshuWorkspaceShell() {
 
   async function refreshOpenClawWorkspaces() {
     const [dailyPlanResult, diaryResult] = await Promise.allSettled([
-      getOpenClawDailyPlanWorkspace(activeBrandId),
-      getOpenClawLobsterDiaryWorkspace(activeBrandId),
+      getOpenClawDailyPlanWorkspace(activeBrandId, "xiaohongshu"),
+      getOpenClawLobsterDiaryWorkspace(activeBrandId, "xiaohongshu"),
     ]);
     if (dailyPlanResult.status === "fulfilled") {
       setOpenClawDailyPlanWorkspace(dailyPlanResult.value);
@@ -1271,7 +1271,7 @@ export function XiaohongshuWorkspaceShell() {
     setNotice("");
     setErrorMessage("");
     try {
-      const response = await deleteOpenClawDailyPlan(planId, activeBrandId);
+      const response = await deleteOpenClawDailyPlan(planId, activeBrandId, "xiaohongshu");
       setOpenClawDailyPlanWorkspace(response.workspace);
       setNotice("每日计划已删除。");
     } catch (error) {
@@ -1290,7 +1290,7 @@ export function XiaohongshuWorkspaceShell() {
     setNotice("");
     setErrorMessage("");
     try {
-      const response = await deleteOpenClawLobsterDiary(diaryId, activeBrandId);
+      const response = await deleteOpenClawLobsterDiary(diaryId, activeBrandId, "xiaohongshu");
       setOpenClawLobsterDiaryWorkspace(response.workspace);
       setNotice("每日复盘已删除。");
     } catch (error) {

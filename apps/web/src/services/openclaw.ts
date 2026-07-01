@@ -73,22 +73,6 @@ export type RevealOpenClawInstallTokenResult = {
   token: string;
 };
 
-export type OpenClawLobsterDiaryRecord = {
-  id: string;
-  brandId: string;
-  createdByUserId: string;
-  diaryDate: string;
-  title: string;
-  content: string;
-  createdAt: string;
-  updatedAt: string;
-};
-
-export type OpenClawLobsterDiaryWorkspace = {
-  items: OpenClawLobsterDiaryRecord[];
-  total: number;
-};
-
 export async function getOpenClawInstallationWorkspace() {
   return request<OpenClawInstallWorkspace>("/openclaw/installation-hub");
 }
@@ -114,14 +98,41 @@ export async function downloadOpenClawSkillPackage(downloadPath: string) {
   return requestBlobByUrl(downloadPath);
 }
 
-export async function getOpenClawLobsterDiaryWorkspace(brandId: string, limit?: number) {
-  const query = typeof limit === "number" ? `?limit=${encodeURIComponent(String(limit))}` : "";
-  return request<OpenClawLobsterDiaryWorkspace>(`/openclaw/brands/${brandId}/lobster-diaries${query}`);
+export type OpenClawWorkspaceScope = "brand_growth" | "xiaohongshu" | "douyin" | "wechat";
+
+export type OpenClawLobsterDiaryRecord = {
+  id: string;
+  brandId: string;
+  workspaceScope: OpenClawWorkspaceScope;
+  createdByUserId: string;
+  diaryDate: string;
+  title: string;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type OpenClawLobsterDiaryWorkspace = {
+  items: OpenClawLobsterDiaryRecord[];
+  total: number;
+};
+
+export async function getOpenClawLobsterDiaryWorkspace(
+  brandId: string,
+  workspaceScope: OpenClawWorkspaceScope,
+  limit?: number,
+) {
+  const query = new URLSearchParams({ workspaceScope });
+  if (typeof limit === "number") {
+    query.set("limit", String(limit));
+  }
+  return request<OpenClawLobsterDiaryWorkspace>(`/openclaw/brands/${brandId}/lobster-diaries?${query.toString()}`);
 }
 
-export async function deleteOpenClawLobsterDiary(diaryId: string, brandId: string) {
+export async function deleteOpenClawLobsterDiary(diaryId: string, brandId: string, workspaceScope: OpenClawWorkspaceScope) {
+  const query = new URLSearchParams({ workspaceScope });
   return request<{ item: OpenClawLobsterDiaryRecord; workspace: OpenClawLobsterDiaryWorkspace }>(
-    `/openclaw/brands/${brandId}/lobster-diaries/${diaryId}`,
+    `/openclaw/brands/${brandId}/lobster-diaries/${diaryId}?${query.toString()}`,
     {
       method: "DELETE",
     },
@@ -131,6 +142,7 @@ export async function deleteOpenClawLobsterDiary(diaryId: string, brandId: strin
 export type OpenClawDailyPlanRecord = {
   id: string;
   brandId: string;
+  workspaceScope: OpenClawWorkspaceScope;
   createdByUserId: string;
   planDate: string;
   title: string;
@@ -144,14 +156,22 @@ export type OpenClawDailyPlanWorkspace = {
   total: number;
 };
 
-export async function getOpenClawDailyPlanWorkspace(brandId: string, limit?: number) {
-  const query = typeof limit === "number" ? `?limit=${encodeURIComponent(String(limit))}` : "";
-  return request<OpenClawDailyPlanWorkspace>(`/openclaw/brands/${brandId}/daily-plans${query}`);
+export async function getOpenClawDailyPlanWorkspace(
+  brandId: string,
+  workspaceScope: OpenClawWorkspaceScope,
+  limit?: number,
+) {
+  const query = new URLSearchParams({ workspaceScope });
+  if (typeof limit === "number") {
+    query.set("limit", String(limit));
+  }
+  return request<OpenClawDailyPlanWorkspace>(`/openclaw/brands/${brandId}/daily-plans?${query.toString()}`);
 }
 
-export async function deleteOpenClawDailyPlan(planId: string, brandId: string) {
+export async function deleteOpenClawDailyPlan(planId: string, brandId: string, workspaceScope: OpenClawWorkspaceScope) {
+  const query = new URLSearchParams({ workspaceScope });
   return request<{ item: OpenClawDailyPlanRecord; workspace: OpenClawDailyPlanWorkspace }>(
-    `/openclaw/brands/${brandId}/daily-plans/${planId}`,
+    `/openclaw/brands/${brandId}/daily-plans/${planId}?${query.toString()}`,
     {
       method: "DELETE",
     },

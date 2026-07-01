@@ -1,10 +1,16 @@
 import { randomUUID } from "node:crypto";
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../../prisma/prisma.service";
+import {
+  DEFAULT_OPENCLAW_WORKSPACE_SCOPE,
+  type OpenClawWorkspaceScope,
+  normalizeOpenClawWorkspaceScope,
+} from "./openclaw-workspace-scope";
 
 type OpenClawDailyPlanRow = {
   id: string;
   brandId: string;
+  workspaceScope: string;
   createdByUserId: string;
   planDate: string;
   title: string;
@@ -16,6 +22,7 @@ type OpenClawDailyPlanRow = {
 type OpenClawDailyPlanStoredRecord = {
   id: string;
   brandId: string;
+  workspaceScope: OpenClawWorkspaceScope;
   createdByUserId: string;
   planDate: string;
   title: string;
@@ -39,8 +46,8 @@ export class OpenClawDailyPlanService {
 
   constructor(private readonly prismaService: PrismaService) {}
 
-  async listWorkspace(brandId: string, limit?: number): Promise<OpenClawDailyPlanWorkspace> {
-    const items = await this.listRecords(brandId, limit);
+  async listWorkspace(brandId: string, workspaceScope?: string, limit?: number): Promise<OpenClawDailyPlanWorkspace> {
+    const items = await this.listRecords(brandId, workspaceScope, limit);
     return {
       items,
       total: items.length,
@@ -49,12 +56,14 @@ export class OpenClawDailyPlanService {
 
   async createPlan(payload: {
     brandId: string;
+    workspaceScope?: string;
     createdByUserId: string;
     planDate?: string;
     title?: string;
     content?: string;
   }): Promise<OpenClawDailyPlanRecord> {
     const brandId = this.requireText(payload.brandId, "缺少品牌 ID");
+    const workspaceScope = normalizeOpenClawWorkspaceScope(payload.workspaceScope);
     const createdByUserId = this.requireText(payload.createdByUserId, "缺少创建人 ID");
     const planDate = this.normalizePlanDate(payload.planDate);
     const title = this.requireText(payload.title, "请填写标题", 120);
@@ -67,6 +76,7 @@ export class OpenClawDailyPlanService {
         INSERT INTO "OpenClawDailyPlan" (
           "id",
           "brandId",
+          "workspaceScope",
           "createdByUserId",
           "planDate",
           "title",
@@ -77,6 +87,7 @@ export class OpenClawDailyPlanService {
         VALUES (
           ${id},
           ${brandId},
+          ${workspaceScope},
           ${createdByUserId},
           ${planDate},
           ${title},
@@ -85,7 +96,7 @@ export class OpenClawDailyPlanService {
           CURRENT_TIMESTAMP
         )
       `;
-      const stored = await this.findRecordById(brandId, id);
+      const stored = await this.findRecordById(brandId, workspaceScope, id);
       if (!stored) {
         throw new NotFoundException("每日计划创建后未找到记录");
       }
@@ -96,6 +107,7 @@ export class OpenClawDailyPlanService {
     const stored: OpenClawDailyPlanStoredRecord = {
       id,
       brandId,
+      workspaceScope,
       createdByUserId,
       planDate,
       title,
@@ -107,10 +119,11 @@ export class OpenClawDailyPlanService {
     return stored;
   }
 
-  async deletePlan(brandId: string, planId: string): Promise<OpenClawDailyPlanRecord> {
+  async deletePlan(brandId: string, workspaceScope: string | undefined, planId: string): Promise<OpenClawDailyPlanRecord> {
     const normalizedBrandId = this.requireText(brandId, "缺少品牌 ID");
+    const normalizedWorkspaceScope = normalizeOpenClawWorkspaceScope(workspaceScope);
     const normalizedPlanId = this.requireText(planId, "缺少计划 ID");
-    const existing = await this.findRecordById(normalizedBrandId, normalizedPlanId);
+    const existing = await this.findRecordById(normalizedBrandId, normalizedWorkspaceScope, normalizedPlanId);
     if (!existing) {
       throw new NotFoundException("每日计划不存在或已删除");
     }
@@ -120,19 +133,23 @@ export class OpenClawDailyPlanService {
       await this.prismaService.$executeRaw`
         DELETE FROM "OpenClawDailyPlan"
         WHERE "brandId" = ${normalizedBrandId}
+          AND "workspaceScope" = ${normalizedWorkspaceScope}
           AND "id" = ${normalizedPlanId}
       `;
       return existing;
     }
 
-    const nextItems = this.fallbackItems.filter((item) => !(item.brandId === normalizedBrandId && item.id === normalizedPlanId));
+    const nextItems = this.fallbackItems.filter(
+      (item) => !(item.brandId === normalizedBrandId && item.workspaceScope === normalizedWorkspaceScope && item.id === normalizedPlanId),
+    );
     this.fallbackItems.length = 0;
     this.fallbackItems.push(...nextItems);
     return existing;
   }
 
-  private async listRecords(brandId: string, limit?: number): Promise<OpenClawDailyPlanRecord[]> {
+  private async listRecords(brandId: string, workspaceScope: string | undefined, limit?: number): Promise<OpenClawDailyPlanRecord[]> {
     const normalizedBrandId = this.requireText(brandId, "缺少品牌 ID");
+    const normalizedWorkspaceScope = normalizeOpenClawWorkspaceScope(workspaceScope);
     const resolvedLimit = this.normalizeLimit(limit);
 
     if (await this.prismaService.canUseDatabase()) {
@@ -141,6 +158,7 @@ export class OpenClawDailyPlanService {
         SELECT
           "id",
           "brandId",
+          "workspaceScope",
           "createdByUserId",
           "planDate",
           "title",
@@ -149,6 +167,7 @@ export class OpenClawDailyPlanService {
           "updatedAt"
         FROM "OpenClawDailyPlan"
         WHERE "brandId" = ${normalizedBrandId}
+          AND "workspaceScope" = ${normalizedWorkspaceScope}
         ORDER BY "planDate" DESC, "createdAt" DESC
         LIMIT ${resolvedLimit}
       `;
@@ -156,7 +175,7 @@ export class OpenClawDailyPlanService {
     }
 
     return this.fallbackItems
-      .filter((item) => item.brandId === normalizedBrandId)
+      .filter((item) => item.brandId === normalizedBrandId && item.workspaceScope === normalizedWorkspaceScope)
       .sort((left, right) => {
         if (left.planDate === right.planDate) {
           return right.createdAt.localeCompare(left.createdAt);
@@ -166,13 +185,19 @@ export class OpenClawDailyPlanService {
       .slice(0, resolvedLimit);
   }
 
-  private async findRecordById(brandId: string, planId: string): Promise<OpenClawDailyPlanRecord | undefined> {
+  private async findRecordById(
+    brandId: string,
+    workspaceScope: string | undefined,
+    planId: string,
+  ): Promise<OpenClawDailyPlanRecord | undefined> {
+    const normalizedWorkspaceScope = normalizeOpenClawWorkspaceScope(workspaceScope);
     if (await this.prismaService.canUseDatabase()) {
       await this.ensureTableReady();
       const rows = await this.prismaService.$queryRaw<OpenClawDailyPlanRow[]>`
         SELECT
           "id",
           "brandId",
+          "workspaceScope",
           "createdByUserId",
           "planDate",
           "title",
@@ -181,6 +206,7 @@ export class OpenClawDailyPlanService {
           "updatedAt"
         FROM "OpenClawDailyPlan"
         WHERE "brandId" = ${brandId}
+          AND "workspaceScope" = ${normalizedWorkspaceScope}
           AND "id" = ${planId}
         LIMIT 1
       `;
@@ -188,13 +214,16 @@ export class OpenClawDailyPlanService {
       return matched ? this.normalizeRow(matched) : undefined;
     }
 
-    return this.fallbackItems.find((item) => item.brandId === brandId && item.id === planId);
+    return this.fallbackItems.find(
+      (item) => item.brandId === brandId && item.workspaceScope === normalizedWorkspaceScope && item.id === planId,
+    );
   }
 
   private normalizeRow(row: OpenClawDailyPlanRow): OpenClawDailyPlanStoredRecord {
     return {
       id: row.id,
       brandId: row.brandId,
+      workspaceScope: normalizeOpenClawWorkspaceScope(row.workspaceScope),
       createdByUserId: row.createdByUserId,
       planDate: String(row.planDate || "").trim(),
       title: String(row.title || "").trim(),
@@ -252,6 +281,7 @@ export class OpenClawDailyPlanService {
       CREATE TABLE IF NOT EXISTS "OpenClawDailyPlan" (
         "id" TEXT PRIMARY KEY,
         "brandId" TEXT NOT NULL,
+        "workspaceScope" TEXT NOT NULL DEFAULT '${DEFAULT_OPENCLAW_WORKSPACE_SCOPE}',
         "createdByUserId" TEXT NOT NULL,
         "planDate" TEXT NOT NULL,
         "title" TEXT NOT NULL DEFAULT '',
@@ -261,8 +291,21 @@ export class OpenClawDailyPlanService {
       )
     `);
     await this.prismaService.$executeRawUnsafe(`
+      ALTER TABLE "OpenClawDailyPlan"
+      ADD COLUMN IF NOT EXISTS "workspaceScope" TEXT NOT NULL DEFAULT '${DEFAULT_OPENCLAW_WORKSPACE_SCOPE}'
+    `);
+    await this.prismaService.$executeRawUnsafe(`
+      UPDATE "OpenClawDailyPlan"
+      SET "workspaceScope" = '${DEFAULT_OPENCLAW_WORKSPACE_SCOPE}'
+      WHERE COALESCE(NULLIF(TRIM("workspaceScope"), ''), '') = ''
+    `);
+    await this.prismaService.$executeRawUnsafe(`
       CREATE INDEX IF NOT EXISTS "OpenClawDailyPlan_brand_date_idx"
       ON "OpenClawDailyPlan" ("brandId", "planDate" DESC, "createdAt" DESC)
+    `);
+    await this.prismaService.$executeRawUnsafe(`
+      CREATE INDEX IF NOT EXISTS "OpenClawDailyPlan_brand_scope_date_idx"
+      ON "OpenClawDailyPlan" ("brandId", "workspaceScope", "planDate" DESC, "createdAt" DESC)
     `);
   }
 }

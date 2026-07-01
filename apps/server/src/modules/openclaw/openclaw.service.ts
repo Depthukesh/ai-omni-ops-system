@@ -17,6 +17,11 @@ import { FeedbackService } from "../feedback/feedback.service";
 import { OpenClawInstallationService } from "./openclaw-installation.service";
 import { OpenClawLobsterDiaryService } from "./openclaw-lobster-diary.service";
 import { OpenClawDailyPlanService } from "./openclaw-daily-plan.service";
+import {
+  getOpenClawWorkspaceDashboardPath,
+  getOpenClawWorkspaceDisplayName,
+  normalizeOpenClawWorkspaceScope,
+} from "./openclaw-workspace-scope";
 import { OrdersService } from "../orders/orders.service";
 import { PublishingService } from "../publishing/publishing.service";
 import { ReportsService } from "../reports/reports.service";
@@ -1656,10 +1661,11 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
   },
   {
     name: "get_openclaw_lobster_diaries",
-    description: "查看当前品牌 OpenClaw 专区下的龙虾日记列表。",
+    description: "查看当前品牌指定板块下的每日复盘列表。",
     inputSchema: {
       type: "object",
       properties: {
+        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat"], description: "可选：指定板块作用域，默认 brand_growth。" },
         limit: { type: "integer", minimum: 1, maximum: 100 },
       },
       additionalProperties: false,
@@ -1667,10 +1673,11 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
   },
   {
     name: "create_openclaw_lobster_diary",
-    description: "为当前品牌创建一篇龙虾日记，供 OpenClaw 专区查看。",
+    description: "为当前品牌指定板块创建一篇每日复盘。",
     inputSchema: {
       type: "object",
       properties: {
+        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat"], description: "可选：写入哪个板块，默认 brand_growth。" },
         diaryDate: { type: "string", description: "日期，格式为 YYYY-MM-DD。" },
         title: { type: "string", description: "日记标题。" },
         content: { type: "string", description: "日记正文内容。" },
@@ -1681,10 +1688,11 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
   },
   {
     name: "delete_openclaw_lobster_diary",
-    description: "删除一篇每日复盘。",
+    description: "删除指定板块下的一篇每日复盘。",
     inputSchema: {
       type: "object",
       properties: {
+        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat"], description: "可选：删除所在板块，默认 brand_growth。" },
         diaryId: { type: "string", description: "每日复盘 ID。" },
       },
       required: ["diaryId"],
@@ -1693,10 +1701,11 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
   },
   {
     name: "get_openclaw_daily_plans",
-    description: "查看当前品牌 OpenClaw 专区下的每日计划列表。",
+    description: "查看当前品牌指定板块下的每日计划列表。",
     inputSchema: {
       type: "object",
       properties: {
+        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat"], description: "可选：指定板块作用域，默认 brand_growth。" },
         limit: { type: "integer", minimum: 1, maximum: 100 },
       },
       additionalProperties: false,
@@ -1704,10 +1713,11 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
   },
   {
     name: "create_openclaw_daily_plan",
-    description: "为当前品牌创建一篇每日计划，供 OpenClaw 专区查看。",
+    description: "为当前品牌指定板块创建一篇每日计划。",
     inputSchema: {
       type: "object",
       properties: {
+        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat"], description: "可选：写入哪个板块，默认 brand_growth。" },
         planDate: { type: "string", description: "日期，格式为 YYYY-MM-DD。" },
         title: { type: "string", description: "计划标题。" },
         content: { type: "string", description: "计划正文内容。" },
@@ -1718,10 +1728,11 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
   },
   {
     name: "delete_openclaw_daily_plan",
-    description: "删除一篇每日计划。",
+    description: "删除指定板块下的一篇每日计划。",
     inputSchema: {
       type: "object",
       properties: {
+        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat"], description: "可选：删除所在板块，默认 brand_growth。" },
         planId: { type: "string", description: "每日计划 ID。" },
       },
       required: ["planId"],
@@ -6040,21 +6051,24 @@ export class OpenClawService {
   async getOpenClawLobsterDiaries(
     headers: HeadersMap,
     options?: {
+      workspaceScope?: string;
       limit?: number;
     },
   ) {
     const auth = await this.requireAuth(headers);
     const brandId = await this.requireCurrentBrandId(auth);
     await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "view", auth);
-
-    const workspace = await this.openClawLobsterDiaryService.listWorkspace(brandId, options?.limit);
+    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope);
+    const workspaceLabel = getOpenClawWorkspaceDisplayName(workspaceScope);
+    const workspacePath = getOpenClawWorkspaceDashboardPath(workspaceScope);
+    const workspace = await this.openClawLobsterDiaryService.listWorkspace(brandId, workspaceScope, options?.limit);
     const items = workspace.items.slice(0, this.normalizeLimit(options?.limit));
 
     return this.buildSummaryResponse({
-      title: "龙虾日记",
+      title: `${workspaceLabel}每日复盘`,
       summary: workspace.total
-        ? `当前品牌 OpenClaw 专区共有 ${workspace.total} 篇龙虾日记。`
-        : "当前品牌还没有龙虾日记，OpenClaw Agent 可先创建首篇日记。",
+        ? `当前品牌 ${workspaceLabel} 板块共有 ${workspace.total} 篇每日复盘。`
+        : `当前品牌 ${workspaceLabel} 板块还没有每日复盘，OpenClaw Agent 可先创建首篇复盘。`,
       highlights: items.length
         ? items.slice(0, 5).map((item) => `${item.diaryDate}｜${item.title}`)
         : ["日记数：0"],
@@ -6062,7 +6076,7 @@ export class OpenClawService {
         total: workspace.total,
         items,
       },
-      links: [{ label: "打开品牌增长工作台", url: "/brand-growth" }],
+      links: [{ label: `打开${workspaceLabel}工作台`, url: workspacePath }],
       resourceKind: "openclaw_lobster_diary",
     });
   }
@@ -6070,6 +6084,7 @@ export class OpenClawService {
   async createOpenClawLobsterDiary(
     headers: HeadersMap,
     options?: {
+      workspaceScope?: string;
       diaryDate?: string;
       title?: string;
       content?: string;
@@ -6078,9 +6093,13 @@ export class OpenClawService {
     const auth = await this.requireAuth(headers);
     const brandId = await this.requireCurrentBrandId(auth);
     await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "edit", auth);
+    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope);
+    const workspaceLabel = getOpenClawWorkspaceDisplayName(workspaceScope);
+    const workspacePath = getOpenClawWorkspaceDashboardPath(workspaceScope);
 
     const item = await this.openClawLobsterDiaryService.createDiary({
       brandId,
+      workspaceScope,
       createdByUserId: auth.userId,
       diaryDate: options?.diaryDate,
       title: options?.title,
@@ -6088,14 +6107,14 @@ export class OpenClawService {
     });
 
     return this.buildSummaryResponse({
-      title: "龙虾日记已创建",
-      summary: `已创建 ${item.diaryDate} 的龙虾日记《${item.title}》。`,
+      title: `${workspaceLabel}每日复盘已创建`,
+      summary: `已在 ${workspaceLabel} 板块创建 ${item.diaryDate} 的每日复盘《${item.title}》。`,
       highlights: [
         `日期：${item.diaryDate}`,
         `标题：${item.title}`,
       ],
       data: item,
-      links: [{ label: "打开品牌增长工作台", url: "/brand-growth" }],
+      links: [{ label: `打开${workspaceLabel}工作台`, url: workspacePath }],
       resourceKind: "openclaw_lobster_diary",
       resultStatus: "COMPLETED",
     });
@@ -6104,28 +6123,32 @@ export class OpenClawService {
   async deleteOpenClawLobsterDiary(
     headers: HeadersMap,
     options?: {
+      workspaceScope?: string;
       diaryId?: string;
     },
   ) {
     const auth = await this.requireAuth(headers);
     const brandId = await this.requireCurrentBrandId(auth);
     await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "edit", auth);
+    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope);
+    const workspaceLabel = getOpenClawWorkspaceDisplayName(workspaceScope);
+    const workspacePath = getOpenClawWorkspaceDashboardPath(workspaceScope);
     const diaryId = String(options?.diaryId || "").trim();
     if (!diaryId) {
       throw new BadRequestException("请提供 diaryId");
     }
 
-    const item = await this.openClawLobsterDiaryService.deleteDiary(brandId, diaryId);
+    const item = await this.openClawLobsterDiaryService.deleteDiary(brandId, workspaceScope, diaryId);
 
     return this.buildSummaryResponse({
-      title: "每日复盘已删除",
-      summary: `已删除每日复盘《${item.title}》。`,
+      title: `${workspaceLabel}每日复盘已删除`,
+      summary: `已从 ${workspaceLabel} 板块删除每日复盘《${item.title}》。`,
       highlights: [
         `日期：${item.diaryDate}`,
         `复盘 ID：${item.id}`,
       ],
       data: item,
-      links: [{ label: "打开品牌增长工作台", url: "/brand-growth" }],
+      links: [{ label: `打开${workspaceLabel}工作台`, url: workspacePath }],
       resourceKind: "openclaw_lobster_diary",
       resultStatus: "COMPLETED",
     });
@@ -6134,20 +6157,24 @@ export class OpenClawService {
   async getOpenClawDailyPlans(
     headers: HeadersMap,
     options?: {
+      workspaceScope?: string;
       limit?: number;
     },
   ) {
     const auth = await this.requireAuth(headers);
     const brandId = await this.requireCurrentBrandId(auth);
     await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "view", auth);
-    const workspace = await this.openClawDailyPlanService.listWorkspace(brandId, options?.limit);
+    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope);
+    const workspaceLabel = getOpenClawWorkspaceDisplayName(workspaceScope);
+    const workspacePath = getOpenClawWorkspaceDashboardPath(workspaceScope);
+    const workspace = await this.openClawDailyPlanService.listWorkspace(brandId, workspaceScope, options?.limit);
     const items = workspace.items.slice(0, this.normalizeLimit(options?.limit));
 
     return this.buildSummaryResponse({
-      title: "每日计划",
+      title: `${workspaceLabel}每日计划`,
       summary: workspace.total
-        ? `当前品牌 OpenClaw 专区共有 ${workspace.total} 篇每日计划。`
-        : "当前品牌还没有每日计划，OpenClaw Agent 可先创建首篇计划。",
+        ? `当前品牌 ${workspaceLabel} 板块共有 ${workspace.total} 篇每日计划。`
+        : `当前品牌 ${workspaceLabel} 板块还没有每日计划，OpenClaw Agent 可先创建首篇计划。`,
       highlights: items.length
         ? items.slice(0, 5).map((item) => `${item.planDate}｜${item.title}`)
         : ["计划数：0"],
@@ -6155,7 +6182,7 @@ export class OpenClawService {
         total: workspace.total,
         items,
       },
-      links: [{ label: "打开品牌增长工作台", url: "/brand-growth" }],
+      links: [{ label: `打开${workspaceLabel}工作台`, url: workspacePath }],
       resourceKind: "openclaw_daily_plan",
     });
   }
@@ -6163,6 +6190,7 @@ export class OpenClawService {
   async createOpenClawDailyPlan(
     headers: HeadersMap,
     options?: {
+      workspaceScope?: string;
       planDate?: string;
       title?: string;
       content?: string;
@@ -6171,9 +6199,13 @@ export class OpenClawService {
     const auth = await this.requireAuth(headers);
     const brandId = await this.requireCurrentBrandId(auth);
     await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "edit", auth);
+    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope);
+    const workspaceLabel = getOpenClawWorkspaceDisplayName(workspaceScope);
+    const workspacePath = getOpenClawWorkspaceDashboardPath(workspaceScope);
 
     const item = await this.openClawDailyPlanService.createPlan({
       brandId,
+      workspaceScope,
       createdByUserId: auth.userId,
       planDate: options?.planDate,
       title: options?.title,
@@ -6181,14 +6213,14 @@ export class OpenClawService {
     });
 
     return this.buildSummaryResponse({
-      title: "每日计划已创建",
-      summary: `已创建 ${item.planDate} 的每日计划《${item.title}》。`,
+      title: `${workspaceLabel}每日计划已创建`,
+      summary: `已在 ${workspaceLabel} 板块创建 ${item.planDate} 的每日计划《${item.title}》。`,
       highlights: [
         `日期：${item.planDate}`,
         `标题：${item.title}`,
       ],
       data: item,
-      links: [{ label: "打开品牌增长工作台", url: "/brand-growth" }],
+      links: [{ label: `打开${workspaceLabel}工作台`, url: workspacePath }],
       resourceKind: "openclaw_daily_plan",
       resultStatus: "COMPLETED",
     });
@@ -6197,28 +6229,32 @@ export class OpenClawService {
   async deleteOpenClawDailyPlan(
     headers: HeadersMap,
     options?: {
+      workspaceScope?: string;
       planId?: string;
     },
   ) {
     const auth = await this.requireAuth(headers);
     const brandId = await this.requireCurrentBrandId(auth);
     await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "edit", auth);
+    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope);
+    const workspaceLabel = getOpenClawWorkspaceDisplayName(workspaceScope);
+    const workspacePath = getOpenClawWorkspaceDashboardPath(workspaceScope);
     const planId = String(options?.planId || "").trim();
     if (!planId) {
       throw new BadRequestException("请提供 planId");
     }
 
-    const item = await this.openClawDailyPlanService.deletePlan(brandId, planId);
+    const item = await this.openClawDailyPlanService.deletePlan(brandId, workspaceScope, planId);
 
     return this.buildSummaryResponse({
-      title: "每日计划已删除",
-      summary: `已删除每日计划《${item.title}》。`,
+      title: `${workspaceLabel}每日计划已删除`,
+      summary: `已从 ${workspaceLabel} 板块删除每日计划《${item.title}》。`,
       highlights: [
         `日期：${item.planDate}`,
         `计划 ID：${item.id}`,
       ],
       data: item,
-      links: [{ label: "打开品牌增长工作台", url: "/brand-growth" }],
+      links: [{ label: `打开${workspaceLabel}工作台`, url: workspacePath }],
       resourceKind: "openclaw_daily_plan",
       resultStatus: "COMPLETED",
     });
@@ -10157,30 +10193,36 @@ export class OpenClawService {
         });
       case "get_openclaw_lobster_diaries":
         return this.getOpenClawLobsterDiaries(headers, {
+          workspaceScope: typeof toolArgs.workspaceScope === "string" ? toolArgs.workspaceScope : undefined,
           limit: typeof toolArgs.limit === "number" ? toolArgs.limit : undefined,
         });
       case "create_openclaw_lobster_diary":
         return this.createOpenClawLobsterDiary(headers, {
+          workspaceScope: typeof toolArgs.workspaceScope === "string" ? toolArgs.workspaceScope : undefined,
           diaryDate: typeof toolArgs.diaryDate === "string" ? toolArgs.diaryDate : undefined,
           title: typeof toolArgs.title === "string" ? toolArgs.title : undefined,
           content: typeof toolArgs.content === "string" ? toolArgs.content : undefined,
         });
       case "delete_openclaw_lobster_diary":
         return this.deleteOpenClawLobsterDiary(headers, {
+          workspaceScope: typeof toolArgs.workspaceScope === "string" ? toolArgs.workspaceScope : undefined,
           diaryId: typeof toolArgs.diaryId === "string" ? toolArgs.diaryId : undefined,
         });
       case "get_openclaw_daily_plans":
         return this.getOpenClawDailyPlans(headers, {
+          workspaceScope: typeof toolArgs.workspaceScope === "string" ? toolArgs.workspaceScope : undefined,
           limit: typeof toolArgs.limit === "number" ? toolArgs.limit : undefined,
         });
       case "create_openclaw_daily_plan":
         return this.createOpenClawDailyPlan(headers, {
+          workspaceScope: typeof toolArgs.workspaceScope === "string" ? toolArgs.workspaceScope : undefined,
           planDate: typeof toolArgs.planDate === "string" ? toolArgs.planDate : undefined,
           title: typeof toolArgs.title === "string" ? toolArgs.title : undefined,
           content: typeof toolArgs.content === "string" ? toolArgs.content : undefined,
         });
       case "delete_openclaw_daily_plan":
         return this.deleteOpenClawDailyPlan(headers, {
+          workspaceScope: typeof toolArgs.workspaceScope === "string" ? toolArgs.workspaceScope : undefined,
           planId: typeof toolArgs.planId === "string" ? toolArgs.planId : undefined,
         });
       case "get_latest_brand_growth_report_summary":

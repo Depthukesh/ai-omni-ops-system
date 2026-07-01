@@ -15,6 +15,7 @@ export class OpenClawDailyPlanController {
   async listPlans(
     @Headers() headers: HeadersMap,
     @Param("brandId") brandId: string,
+    @Query("workspaceScope") workspaceScope?: string,
     @Query("limit") limit?: string,
   ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
@@ -22,7 +23,7 @@ export class OpenClawDailyPlanController {
       throw new UnauthorizedException("登录态已失效");
     }
     await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "view", auth);
-    return this.openClawDailyPlanService.listWorkspace(brandId, limit ? Number(limit) : undefined);
+    return this.openClawDailyPlanService.listWorkspace(brandId, workspaceScope, limit ? Number(limit) : undefined);
   }
 
   @Post()
@@ -30,6 +31,7 @@ export class OpenClawDailyPlanController {
     @Headers() headers: HeadersMap,
     @Param("brandId") brandId: string,
     @Body() payload?: {
+      workspaceScope?: string;
       planDate?: string;
       title?: string;
       content?: string;
@@ -42,12 +44,13 @@ export class OpenClawDailyPlanController {
     await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "edit", auth);
     const item = await this.openClawDailyPlanService.createPlan({
       brandId,
+      workspaceScope: payload?.workspaceScope,
       createdByUserId: auth.userId,
       planDate: payload?.planDate,
       title: payload?.title,
       content: payload?.content,
     });
-    const workspace = await this.openClawDailyPlanService.listWorkspace(brandId);
+    const workspace = await this.openClawDailyPlanService.listWorkspace(brandId, payload?.workspaceScope);
     return {
       item,
       workspace,
@@ -59,14 +62,15 @@ export class OpenClawDailyPlanController {
     @Headers() headers: HeadersMap,
     @Param("brandId") brandId: string,
     @Param("planId") planId: string,
+    @Query("workspaceScope") workspaceScope?: string,
   ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
     if (!auth) {
       throw new UnauthorizedException("登录态已失效");
     }
     await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "edit", auth);
-    const item = await this.openClawDailyPlanService.deletePlan(brandId, planId);
-    const workspace = await this.openClawDailyPlanService.listWorkspace(brandId);
+    const item = await this.openClawDailyPlanService.deletePlan(brandId, workspaceScope, planId);
+    const workspace = await this.openClawDailyPlanService.listWorkspace(brandId, workspaceScope);
     return {
       item,
       workspace,

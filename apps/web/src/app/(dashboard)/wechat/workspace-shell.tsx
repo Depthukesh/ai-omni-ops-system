@@ -592,8 +592,8 @@ export function WechatWorkspaceShell() {
   async function refreshOpenClawWorkspaces(options?: { showNotice?: boolean }) {
     setErrorMessage("");
     const [dailyPlanResult, diaryResult] = await Promise.allSettled([
-      getOpenClawDailyPlanWorkspace(brandId),
-      getOpenClawLobsterDiaryWorkspace(brandId),
+      getOpenClawDailyPlanWorkspace(brandId, "wechat"),
+      getOpenClawLobsterDiaryWorkspace(brandId, "wechat"),
     ]);
     const failedLabels: string[] = [];
 
@@ -649,8 +649,8 @@ export function WechatWorkspaceShell() {
             getWechatWorkflowSessions(brandId),
             getWechatArticleDrafts(brandId),
             getWechatPublishHistory(brandId),
-            getOpenClawDailyPlanWorkspace(brandId),
-            getOpenClawLobsterDiaryWorkspace(brandId),
+            getOpenClawDailyPlanWorkspace(brandId, "wechat"),
+            getOpenClawLobsterDiaryWorkspace(brandId, "wechat"),
           ]);
 
         if (disposed) {
@@ -1198,7 +1198,7 @@ export function WechatWorkspaceShell() {
     setDeletingOpenClawDailyPlanId(planId);
     setErrorMessage("");
     try {
-      const response = await deleteOpenClawDailyPlan(planId, brandId);
+      const response = await deleteOpenClawDailyPlan(planId, brandId, "wechat");
       setOpenClawDailyPlanWorkspace(response.workspace);
       setNotice("每日计划已删除。");
     } catch (error) {
@@ -1212,7 +1212,7 @@ export function WechatWorkspaceShell() {
     setDeletingOpenClawDiaryId(diaryId);
     setErrorMessage("");
     try {
-      const response = await deleteOpenClawLobsterDiary(diaryId, brandId);
+      const response = await deleteOpenClawLobsterDiary(diaryId, brandId, "wechat");
       setOpenClawLobsterDiaryWorkspace(response.workspace);
       setNotice("每日复盘已删除。");
     } catch (error) {

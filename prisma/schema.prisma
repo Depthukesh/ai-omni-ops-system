@@ -1023,6 +1023,7 @@ model OpenClawInstallToken {
 model OpenClawLobsterDiary {
   id              String   @id
   brandId         String
+  workspaceScope  String   @default("brand_growth")
   createdByUserId String
   diaryDate       String
   title           String   @default("")
@@ -1031,12 +1032,14 @@ model OpenClawLobsterDiary {
   updatedAt       DateTime @updatedAt
 
   @@index([brandId, diaryDate(sort: Desc), createdAt(sort: Desc)], map: "OpenClawLobsterDiary_brand_date_idx")
+  @@index([brandId, workspaceScope, diaryDate(sort: Desc), createdAt(sort: Desc)], map: "OpenClawLobsterDiary_brand_scope_date_idx")
   @@map("OpenClawLobsterDiary")
 }
 
 model OpenClawDailyPlan {
   id              String   @id
   brandId         String
+  workspaceScope  String   @default("brand_growth")
   createdByUserId String
   planDate        String
   title           String   @default("")
@@ -1045,6 +1048,7 @@ model OpenClawDailyPlan {
   updatedAt       DateTime @updatedAt
 
   @@index([brandId, planDate(sort: Desc), createdAt(sort: Desc)], map: "OpenClawDailyPlan_brand_date_idx")
+  @@index([brandId, workspaceScope, planDate(sort: Desc), createdAt(sort: Desc)], map: "OpenClawDailyPlan_brand_scope_date_idx")
   @@map("OpenClawDailyPlan")
 }
 

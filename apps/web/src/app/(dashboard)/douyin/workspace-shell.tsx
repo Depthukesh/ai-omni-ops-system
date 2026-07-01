@@ -833,8 +833,12 @@ export function DouyinWorkspaceShell() {
       canViewSection("videoDirect") ? getDouyinDirectVideoWorks(activeBrandId) : Promise.resolve({ items: [] }),
       canViewSection("videoDirect") ? getDouyinDirectVideoProviders(activeBrandId) : Promise.resolve({ items: [] }),
       canViewSection("digitalHuman") ? getDouyinDigitalHumanVideoWorks(activeBrandId) : Promise.resolve({ items: [] }),
-      canViewSection("openclawDailyPlan") ? getOpenClawDailyPlanWorkspace(activeBrandId) : Promise.resolve({ items: [], total: 0 }),
-      canViewSection("openclawLobsterDiary") ? getOpenClawLobsterDiaryWorkspace(activeBrandId) : Promise.resolve({ items: [], total: 0 }),
+      canViewSection("openclawDailyPlan")
+        ? getOpenClawDailyPlanWorkspace(activeBrandId, "douyin")
+        : Promise.resolve({ items: [], total: 0 }),
+      canViewSection("openclawLobsterDiary")
+        ? getOpenClawLobsterDiaryWorkspace(activeBrandId, "douyin")
+        : Promise.resolve({ items: [], total: 0 }),
       canViewSection("adPreAudit") ? getDouyinAdPreAuditWorks(activeBrandId) : Promise.resolve({ items: [] }),
       canViewSection("adPreAudit")
         ? getDouyinAdPreAuditConfig(activeBrandId)
@@ -3052,7 +3056,7 @@ export function DouyinWorkspaceShell() {
     setErrorMessage("");
     setNotice("");
     try {
-      const response = await deleteOpenClawDailyPlan(planId, activeBrandId);
+      const response = await deleteOpenClawDailyPlan(planId, activeBrandId, "douyin");
       setOpenClawDailyPlanWorkspace(response.workspace);
       setNotice("每日计划已删除。");
     } catch (error) {
@@ -3071,7 +3075,7 @@ export function DouyinWorkspaceShell() {
     setErrorMessage("");
     setNotice("");
     try {
-      const response = await deleteOpenClawLobsterDiary(diaryId, activeBrandId);
+      const response = await deleteOpenClawLobsterDiary(diaryId, activeBrandId, "douyin");
       setOpenClawLobsterDiaryWorkspace(response.workspace);
       setNotice("每日复盘已删除。");
     } catch (error) {

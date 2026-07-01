@@ -1787,8 +1787,8 @@ export function BrandGrowthWorkspace() {
           getXiaohongshuMarketingPlanWorkspace(resolvedActiveBrandId),
           getXiaohongshuMarketingCalendarWorkspace(resolvedActiveBrandId),
           getDouyinHotTopicCandidatesWorkspace(resolvedActiveBrandId),
-          getOpenClawLobsterDiaryWorkspace(resolvedActiveBrandId),
-          getOpenClawDailyPlanWorkspace(resolvedActiveBrandId),
+          getOpenClawLobsterDiaryWorkspace(resolvedActiveBrandId, "brand_growth"),
+          getOpenClawDailyPlanWorkspace(resolvedActiveBrandId, "brand_growth"),
         ]);
 
         if (collectionResult.status === "fulfilled") {
@@ -3201,7 +3201,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     setDeletingOpenClawLobsterDiaryId(diaryId);
     clearMessages();
     try {
-      const response = await deleteOpenClawLobsterDiary(diaryId, activeBrandId || archive.brand.id);
+      const response = await deleteOpenClawLobsterDiary(diaryId, activeBrandId || archive.brand.id, "brand_growth");
       setOpenClawLobsterDiaryWorkspace(response.workspace);
       setNotice("已删除龙虾日记。");
     } catch (error) {
@@ -3224,7 +3224,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     setDeletingOpenClawDailyPlanId(planId);
     clearMessages();
     try {
-      const response = await deleteOpenClawDailyPlan(planId, activeBrandId || archive.brand.id);
+      const response = await deleteOpenClawDailyPlan(planId, activeBrandId || archive.brand.id, "brand_growth");
       setOpenClawDailyPlanWorkspace(response.workspace);
       setNotice("已删除每日计划。");
     } catch (error) {
