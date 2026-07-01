@@ -49,8 +49,15 @@ export function OpenClawLobsterDiaryWorkspace(props: OpenClawLobsterDiaryWorkspa
             当前还没有每日复盘。请由 OpenClaw Agent 创建后再来此查看。
           </div>
         ) : (
-          <div className="table-scroll-shell">
-            <table className="soft-table douyin-data-table">
+          <div className="table-scroll-shell openclaw-record-table-shell">
+            <table className="soft-table openclaw-record-table">
+              <colgroup>
+                <col className="openclaw-record-table__col-date" />
+                <col className="openclaw-record-table__col-title" />
+                <col className="openclaw-record-table__col-content" />
+                <col className="openclaw-record-table__col-created" />
+                <col className="openclaw-record-table__col-actions" />
+              </colgroup>
               <thead>
                 <tr>
                   <th>日期</th>
@@ -64,15 +71,15 @@ export function OpenClawLobsterDiaryWorkspace(props: OpenClawLobsterDiaryWorkspa
                 {sortedItems.map((item) => (
                   <tr key={item.id}>
                     <td>{item.diaryDate || "-"}</td>
-                    <td className="table-cell-wide wechat-mp-title-cell">
-                      <span className="wechat-mp-title-text" title={item.title}>{item.title || "-"}</span>
+                    <td className="openclaw-record-table__text-cell">
+                      <span className="openclaw-record-table__text" title={item.title}>{item.title || "-"}</span>
                     </td>
-                    <td className="table-cell-wide wechat-mp-title-cell">
-                      <span className="wechat-mp-title-text" title={item.content}>{item.content || "-"}</span>
+                    <td className="openclaw-record-table__text-cell">
+                      <span className="openclaw-record-table__text" title={item.content}>{item.content || "-"}</span>
                     </td>
                     <td>{props.formatDateTime(item.createdAt)}</td>
-                    <td>
-                      <div className="strategy-inline-actions">
+                    <td className="openclaw-record-table__action-cell">
+                      <div className="openclaw-record-table__actions">
                         <button type="button" className="secondary-button" onClick={() => setSelectedDiary(item)}>
                           查看
                         </button>

@@ -4684,6 +4684,89 @@ button {
   overflow: hidden;
 }
 
+.openclaw-record-table-shell {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.openclaw-record-table {
+  min-width: 1120px;
+}
+
+.openclaw-record-table__col-date {
+  width: 11%;
+}
+
+.openclaw-record-table__col-title {
+  width: 20%;
+}
+
+.openclaw-record-table__col-content {
+  width: 37%;
+}
+
+.openclaw-record-table__col-created {
+  width: 14%;
+}
+
+.openclaw-record-table__col-actions {
+  width: 190px;
+}
+
+.openclaw-record-table th,
+.openclaw-record-table td {
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  vertical-align: top;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.openclaw-record-table tbody tr {
+  height: 80px;
+  max-height: 80px;
+}
+
+.openclaw-record-table tbody td:not([colspan]) {
+  position: relative;
+  height: 80px;
+  max-height: 80px;
+  overflow: hidden;
+}
+
+.openclaw-record-table__text-cell {
+  min-width: 0;
+}
+
+.openclaw-record-table__text {
+  display: -webkit-box;
+  width: 100%;
+  overflow: hidden;
+  color: var(--site-hero-text);
+  font-size: 12px;
+  line-height: 1.45;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  text-overflow: ellipsis;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.openclaw-record-table__action-cell {
+  overflow: visible !important;
+}
+
+.openclaw-record-table__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+
 .table-cell-wide {
   min-width: 220px;
 }
