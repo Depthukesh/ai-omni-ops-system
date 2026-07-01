@@ -1,27 +1,27 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { type OpenClawLobsterDiaryRecord } from "../../../services/openclaw";
+import { type OpenClawDailyPlanRecord } from "../../../services/openclaw";
 
 type OptionalDateFormatter = (value?: string) => string;
 
-export interface OpenClawLobsterDiaryWorkspaceProps {
+export interface OpenClawDailyPlanWorkspaceProps {
   sectionLabel: string;
   sectionDescription: string;
   isLoading: boolean;
   canDelete: boolean;
-  items: OpenClawLobsterDiaryRecord[];
-  deletingDiaryId?: string;
+  items: OpenClawDailyPlanRecord[];
+  deletingPlanId?: string;
   onRefresh: () => void | Promise<void>;
-  onDelete: (diaryId: string) => void | Promise<void>;
+  onDelete: (planId: string) => void | Promise<void>;
   formatDateTime: OptionalDateFormatter;
 }
 
-export function OpenClawLobsterDiaryWorkspace(props: OpenClawLobsterDiaryWorkspaceProps) {
-  const [selectedDiary, setSelectedDiary] = useState<OpenClawLobsterDiaryRecord | null>(null);
+export function OpenClawDailyPlanWorkspace(props: OpenClawDailyPlanWorkspaceProps) {
+  const [selectedPlan, setSelectedPlan] = useState<OpenClawDailyPlanRecord | null>(null);
 
   const sortedItems = useMemo(
-    () => [...props.items].sort((left, right) => `${right.diaryDate}${right.createdAt}`.localeCompare(`${left.diaryDate}${left.createdAt}`)),
+    () => [...props.items].sort((left, right) => `${right.planDate}${right.createdAt}`.localeCompare(`${left.planDate}${left.createdAt}`)),
     [props.items],
   );
 
@@ -30,8 +30,8 @@ export function OpenClawLobsterDiaryWorkspace(props: OpenClawLobsterDiaryWorkspa
       <article className="workspace-panel strategy-page-card">
         <div className="strategy-card-toolbar">
           <div>
-            <strong>每日复盘列表</strong>
-            <p className="panel-subtext">每条复盘支持只读查看，打开后不可编辑。</p>
+            <strong>每日计划列表</strong>
+            <p className="panel-subtext">每条计划支持只读查看，打开后不可编辑。</p>
           </div>
           <div className="strategy-inline-actions">
             <span className="archive-pill status-ready">仅 OpenClaw 可创建</span>
@@ -46,7 +46,7 @@ export function OpenClawLobsterDiaryWorkspace(props: OpenClawLobsterDiaryWorkspa
 
         {!sortedItems.length ? (
           <div className="note-empty-state">
-            当前还没有龙虾日记。请由 OpenClaw Agent 创建后再来此查看。
+            当前还没有每日计划。请由 OpenClaw Agent 创建后再来此查看。
           </div>
         ) : (
           <div className="table-scroll-shell">
@@ -64,7 +64,7 @@ export function OpenClawLobsterDiaryWorkspace(props: OpenClawLobsterDiaryWorkspa
               <tbody>
                 {sortedItems.map((item) => (
                   <tr key={item.id}>
-                    <td>{item.diaryDate || "-"}</td>
+                    <td>{item.planDate || "-"}</td>
                     <td className="table-cell-wide wechat-mp-title-cell">
                       <span className="wechat-mp-title-text" title={item.title}>{item.title || "-"}</span>
                     </td>
@@ -73,7 +73,7 @@ export function OpenClawLobsterDiaryWorkspace(props: OpenClawLobsterDiaryWorkspa
                     </td>
                     <td>{props.formatDateTime(item.createdAt)}</td>
                     <td>
-                      <button type="button" className="secondary-button" onClick={() => setSelectedDiary(item)}>
+                      <button type="button" className="secondary-button" onClick={() => setSelectedPlan(item)}>
                         查看
                       </button>
                     </td>
@@ -82,9 +82,9 @@ export function OpenClawLobsterDiaryWorkspace(props: OpenClawLobsterDiaryWorkspa
                         type="button"
                         className="note-inline-button"
                         onClick={() => void props.onDelete(item.id)}
-                        disabled={!props.canDelete || props.deletingDiaryId === item.id}
+                        disabled={!props.canDelete || props.deletingPlanId === item.id}
                       >
-                        {props.deletingDiaryId === item.id ? "删除中..." : "删除"}
+                        {props.deletingPlanId === item.id ? "删除中..." : "删除"}
                       </button>
                     </td>
                   </tr>
@@ -95,24 +95,24 @@ export function OpenClawLobsterDiaryWorkspace(props: OpenClawLobsterDiaryWorkspa
         )}
       </article>
 
-      {selectedDiary ? (
-        <div className="openclaw-diary-dialog-backdrop" onClick={() => setSelectedDiary(null)}>
+      {selectedPlan ? (
+        <div className="openclaw-diary-dialog-backdrop" onClick={() => setSelectedPlan(null)}>
           <div className="openclaw-diary-dialog" onClick={(event) => event.stopPropagation()}>
             <div className="openclaw-diary-dialog__head">
               <div>
-                <strong>{selectedDiary.title || "每日复盘"}</strong>
-                <p>{selectedDiary.diaryDate} · 只读查看</p>
+                <strong>{selectedPlan.title || "每日计划"}</strong>
+                <p>{selectedPlan.planDate} · 只读查看</p>
               </div>
-              <button type="button" className="secondary-button" onClick={() => setSelectedDiary(null)}>
+              <button type="button" className="secondary-button" onClick={() => setSelectedPlan(null)}>
                 关闭
               </button>
             </div>
             <div className="openclaw-diary-dialog__meta">
-              <span>创建时间：{props.formatDateTime(selectedDiary.createdAt)}</span>
-              <span>更新时间：{props.formatDateTime(selectedDiary.updatedAt)}</span>
+              <span>创建时间：{props.formatDateTime(selectedPlan.createdAt)}</span>
+              <span>更新时间：{props.formatDateTime(selectedPlan.updatedAt)}</span>
             </div>
             <div className="openclaw-diary-dialog__content">
-              {selectedDiary.content || "暂无内容"}
+              {selectedPlan.content || "暂无内容"}
             </div>
           </div>
         </div>

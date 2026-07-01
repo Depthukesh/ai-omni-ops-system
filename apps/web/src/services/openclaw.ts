@@ -127,3 +127,33 @@ export async function deleteOpenClawLobsterDiary(diaryId: string, brandId: strin
     },
   );
 }
+
+export type OpenClawDailyPlanRecord = {
+  id: string;
+  brandId: string;
+  createdByUserId: string;
+  planDate: string;
+  title: string;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type OpenClawDailyPlanWorkspace = {
+  items: OpenClawDailyPlanRecord[];
+  total: number;
+};
+
+export async function getOpenClawDailyPlanWorkspace(brandId: string, limit?: number) {
+  const query = typeof limit === "number" ? `?limit=${encodeURIComponent(String(limit))}` : "";
+  return request<OpenClawDailyPlanWorkspace>(`/openclaw/brands/${brandId}/daily-plans${query}`);
+}
+
+export async function deleteOpenClawDailyPlan(planId: string, brandId: string) {
+  return request<{ item: OpenClawDailyPlanRecord; workspace: OpenClawDailyPlanWorkspace }>(
+    `/openclaw/brands/${brandId}/daily-plans/${planId}`,
+    {
+      method: "DELETE",
+    },
+  );
+}

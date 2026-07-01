@@ -9,6 +9,8 @@ import { TasksModule } from "../tasks/tasks.module";
 import { UserSkillsModule } from "../user-skills/user-skills.module";
 import { WorksModule } from "../works/works.module";
 import { OpenClawController } from "./openclaw.controller";
+import { OpenClawDailyPlanController } from "./openclaw-daily-plan.controller";
+import { OpenClawDailyPlanService } from "./openclaw-daily-plan.service";
 import { OpenClawInstallationController } from "./openclaw-installation.controller";
 import { OpenClawInstallationService } from "./openclaw-installation.service";
 import { OpenClawLobsterDiaryController } from "./openclaw-lobster-diary.controller";
@@ -19,8 +21,8 @@ import { ThirdPartyPlatformsModule } from "../third-party-platforms/third-party-
 
 @Module({
   imports: [AuthModule, TasksModule, BrandsModule, ReportsModule, UserSkillsModule, WorksModule, CollectorsModule, FeedbackModule, PublishingModule, ThirdPartyPlatformsModule, OrdersModule],
-  controllers: [OpenClawController, OpenClawInstallationController, OpenClawLobsterDiaryController],
-  providers: [OpenClawService, OpenClawInstallationService, OpenClawLobsterDiaryService],
-  exports: [OpenClawService, OpenClawInstallationService, OpenClawLobsterDiaryService],
+  controllers: [OpenClawController, OpenClawInstallationController, OpenClawLobsterDiaryController, OpenClawDailyPlanController],
+  providers: [OpenClawService, OpenClawInstallationService, OpenClawLobsterDiaryService, OpenClawDailyPlanService],
+  exports: [OpenClawService, OpenClawInstallationService, OpenClawLobsterDiaryService, OpenClawDailyPlanService],
 })
 export class OpenClawModule {}

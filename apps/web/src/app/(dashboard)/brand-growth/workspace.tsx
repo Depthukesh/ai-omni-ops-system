@@ -33,6 +33,7 @@ import {
   renderMarkdownToHtml,
 } from "./markdown-render";
 import { OpenClawLobsterDiaryWorkspace } from "./openclaw-lobster-diary-workspace";
+import { OpenClawDailyPlanWorkspace } from "./openclaw-daily-plan-workspace";
 import { OpportunityInsightStepInputModal } from "./opportunity-insight-step-input-modal";
 import { ReportMaterialLibraryWorkspace } from "./report-material-library-workspace";
 import { NoteCreateModalShell } from "../xiaohongshu/note-create-modal-shell";
@@ -162,6 +163,9 @@ import {
   deleteOpenClawLobsterDiary,
   getOpenClawLobsterDiaryWorkspace,
   type OpenClawLobsterDiaryWorkspace as OpenClawLobsterDiaryWorkspaceRecord,
+  deleteOpenClawDailyPlan,
+  getOpenClawDailyPlanWorkspace,
+  type OpenClawDailyPlanWorkspace as OpenClawDailyPlanWorkspaceRecord,
 } from "../../../services/openclaw";
 import {
   getDailyHotspotWorkspace,
@@ -193,6 +197,7 @@ type StrategyPageKey =
   | "xiaohongshuMarketingCalendar"
   | "reportTopicLibrary"
   | "reportMaterialLibrary"
+  | "openclawDailyPlan"
   | "openclawLobsterDiary";
 type BrandGrowthLoadScope = "library" | "collection" | "report";
 type OpportunityInsightStep = 1 | 2 | 3;
@@ -300,7 +305,8 @@ const strategySections: Array<{
     key: "openclaw",
     label: "OpenClaw专区",
     pages: [
-      { key: "openclawLobsterDiary", label: "龙虾日记", description: "展示由 OpenClaw Agent 创建的日记，页面只支持查看与删除。" },
+      { key: "openclawDailyPlan", label: "每日计划", description: "展示由 OpenClaw Agent 创建的每日计划记录，页面只支持查看与删除。" },
+      { key: "openclawLobsterDiary", label: "每日复盘", description: "展示由 OpenClaw Agent 创建的每日复盘记录，页面只支持查看与删除。" },
     ],
   },
 ];
@@ -437,6 +443,13 @@ function createEmptyAnnualMarketingPlanWorkspace(): AnnualMarketingPlanWorkspace
 }
 
 function createEmptyOpenClawLobsterDiaryWorkspace(): OpenClawLobsterDiaryWorkspaceRecord {
+  return {
+    items: [],
+    total: 0,
+  };
+}
+
+function createEmptyOpenClawDailyPlanWorkspace(): OpenClawDailyPlanWorkspaceRecord {
   return {
     items: [],
     total: 0,
@@ -1035,6 +1048,7 @@ export function BrandGrowthWorkspace() {
   const [isSyncingDailyHotspots, setIsSyncingDailyHotspots] = useState(false);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [deletingOpenClawLobsterDiaryId, setDeletingOpenClawLobsterDiaryId] = useState("");
+  const [deletingOpenClawDailyPlanId, setDeletingOpenClawDailyPlanId] = useState("");
   const [isGeneratingOpportunityInsight, setIsGeneratingOpportunityInsight] = useState(false);
   const [isSavingReport, setIsSavingReport] = useState(false);
   const [isGeneratingVisualReport, setIsGeneratingVisualReport] = useState(false);
@@ -1417,6 +1431,7 @@ export function BrandGrowthWorkspace() {
     setMarketingCalendarWorkspace(cachedSnapshot.marketingCalendarWorkspace);
     setDouyinTopicLibraryWorkspace(cachedSnapshot.douyinTopicLibraryWorkspace || douyinHotTopicCandidatesSeed);
     setOpenClawLobsterDiaryWorkspace(cachedSnapshot.openClawLobsterDiaryWorkspace || createEmptyOpenClawLobsterDiaryWorkspace());
+    setOpenClawDailyPlanWorkspace(cachedSnapshot.openClawDailyPlanWorkspace || createEmptyOpenClawDailyPlanWorkspace());
     setLoadedScopes((current) => (current.report ? current : { ...current, report: true }));
   }, []);
 
@@ -1819,7 +1834,13 @@ export function BrandGrowthWorkspace() {
         if (openClawLobsterDiaryResult.status === "fulfilled") {
           setOpenClawLobsterDiaryWorkspace(openClawLobsterDiaryResult.value);
         } else {
-          partialFailures.push("龙虾日记");
+          partialFailures.push("每日复盘");
+        }
+
+        if (openClawDailyPlanResult.status === "fulfilled") {
+          setOpenClawDailyPlanWorkspace(openClawDailyPlanResult.value);
+        } else {
+          partialFailures.push("每日计划");
         }
 
         setLoadedScopes((current) => ({ ...current, report: true }));
@@ -3177,9 +3198,32 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
       setNotice("已删除龙虾日记。");
     } catch (error) {
       const message = error instanceof Error ? error.message : "删除失败";
-      setErrorMessage(`删除龙虾日记失败：${message}`);
+      setErrorMessage(`删除每日复盘失败：${message}`);
     } finally {
       setDeletingOpenClawLobsterDiaryId("");
+    }
+  }
+
+  async function handleDeleteOpenClawDailyPlan(planId: string) {
+    if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.report.topicLibrary"]?.edit) {
+      setErrorMessage("当前账号没有删除每日计划的权限。");
+      return;
+    }
+    if (!planId) {
+      return;
+    }
+
+    setDeletingOpenClawDailyPlanId(planId);
+    clearMessages();
+    try {
+      const response = await deleteOpenClawDailyPlan(planId, activeBrandId || archive.brand.id);
+      setOpenClawDailyPlanWorkspace(response.workspace);
+      setNotice("已删除每日计划。");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "删除失败";
+      setErrorMessage(`删除每日计划失败：${message}`);
+    } finally {
+      setDeletingOpenClawDailyPlanId("");
     }
   }
 
@@ -4172,6 +4216,24 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
           }}
           formatDateTime={formatDateTime}
           formatCount={formatCount}
+        />
+      );
+    }
+
+    if (activePage === "openclawDailyPlan") {
+      return (
+        <OpenClawDailyPlanWorkspace
+          sectionLabel={currentPage.label}
+          sectionDescription={currentPage.description}
+          isLoading={isHydrating}
+          canDelete={hasCurrentPageEditPermission}
+          items={openClawDailyPlanWorkspace.items}
+          deletingPlanId={deletingOpenClawDailyPlanId}
+          onRefresh={async () => {
+            await loadArchive({ targetPage: activePage, force: true });
+          }}
+          onDelete={handleDeleteOpenClawDailyPlan}
+          formatDateTime={formatDateTime}
         />
       );
     }

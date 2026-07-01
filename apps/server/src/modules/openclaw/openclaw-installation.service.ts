@@ -505,6 +505,9 @@ description: AI 全域智能体网站能力总入口 Skill。先识别用户要�
 - \`get_openclaw_lobster_diaries\`
 - \`create_openclaw_lobster_diary\`
 - \`delete_openclaw_lobster_diary\`
+- \`get_openclaw_daily_plans\`
+- \`create_openclaw_daily_plan\`
+- \`delete_openclaw_daily_plan\`
 如果执行计划推荐其他站内 MCP 工具，也应按计划调用。
 
 
@@ -512,7 +515,7 @@ description: AI 全域智能体网站能力总入口 Skill。先识别用户要�
 
 你默认要覆盖这些网站域：
 - \`brand_growth\`：品牌增长工作台、增长报告、可视化报告、半年营销规划、机会洞察
-- \`openclaw\`：OpenClaw专区、龙虾日记、安装中心联动能力
+- \`openclaw\`：OpenClaw专区、每日计划、每日复盘、安装中心联动能力
 - \`brand_archive\` 与 \`brand_assets\`：品牌背景、产品、问卷、账号、竞品、行业资料、业务资产、知识库、飞书绑定
 - \`xiaohongshu\`：小红书采集、图文、视频、营销策划、营销日历
 - \`douyin\`：抖音采集、视频、直接生视频、混剪短视频、数字人、口型驱动、RunningHub、广告预审、营销策划、热点选题
@@ -590,13 +593,16 @@ description: AI 全域智能体网站能力总入口 Skill。先识别用户要�
 
 ### 10. OpenClaw 专区
 
-- 当用户提到 OpenClaw 专区、龙虾日记、安装页、品牌运营助手 Skill 时，优先使用：
+- 当用户提到 OpenClaw 专区、每日计划、每日复盘、安装页、品牌运营助手 Skill 时，优先使用：
+  - \`get_openclaw_daily_plans\`
+  - \`create_openclaw_daily_plan\`
+  - \`delete_openclaw_daily_plan\`
   - \`get_openclaw_lobster_diaries\`
   - \`create_openclaw_lobster_diary\`
   - \`delete_openclaw_lobster_diary\`
   - \`get_website_function_catalog\`
   - \`get_website_function_execution_plan\`
-- 对“龙虾日记”场景要记住：
+- 对"每日计划"和"每日复盘"场景要记住：
   - 页面端用户只能查看和删除
   - 新建由 OpenClaw Agent 发起
   - 输入只需要日期、标题、内容
@@ -667,7 +673,8 @@ description: AI 全域智能体网站能力总入口 Skill。先识别用户要�
 - 帮我看统一素材库里最近新增了哪些小红书、抖音、公众号素材
 - 帮我看公众号采集工作区，并把最近一批文章的阅读量和点赞量更新一下
 - 帮我删除一批采集错误的公众号/小红书/抖音内容
-- 帮我创建一篇龙虾日记，然后再把当前品牌的龙虾日记列表读给我
+- 帮我创建一篇每日计划，然后再把当前品牌的每日计划列表读给我
+- 帮我创建一篇每日复盘，然后再把当前品牌的每日复盘列表读给我
 `;
   }
 

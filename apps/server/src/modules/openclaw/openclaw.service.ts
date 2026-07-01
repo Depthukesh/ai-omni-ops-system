@@ -16,6 +16,7 @@ import {
 import { FeedbackService } from "../feedback/feedback.service";
 import { OpenClawInstallationService } from "./openclaw-installation.service";
 import { OpenClawLobsterDiaryService } from "./openclaw-lobster-diary.service";
+import { OpenClawDailyPlanService } from "./openclaw-daily-plan.service";
 import { OrdersService } from "../orders/orders.service";
 import { PublishingService } from "../publishing/publishing.service";
 import { ReportsService } from "../reports/reports.service";
@@ -375,19 +376,38 @@ const OPENCLAW_WEBSITE_FUNCTION_CATALOG: OpenClawWebsiteFunctionCatalogItem[] = 
     key: "openclaw_lobster_diary",
     domainKey: "openclaw",
     domainName: "OpenClaw 专区",
-    name: "查看并管理龙虾日记",
-    summary: "适合通过 OpenClaw Agent 创建、查看和删除龙虾日记，用户端只能只读查看。",
+    name: "查看并管理每日复盘",
+    summary: "适合通过 OpenClaw Agent 创建、查看和删除每日复盘，用户端只能只读查看。",
     pageUrl: "/brand-growth",
     pageLabel: "打开 OpenClaw 专区",
     riskLevel: "low",
-    intentKeywords: ["龙虾日记", "openclaw", "日记", "专区", "日志", "记录"],
+    intentKeywords: ["每日复盘", "openclaw", "复盘", "专区", "日志", "记录"],
     requiredInputKeys: ["diaryDate", "title", "content"],
     requiredInputs: ["日期", "标题", "正文内容"],
-    recommendedQuestions: ["帮我创建一篇龙虾日记", "帮我看当前品牌有哪些龙虾日记"],
+    recommendedQuestions: ["帮我创建一篇每日复盘", "帮我看当前品牌有哪些每日复盘"],
     mcpTools: [
       "get_openclaw_lobster_diaries",
       "create_openclaw_lobster_diary",
       "delete_openclaw_lobster_diary",
+    ],
+  },
+  {
+    key: "openclaw_daily_plan",
+    domainKey: "openclaw",
+    domainName: "OpenClaw 专区",
+    name: "查看并管理每日计划",
+    summary: "适合通过 OpenClaw Agent 创建、查看和删除每日计划，用户端只能只读查看。",
+    pageUrl: "/brand-growth",
+    pageLabel: "打开 OpenClaw 专区",
+    riskLevel: "low",
+    intentKeywords: ["每日计划", "openclaw", "计划", "专区", "日志", "记录"],
+    requiredInputKeys: ["planDate", "title", "content"],
+    requiredInputs: ["日期", "标题", "正文内容"],
+    recommendedQuestions: ["帮我创建一篇每日计划", "帮我看当前品牌有哪些每日计划"],
+    mcpTools: [
+      "get_openclaw_daily_plans",
+      "create_openclaw_daily_plan",
+      "delete_openclaw_daily_plan",
     ],
   },
   {
@@ -1661,13 +1681,50 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
   },
   {
     name: "delete_openclaw_lobster_diary",
-    description: "删除一篇龙虾日记。",
+    description: "删除一篇每日复盘。",
     inputSchema: {
       type: "object",
       properties: {
-        diaryId: { type: "string", description: "龙虾日记 ID。" },
+        diaryId: { type: "string", description: "每日复盘 ID。" },
       },
       required: ["diaryId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_openclaw_daily_plans",
+    description: "查看当前品牌 OpenClaw 专区下的每日计划列表。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        limit: { type: "integer", minimum: 1, maximum: 100 },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "create_openclaw_daily_plan",
+    description: "为当前品牌创建一篇每日计划，供 OpenClaw 专区查看。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        planDate: { type: "string", description: "日期，格式为 YYYY-MM-DD。" },
+        title: { type: "string", description: "计划标题。" },
+        content: { type: "string", description: "计划正文内容。" },
+      },
+      required: ["planDate", "title", "content"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "delete_openclaw_daily_plan",
+    description: "删除一篇每日计划。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        planId: { type: "string", description: "每日计划 ID。" },
+      },
+      required: ["planId"],
       additionalProperties: false,
     },
   },
@@ -2007,6 +2064,7 @@ export class OpenClawService {
     private readonly worksService: WorksService,
     private readonly openClawInstallationService: OpenClawInstallationService,
     private readonly openClawLobsterDiaryService: OpenClawLobsterDiaryService,
+    private readonly openClawDailyPlanService: OpenClawDailyPlanService,
   ) {}
 
   async getCurrentBrandContext(headers: HeadersMap) {
@@ -6060,15 +6118,108 @@ export class OpenClawService {
     const item = await this.openClawLobsterDiaryService.deleteDiary(brandId, diaryId);
 
     return this.buildSummaryResponse({
-      title: "龙虾日记已删除",
-      summary: `已删除龙虾日记《${item.title}》。`,
+      title: "每日复盘已删除",
+      summary: `已删除每日复盘《${item.title}》。`,
       highlights: [
         `日期：${item.diaryDate}`,
-        `日记 ID：${item.id}`,
+        `复盘 ID：${item.id}`,
       ],
       data: item,
       links: [{ label: "打开品牌增长工作台", url: "/brand-growth" }],
       resourceKind: "openclaw_lobster_diary",
+      resultStatus: "COMPLETED",
+    });
+  }
+
+  async getOpenClawDailyPlans(
+    headers: HeadersMap,
+    options?: {
+      limit?: number;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "view", auth);
+    const workspace = await this.openClawDailyPlanService.listWorkspace(brandId, options?.limit);
+    const items = workspace.items.slice(0, this.normalizeLimit(options?.limit));
+
+    return this.buildSummaryResponse({
+      title: "每日计划",
+      summary: workspace.total
+        ? `当前品牌 OpenClaw 专区共有 ${workspace.total} 篇每日计划。`
+        : "当前品牌还没有每日计划，OpenClaw Agent 可先创建首篇计划。",
+      highlights: items.length
+        ? items.slice(0, 5).map((item) => `${item.planDate}｜${item.title}`)
+        : ["计划数：0"],
+      data: {
+        total: workspace.total,
+        items,
+      },
+      links: [{ label: "打开品牌增长工作台", url: "/brand-growth" }],
+      resourceKind: "openclaw_daily_plan",
+    });
+  }
+
+  async createOpenClawDailyPlan(
+    headers: HeadersMap,
+    options?: {
+      planDate?: string;
+      title?: string;
+      content?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "edit", auth);
+
+    const item = await this.openClawDailyPlanService.createPlan({
+      brandId,
+      createdByUserId: auth.userId,
+      planDate: options?.planDate,
+      title: options?.title,
+      content: options?.content,
+    });
+
+    return this.buildSummaryResponse({
+      title: "每日计划已创建",
+      summary: `已创建 ${item.planDate} 的每日计划《${item.title}》。`,
+      highlights: [
+        `日期：${item.planDate}`,
+        `标题：${item.title}`,
+      ],
+      data: item,
+      links: [{ label: "打开品牌增长工作台", url: "/brand-growth" }],
+      resourceKind: "openclaw_daily_plan",
+      resultStatus: "COMPLETED",
+    });
+  }
+
+  async deleteOpenClawDailyPlan(
+    headers: HeadersMap,
+    options?: {
+      planId?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "edit", auth);
+    const planId = String(options?.planId || "").trim();
+    if (!planId) {
+      throw new BadRequestException("请提供 planId");
+    }
+
+    const item = await this.openClawDailyPlanService.deletePlan(brandId, planId);
+
+    return this.buildSummaryResponse({
+      title: "每日计划已删除",
+      summary: `已删除每日计划《${item.title}》。`,
+      highlights: [
+        `日期：${item.planDate}`,
+        `计划 ID：${item.id}`,
+      ],
+      data: item,
+      links: [{ label: "打开品牌增长工作台", url: "/brand-growth" }],
+      resourceKind: "openclaw_daily_plan",
       resultStatus: "COMPLETED",
     });
   }
@@ -10017,6 +10168,20 @@ export class OpenClawService {
       case "delete_openclaw_lobster_diary":
         return this.deleteOpenClawLobsterDiary(headers, {
           diaryId: typeof toolArgs.diaryId === "string" ? toolArgs.diaryId : undefined,
+        });
+      case "get_openclaw_daily_plans":
+        return this.getOpenClawDailyPlans(headers, {
+          limit: typeof toolArgs.limit === "number" ? toolArgs.limit : undefined,
+        });
+      case "create_openclaw_daily_plan":
+        return this.createOpenClawDailyPlan(headers, {
+          planDate: typeof toolArgs.planDate === "string" ? toolArgs.planDate : undefined,
+          title: typeof toolArgs.title === "string" ? toolArgs.title : undefined,
+          content: typeof toolArgs.content === "string" ? toolArgs.content : undefined,
+        });
+      case "delete_openclaw_daily_plan":
+        return this.deleteOpenClawDailyPlan(headers, {
+          planId: typeof toolArgs.planId === "string" ? toolArgs.planId : undefined,
         });
       case "get_latest_brand_growth_report_summary":
         return this.getLatestBrandGrowthReportSummary(headers);
