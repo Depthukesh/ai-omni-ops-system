@@ -33,6 +33,7 @@ export interface OriginalCreateModalProps {
   imageCountValue: string;
   injectMarketingPlanValue: string;
   additionalInstruction: string;
+  noteTitle: string;
   noteContent: string;
   coverReferenceFile: File | null;
   galleryReferenceFiles: File[];
@@ -50,6 +51,7 @@ export interface OriginalCreateModalProps {
   onImageCountChange: StringChangeHandler;
   onInjectMarketingPlanChange: StringChangeHandler;
   onAdditionalInstructionChange: StringChangeHandler;
+  onNoteTitleChange: StringChangeHandler;
   onNoteContentChange: StringChangeHandler;
   onCoverReferenceFileChange: (file: File | null) => void;
   onGalleryReferenceFilesChange: (files: File[]) => void;
@@ -98,10 +100,12 @@ export function OriginalCreateModal(props: OriginalCreateModalProps) {
         imageCountValue={props.imageCountValue}
         injectMarketingPlanValue={props.injectMarketingPlanValue}
         additionalInstruction={props.additionalInstruction}
+        noteTitle={props.noteTitle}
         noteContent={props.noteContent}
         onImageCountChange={props.onImageCountChange}
         onInjectMarketingPlanChange={props.onInjectMarketingPlanChange}
         onAdditionalInstructionChange={props.onAdditionalInstructionChange}
+        onNoteTitleChange={props.onNoteTitleChange}
         onNoteContentChange={props.onNoteContentChange}
       />
     </NoteCreateModalShell>

@@ -386,6 +386,7 @@ export type GenerateXiaohongshuOriginalNotePayload = {
   imageCount?: number;
   includeMarketingPlan?: boolean;
   additionalInstruction?: string;
+  noteTitle?: string;
   noteContent?: string;
   coverReferenceImage?: UploadFilePayload;
   galleryReferenceImages?: UploadFilePayload[];
@@ -9594,8 +9595,12 @@ export class WorksService {
 
     const calendarWorkspace = await this.reportsService.getXiaohongshuMarketingCalendarWorkspace(brandId);
     const selectedCalendarItem = this.findSelectedCalendarItem(calendarWorkspace.history, payload.calendarItemId);
+    const manualNoteTitle = payload.noteTitle?.trim() || "";
+    const manualNoteContent = payload.noteContent?.trim() || "";
+    const usesManualNoteContent = Boolean(manualNoteContent);
+    const resolvedSourceLabel = selectedCalendarItem?.topicName || payload.customTopicName?.trim() || manualNoteTitle || "自定义选题";
 
-    if (!selectedCalendarItem && !payload.customTopicName?.trim()) {
+    if (!selectedCalendarItem && !payload.customTopicName?.trim() && !usesManualNoteContent) {
       throw new BadRequestException("请选择营销日历选题，或填写自定义选题。");
     }
 
@@ -9618,9 +9623,7 @@ export class WorksService {
     const resolvedAccountRole = this.resolveOriginalAccountRole(payload.accountRole, collaboratorRole);
     const resolvedNoteMode = this.resolveXiaohongshuOriginalNoteMode(payload.noteMode);
     const originalCopyProfile = this.getXiaohongshuOriginalCopyProfile(resolvedNoteMode);
-    const taskTitle = `生成小红书${originalCopyProfile.label}：${selectedCalendarItem?.topicName || payload.customTopicName?.trim() || "自定义选题"}`;
-    const manualNoteContent = payload.noteContent?.trim() || "";
-    const usesManualNoteContent = Boolean(manualNoteContent);
+    const taskTitle = `生成小红书${originalCopyProfile.label}：${resolvedSourceLabel}`;
     const originalCopyPreference = usesManualNoteContent
       ? null
       : await this.loadSkillModelPreference(
@@ -9651,7 +9654,7 @@ export class WorksService {
       await this.ensureTaskNotCancelled(task.id);
       const copyResult = usesManualNoteContent
         ? {
-            title: selectedCalendarItem?.topicName || payload.customTopicName?.trim() || "自定义选题",
+            title: manualNoteTitle || resolvedSourceLabel,
             content: manualNoteContent,
             hashtags: this.extractHashtagsFromContent(manualNoteContent),
             modelName: undefined,
@@ -9778,7 +9781,7 @@ export class WorksService {
         hashtags: copyResult.hashtags,
         calendarItemId: selectedCalendarItem?.id,
         calendarLabel: selectedCalendarItem ? `${selectedCalendarItem.date}｜${selectedCalendarItem.topicName}` : undefined,
-        customTopicName: selectedCalendarItem ? undefined : payload.customTopicName?.trim(),
+        customTopicName: selectedCalendarItem ? undefined : payload.customTopicName?.trim() || manualNoteTitle || undefined,
         productId: selectedProduct?.id,
         productName: selectedProduct?.productName,
         productImageUrl: selectedProduct?.imageUrl || undefined,

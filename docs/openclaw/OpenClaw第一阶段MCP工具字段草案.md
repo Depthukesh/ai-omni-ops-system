@@ -507,6 +507,7 @@
     "imageCount": "optional, 2-10",
     "includeMarketingPlan": "optional, boolean",
     "additionalInstruction": "optional",
+    "noteTitle": "optional, direct note title for the generated original note",
     "noteContent": "optional, direct note body for bypassing original-copy skill",
     "styleHint": "optional, legacy alias of additionalInstruction"
   }

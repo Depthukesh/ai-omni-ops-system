@@ -7,10 +7,12 @@ export interface OriginalCreateTailFieldsProps {
   imageCountValue: string;
   injectMarketingPlanValue: string;
   additionalInstruction: string;
+  noteTitle: string;
   noteContent: string;
   onImageCountChange: StringChangeHandler;
   onInjectMarketingPlanChange: StringChangeHandler;
   onAdditionalInstructionChange: StringChangeHandler;
+  onNoteTitleChange: StringChangeHandler;
   onNoteContentChange: StringChangeHandler;
 }
 
@@ -43,6 +45,15 @@ export function OriginalCreateTailFields(props: OriginalCreateTailFieldsProps) {
           value={props.additionalInstruction}
           onChange={(event) => props.onAdditionalInstructionChange(event.target.value)}
           placeholder="例如：更偏生活方式感、门店场景感更强、语气更克制。"
+        />
+      </label>
+      <label className="field-full">
+        <span>笔记标题</span>
+        <input
+          type="text"
+          value={props.noteTitle}
+          onChange={(event) => props.onNoteTitleChange(event.target.value)}
+          placeholder="可选。填写后会优先作为最终笔记标题使用。"
         />
       </label>
       <label className="field-full">

@@ -64,6 +64,7 @@ export interface OriginalWorkspaceProps {
   imageCountValue: string;
   injectMarketingPlanValue: string;
   additionalInstruction: string;
+  noteTitle: string;
   noteContent: string;
   coverReferenceFile: File | null;
   galleryReferenceFiles: File[];
@@ -94,6 +95,7 @@ export interface OriginalWorkspaceProps {
   onImageCountChange: StringChangeHandler;
   onInjectMarketingPlanChange: StringChangeHandler;
   onAdditionalInstructionChange: StringChangeHandler;
+  onNoteTitleChange: StringChangeHandler;
   onNoteContentChange: StringChangeHandler;
   onCoverReferenceFileChange: (file: File | null) => void;
   onGalleryReferenceFilesChange: (files: File[]) => void;

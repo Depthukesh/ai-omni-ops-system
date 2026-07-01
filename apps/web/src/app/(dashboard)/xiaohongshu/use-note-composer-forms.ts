@@ -31,6 +31,7 @@ export function useNoteComposerForms(options: {
   const [originalImageCountValue, setOriginalImageCountValue] = useState(options.autoImageCountOption);
   const [originalInjectMarketingPlanValue, setOriginalInjectMarketingPlanValue] = useState("yes");
   const [originalAdditionalInstruction, setOriginalAdditionalInstruction] = useState("");
+  const [originalNoteTitle, setOriginalNoteTitle] = useState("");
   const [originalNoteContent, setOriginalNoteContent] = useState("");
   const [coverReferenceFile, setCoverReferenceFile] = useState<File | null>(null);
   const [galleryReferenceFiles, setGalleryReferenceFiles] = useState<File[]>([]);
@@ -95,6 +96,7 @@ export function useNoteComposerForms(options: {
     setOriginalImageCountValue(options.autoImageCountOption);
     setOriginalInjectMarketingPlanValue("yes");
     setOriginalAdditionalInstruction("");
+    setOriginalNoteTitle("");
     setOriginalNoteContent("");
     setCoverReferenceFile(null);
     setGalleryReferenceFiles([]);
@@ -240,6 +242,7 @@ export function useNoteComposerForms(options: {
     originalImageCountValue,
     originalInjectMarketingPlanValue,
     originalAdditionalInstruction,
+    originalNoteTitle,
     originalNoteContent,
     coverReferenceFile,
     galleryReferenceFiles,
@@ -274,6 +277,7 @@ export function useNoteComposerForms(options: {
     setOriginalImageCountValue,
     setOriginalInjectMarketingPlanValue,
     setOriginalAdditionalInstruction,
+    setOriginalNoteTitle,
     setOriginalNoteContent,
     setCoverReferenceFile,
     setGalleryReferenceFiles,

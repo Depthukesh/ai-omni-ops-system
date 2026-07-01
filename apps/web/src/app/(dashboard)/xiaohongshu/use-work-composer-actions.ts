@@ -23,6 +23,7 @@ type OriginalComposerState = {
   imageCountValue: string;
   injectMarketingPlanValue: string;
   additionalInstruction: string;
+  noteTitle: string;
   noteContent: string;
   coverReferenceFile: File | null;
   galleryReferenceFiles: File[];
@@ -98,13 +99,16 @@ export function useWorkComposerActions(options: {
   async function createOriginalWork() {
     const isCustomTopic = options.original.calendarValue === options.customTopicOption;
     const customTopicName = options.original.customTopic.trim();
+    const manualNoteTitle = options.original.noteTitle.trim();
+    const manualNoteContent = options.original.noteContent.trim();
+    const usesManualNoteContent = Boolean(manualNoteContent);
 
-    if (isCustomTopic && !customTopicName) {
+    if (!usesManualNoteContent && isCustomTopic && !customTopicName) {
       options.setErrorMessage("请选择营销日历选题，或填写你自己的选题。");
       return;
     }
 
-    if (!isCustomTopic && !options.original.calendarValue) {
+    if (!usesManualNoteContent && !isCustomTopic && !options.original.calendarValue) {
       options.setErrorMessage("请先选择一个营销日历选题。");
       return;
     }
@@ -126,7 +130,8 @@ export function useWorkComposerActions(options: {
             : Number(options.original.imageCountValue),
         includeMarketingPlan: options.original.injectMarketingPlanValue === "yes",
         additionalInstruction: options.original.additionalInstruction.trim() || undefined,
-        noteContent: options.original.noteContent.trim() || undefined,
+        noteTitle: manualNoteTitle || undefined,
+        noteContent: manualNoteContent || undefined,
         coverReferenceFile: options.original.coverReferenceFile,
         galleryReferenceFiles: options.original.galleryReferenceFiles,
       });

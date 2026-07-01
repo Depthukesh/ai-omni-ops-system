@@ -747,6 +747,7 @@ export class OpenClawController {
       imageCount?: number;
       includeMarketingPlan?: boolean;
       additionalInstruction?: string;
+      noteTitle?: string;
       noteContent?: string;
       styleHint?: string;
     },

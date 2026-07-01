@@ -815,6 +815,7 @@ export type GenerateXiaohongshuOriginalNoteForm = {
   imageCount?: number;
   includeMarketingPlan?: boolean;
   additionalInstruction?: string;
+  noteTitle?: string;
   noteContent?: string;
   coverReferenceFile?: File | null;
   galleryReferenceFiles?: File[];
@@ -1098,6 +1099,7 @@ export async function generateXiaohongshuOriginalWork(brandId: string, form: Gen
     imageCount: form.imageCount,
     includeMarketingPlan: form.includeMarketingPlan,
     additionalInstruction: form.additionalInstruction,
+    noteTitle: form.noteTitle,
     noteContent: form.noteContent,
     coverReferenceImage,
     galleryReferenceImages,

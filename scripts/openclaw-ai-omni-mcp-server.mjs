@@ -148,6 +148,7 @@ const TOOL_DEFINITIONS = [
         imageCount: { type: "integer", minimum: 2, maximum: 10 },
         includeMarketingPlan: { type: "boolean" },
         additionalInstruction: { type: "string" },
+        noteTitle: { type: "string" },
         noteContent: { type: "string" },
         styleHint: { type: "string" },
       },

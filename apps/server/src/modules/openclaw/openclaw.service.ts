@@ -1769,6 +1769,7 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
         imageCount: { type: "integer", minimum: 2, maximum: 10 },
         includeMarketingPlan: { type: "boolean" },
         additionalInstruction: { type: "string", description: "补充创作要求。" },
+        noteTitle: { type: "string", description: "可选。直接指定原创笔记标题。" },
         noteContent: { type: "string", description: "可选。直接提供原创笔记正文；有值时会跳过原创文案技能，直接进入配图提示词与图片生成链路。" },
         styleHint: { type: "string", description: "兼容旧写法，等同于 additionalInstruction。" },
       },
@@ -6562,6 +6563,7 @@ export class OpenClawService {
       imageCount?: number;
       includeMarketingPlan?: boolean;
       additionalInstruction?: string;
+      noteTitle?: string;
       noteContent?: string;
       styleHint?: string;
       productId?: string;
@@ -6575,7 +6577,9 @@ export class OpenClawService {
       brandId,
       {
         calendarItemId: String(options?.calendarItemId || "").trim() || undefined,
-        customTopicName: String(options?.customTopicName || options?.topic || "").trim() || "品牌内容创作",
+        customTopicName:
+          String(options?.customTopicName || options?.topic || "").trim()
+          || (options?.noteContent ? String(options?.noteTitle || "").trim() || undefined : "品牌内容创作"),
         productId: options?.productId,
         accountRole: this.normalizeOriginalAccountRole(options?.accountRole),
         imageCount: this.normalizeImageCount(options?.imageCount),
@@ -6583,6 +6587,7 @@ export class OpenClawService {
           options?.additionalInstruction || options?.styleHint,
           "小红书原创补充要求",
         ) || undefined,
+        noteTitle: String(options?.noteTitle || "").trim() || undefined,
         noteContent: String(options?.noteContent || "").trim() || undefined,
         includeMarketingPlan: typeof options?.includeMarketingPlan === "boolean" ? options.includeMarketingPlan : false,
       },
@@ -6596,12 +6601,13 @@ export class OpenClawService {
       highlights: [
         options?.calendarItemId
           ? `营销日历选题：${options.calendarItemId}`
-          : `自定义选题：${String(options?.customTopicName || options?.topic || "").trim() || "品牌内容创作"}`,
+          : `自定义选题：${String(options?.customTopicName || options?.topic || "").trim() || String(options?.noteTitle || "").trim() || "品牌内容创作"}`,
         options?.productId ? `产品：${options.productId}` : "产品：未指定",
         options?.accountRole ? `账号人设：${options.accountRole}` : "账号人设：系统默认",
         options?.additionalInstruction || options?.styleHint
           ? `补充要求：${String(options?.additionalInstruction || options?.styleHint || "").trim()}`
           : "补充要求：使用系统默认策略",
+        options?.noteTitle ? `笔记标题：${String(options.noteTitle).trim()}` : "笔记标题：未指定",
         options?.noteContent
           ? "正文来源：使用外部直写内容，跳过原创文案技能"
           : "正文来源：使用原创文案技能生成",
@@ -10276,6 +10282,7 @@ export class OpenClawService {
           imageCount: typeof toolArgs.imageCount === "number" ? toolArgs.imageCount : undefined,
           includeMarketingPlan: typeof toolArgs.includeMarketingPlan === "boolean" ? toolArgs.includeMarketingPlan : undefined,
           additionalInstruction: typeof toolArgs.additionalInstruction === "string" ? toolArgs.additionalInstruction : undefined,
+          noteTitle: typeof toolArgs.noteTitle === "string" ? toolArgs.noteTitle : undefined,
           noteContent: typeof toolArgs.noteContent === "string" ? toolArgs.noteContent : undefined,
           styleHint: typeof toolArgs.styleHint === "string" ? toolArgs.styleHint : undefined,
           productId: typeof toolArgs.productId === "string" ? toolArgs.productId : undefined,
