@@ -645,6 +645,7 @@ type ReportScopeSnapshot = {
   marketingCalendarWorkspace: XiaohongshuMarketingCalendarWorkspace;
   douyinTopicLibraryWorkspace: DouyinHotTopicCandidatesWorkspace;
   openClawLobsterDiaryWorkspace: OpenClawLobsterDiaryWorkspaceRecord;
+  openClawDailyPlanWorkspace: OpenClawDailyPlanWorkspaceRecord;
 };
 
 function buildReportScopeSnapshotKey(brandId: string) {
@@ -1001,6 +1002,8 @@ export function BrandGrowthWorkspace() {
     useState<DouyinHotTopicCandidatesWorkspace>(douyinHotTopicCandidatesSeed);
   const [openClawLobsterDiaryWorkspace, setOpenClawLobsterDiaryWorkspace] =
     useState<OpenClawLobsterDiaryWorkspaceRecord>(createEmptyOpenClawLobsterDiaryWorkspace);
+  const [openClawDailyPlanWorkspace, setOpenClawDailyPlanWorkspace] =
+    useState<OpenClawDailyPlanWorkspaceRecord>(createEmptyOpenClawDailyPlanWorkspace);
   const [feishuBinding, setFeishuBinding] = useState<FeishuBindingRecord | null>(null);
   const [feishuAppConfig, setFeishuAppConfig] = useState<FeishuAppConfigRecord | null>(null);
   const [feishuAuthStatus, setFeishuAuthStatus] = useState<FeishuAuthStatusRecord | null>(null);
@@ -1615,6 +1618,7 @@ export function BrandGrowthWorkspace() {
       marketingCalendarWorkspace,
       douyinTopicLibraryWorkspace,
       openClawLobsterDiaryWorkspace,
+      openClawDailyPlanWorkspace,
     });
   }, [
     activeBrandId,
@@ -1628,6 +1632,7 @@ export function BrandGrowthWorkspace() {
     xiaohongshuMarketingPlanWorkspace,
     douyinTopicLibraryWorkspace,
     openClawLobsterDiaryWorkspace,
+    openClawDailyPlanWorkspace,
   ]);
 
   async function loadArchive(options?: { targetPage?: StrategyPageKey; force?: boolean }) {
@@ -1772,6 +1777,7 @@ export function BrandGrowthWorkspace() {
           marketingCalendarResult,
           douyinTopicLibraryResult,
           openClawLobsterDiaryResult,
+          openClawDailyPlanResult,
         ] = await Promise.allSettled([
           getXiaohongshuCollectionWorkspace(resolvedActiveBrandId),
           getGrowthReportWorkspace(resolvedActiveBrandId),
@@ -1782,6 +1788,7 @@ export function BrandGrowthWorkspace() {
           getXiaohongshuMarketingCalendarWorkspace(resolvedActiveBrandId),
           getDouyinHotTopicCandidatesWorkspace(resolvedActiveBrandId),
           getOpenClawLobsterDiaryWorkspace(resolvedActiveBrandId),
+          getOpenClawDailyPlanWorkspace(resolvedActiveBrandId),
         ]);
 
         if (collectionResult.status === "fulfilled") {
