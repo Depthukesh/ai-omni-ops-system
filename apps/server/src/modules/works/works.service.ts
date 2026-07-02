@@ -9586,18 +9586,21 @@ export class WorksService {
     collaboratorRole: "ADMIN" | "STAFF" | "TALENT" = "ADMIN",
   ) {
     const archive = await this.brandsService.getArchive(brandId);
-    const includeMarketingPlan = payload.includeMarketingPlan !== false;
-    const marketingPlanWorkspace = await this.reportsService.getXiaohongshuMarketingPlanWorkspace(brandId);
-    const latestMarketingPlan = marketingPlanWorkspace.latest;
-    if (includeMarketingPlan && !latestMarketingPlan) {
-      throw new BadRequestException("请先生成小红书营销策划方案，再创作原创笔记。");
-    }
-
     const calendarWorkspace = await this.reportsService.getXiaohongshuMarketingCalendarWorkspace(brandId);
     const selectedCalendarItem = this.findSelectedCalendarItem(calendarWorkspace.history, payload.calendarItemId);
     const manualNoteTitle = payload.noteTitle?.trim() || "";
     const manualNoteContent = payload.noteContent?.trim() || "";
     const usesManualNoteContent = Boolean(manualNoteContent);
+    const hasTopicContext = Boolean(selectedCalendarItem || payload.customTopicName?.trim());
+    const includeMarketingPlan = payload.includeMarketingPlan !== false;
+    const effectiveIncludeMarketingPlan = usesManualNoteContent && !hasTopicContext ? false : includeMarketingPlan;
+    const marketingPlanWorkspace = effectiveIncludeMarketingPlan
+      ? await this.reportsService.getXiaohongshuMarketingPlanWorkspace(brandId)
+      : { latest: null };
+    const latestMarketingPlan = marketingPlanWorkspace.latest;
+    if (effectiveIncludeMarketingPlan && !latestMarketingPlan) {
+      throw new BadRequestException("请先生成小红书营销策划方案，再创作原创笔记。");
+    }
     const resolvedSourceLabel = selectedCalendarItem?.topicName || payload.customTopicName?.trim() || manualNoteTitle || "自定义选题";
 
     if (!selectedCalendarItem && !payload.customTopicName?.trim() && !usesManualNoteContent) {
@@ -9640,7 +9643,7 @@ export class WorksService {
       taskTitle,
       modelName: originalCopyProviders[0]?.models[0] || originalCopyPreference?.preferredModelName,
     });
-    const originalMarketingPlanMarkdown = includeMarketingPlan ? latestMarketingPlan?.reportMarkdown || "" : "";
+    const originalMarketingPlanMarkdown = effectiveIncludeMarketingPlan ? latestMarketingPlan?.reportMarkdown || "" : "";
 
     try {
       await this.markTaskRunning(task.id);
@@ -9669,7 +9672,7 @@ export class WorksService {
               selectedCalendarItem,
               customTopicName: payload.customTopicName?.trim(),
               product: normalizedProduct,
-              includeMarketingPlan,
+              includeMarketingPlan: effectiveIncludeMarketingPlan,
               additionalInstruction: payload.additionalInstruction?.trim(),
             });
           })();
@@ -9687,7 +9690,7 @@ export class WorksService {
         selectedCalendarItem,
         customTopicName: payload.customTopicName?.trim(),
         product: normalizedProduct,
-        includeMarketingPlan,
+        includeMarketingPlan: effectiveIncludeMarketingPlan,
         additionalInstruction: payload.additionalInstruction?.trim(),
         imageCount: payload.imageCount,
         noteTitle: copyResult.title,
@@ -9785,7 +9788,7 @@ export class WorksService {
         productId: selectedProduct?.id,
         productName: selectedProduct?.productName,
         productImageUrl: selectedProduct?.imageUrl || undefined,
-        includeMarketingPlan,
+        includeMarketingPlan: effectiveIncludeMarketingPlan,
         imageCount: payload.imageCount,
         additionalInstruction: payload.additionalInstruction?.trim() || undefined,
         coverImageUrl: coverImage.url,
@@ -12134,6 +12137,9 @@ export class WorksService {
       params.includeMarketingPlan === false
         ? "本次明确要求不要植入营销策划方案；你只能基于营销日历选题、产品资料、原创正文、参考图风格和用户要求生成画面，不要吸收营销策划方案中的产品矩阵、卖点清单、价格、门店、促销或投放表达。"
         : "本次允许有限参考营销策划方案，但只能吸收品牌调性、人群洞察、情绪目标、内容结构和场景方向，不要把产品卖点表、价格、门店、促销和投放表达直接翻译成画面文案或主视觉。",
+      params.noteContent
+        ? "如果运行时已经直接提供 noteTitle / noteContent，它们就是本次画面主题的最高优先级事实来源。营销规划、选题、产品和知识库内容只能补充视觉风格与表达方式，绝不能替换、篡改或转移正文里的核心主题、行业、人物、事件与场景。若这些上下文与正文冲突，必须以正文为准。"
+        : "",
       params.imageCount
         ? `请严格生成 ${params.imageCount} 张图的提示词，其中第一张为封面，其余 ${Math.max(params.imageCount - 1, 0)} 张为配图。`
         : "图片张数可自由发挥，但至少返回 1 条封面提示词和 2 条配图提示词。",
@@ -12196,9 +12202,15 @@ export class WorksService {
                 attemptTrail.push(`${attemptLabel} -> 封面提示词为空`);
                 continue;
               }
+              const fallbackImagePrompts = this.buildFallbackOriginalGalleryPrompts({
+                noteTitle: params.noteTitle,
+                noteContent: params.noteContent,
+                imageCount: params.imageCount,
+                coverPrompt,
+              });
               const normalizedImagePrompts = params.imageCount
-                ? this.normalizeFixedImagePromptCount(imagePrompts, coverPrompt, params.imageCount)
-                : (imagePrompts.length ? imagePrompts : this.normalizeFixedImagePromptCount([], coverPrompt, 3));
+                ? this.normalizeFixedImagePromptCount(imagePrompts, coverPrompt, params.imageCount, fallbackImagePrompts)
+                : (imagePrompts.length ? imagePrompts : this.normalizeFixedImagePromptCount([], coverPrompt, 3, fallbackImagePrompts));
               return {
                 coverText: textPlan.coverText,
                 imageTexts: this.normalizeImageTextEntries(textPlan.imageTexts, textPlan.imageTexts, normalizedImagePrompts.length),
@@ -27617,16 +27629,51 @@ export class WorksService {
     return /任务执行失败|任务失败|task execution failed|task failed|authenticationerror|unauthorized|invalid header value/i.test(normalized);
   }
 
-  private normalizeFixedImagePromptCount(imagePrompts: string[], coverPrompt: string, imageCount: number) {
+  private normalizeFixedImagePromptCount(
+    imagePrompts: string[],
+    coverPrompt: string,
+    imageCount: number,
+    fallbackImagePrompts: string[] = [],
+  ) {
     const targetGalleryCount = Math.max(imageCount - 1, 0);
     if (!targetGalleryCount) {
       return [];
     }
     const next = [...imagePrompts];
     while (next.length < targetGalleryCount) {
-      next.push(`${coverPrompt}，并调整为第${next.length + 2}张配图的不同场景角度`);
+      const fallbackPrompt = fallbackImagePrompts[next.length];
+      next.push(fallbackPrompt || `${coverPrompt}，并调整为第${next.length + 2}张配图的不同场景角度`);
     }
     return next.slice(0, targetGalleryCount);
+  }
+
+  private buildFallbackOriginalGalleryPrompts(params: {
+    noteTitle: string;
+    noteContent: string;
+    imageCount?: number;
+    coverPrompt: string;
+  }) {
+    const paragraphs = params.noteContent
+      .split(/\n+/)
+      .map((item) => item.replace(/#[^\s#]+/g, "").replace(/\s+/g, " ").trim())
+      .filter(Boolean);
+    const targetGalleryCount = params.imageCount !== undefined
+      ? Math.max(params.imageCount - 1, 0)
+      : Math.max(paragraphs.length, 2);
+    return Array.from({ length: targetGalleryCount }, (_, index) => {
+      const paragraph = paragraphs[index] || paragraphs[index % Math.max(paragraphs.length, 1)] || params.noteTitle;
+      const paragraphSummary = this.truncateText(paragraph, 120);
+      return [
+        `延续封面图的整体风格与版式完成度，生成适合小红书第${index + 2}张内页的竖版社媒成品图。`,
+        params.noteTitle ? `本组图文总标题为：${params.noteTitle}。` : "",
+        paragraphSummary ? `这一张图必须聚焦正文中的这部分信息：${paragraphSummary}。` : "",
+        "画面主体、行业语义、人物关系、场景元素必须与这段正文保持一致，不要改写成其他行业、其他产品或无关营销主题。",
+        "禁止引入与正文无关的食品、美妆、护肤、零售门店、促销海报、招聘广告或其他跑题元素，除非正文明确提到。",
+        "必须输出带清晰中文排版的小红书内页成品图，信息聚焦单一，不要把封面文案原样复用为所有内页。",
+      ]
+        .filter(Boolean)
+        .join("");
+    });
   }
 
   private extractHashtagsFromContent(content: string) {
