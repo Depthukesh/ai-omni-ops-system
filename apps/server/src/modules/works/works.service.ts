@@ -1591,7 +1591,7 @@ const wechatWorkflowPreferenceMockStore: WechatWorkflowPreferenceStoreItem[] = [
     defaultThemeColor: "#25554a",
     commentMode: "open",
     fanCommentsOnly: false,
-    defaultInputType: "calendar",
+    defaultInputType: "html",
     defaultAccountId: "wechat_account_demo_001",
     updatedAt: "2026-06-05T10:00:00.000Z",
   },
@@ -1678,7 +1678,7 @@ const wechatWorkflowSessionMockStore: WechatWorkflowSessionStoreItem[] = [
     accountName: "淘货猫公众号",
     status: "ARTICLE_PENDING",
     currentStep: "article",
-    inputType: "calendar",
+    inputType: "html",
     title: "会员日内容排期：公众号文章策划草稿",
     summary: "围绕会员日节点输出一篇可继续编辑的公众号文章草稿。",
     author: "品牌内容中心",
@@ -6741,7 +6741,7 @@ export class WorksService {
           String(payload.defaultThemeColor || "").trim() || existing?.defaultThemeColor || config?.defaultThemeColor || "#25554a",
         commentMode: payload.commentMode || existing?.commentMode || config?.commentMode || "open",
         fanCommentsOnly: payload.fanCommentsOnly ?? existing?.fanCommentsOnly ?? false,
-        defaultInputType: payload.defaultInputType || existing?.defaultInputType || "calendar",
+        defaultInputType: payload.defaultInputType || existing?.defaultInputType || "html",
         defaultAccountId: normalizedDefaultAccountId,
         updatedAt: new Date().toISOString(),
       };
@@ -6763,7 +6763,7 @@ export class WorksService {
         String(payload.defaultThemeColor || "").trim() || existing?.defaultThemeColor || config?.defaultThemeColor || "#25554a",
       commentMode: payload.commentMode || existing?.commentMode || config?.commentMode || "open",
       fanCommentsOnly: payload.fanCommentsOnly ?? existing?.fanCommentsOnly ?? false,
-      defaultInputType: payload.defaultInputType || existing?.defaultInputType || "calendar",
+      defaultInputType: payload.defaultInputType || existing?.defaultInputType || "html",
       defaultAccountId: normalizedDefaultAccountId,
       updatedAt: now,
     };
@@ -7042,6 +7042,20 @@ export class WorksService {
       accounts[0];
     const title = String(payload.title || "").trim() || this.buildWechatWorkflowDefaultTitle(payload.selectedMarketingLabels);
     const content = String(payload.content || "").trim() || "请输入创作意图、资料来源或 Markdown / HTML 内容。";
+    const fallbackInputType = preferences?.defaultInputType === "plain-text"
+      || preferences?.defaultInputType === "markdown"
+      || preferences?.defaultInputType === "html"
+      ? preferences.defaultInputType
+      : "html";
+    const hasProvidedInputType = Boolean(String(payload.inputType || "").trim());
+    const hasProvidedContent = Boolean(String(payload.content || "").trim());
+    const inputType = hasProvidedInputType || hasProvidedContent
+      ? this.wechatWorkflowCanonicalService.inferInputType({
+        inputType: payload.inputType,
+        content,
+        fallback: fallbackInputType,
+      })
+      : fallbackInputType;
     const now = new Date().toISOString();
     const record: WechatWorkflowSessionStoreItem = {
       id: createId("wechat_workflow"),
@@ -7050,7 +7064,7 @@ export class WorksService {
       accountName: selectedAccount?.accountName,
       status: "INPUT_PENDING",
       currentStep: "input",
-      inputType: payload.inputType || preferences?.defaultInputType || "calendar",
+      inputType,
       inputContent: content,
       title,
       summary: "",
@@ -7084,11 +7098,25 @@ export class WorksService {
       accounts.find((item) => item.id === String(payload.accountId || "").trim()) ||
       accounts.find((item) => item.id === target.accountId) ||
       accounts[0];
+    const nextInputContent = String(payload.content || "").trim() || target.inputContent || target.content;
+    const fallbackInputType = target.inputType === "plain-text"
+      || target.inputType === "markdown"
+      || target.inputType === "html"
+      ? target.inputType
+      : "html";
+    const hasProvidedInputType = Boolean(String(payload.inputType || "").trim());
+    const hasProvidedContent = Boolean(String(payload.content || "").trim());
     target.accountId = selectedAccount?.id;
     target.accountName = selectedAccount?.accountName;
-    target.inputType = payload.inputType || target.inputType;
+    target.inputType = hasProvidedInputType || hasProvidedContent
+      ? this.wechatWorkflowCanonicalService.inferInputType({
+        inputType: payload.inputType,
+        content: nextInputContent,
+        fallback: fallbackInputType,
+      })
+      : fallbackInputType;
     target.title = String(payload.title || "").trim() || target.title;
-    target.inputContent = String(payload.content || "").trim() || target.inputContent || target.content;
+    target.inputContent = nextInputContent;
     target.themeColor = String(payload.themeColor || "").trim() || target.themeColor;
     target.imageMode = payload.imageMode || target.imageMode;
     target.bodyImageSize = payload.bodyImageSize ? this.normalizeWechatBodyImageSizeValue(payload.bodyImageSize) : target.bodyImageSize;
@@ -7212,10 +7240,23 @@ export class WorksService {
 
   async updateWechatWorkflowArticle(brandId: string, workflowId: string, payload: UpdateWechatWorkflowArticlePayload) {
     const target = await this.loadWechatWorkflowSessionStoreItem(brandId, workflowId);
+    const nextContent = String(payload.content || "").trim() || target.content;
+    const fallbackInputType = target.inputType === "plain-text"
+      || target.inputType === "markdown"
+      || target.inputType === "html"
+      ? target.inputType
+      : "html";
+    const hasProvidedContent = Boolean(String(payload.content || "").trim());
     target.title = String(payload.title || "").trim() || target.title;
     target.summary = String(payload.summary || "").trim() || target.summary || this.buildWechatWorkflowSummary(target);
     target.author = String(payload.author || "").trim() || target.author;
-    target.content = String(payload.content || "").trim() || target.content;
+    target.content = nextContent;
+    target.inputType = hasProvidedContent
+      ? this.wechatWorkflowCanonicalService.inferInputType({
+        content: nextContent,
+        fallback: fallbackInputType,
+      })
+      : fallbackInputType;
     target.articleCanonical = this.wechatWorkflowCanonicalService.buildArticleCanonical({
       content: target.content,
       inputType: target.inputType,
@@ -14270,7 +14311,7 @@ export class WorksService {
         "defaultThemeColor" TEXT NOT NULL DEFAULT '#25554a',
         "commentMode" TEXT NOT NULL DEFAULT 'open',
         "fanCommentsOnly" BOOLEAN NOT NULL DEFAULT FALSE,
-        "defaultInputType" TEXT NOT NULL DEFAULT 'calendar',
+        "defaultInputType" TEXT NOT NULL DEFAULT 'html',
         "defaultAccountId" TEXT NULL,
         "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
@@ -14971,7 +15012,7 @@ export class WorksService {
       defaultThemeColor: item?.defaultThemeColor || config?.defaultThemeColor || "#25554a",
       commentMode: item?.commentMode || config?.commentMode || "open",
       fanCommentsOnly: item?.fanCommentsOnly ?? false,
-      defaultInputType: item?.defaultInputType || "calendar",
+      defaultInputType: item?.defaultInputType || "html",
       defaultAccountId: item?.defaultAccountId || defaultAccount?.id,
       updatedAt: item?.updatedAt || config?.updatedAt || new Date().toISOString(),
     };
@@ -15252,7 +15293,7 @@ export class WorksService {
 
   private normalizeWechatInputTypeValue(value: unknown): WechatWorkflowInputType {
     const normalized = String(value || "").trim();
-    return normalized === "plain-text" || normalized === "markdown" || normalized === "html" ? normalized : "calendar";
+    return normalized === "plain-text" || normalized === "markdown" || normalized === "html" ? normalized : "html";
   }
 
   private normalizeWechatWorkflowStepValue(value: unknown): WechatWorkflowStep {
@@ -16742,14 +16783,16 @@ export class WorksService {
       "请严格只输出 JSON 对象，不要输出 Markdown 代码块或额外解释。",
       "JSON 结构固定为：",
       "{",
-      '  "htmlContent": "<!DOCTYPE html>..."',
+      '  "htmlContent": "<section>...</section>"',
       "}",
       "input.articleCanonical 是系统整理后的正文单一事实源，包含 blocks / headings / plainText；渲染正文结构时优先依据它，而不是自行重写文章。",
-      "htmlContent 必须是结构完整的公众号 HTML 文档，包含标题区、摘要区、正文区，并把封面图和正文配图自然植入对应位置。",
+      "htmlContent 必须是可直接发布到公众号正文字段的 HTML 片段，只输出正文内部结构，不要包含 <!DOCTYPE html>、<html>、<head>、<body>、<main> 等外围壳。",
+      "htmlContent 必须包含标题区、摘要区、正文区，并把封面图和正文配图自然植入对应位置。",
       "必须完整保留 input.content 中的正文全文，禁止删节、概括、提炼成提纲或只保留部分段落。",
       "htmlContent 必须输出单行 HTML 字符串，禁止在 JSON 字符串里直接输出原始换行。",
       "htmlContent 内部所有 HTML 属性统一使用单引号，不要使用双引号，避免破坏 JSON。",
       "如果输入里已经给出 coverImageUrl 和 bodyImageUrls，就直接把这些真实图片 URL 写入 HTML，不要再使用空 src 占位。",
+      "禁止输出 Markdown 源格式，不要保留 #、##、|---|、- 列表、``` 代码块 等 Markdown 标记。",
       "禁止在文末追加营销日历资料、产品资料、品牌资料、原文链接、创作来源、素材说明或附录说明。",
       "请依据输入中的文章内容完成排版，输出对应的公众号 HTML。",
     ].join("\n");
@@ -16806,10 +16849,6 @@ export class WorksService {
               }
               const rawHtmlContent = this.parseWechatHtmlModelResponse(responseText);
               const htmlContent = this.normalizeWechatGeneratedHtmlDocument({
-                title: params.title,
-                author: params.author,
-                summary: params.summary,
-                themeColor: params.themeColor,
                 htmlContent: rawHtmlContent,
               });
               const coverage = this.wechatWorkflowCanonicalService.inspectHtmlCoverage({
@@ -16817,7 +16856,7 @@ export class WorksService {
                 sourceContent: params.content,
                 articleCanonical: params.articleCanonical,
               });
-              const finalHtmlContent = coverage.shouldFallback
+              const finalHtmlContent = coverage.shouldFallback || !this.isWechatPublishableHtmlFragment(htmlContent)
                 ? this.wechatWorkflowHtmlRendererService.renderWorkflowResolvedHtml({
                   title: params.title,
                   summary: params.summary,
@@ -16840,6 +16879,8 @@ export class WorksService {
                 attemptedModels: Array.from(attemptedModels),
                 attemptTrail: [...attemptTrail, coverage.shouldFallback
                   ? `${attemptLabel} -> 覆盖率 ${(coverage.coverageRatio * 100).toFixed(0)}%，降级规则渲染器`
+                  : !this.isWechatPublishableHtmlFragment(htmlContent)
+                    ? `${attemptLabel} -> 返回 Markdown/非 HTML 片段，降级规则渲染器`
                   : `${attemptLabel} -> 成功`],
               };
             } catch (error) {
@@ -16984,31 +17025,24 @@ export class WorksService {
   }
 
   private normalizeWechatGeneratedHtmlDocument(params: {
-    title: string;
-    author: string;
-    summary: string;
-    themeColor: string;
     htmlContent: string;
   }) {
     const htmlContent = String(params.htmlContent || "").trim();
-    if (/<!doctype html/i.test(htmlContent) || /<html[\s>]/i.test(htmlContent)) {
-      return this.wechatWorkflowHtmlRendererService.normalizeHtmlSpacing(htmlContent);
+    if (!htmlContent) {
+      return "";
     }
-    return this.wechatWorkflowHtmlRendererService.normalizeHtmlSpacing([
-      "<!DOCTYPE html>",
-      `<html lang="zh-CN"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${this.escapeHtml(params.title)}</title></head>`,
-      `<body style="margin:0;background:linear-gradient(180deg,#f7f8fc 0%,#eef2ff 100%);font-family:'PingFang SC','Microsoft YaHei',sans-serif;color:#24314a;">`,
-      '<main style="max-width:900px;margin:0 auto;padding:28px 16px 48px;">',
-      '<section style="padding:26px;border-radius:30px;background:rgba(255,255,255,0.96);border:1px solid rgba(226,232,250,0.9);box-shadow:0 20px 56px rgba(52,68,118,0.12);">',
-      `<div style="display:inline-flex;align-items:center;padding:8px 14px;border-radius:999px;background:${this.escapeHtml(params.themeColor)}18;color:${this.escapeHtml(params.themeColor)};font-size:12px;font-weight:700;">公众号工作流文章稿</div>`,
-      `<h1 style="margin:18px 0 10px;font-size:34px;line-height:1.25;color:#17233f;">${this.escapeHtml(params.title)}</h1>`,
-      `<div style="color:#63708a;font-size:13px;">${this.escapeHtml(params.author)} · API 发布准备中</div>`,
-      `<section style="margin:18px 0 0;padding:18px 20px;border-radius:22px;background:${this.escapeHtml(params.themeColor)}12;border:1px solid ${this.escapeHtml(params.themeColor)}33;"><div style="font-size:13px;color:${this.escapeHtml(params.themeColor)};font-weight:700;">摘要</div><p style="margin:10px 0 0;color:#24314a;font-size:15px;line-height:1.9;">${this.escapeHtml(params.summary)}</p></section>`,
-      '<section style="margin-top:24px;">',
-      htmlContent,
-      "</section>",
-      "</section></main></body></html>",
-    ].join(""));
+    const normalized = /<!doctype html/i.test(htmlContent) || /<html[\s>]/i.test(htmlContent)
+      ? this.wechatWorkflowHtmlRendererService.extractPublishableHtmlFragment(htmlContent)
+      : htmlContent;
+    return this.wechatWorkflowHtmlRendererService.normalizeHtmlSpacing(normalized);
+  }
+
+  private isWechatPublishableHtmlFragment(htmlContent: string) {
+    const normalized = String(htmlContent || "").trim();
+    if (!normalized) {
+      return false;
+    }
+    return /<\/?(section|article|div|p|h1|h2|h3|ul|ol|li|table|thead|tbody|tr|td|th|blockquote|figure|figcaption|img)\b/i.test(normalized);
   }
 
   private parseWechatHtmlModelResponse(content: string) {

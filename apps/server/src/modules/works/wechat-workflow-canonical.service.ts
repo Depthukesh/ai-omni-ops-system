@@ -41,8 +41,31 @@ type WechatWorkflowArticleDocumentInput = {
   metaLabel: string;
 };
 
+type WechatRenderableMarkdownBlock =
+  | { type: "heading"; depth: 1 | 2 | 3; text: string }
+  | { type: "paragraph"; lines: string[] }
+  | { type: "blockquote"; lines: string[] }
+  | { type: "list"; ordered: boolean; items: string[] }
+  | { type: "table"; headers: string[]; rows: string[][] };
+
 @Injectable()
 export class WechatWorkflowCanonicalService {
+  inferInputType(params: {
+    inputType?: string;
+    content: string;
+    fallback?: WechatArticleCanonicalSourceFormat;
+  }): WechatArticleCanonicalSourceFormat {
+    const normalizedInputType = String(params.inputType || "").trim().toLowerCase();
+    if (normalizedInputType === "html" || normalizedInputType === "markdown" || normalizedInputType === "plain-text") {
+      return normalizedInputType;
+    }
+    const content = String(params.content || "").trim();
+    if (content) {
+      return this.resolveSourceFormat(undefined, content);
+    }
+    return params.fallback || "html";
+  }
+
   buildArticleCanonical(params: {
     content: string;
     inputType?: string;
@@ -67,23 +90,27 @@ export class WechatWorkflowCanonicalService {
   }
 
   renderArticleDocument(input: WechatWorkflowArticleDocumentInput) {
-    const paragraphs = this.renderRichTextContent(input.content, input.articleCanonical);
-    const summary = input.summary
-      ? `<section style="margin:18px 0 0;padding:18px 20px;border-radius:22px;background:${this.escapeHtml(input.themeColor)}12;border:1px solid ${this.escapeHtml(input.themeColor)}33;"><div style="font-size:13px;color:${this.escapeHtml(input.themeColor)};font-weight:700;">摘要</div><p style="margin:10px 0 0;color:#24314a;font-size:15px;line-height:1.9;">${this.escapeHtml(input.summary)}</p></section>`
-      : "";
+    const fragment = this.renderArticleFragment(input);
     return [
       "<!DOCTYPE html>",
       `<html lang="zh-CN"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${this.escapeHtml(input.title)}</title></head>`,
-      `<body style="margin:0;background:linear-gradient(180deg,#f7f8fc 0%,#eef2ff 100%);font-family:'PingFang SC','Microsoft YaHei',sans-serif;">`,
-      '<main style="max-width:900px;margin:0 auto;padding:28px 16px 48px;">',
-      '<section style="padding:26px;border-radius:30px;background:rgba(255,255,255,0.96);border:1px solid rgba(226,232,250,0.9);box-shadow:0 20px 56px rgba(52,68,118,0.12);">',
-      `<div style="display:inline-flex;align-items:center;padding:8px 14px;border-radius:999px;background:${this.escapeHtml(input.themeColor)}18;color:${this.escapeHtml(input.themeColor)};font-size:12px;font-weight:700;">${this.escapeHtml(input.badgeLabel)}</div>`,
-      `<h1 style="margin:18px 0 8px;font-size:34px;line-height:1.25;color:#17233f;">${this.escapeHtml(input.title)}</h1>`,
-      `<div style="color:#63708a;font-size:13px;">${this.escapeHtml(input.metaLabel)}</div>`,
-      summary,
-      `<section style="margin-top:24px;">${paragraphs}</section>`,
-      "</section></main></body></html>",
+      `<body style="margin:0;background:#ffffff;font-family:'PingFang SC','Microsoft YaHei',sans-serif;">`,
+      fragment,
+      "</body></html>",
     ].join("");
+  }
+
+  renderArticleFragment(input: WechatWorkflowArticleDocumentInput) {
+    const paragraphs = this.renderRichTextContent(input.content, input.articleCanonical);
+    const summary = input.summary
+      ? `<section style="margin:0 0 22px;padding:18px 20px;border-radius:22px;background:${this.escapeHtml(input.themeColor)}12;border:1px solid ${this.escapeHtml(input.themeColor)}33;"><div style="font-size:13px;color:${this.escapeHtml(input.themeColor)};font-weight:700;">摘要</div><p style="margin:10px 0 0;color:#24314a;font-size:15px;line-height:1.9;">${this.escapeHtml(input.summary)}</p></section>`
+      : "";
+    return [
+      summary,
+      `<section style="margin:0;">${paragraphs}</section>`,
+    ]
+      .filter(Boolean)
+      .join("");
   }
 
   inspectHtmlCoverage(params: {
@@ -192,11 +219,58 @@ export class WechatWorkflowCanonicalService {
   }
 
   renderRichTextContent(content: string, articleCanonical?: WechatArticleCanonicalRecord) {
+    const sourceFormat = articleCanonical?.sourceFormat || this.resolveSourceFormat(undefined, content);
+    if (sourceFormat === "markdown") {
+      return this.renderMarkdownContent(content);
+    }
     if (articleCanonical?.blocks?.length) {
       return this.renderCanonicalBlocks(articleCanonical.blocks);
     }
     const canonical = this.buildArticleCanonical({ content });
     return this.renderCanonicalBlocks(canonical.blocks);
+  }
+
+  private renderMarkdownContent(content: string) {
+    const blocks = this.parseMarkdownBlocks(content);
+    if (!blocks.length) {
+      return this.renderCanonicalBlocks(this.buildArticleCanonical({ content, inputType: "markdown" }).blocks);
+    }
+    return blocks.map((block) => {
+      if (block.type === "heading") {
+        const tag = block.depth === 1 ? "h1" : block.depth === 2 ? "h2" : "h3";
+        const style = tag === "h1"
+          ? "margin:26px 0 16px;color:#17233f;font-size:30px;line-height:1.28;font-weight:800;"
+          : tag === "h2"
+            ? "margin:24px 0 14px;color:#17233f;font-size:24px;line-height:1.4;font-weight:800;"
+            : "margin:20px 0 12px;color:#24314a;font-size:20px;line-height:1.45;font-weight:700;";
+        return `<${tag} style="${style}">${this.renderInlineMarkdown(block.text)}</${tag}>`;
+      }
+      if (block.type === "blockquote") {
+        const body = block.lines
+          .map((line) => `<p style="margin:0 0 12px;color:#42526d;font-size:15px;line-height:1.9;">${this.renderInlineMarkdown(line)}</p>`)
+          .join("");
+        return `<blockquote style="margin:0 0 18px;padding:14px 16px;border-left:4px solid #8ea3d6;background:#f7f9ff;border-radius:12px;">${body}</blockquote>`;
+      }
+      if (block.type === "list") {
+        const tag = block.ordered ? "ol" : "ul";
+        const items = block.items
+          .map((item) => `<li style="margin:0 0 10px;color:#24314a;font-size:16px;line-height:1.9;">${this.renderInlineMarkdown(item)}</li>`)
+          .join("");
+        const extraStyle = block.ordered ? "padding-left:22px;" : "padding-left:20px;";
+        return `<${tag} style="margin:0 0 18px;${extraStyle}color:#24314a;">${items}</${tag}>`;
+      }
+      if (block.type === "table") {
+        const headerHtml = block.headers
+          .map((item) => `<th style="padding:10px 12px;border:1px solid #d9e0ee;background:#f7f9ff;color:#17233f;font-size:14px;font-weight:700;text-align:left;">${this.renderInlineMarkdown(item)}</th>`)
+          .join("");
+        const rowHtml = block.rows
+          .map((row) => `<tr>${row.map((item) => `<td style="padding:10px 12px;border:1px solid #d9e0ee;color:#24314a;font-size:14px;line-height:1.8;vertical-align:top;">${this.renderInlineMarkdown(item)}</td>`).join("")}</tr>`)
+          .join("");
+        return `<section style="margin:0 0 18px;overflow-x:auto;"><table style="width:100%;border-collapse:collapse;border-spacing:0;">${headerHtml ? `<thead><tr>${headerHtml}</tr></thead>` : ""}<tbody>${rowHtml}</tbody></table></section>`;
+      }
+      const body = block.lines.map((line) => this.renderInlineMarkdown(line)).join("<br />");
+      return `<p style="margin:0 0 14px;color:#24314a;font-size:16px;line-height:1.95;">${body}</p>`;
+    }).join("");
   }
 
   private normalizeComparableText(content: string) {
@@ -236,6 +310,126 @@ export class WechatWorkflowCanonicalService {
       }
       return `<p style="margin:0 0 14px;color:#24314a;font-size:16px;line-height:1.95;">${this.renderInlineMarkdown(block.text)}</p>`;
     }).join("");
+  }
+
+  private parseMarkdownBlocks(content: string): WechatRenderableMarkdownBlock[] {
+    const lines = String(content || "").split(/\r?\n/);
+    const blocks: WechatRenderableMarkdownBlock[] = [];
+    let index = 0;
+    while (index < lines.length) {
+      const currentLine = String(lines[index] || "");
+      const trimmed = currentLine.trim();
+      if (!trimmed) {
+        index += 1;
+        continue;
+      }
+      const headingMatch = trimmed.match(/^(#{1,6})\s+(.+)$/);
+      if (headingMatch) {
+        blocks.push({
+          type: "heading",
+          depth: Math.min(3, headingMatch[1].length) as 1 | 2 | 3,
+          text: headingMatch[2].trim(),
+        });
+        index += 1;
+        continue;
+      }
+      if (this.isMarkdownTableStart(lines, index)) {
+        const headers = this.splitMarkdownTableCells(lines[index] || "");
+        const rows: string[][] = [];
+        index += 2;
+        while (index < lines.length) {
+          const tableLine = String(lines[index] || "").trim();
+          if (!tableLine || !/\|/.test(tableLine)) {
+            break;
+          }
+          rows.push(this.splitMarkdownTableCells(tableLine));
+          index += 1;
+        }
+        blocks.push({ type: "table", headers, rows });
+        continue;
+      }
+      if (/^>\s*/.test(trimmed)) {
+        const quoteLines: string[] = [];
+        while (index < lines.length) {
+          const quoteLine = String(lines[index] || "").trim();
+          if (!quoteLine || !/^>\s*/.test(quoteLine)) {
+            break;
+          }
+          quoteLines.push(quoteLine.replace(/^>\s*/, "").trim());
+          index += 1;
+        }
+        blocks.push({ type: "blockquote", lines: quoteLines.filter(Boolean) });
+        continue;
+      }
+      const unorderedMatch = trimmed.match(/^[-*+]\s+(.+)$/);
+      const orderedMatch = trimmed.match(/^\d+\.\s+(.+)$/);
+      if (unorderedMatch || orderedMatch) {
+        const ordered = Boolean(orderedMatch);
+        const items: string[] = [];
+        while (index < lines.length) {
+          const listLine = String(lines[index] || "").trim();
+          const nextMatch = ordered
+            ? listLine.match(/^\d+\.\s+(.+)$/)
+            : listLine.match(/^[-*+]\s+(.+)$/);
+          if (!nextMatch) {
+            break;
+          }
+          items.push(nextMatch[1].trim());
+          index += 1;
+        }
+        blocks.push({ type: "list", ordered, items });
+        continue;
+      }
+      const paragraphLines: string[] = [];
+      while (index < lines.length) {
+        const paragraphLine = String(lines[index] || "");
+        const nextTrimmed = paragraphLine.trim();
+        if (!nextTrimmed) {
+          break;
+        }
+        if (
+          /^(#{1,6})\s+/.test(nextTrimmed)
+          || /^>\s*/.test(nextTrimmed)
+          || /^[-*+]\s+/.test(nextTrimmed)
+          || /^\d+\.\s+/.test(nextTrimmed)
+          || this.isMarkdownTableStart(lines, index)
+        ) {
+          break;
+        }
+        paragraphLines.push(nextTrimmed);
+        index += 1;
+      }
+      blocks.push({ type: "paragraph", lines: paragraphLines });
+    }
+    return blocks.filter((block) => {
+      if (block.type === "paragraph" || block.type === "blockquote") {
+        return block.lines.some(Boolean);
+      }
+      if (block.type === "list") {
+        return block.items.some(Boolean);
+      }
+      if (block.type === "table") {
+        return block.headers.length > 0 || block.rows.length > 0;
+      }
+      return Boolean(block.text);
+    });
+  }
+
+  private isMarkdownTableStart(lines: string[], index: number) {
+    const current = String(lines[index] || "").trim();
+    const next = String(lines[index + 1] || "").trim();
+    return /\|/.test(current)
+      && /\|/.test(next)
+      && /^[:\-\s|]+$/.test(next)
+      && next.includes("-");
+  }
+
+  private splitMarkdownTableCells(line: string) {
+    const trimmed = String(line || "").trim().replace(/^\|/, "").replace(/\|$/, "");
+    return trimmed
+      .split("|")
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0);
   }
 
   private buildCanonicalBlock(line: string, index: number): WechatArticleCanonicalBlock {

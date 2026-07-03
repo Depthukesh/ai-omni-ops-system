@@ -12,7 +12,7 @@ export class WechatWorkflowHtmlRendererService {
     WechatWorkflowSessionRecord,
     "title" | "author" | "summary" | "content" | "articleCanonical" | "themeColor" | "commentMode"
   >) {
-    return this.wechatWorkflowCanonicalService.renderArticleDocument({
+    return this.wechatWorkflowCanonicalService.renderArticleFragment({
       title: params.title,
       author: params.author,
       summary: params.summary,
@@ -28,7 +28,7 @@ export class WechatWorkflowHtmlRendererService {
     WechatArticleDraftRecord,
     "title" | "author" | "summary" | "content" | "articleCanonical" | "themeColor" | "commentMode"
   >) {
-    return this.wechatWorkflowCanonicalService.renderArticleDocument({
+    return this.wechatWorkflowCanonicalService.renderArticleFragment({
       title: params.title,
       author: params.author,
       summary: params.summary,
@@ -65,7 +65,7 @@ export class WechatWorkflowHtmlRendererService {
     options?: { preferExisting?: boolean; bodyImageAspectRatio?: string },
   ) {
     const baseHtml = options?.preferExisting && String(params.htmlContent || "").trim()
-      ? String(params.htmlContent || "").trim()
+      ? this.extractPublishableHtmlFragment(String(params.htmlContent || "").trim())
       : this.renderWorkflowArticleHtml(params);
     return this.injectWechatImagesIntoHtml(baseHtml, {
       coverImageUrl: params.imageBundle?.coverImageUrl,
@@ -79,7 +79,7 @@ export class WechatWorkflowHtmlRendererService {
     options?: { preferExisting?: boolean; bodyImageAspectRatio?: string },
   ) {
     const baseHtml = options?.preferExisting && String(params.htmlContent || "").trim()
-      ? String(params.htmlContent || "").trim()
+      ? this.extractPublishableHtmlFragment(String(params.htmlContent || "").trim())
       : this.renderDraftArticleHtml(params);
     const coverTask = params.imageTasks?.find((item) => item.kind === "cover");
     const bodyTask = params.imageTasks?.find((item) => item.kind === "body");
@@ -140,6 +140,29 @@ export class WechatWorkflowHtmlRendererService {
       .replace(/\n{3,}/g, "\n\n")
       .replace(/>\s+</g, "><")
       .trim();
+  }
+
+  extractPublishableHtmlFragment(htmlContent: string) {
+    let normalized = String(htmlContent || "").trim();
+    if (!normalized) {
+      return normalized;
+    }
+    const bodyMatch = normalized.match(/<body\b[^>]*>([\s\S]*?)<\/body>/i);
+    if (bodyMatch?.[1]) {
+      normalized = bodyMatch[1].trim();
+    }
+    const mainMatch = normalized.match(/^<main\b[^>]*>([\s\S]*?)<\/main>$/i);
+    if (mainMatch?.[1]) {
+      normalized = mainMatch[1].trim();
+    }
+    normalized = normalized
+      .replace(/<!doctype html>/gi, "")
+      .replace(/<\/?html\b[^>]*>/gi, "")
+      .replace(/<\/?head\b[^>]*>[\s\S]*?(?=<body\b|$)/gi, "")
+      .replace(/<\/?body\b[^>]*>/gi, "")
+      .replace(/<\/?main\b[^>]*>/gi, "")
+      .trim();
+    return this.normalizeHtmlSpacing(normalized);
   }
 
   private injectWechatImagesIntoHtml(
