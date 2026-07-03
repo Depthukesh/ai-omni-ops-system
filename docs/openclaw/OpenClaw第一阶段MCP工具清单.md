@@ -147,8 +147,9 @@ OpenClaw 调用任何工具时，服务端都必须基于绑定关系解析：
     - `rebuild_publish_config` 重新计算发布确认状态
     - `publish_workflow` 正式调用公众号 API 发布
   - 当前语义约束：
+    - `set_article` 未显式传 `inputType` 时，服务端会按正文内容自动识别 `plain-text / markdown / html`
     - `set_html` 代表外部已给出完整 HTML 草稿
-    - `generate_html` 代表系统基于正文 canonical、图片资产和风格规则重新渲染
+    - `generate_html` 代表系统基于正文 canonical、图片资产和风格规则重新渲染，并产出可直接发布到公众号正文的 HTML 片段
 - 采集数据删除：
   - `delete_xhs_collected_note`
   - `delete_douyin_collected_work`

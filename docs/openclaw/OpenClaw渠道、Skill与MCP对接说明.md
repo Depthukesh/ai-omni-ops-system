@@ -241,12 +241,13 @@ OpenClaw 通过 MCP 获取：
 
 - `set_article / set_images / set_html`
   - 代表外部已经给出 Step 2-4 产物，OpenClaw 只负责写入网站工作流
+  - `set_article` 未显式传 `inputType` 时，服务端会按正文内容自动识别 `plain-text / markdown / html`
 - `generate_article / generate_images / generate_html`
   - 代表继续调用网站内部链路推进生成
 - `set_html`
   - 代表外部已给出完整 HTML 草稿
 - `generate_html`
-  - 代表系统基于正文 canonical、图片资产和风格规则重新渲染
+  - 代表系统基于正文 canonical、图片资产和风格规则重新渲染，并产出可直接发布到公众号正文的 HTML 片段
 - 第三方接口配置摘要
 - 订单中心摘要
 - 各类任务触发能力

@@ -109,8 +109,9 @@
 
 - `set_article / set_images / set_html` 代表外部已经给出 Step 2-4 结果，应该直接写入工作流
 - `generate_article / generate_images / generate_html` 代表继续调用网站内部链路推进生成
+- `set_article` 如果未显式传 `inputType`，系统会按正文内容自动识别 `plain-text / markdown / html`
 - `set_html` 代表外部已给出完整 HTML 草稿
-- `generate_html` 代表系统基于正文 canonical、图片资产和排版风格重新渲染
+- `generate_html` 代表系统基于正文 canonical、图片资产和排版风格重新渲染，并产出可直接发布到公众号正文的 HTML 片段，不应再把整页 `<html><body>` 外壳作为结果使用
 - 正式发布前，应优先调用 `rebuild_publish_config` 重新计算发布确认状态
 
 ### 3. 高风险动作要确认

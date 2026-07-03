@@ -1793,7 +1793,7 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
   },
   {
     name: "manage_wechat_workflow",
-    description: "统一管理公众号工作流，支持偏好、工作流创建、Step 2-4 直写与生成、发布确认、正式发布和删除；其中 set_html 代表外部已给出完整 HTML 草稿，generate_html 代表系统基于正文 canonical 与风格规则重新渲染。",
+    description: "统一管理公众号工作流，支持偏好、工作流创建、Step 2-4 直写与生成、发布确认、正式发布和删除；其中 set_article 未显式传 inputType 时会按正文内容自动识别 plain-text/markdown/html，set_html 代表外部已给出完整 HTML 草稿，generate_html 代表系统基于正文 canonical、图片资产与风格规则重新渲染，并产出可直接发布到公众号正文的 HTML 片段。",
     inputSchema: {
       type: "object",
       properties: {
