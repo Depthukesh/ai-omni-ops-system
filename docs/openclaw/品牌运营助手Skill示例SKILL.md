@@ -257,13 +257,16 @@
 ### 查看第三方接口配置摘要
 
 - 优先使用：`list_my_third_party_platforms`
+- 需要判断 OpenClaw 后续是否还要向用户追问密钥时，优先使用：`check_my_third_party_platform_runtime_access`
 - 典型关注项包括：`StepFun / StepAudio`、`Tikhub`、`蝉镜`、`RunningHub`、`火山引擎 VOD`
+- 只允许查看遮罩状态和可用性，严禁输出任何明文 API Key
 
 ### 更新品牌 API Key
 
 - 优先使用：`update_my_third_party_platform_secret`
 - 执行前必须确认：平台 ID 与新密钥
 - 若用户明确提到 `StepAudio 2.5 TTS / StepAudio 2.5 ASR`，优先引导到对应 `StepFun 平台` 记录下更新品牌级 API Key
+- 若 `check_my_third_party_platform_runtime_access` 已确认当前品牌共享凭证可被 OpenClaw 直用，则不要再要求用户重复提供同一明文密钥
 
 ### 生成品牌增长报告
 

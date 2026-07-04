@@ -64,6 +64,37 @@ const TOOL_DEFINITIONS = [
     },
   },
   {
+    name: "list_my_third_party_platforms",
+    description: "查看当前品牌第三方接口配置摘要，包括 API Key 遮罩状态、动态状态，以及 OpenClaw 是否可直接复用该品牌共享凭证。",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
+    name: "check_my_third_party_platform_runtime_access",
+    description: "检查当前品牌某个第三方平台的共享凭证是否可被 OpenClaw 直接复用。只返回遮罩状态和可用性，不返回明文 API Key。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        platformId: { type: "string" },
+        platformName: { type: "string" },
+        baseUrl: { type: "string" },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "update_my_third_party_platform_secret",
+    description: "更新当前品牌指定第三方平台的 API Key。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        platformId: { type: "string" },
+        apiKey: { type: "string" },
+      },
+      required: ["platformId", "apiKey"],
+      additionalProperties: false,
+    },
+  },
+  {
     name: "get_latest_brand_growth_report_summary",
     description: "获取当前品牌最新品牌增长报告摘要。",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },

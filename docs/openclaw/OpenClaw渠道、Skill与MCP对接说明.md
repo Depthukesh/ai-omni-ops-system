@@ -147,6 +147,7 @@ MCP 在这里解决的是标准化工具接入问题。
 - 提供 `get_skill_config_summary`
 - 提供 `create_xiaohongshu_original_note`
 - 提供 `list_my_third_party_platforms`
+- 提供 `check_my_third_party_platform_runtime_access`
 - 提供 `update_my_third_party_platform_secret`
 - 提供 `list_my_orders`
 
@@ -250,6 +251,7 @@ OpenClaw 通过 MCP 获取：
   - 代表系统基于正文 canonical、图片资产和风格规则重新渲染，并产出可直接发布到公众号正文的 HTML 片段
 - 第三方接口配置摘要
   - 当前可覆盖 StepFun / StepAudio、Tikhub、蝉镜、RunningHub、火山引擎 VOD 等品牌级第三方平台密钥入口
+  - OpenClaw 只读取遮罩状态与可用性，真正调用第三方平台时由服务端按品牌上下文代取共享密钥，不向模型侧暴露明文
 - 订单中心摘要
 - 各类任务触发能力
 

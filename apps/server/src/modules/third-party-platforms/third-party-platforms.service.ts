@@ -54,17 +54,43 @@ export type BrandRuntimeApiKeyResolution =
   | {
       status: "no-platform-match" | "brand-context-missing";
       platform?: undefined;
+      resolvedFrom?: undefined;
       apiKeys: [];
     }
   | {
       status: "resolved";
       platform: Pick<ThirdPartyPlatformRecord, "id" | "name" | "baseUrl">;
+      resolvedFrom: "brand" | "local-env";
       apiKeys: string[];
     }
   | {
       status: "brand-api-key-missing";
       platform: Pick<ThirdPartyPlatformRecord, "id" | "name" | "baseUrl">;
+      resolvedFrom?: undefined;
       apiKeys: [];
+    };
+
+export type BrandRuntimeAccessSummary =
+  | {
+      status: "brand-context-missing" | "no-platform-match";
+      platform?: undefined;
+      openClawCanUse: false;
+      effectiveApiKeyMasked: "";
+      resolvedFrom?: undefined;
+    }
+  | {
+      status: "resolved";
+      platform: Pick<ThirdPartyPlatformRecord, "id" | "name" | "baseUrl" | "websiteUrl" | "defaultModel">;
+      openClawCanUse: true;
+      effectiveApiKeyMasked: string;
+      resolvedFrom: "brand" | "local-env";
+    }
+  | {
+      status: "brand-api-key-missing";
+      platform: Pick<ThirdPartyPlatformRecord, "id" | "name" | "baseUrl" | "websiteUrl" | "defaultModel">;
+      openClawCanUse: false;
+      effectiveApiKeyMasked: "";
+      resolvedFrom?: undefined;
     };
 
 type ThirdPartyPlatformRow = {
@@ -359,6 +385,96 @@ export class ThirdPartyPlatformsService {
     return this.normalizeUserPlatform(platform, nextApiKey);
   }
 
+  async inspectBrandRuntimeAccess(
+    brandId: string | undefined,
+    options?: {
+      platformId?: string;
+      baseUrls?: string[];
+      platformName?: string;
+    },
+  ): Promise<BrandRuntimeAccessSummary> {
+    const normalizedBrandId = String(brandId || "").trim();
+    if (!normalizedBrandId) {
+      return {
+        status: "brand-context-missing",
+        openClawCanUse: false,
+        effectiveApiKeyMasked: "",
+      };
+    }
+
+    const normalizedPlatformId = String(options?.platformId || "").trim();
+    const normalizedPlatformName = String(options?.platformName || "").trim().toLowerCase();
+    const normalizedBaseUrls = Array.from(new Set((options?.baseUrls || []).map((item) => String(item || "").trim()).filter(Boolean)));
+
+    const platformGroups = await this.listPlatformGroups();
+    const matchedGroup = normalizedPlatformId
+      ? platformGroups.find((item) => item.aliasIds.includes(normalizedPlatformId))
+      : normalizedBaseUrls.length
+        ? platformGroups.find((item) => {
+            const candidateBaseUrls = [item.platform.baseUrl, item.platform.websiteUrl]
+              .filter(Boolean)
+              .map((value) => this.normalizeBaseUrl(value));
+            return normalizedBaseUrls.some((value) => candidateBaseUrls.includes(this.normalizeBaseUrl(value)));
+          })
+        : normalizedPlatformName
+          ? platformGroups.find((item) => {
+              const candidates = [
+                item.platform.name,
+                item.platform.baseUrl,
+                item.platform.websiteUrl,
+                item.platform.defaultModel,
+                item.platform.remark,
+              ]
+                .map((value) => String(value || "").trim().toLowerCase())
+                .filter(Boolean);
+              return candidates.some((value) => value.includes(normalizedPlatformName));
+            })
+          : undefined;
+
+    if (!matchedGroup) {
+      return {
+        status: "no-platform-match",
+        openClawCanUse: false,
+        effectiveApiKeyMasked: "",
+      };
+    }
+
+    const resolution = await this.resolveRuntimeAccessForPlatformGroup(normalizedBrandId, matchedGroup.platform, matchedGroup.aliasIds);
+    return {
+      ...resolution,
+      platform: resolution.platform
+        ? {
+            ...resolution.platform,
+            websiteUrl: matchedGroup.platform.websiteUrl,
+            defaultModel: matchedGroup.platform.defaultModel,
+          }
+        : undefined,
+    } as BrandRuntimeAccessSummary;
+  }
+
+  async listBrandRuntimeAccessSummaries(brandId: string | undefined) {
+    const normalizedBrandId = String(brandId || "").trim();
+    if (!normalizedBrandId) {
+      return [];
+    }
+    const platformGroups = await this.listPlatformGroups();
+    return Promise.all(platformGroups.map(async (group) => {
+      const resolution = await this.resolveRuntimeAccessForPlatformGroup(normalizedBrandId, group.platform, group.aliasIds);
+      return {
+        platformId: group.platform.id,
+        aliasIds: group.aliasIds,
+        platformName: group.platform.name,
+        baseUrl: group.platform.baseUrl,
+        websiteUrl: group.platform.websiteUrl,
+        defaultModel: group.platform.defaultModel,
+        status: resolution.status,
+        openClawCanUse: resolution.openClawCanUse,
+        resolvedFrom: resolution.resolvedFrom,
+        effectiveApiKeyMasked: resolution.effectiveApiKeyMasked,
+      };
+    }));
+  }
+
   async resolveBrandRuntimeApiKeys(brandId: string | undefined, baseUrls: string[]): Promise<BrandRuntimeApiKeyResolution> {
     const normalizedBrandId = String(brandId || "").trim();
     if (!normalizedBrandId) {
@@ -391,6 +507,7 @@ export class ThirdPartyPlatformsService {
             name: platform.name,
             baseUrl: platform.baseUrl,
           },
+          resolvedFrom: "local-env",
           apiKeys: envApiKeys,
         };
       }
@@ -412,7 +529,62 @@ export class ThirdPartyPlatformsService {
         name: platform.name,
         baseUrl: platform.baseUrl,
       },
+      resolvedFrom: "brand",
       apiKeys: [apiKey],
+    };
+  }
+
+  private async resolveRuntimeAccessForPlatformGroup(
+    brandId: string,
+    platform: ThirdPartyPlatformRecord,
+    aliasIds: string[],
+  ): Promise<BrandRuntimeAccessSummary> {
+    const secret = await this.findBrandPlatformSecretByPlatforms(brandId, aliasIds);
+    const apiKey = String(secret?.apiKey || "").trim();
+    if (apiKey) {
+      return {
+        status: "resolved",
+        platform: {
+          id: platform.id,
+          name: platform.name,
+          baseUrl: platform.baseUrl,
+          websiteUrl: platform.websiteUrl,
+          defaultModel: platform.defaultModel,
+        },
+        openClawCanUse: true,
+        effectiveApiKeyMasked: this.maskSecret(apiKey),
+        resolvedFrom: "brand",
+      };
+    }
+
+    const envApiKeys = this.resolveLocalEnvApiKeysForPlatform(platform);
+    if (envApiKeys.length) {
+      return {
+        status: "resolved",
+        platform: {
+          id: platform.id,
+          name: platform.name,
+          baseUrl: platform.baseUrl,
+          websiteUrl: platform.websiteUrl,
+          defaultModel: platform.defaultModel,
+        },
+        openClawCanUse: true,
+        effectiveApiKeyMasked: this.maskSecret(envApiKeys[0] || ""),
+        resolvedFrom: "local-env",
+      };
+    }
+
+    return {
+      status: "brand-api-key-missing",
+      platform: {
+        id: platform.id,
+        name: platform.name,
+        baseUrl: platform.baseUrl,
+        websiteUrl: platform.websiteUrl,
+        defaultModel: platform.defaultModel,
+      },
+      openClawCanUse: false,
+      effectiveApiKeyMasked: "",
     };
   }
 

@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, UnauthorizedException } from "@nestjs/common";
+import { BadRequestException, Injectable, ServiceUnavailableException, UnauthorizedException } from "@nestjs/common";
 import { normalizeSafeText } from "../../common/prompt-injection-guard";
 import { AuthService, type RequestAuthContext } from "../auth/auth.service";
 import {
@@ -313,15 +313,15 @@ const OPENCLAW_WEBSITE_FUNCTION_CATALOG: OpenClawWebsiteFunctionCatalogItem[] = 
     domainKey: "personal_center",
     domainName: "个人中心",
     name: "查看品牌第三方接口配置",
-    summary: "适合查看当前品牌已接入的平台、密钥遮罩状态和动态能力概况，并可按需更新品牌 API Key。",
+    summary: "适合查看当前品牌已接入的平台、密钥遮罩状态、OpenClaw 可直接复用的共享凭证情况，并可按需更新品牌 API Key。",
     pageUrl: "/personal-center/third-party-platforms",
     pageLabel: "打开第三方接口配置",
     riskLevel: "high",
     intentKeywords: ["第三方接口", "API Key", "接口配置", "模型配置", "平台密钥", "渠道密钥"],
-    requiredInputKeys: ["platformId", "apiKey"],
-    requiredInputs: ["平台 ID", "新的 API Key"],
-    recommendedQuestions: ["帮我看当前品牌第三方接口配置概况", "帮我更新这个平台的 API Key"],
-    mcpTools: ["list_my_third_party_platforms", "update_my_third_party_platform_secret"],
+    requiredInputKeys: [],
+    requiredInputs: [],
+    recommendedQuestions: ["帮我看当前品牌第三方接口配置概况", "帮我确认 OpenClaw 能不能直接用当前品牌的第三方平台密钥", "帮我更新这个平台的 API Key"],
+    mcpTools: ["list_my_third_party_platforms", "check_my_third_party_platform_runtime_access", "update_my_third_party_platform_secret"],
   },
   {
     key: "personal_order_center",
@@ -932,8 +932,21 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
   },
   {
     name: "list_my_third_party_platforms",
-    description: "查看当前品牌下个人中心第三方接口配置摘要，包括 API Key 是否已配置和动态状态，可用于 StepFun、Tikhub、蝉镜、RunningHub、火山 VOD 等平台。",
+    description: "查看当前品牌下个人中心第三方接口配置摘要，包括 API Key 遮罩状态、动态状态，以及 OpenClaw 是否可直接复用该品牌共享凭证；只返回遮罩，不回显明文。",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
+    name: "check_my_third_party_platform_runtime_access",
+    description: "检查当前品牌某个第三方平台的共享凭证是否可被 OpenClaw 直接复用。只返回平台、遮罩状态和可用性，不返回明文 API Key。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        platformId: { type: "string" },
+        platformName: { type: "string" },
+        baseUrl: { type: "string" },
+      },
+      additionalProperties: false,
+    },
   },
   {
     name: "update_my_third_party_platform_secret",
@@ -3495,14 +3508,21 @@ export class OpenClawService {
     const brandId = await this.requireCurrentBrandId(auth);
     await this.authService.assertBrandPermission(brandId, "personalCenter.thirdPartyPlatforms", "view", auth);
 
-    const items = await this.thirdPartyPlatformsService.listUserPlatforms(auth.userId, brandId);
+    const [items, runtimeAccessList] = await Promise.all([
+      this.thirdPartyPlatformsService.listUserPlatforms(auth.userId, brandId),
+      this.thirdPartyPlatformsService.listBrandRuntimeAccessSummaries(brandId),
+    ]);
+    const runtimeAccessMap = new Map(runtimeAccessList.flatMap((item) => item.aliasIds.map((aliasId) => [aliasId, item] as const)));
     return this.buildSummaryResponse({
       title: "第三方接口配置摘要",
       summary: items.length
-        ? `当前品牌共接入 ${items.length} 个第三方平台，可直接查看 API Key 遮罩状态和动态能力。`
+        ? `当前品牌共接入 ${items.length} 个第三方平台，可直接查看 API Key 遮罩状态、动态能力，以及 OpenClaw 是否可直接复用这些品牌共享凭证。`
         : "当前品牌还没有第三方平台配置。",
       highlights: items.length
-        ? items.slice(0, 5).map((item) => `${item.name}｜${item.effectiveApiKeyMasked || "未配置"}｜${item.dynamicStats?.status || "unknown"}`)
+        ? items.slice(0, 5).map((item) => {
+            const runtimeAccess = runtimeAccessMap.get(item.id);
+            return `${item.name}｜${item.effectiveApiKeyMasked || "未配置"}｜OpenClaw:${runtimeAccess?.openClawCanUse ? "可直用" : "未就绪"}`;
+          })
         : ["平台数：0"],
       data: {
         total: items.length,
@@ -3515,10 +3535,112 @@ export class OpenClawService {
           defaultModel: item.defaultModel,
           effectiveApiKeyMasked: item.effectiveApiKeyMasked,
           dynamicStats: item.dynamicStats,
+          openClawRuntimeAccess: (() => {
+            const runtimeAccess = runtimeAccessMap.get(item.id);
+            return runtimeAccess
+              ? {
+                  status: runtimeAccess.status,
+                  openClawCanUse: runtimeAccess.openClawCanUse,
+                  resolvedFrom: runtimeAccess.resolvedFrom,
+                  effectiveApiKeyMasked: runtimeAccess.effectiveApiKeyMasked,
+                }
+              : undefined;
+          })(),
         })),
       },
       links: [{ label: "打开第三方接口配置", url: "/personal-center/third-party-platforms" }],
       resourceKind: "third_party_platform",
+    });
+  }
+
+  async checkMyThirdPartyPlatformRuntimeAccess(
+    headers: HeadersMap,
+    options?: {
+      platformId?: string;
+      platformName?: string;
+      baseUrl?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "personalCenter.thirdPartyPlatforms", "view", auth);
+
+    const access = await this.thirdPartyPlatformsService.inspectBrandRuntimeAccess(brandId, {
+      platformId: typeof options?.platformId === "string" ? options.platformId : undefined,
+      platformName: typeof options?.platformName === "string" ? options.platformName : undefined,
+      baseUrls: typeof options?.baseUrl === "string" ? [options.baseUrl] : undefined,
+    });
+
+    if (access.status === "brand-context-missing") {
+      throw new UnauthorizedException("当前账号没有可用品牌，无法检查第三方平台共享凭证");
+    }
+    if (access.status === "no-platform-match") {
+      return this.buildSummaryResponse({
+        title: "未找到匹配的第三方平台",
+        summary: "当前品牌下没有匹配到该平台，无法判断 OpenClaw 是否可直接复用共享凭证。",
+        highlights: [
+          `platformId：${String(options?.platformId || "").trim() || "-"}`,
+          `platformName：${String(options?.platformName || "").trim() || "-"}`,
+          `baseUrl：${String(options?.baseUrl || "").trim() || "-"}`,
+        ],
+        data: {
+          status: access.status,
+          openClawCanUse: access.openClawCanUse,
+        },
+        links: [{ label: "打开第三方接口配置", url: "/personal-center/third-party-platforms" }],
+        resourceKind: "third_party_platform",
+        resultStatus: "ACTION_REQUIRED",
+      });
+    }
+
+    if (access.status === "brand-api-key-missing") {
+      return this.buildSummaryResponse({
+        title: "OpenClaw 暂无法直接使用该平台凭证",
+        summary: `平台“${access.platform.name}”当前还没有品牌级共享 API Key，OpenClaw 无法直接代取使用。`,
+        highlights: [
+          `平台：${access.platform.name}`,
+          `OpenClaw 直用：否`,
+          "密钥状态：未配置",
+        ],
+        data: {
+          status: access.status,
+          platform: access.platform,
+          openClawCanUse: access.openClawCanUse,
+          apiKeyVisibleToOpenClawModel: false,
+        },
+        links: [{ label: "打开第三方接口配置", url: "/personal-center/third-party-platforms" }],
+        resourceKind: "third_party_platform",
+        resultStatus: "ACTION_REQUIRED",
+        nextActions: [
+          { label: "打开第三方接口配置", action: "open_page", target: "/personal-center/third-party-platforms" },
+        ],
+      });
+    }
+
+    if (!access.platform) {
+      throw new ServiceUnavailableException("第三方平台共享凭证状态异常，暂时无法确认 OpenClaw 是否可直接使用");
+    }
+
+    return this.buildSummaryResponse({
+      title: "OpenClaw 可直接复用该平台共享凭证",
+      summary: `平台“${access.platform.name}”的品牌级共享 API Key 已可被 OpenClaw 服务端直接复用，后续支持该平台的工具无需再次向用户索取明文密钥。`,
+      highlights: [
+        `平台：${access.platform.name}`,
+        `当前遮罩：${access.effectiveApiKeyMasked || "已配置"}`,
+        `来源：${access.resolvedFrom === "brand" ? "个人中心品牌共享配置" : "本地开发环境"}`,
+      ],
+      data: {
+        status: access.status,
+        platform: access.platform,
+        openClawCanUse: access.openClawCanUse,
+        resolvedFrom: access.resolvedFrom,
+        effectiveApiKeyMasked: access.effectiveApiKeyMasked,
+        apiKeyVisibleToOpenClawModel: false,
+        accessMode: "server-side-delegated",
+      },
+      links: [{ label: "打开第三方接口配置", url: "/personal-center/third-party-platforms" }],
+      resourceKind: "third_party_platform",
+      resultStatus: "COMPLETED",
     });
   }
 
@@ -9875,6 +9997,12 @@ export class OpenClawService {
         });
       case "list_my_third_party_platforms":
         return this.listMyThirdPartyPlatforms(headers);
+      case "check_my_third_party_platform_runtime_access":
+        return this.checkMyThirdPartyPlatformRuntimeAccess(headers, {
+          platformId: typeof toolArgs.platformId === "string" ? toolArgs.platformId : undefined,
+          platformName: typeof toolArgs.platformName === "string" ? toolArgs.platformName : undefined,
+          baseUrl: typeof toolArgs.baseUrl === "string" ? toolArgs.baseUrl : undefined,
+        });
       case "update_my_third_party_platform_secret":
         return this.updateMyThirdPartyPlatformSecret(headers, {
           platformId: typeof toolArgs.platformId === "string" ? toolArgs.platformId : undefined,
