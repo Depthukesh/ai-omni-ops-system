@@ -932,12 +932,12 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
   },
   {
     name: "list_my_third_party_platforms",
-    description: "查看当前品牌下个人中心第三方接口配置摘要，包括 API Key 是否已配置和动态状态。",
+    description: "查看当前品牌下个人中心第三方接口配置摘要，包括 API Key 是否已配置和动态状态，可用于 StepFun、Tikhub、蝉镜、RunningHub、火山 VOD 等平台。",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
   },
   {
     name: "update_my_third_party_platform_secret",
-    description: "更新当前品牌指定第三方平台的 API Key。",
+    description: "更新当前品牌指定第三方平台的 API Key，可用于 StepFun、Tikhub、蝉镜、RunningHub、火山 VOD 等平台。",
     inputSchema: {
       type: "object",
       properties: {

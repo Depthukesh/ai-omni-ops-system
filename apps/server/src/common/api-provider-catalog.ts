@@ -37,6 +37,7 @@ export const APIZ_TASK_QUERY_PATH = "/api/v3/tasks/query";
 export const MATHMIND_PLATFORM_BASE_URL = "https://agent.mathmind.cn";
 export const MATHMIND_API_BASE_URL = "https://api.mathmind.cn";
 export const AGNES_API_BASE_URL = "https://apihub.agnes-ai.com";
+export const STEPFUN_API_BASE_URL = "https://api.stepfun.com";
 
 function createSeed(input: Omit<ApiProviderSeedRecord, "successRate" | "requestCount24h" | "totalCostYuan" | "lastCalledAt" | "updatedAt">): ApiProviderSeedRecord {
   return {
@@ -143,6 +144,18 @@ type GlmToolSeedInput = {
   runtimeTags: string[];
   requestPath: string;
   queryPath?: string;
+  displayOrder: number;
+  remark: string;
+};
+
+type StepfunAudioSeedInput = {
+  id: string;
+  name: string;
+  tutorialUrl: string;
+  modelId: string;
+  runtimeKey: string;
+  runtimeTags: string[];
+  requestPath: string;
   displayOrder: number;
   remark: string;
 };
@@ -400,6 +413,36 @@ function createGlmToolSeed(input: GlmToolSeedInput) {
       modelId: input.modelId,
       displayOrder: input.displayOrder,
       sourceFolder: "GLM 工具能力",
+    },
+    remark: input.remark,
+  });
+}
+
+function createStepfunAudioSeed(input: StepfunAudioSeedInput) {
+  return createSeed({
+    id: input.id,
+    name: input.name,
+    providerType: "CUSTOM",
+    status: "ACTIVE",
+    baseUrl: STEPFUN_API_BASE_URL,
+    tutorialUrl: input.tutorialUrl,
+    modelWhitelist: [input.modelId],
+    apiKey: "",
+    defaultModel: input.modelId,
+    organization: "",
+    project: "",
+    timeoutMs: 180000,
+    streamEnabled: false,
+    customHeaders: {},
+    extraParams: {
+      runtimeKey: input.runtimeKey,
+      runtimeTags: input.runtimeTags,
+      baseUrls: [STEPFUN_API_BASE_URL],
+      requestPath: input.requestPath,
+      requestMode: "stepfun-audio",
+      modelId: input.modelId,
+      displayOrder: input.displayOrder,
+      sourceFolder: "StepFun 语音大模型",
     },
     remark: input.remark,
   });
@@ -743,6 +786,31 @@ const GLM_TOOL_PROVIDER_SEEDS: ApiProviderSeedRecord[] = [
   }),
 ];
 
+const STEPFUN_AUDIO_PROVIDER_SEEDS: ApiProviderSeedRecord[] = [
+  createStepfunAudioSeed({
+    id: "provider_runtime_audio_stepfun_tts_25",
+    name: "StepFun · StepAudio 2.5 TTS",
+    tutorialUrl: "https://platform.stepfun.com/docs/zh/guides/models/stepaudio-2.5-tts",
+    modelId: "stepaudio-2.5-tts",
+    runtimeKey: "audio-speech-stepfun",
+    runtimeTags: ["audio-speech", "tts-runtime", "works-runtime"],
+    requestPath: "/v1/audio/speech",
+    displayOrder: 40,
+    remark: "用于文本转语音与品牌语音合成场景；品牌 Owner 可在个人中心配置 StepFun API Key 后启用。",
+  }),
+  createStepfunAudioSeed({
+    id: "provider_runtime_audio_stepfun_asr_25",
+    name: "StepFun · StepAudio 2.5 ASR",
+    tutorialUrl: "https://platform.stepfun.com/docs/zh/guides/models/stepaudio-2.5-asr",
+    modelId: "stepaudio-2.5-asr",
+    runtimeKey: "audio-recognition-stepfun",
+    runtimeTags: ["audio-recognition", "transcript-runtime", "knowledge-runtime"],
+    requestPath: "/v1/audio/transcriptions",
+    displayOrder: 41,
+    remark: "用于音频转写与语音识别场景；品牌 Owner 可在个人中心配置 StepFun API Key 后启用。",
+  }),
+];
+
 const MATHMIND_PROVIDER_SEEDS: ApiProviderSeedRecord[] = [
   createSeed({
     id: "provider_runtime_mathmind_video_tools",
@@ -992,6 +1060,7 @@ export const SYSTEM_API_PROVIDER_SEEDS: ApiProviderSeedRecord[] = [
     remark: "系统按用户提供的 GLM 接口资料初始化，用于可视化报告等国内文生文补位场景。",
   }),
   ...GLM_TOOL_PROVIDER_SEEDS,
+  ...STEPFUN_AUDIO_PROVIDER_SEEDS,
   createSeed({
     id: "provider_runtime_image_generation_right_codes",
     name: "Right Codes · 文生图/图生图",

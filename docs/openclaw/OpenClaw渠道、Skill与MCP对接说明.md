@@ -249,6 +249,7 @@ OpenClaw 通过 MCP 获取：
 - `generate_html`
   - 代表系统基于正文 canonical、图片资产和风格规则重新渲染，并产出可直接发布到公众号正文的 HTML 片段
 - 第三方接口配置摘要
+  - 当前可覆盖 StepFun / StepAudio、Tikhub、蝉镜、RunningHub、火山引擎 VOD 等品牌级第三方平台密钥入口
 - 订单中心摘要
 - 各类任务触发能力
 

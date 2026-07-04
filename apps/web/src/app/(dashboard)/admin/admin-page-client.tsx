@@ -9833,6 +9833,7 @@ function resolveThirdPartyPlatformName(baseUrl: string, fallbackName: string) {
       "ark.cn-beijing.volces.com": "火山方舟平台",
       "api.moonshot.cn": "Kimi 平台",
       "open.bigmodel.cn": "GLM 平台",
+      "api.stepfun.com": "StepFun 平台",
     };
     return hostNameMap[host] || fallbackName.trim() || host;
   } catch {
@@ -9855,6 +9856,7 @@ function resolveThirdPartyPlatformWebsiteUrl(baseUrl: string) {
       "api.moonshot.cn": "https://platform.moonshot.cn",
       "open.bigmodel.cn": "https://open.bigmodel.cn",
       "api.tikhub.io": "https://www.tikhub.io",
+      "api.stepfun.com": "https://platform.stepfun.com",
       "ark.cn-beijing.volces.com": "https://www.volcengine.com/product/ark",
       "vod.volcengineapi.com": "https://console.volcengine.com/vod",
       "open-api.chanjing.cc": "https://www.chanjing.cc",

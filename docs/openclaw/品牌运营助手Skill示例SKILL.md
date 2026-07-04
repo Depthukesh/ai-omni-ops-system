@@ -257,11 +257,13 @@
 ### 查看第三方接口配置摘要
 
 - 优先使用：`list_my_third_party_platforms`
+- 典型关注项包括：`StepFun / StepAudio`、`Tikhub`、`蝉镜`、`RunningHub`、`火山引擎 VOD`
 
 ### 更新品牌 API Key
 
 - 优先使用：`update_my_third_party_platform_secret`
 - 执行前必须确认：平台 ID 与新密钥
+- 若用户明确提到 `StepAudio 2.5 TTS / StepAudio 2.5 ASR`，优先引导到对应 `StepFun 平台` 记录下更新品牌级 API Key
 
 ### 生成品牌增长报告
 
