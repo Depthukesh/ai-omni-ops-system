@@ -2394,6 +2394,8 @@ export type DouyinRunningHubAppFieldRecord = {
   descriptionEn?: string;
 };
 
+export type RunningHubInstanceType = "default" | "plus";
+
 export type DouyinRunningHubAppCardRecord = {
   key: string;
   name: string;
@@ -2445,6 +2447,7 @@ export type DouyinRunningHubWorkRecord = {
 
 export type GenerateDouyinRunningHubWorkPayload = {
   title?: string;
+  instanceType?: RunningHubInstanceType;
   nodeInfoList?: Array<
     DouyinRunningHubAppFieldRecord & {
       upload?: UploadFilePayload;
@@ -9399,6 +9402,7 @@ export class WorksService {
     }
     const userId = await this.resolveTaskUserId(brandId, auth);
     const title = String(payload.title || "").trim() || `${app.name} - ${new Date().toLocaleString("zh-CN", { hour12: false })}`;
+    const instanceType = this.normalizeRunningHubInstanceType(payload.instanceType);
     const localSourceAssets = await this.persistRunningHubSourceAssets(brandId, normalizedNodeInfoList);
     const localMetaBase = this.buildRunningHubWorkMeta({
       taskId: "",
@@ -9448,6 +9452,7 @@ export class WorksService {
       brandId,
       apiKey,
       app,
+      instanceType,
       taskId: task.id,
       workMediaId: workMedia.id,
       storageKey: workMedia.storageKey || `${workMedia.id}.html`,
@@ -22008,6 +22013,7 @@ export class WorksService {
     brandId: string;
     apiKey: string;
     app: DouyinRunningHubAppCardRecord;
+    instanceType: RunningHubInstanceType;
     taskId: string;
     workMediaId: string;
     storageKey: string;
@@ -22023,7 +22029,7 @@ export class WorksService {
         progress: 20,
         nodeInfoList: preparedNodeInfoList,
       });
-      const submit = await this.submitRunningHubTask(apiKey, app.webappId, preparedNodeInfoList);
+      const submit = await this.submitRunningHubTask(apiKey, app.webappId, preparedNodeInfoList, params.instanceType);
       meta = await this.saveRunningHubWorkMetadataSnapshot(brandId, workMediaId, storageKey, {
         ...meta,
         status: this.normalizeRunningHubStatus(submit.status),
@@ -22171,7 +22177,16 @@ export class WorksService {
     return this.normalizeRunningHubFieldValue(preferredValue);
   }
 
-  private async submitRunningHubTask(apiKey: string, webappId: string, nodeInfoList: DouyinRunningHubAppFieldRecord[]) {
+  private normalizeRunningHubInstanceType(instanceType?: string): RunningHubInstanceType {
+    return String(instanceType || "").trim().toLowerCase() === "plus" ? "plus" : "default";
+  }
+
+  private async submitRunningHubTask(
+    apiKey: string,
+    webappId: string,
+    nodeInfoList: DouyinRunningHubAppFieldRecord[],
+    instanceType: RunningHubInstanceType,
+  ) {
     const response = await fetch(`https://www.runninghub.cn/openapi/v2/run/ai-app/${encodeURIComponent(webappId)}`, {
       method: "POST",
       headers: {
@@ -22180,7 +22195,7 @@ export class WorksService {
       },
       body: JSON.stringify({
         nodeInfoList,
-        instanceType: "default",
+        instanceType,
         usePersonalQueue: false,
       }),
     });

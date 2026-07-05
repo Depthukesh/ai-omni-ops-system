@@ -14,6 +14,7 @@ import {
   type DouyinRunningHubAppFieldRecord,
   type DouyinRunningHubWorkRecord,
   type DouyinRunningHubWorkResultRecord,
+  type RunningHubInstanceType,
 } from "../../../services/works";
 import { type OptionalDateFormatter } from "../xiaohongshu/shared-types";
 
@@ -59,6 +60,10 @@ function formatSuggestedTitle(appName: string) {
     .format(new Date())
     .replace(/\//g, "-");
   return `${appName} - ${stamp}`;
+}
+
+function getDefaultRunningHubInstanceType(appKey?: string | null): RunningHubInstanceType {
+  return appKey === "ltx23-digital-human-lip-sync" ? "plus" : "default";
 }
 
 function getWorkStatusLabel(status?: DouyinRunningHubWorkRecord["status"]) {
@@ -167,11 +172,13 @@ function RunningHubCreateDialog(props: {
   detailLoading: boolean;
   detail: DouyinRunningHubAppDetailRecord | null;
   title: string;
+  instanceType: RunningHubInstanceType;
   fields: RunningHubFieldFormEntry[];
   materialVideoOptions: RunningHubMaterialLibraryItem[];
   submitError: string;
   submitting: boolean;
   onTitleChange: (value: string) => void;
+  onInstanceTypeChange: (value: RunningHubInstanceType) => void;
   onFieldValueChange: (index: number, value: string) => void;
   onFieldFileChange: (index: number, file: File | null) => void;
   onClose: () => void;
@@ -244,6 +251,16 @@ function RunningHubCreateDialog(props: {
                 <label className="design-v3-field design-v3-field--full">
                   <span>作品标题</span>
                   <input type="text" value={props.title} onChange={(event) => props.onTitleChange(event.target.value)} />
+                </label>
+                <label className="design-v3-field">
+                  <span>运行实例</span>
+                  <select value={props.instanceType} onChange={(event) => props.onInstanceTypeChange(event.target.value as RunningHubInstanceType)}>
+                    <option value="default">标准显存（24G）</option>
+                    <option value="plus">Plus大显存（48G）</option>
+                  </select>
+                  <small className="personal-meta">
+                    当前应用出现显存不足时，优先改用 Plus 大显存模式；`LTX2.3数字人说话唱歌对口型` 默认会选 Plus。
+                  </small>
                 </label>
                 {props.fields.map((field, index) => {
                   const uploadKind = shouldUseNumberInput(field) ? null : inferUploadKind(field);
@@ -602,6 +619,7 @@ export function DouyinRunningHubWorkspace(props: DouyinRunningHubWorkspaceProps)
   const [selectedWorkId, setSelectedWorkId] = useState("");
   const [detail, setDetail] = useState<DouyinRunningHubAppDetailRecord | null>(null);
   const [title, setTitle] = useState("");
+  const [instanceType, setInstanceType] = useState<RunningHubInstanceType>("default");
   const [fields, setFields] = useState<RunningHubFieldFormEntry[]>([]);
   const [inlineError, setInlineError] = useState("");
   const [submitError, setSubmitError] = useState("");
@@ -662,6 +680,7 @@ export function DouyinRunningHubWorkspace(props: DouyinRunningHubWorkspaceProps)
         const result = await getDouyinRunningHubAppDetail(props.brandId, appKey);
         setDetail(result.item);
         setTitle(formatSuggestedTitle(result.item.name));
+        setInstanceType(getDefaultRunningHubInstanceType(result.item.key));
         setFields(buildFieldForm(result.item));
       } catch (error) {
         setDetail(null);
@@ -697,6 +716,7 @@ export function DouyinRunningHubWorkspace(props: DouyinRunningHubWorkspaceProps)
     try {
       const form: CreateDouyinRunningHubWorkForm = {
         title: title.trim(),
+        instanceType,
         nodeInfoList: fields.map((field) => ({
           nodeId: field.nodeId,
           nodeName: field.nodeName,
@@ -720,7 +740,7 @@ export function DouyinRunningHubWorkspace(props: DouyinRunningHubWorkspaceProps)
     } finally {
       setSubmitting(false);
     }
-  }, [fields, props.brandId, refreshWorkspace, selectedAppKey, title]);
+  }, [fields, instanceType, props.brandId, refreshWorkspace, selectedAppKey, title]);
 
   const handleDelete = useCallback(
     async (workId: string) => {
@@ -808,11 +828,13 @@ export function DouyinRunningHubWorkspace(props: DouyinRunningHubWorkspaceProps)
         detailLoading={detailLoading}
         detail={detail || (selectedApp ? { ...selectedApp, configured: false, nodeInfoList: [], configHint: "" } : null)}
         title={title}
+        instanceType={instanceType}
         fields={fields}
         materialVideoOptions={props.materialLibraryItems}
         submitError={submitError}
         submitting={submitting}
         onTitleChange={setTitle}
+        onInstanceTypeChange={setInstanceType}
         onFieldValueChange={handleFieldValueChange}
         onFieldFileChange={handleFieldFileChange}
         onClose={() => {

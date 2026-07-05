@@ -575,6 +575,8 @@ export type DouyinRunningHubWorkResultRecord = {
   text?: string;
 };
 
+export type RunningHubInstanceType = "default" | "plus";
+
 export type DouyinRunningHubWorkRecord = {
   id: string;
   taskId: string;
@@ -600,6 +602,7 @@ export type DouyinRunningHubWorkRecord = {
 
 export type CreateDouyinRunningHubWorkForm = {
   title?: string;
+  instanceType?: RunningHubInstanceType;
   nodeInfoList: Array<
     DouyinRunningHubAppFieldRecord & {
       uploadFile?: File | null;
@@ -1984,6 +1987,7 @@ export async function createDouyinRunningHubWork(
     "POST",
     {
       title: form.title,
+      instanceType: form.instanceType,
       nodeInfoList,
     },
   );
