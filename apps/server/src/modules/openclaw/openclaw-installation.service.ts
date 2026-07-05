@@ -493,6 +493,10 @@ description: AI 全域智能体网站能力总入口 Skill。先识别用户要�
 
 
 同时，你也要熟悉这些高频直连工具：
+- \`get_website_function_catalog\`
+- \`get_website_function_detail\`
+- \`route_website_function_by_intent\`
+- \`get_website_function_execution_plan\`
 - \`get_unified_material_library_items\`
 - \`get_douyin_material_library_items\`
 - \`get_wechat_collection_workspace\`
@@ -508,6 +512,13 @@ description: AI 全域智能体网站能力总入口 Skill。先识别用户要�
 - \`get_openclaw_daily_plans\`
 - \`create_openclaw_daily_plan\`
 - \`delete_openclaw_daily_plan\`
+- \`get_openclaw_creative_materials\`
+- \`create_openclaw_creative_material\`
+- \`delete_openclaw_creative_material\`
+- \`get_openclaw_video_works\`
+- \`create_openclaw_video_work\`
+- \`delete_openclaw_video_work\`
+- \`create_openclaw_video_work_douyin_desktop_publish_session\`
 如果执行计划推荐其他站内 MCP 工具，也应按计划调用。
 
 
@@ -590,6 +601,18 @@ description: AI 全域智能体网站能力总入口 Skill。先识别用户要�
   - \`lip_sync\`
   - \`runninghub\`
   - \`ad_preaudit\`
+- 数字人语音库 / 试听必须按下面顺序调用：
+  - 先 \`section=digital_human action=list_voice_library\` 或 \`list_custom_voices\`
+  - 从返回结果中读取声音 ID，优先放在 \`voiceId\`
+  - 再调用 \`section=digital_human action=create_speech_task\`，并在 \`payload.text\` 放要合成的文案
+  - 最后用 \`section=digital_human action=get_speech_task\` 轮询结果
+- RunningHub 必须按下面顺序调用：
+  - 先 \`section=runninghub action=list_apps\`
+  - 再 \`section=runninghub action=get_app_detail\`，必须带 \`appKey\`
+  - 从返回结果里读取 \`nodeInfoList\` 模板，只回填每个节点的 \`fieldValue\`
+  - 保留原始 \`nodeId\`、\`fieldName\`、\`fieldType\`、\`description\`、\`descriptionEn\`
+  - 最后再 \`section=runninghub action=generate\`
+- 禁止直接猜测 RunningHub 的 \`nodeId\`，也不要在 \`nodeInfoList\` 为空时直接调用 \`generate\`
 
 ### 10. OpenClaw 专区
 
@@ -600,12 +623,22 @@ description: AI 全域智能体网站能力总入口 Skill。先识别用户要�
   - \`get_openclaw_lobster_diaries\`
   - \`create_openclaw_lobster_diary\`
   - \`delete_openclaw_lobster_diary\`
+  - \`get_openclaw_creative_materials\`
+  - \`create_openclaw_creative_material\`
+  - \`delete_openclaw_creative_material\`
+  - \`get_openclaw_video_works\`
+  - \`create_openclaw_video_work\`
+  - \`delete_openclaw_video_work\`
+  - \`create_openclaw_video_work_douyin_desktop_publish_session\`
   - \`get_website_function_catalog\`
   - \`get_website_function_execution_plan\`
 - 对"每日计划"和"每日复盘"场景要记住：
   - 页面端用户只能查看和删除
   - 新建由 OpenClaw Agent 发起
   - 输入只需要日期、标题、内容
+- 对"创作素材"和"视频作品"场景要记住：
+  - 创作素材用于沉淀文本、图片、视频、语音、BGM 等中间结果
+  - 视频作品用于沉淀最终成片，并可继续创建抖音发布会话
 
 ## 六、追问规则
 

@@ -322,10 +322,32 @@
 - 只做纯语音合成试听时，使用：
   - `section=digital_human`
   - `action=create_speech_task`
+  - 先从语音库或自定义音色结果中读取声音 ID，优先作为 `voiceId` 传入
+  - 在 `payload.text` 中提供要合成的文案
 - 查询纯语音合成结果时，使用：
   - `section=digital_human`
   - `action=get_speech_task`
 - 口型驱动视频和纯 TTS 试听是两条链路，不要把 `create_speech_task` 误当成数字人口型视频生成
+
+### 使用 RunningHub 应用
+
+- 优先使用：`manage_douyin_video_production`
+- 获取可用应用时，使用：
+  - `section=runninghub`
+  - `action=list_apps`
+- 生成前必须先拉应用详情，使用：
+  - `section=runninghub`
+  - `action=get_app_detail`
+  - `appKey=<应用key>`
+- 从应用详情返回的 `nodeInfoList` 中读取参数模板：
+  - 只回填每个节点的 `fieldValue`
+  - 保留 `nodeId`、`fieldName`、`fieldType`、`description`、`descriptionEn`
+- 真正触发生成时，使用：
+  - `section=runninghub`
+  - `action=generate`
+  - `appKey=<应用key>`
+  - `payload.nodeInfoList=<来自 get_app_detail 的模板，回填 fieldValue 后原样提交>`
+- 不要猜测 `nodeId`，也不要在 `nodeInfoList` 为空时直接调用 `generate`
 
 ### 保存并管理 OpenClaw 创作素材
 

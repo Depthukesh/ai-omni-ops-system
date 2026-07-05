@@ -9395,7 +9395,7 @@ export class WorksService {
     const apiKey = await this.resolveRunningHubApiKey(brandId);
     const normalizedNodeInfoList = this.normalizeRunningHubNodeInfoList(payload.nodeInfoList);
     if (!normalizedNodeInfoList.length) {
-      throw new BadRequestException("RunningHub 应用参数不能为空");
+      throw new BadRequestException("RunningHub generate 前请先读取应用详情拿到 nodeInfoList 模板，再回填 fieldValue 后提交。");
     }
     const userId = await this.resolveTaskUserId(brandId, auth);
     const title = String(payload.title || "").trim() || `${app.name} - ${new Date().toLocaleString("zh-CN", { hour12: false })}`;

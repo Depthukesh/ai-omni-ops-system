@@ -203,15 +203,15 @@ const TOOL_DEFINITIONS = [
   },
   {
     name: "manage_douyin_video_production",
-    description: "统一管理抖音视频生产，覆盖普通视频、直接生视频、混剪短视频、数字人、口型驱动、RunningHub 和广告预审。数字人分支已支持模板列表、公共语音库、我的自定义音色、音色克隆、纯 TTS 试听任务和数字人作品生成。",
+    description: "统一管理抖音视频生产，覆盖普通视频、直接生视频、混剪短视频、数字人、口型驱动、RunningHub 和广告预审。调用数字人试听前，应先列出公共语音库或自定义音色拿到 voiceId；调用 RunningHub generate 前，应先用 get_app_detail 读取应用 nodeInfoList 模板。",
     inputSchema: {
       type: "object",
       properties: {
         section: { type: "string", description: "可选：video、direct_video、remix_short_video、digital_human、lip_sync、runninghub、ad_preaudit。" },
-        action: { type: "string", description: "例如 list_works、generate、recover、list_templates、list_voice_library、list_custom_voices、create_custom_voice、create_speech_task、get_speech_task、list_apps、save_config 等。" },
+        action: { type: "string", description: "例如 list_works、generate、recover、list_templates、list_voice_library、list_custom_voices、create_custom_voice、create_speech_task、get_speech_task、list_apps、get_app_detail、save_config 等。" },
         workId: { type: "string" },
         taskId: { type: "string" },
-        voiceId: { type: "string" },
+        voiceId: { type: "string", description: "数字人语音 ID。create_speech_task 时可直接传这里，服务端会自动映射到 payload.audioManId。" },
         templateId: { type: "string" },
         customPersonId: { type: "string" },
         appKey: { type: "string" },
@@ -223,7 +223,7 @@ const TOOL_DEFINITIONS = [
         tagIds: { type: "array", items: { type: "integer" } },
         payload: {
           type: "object",
-          description: "对应动作的请求体，结构与网站原始接口保持一致。",
+          description: "对应动作的请求体。数字人 create_speech_task 需要 text，建议配合 voiceId 一起传；RunningHub generate 需要先从 get_app_detail 返回结果里取 nodeInfoList 模板，再回填 fieldValue 后原样提交。",
           additionalProperties: true,
         },
       },
@@ -738,7 +738,7 @@ async function handleToolCall(name, args = {}) {
     case "sync_douyin_city_hotspots":
       return callApi("/openclaw/mcp/brand-growth/douyin-collection/city-hotspots/sync", { method: "POST", body: args });
     default:
-      throw new Error(`未知工具: ${name}`);
+      return callMcp("tools/call", { name, arguments: args });
   }
 }
 
