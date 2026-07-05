@@ -22075,8 +22075,9 @@ export class WorksService {
     const prepared: DouyinRunningHubAppFieldRecord[] = [];
     for (const item of nodeInfoList) {
       let fieldValue = this.normalizeRunningHubFieldValue(item.fieldValue);
-      if (item.upload) {
-        const uploadResult = await this.uploadRunningHubMedia(apiKey, item.upload);
+      const uploadPayload = item.upload || await this.resolveRunningHubRemoteUploadPayload(item, fieldValue);
+      if (uploadPayload) {
+        const uploadResult = await this.uploadRunningHubMedia(apiKey, uploadPayload);
         fieldValue = this.resolveRunningHubUploadedFieldValue(item, uploadResult) || fieldValue;
       }
       prepared.push({
@@ -22121,6 +22122,39 @@ export class WorksService {
     };
   }
 
+  private async resolveRunningHubRemoteUploadPayload(
+    item: {
+      fieldName?: string;
+      nodeName?: string;
+      fieldType?: string;
+      description?: string;
+      descriptionEn?: string;
+    },
+    fieldValue?: string,
+  ): Promise<UploadFilePayload | undefined> {
+    const normalizedUrl = this.normalizeRunningHubFieldValue(fieldValue);
+    if (!this.shouldConvertRunningHubRemoteAudioUrlToUpload(item, normalizedUrl)) {
+      return undefined;
+    }
+    const response = await fetch(normalizedUrl as string);
+    if (!response.ok) {
+      throw new ServiceUnavailableException(`下载 RunningHub 音频源失败：${response.status}`);
+    }
+    const buffer = Buffer.from(await response.arrayBuffer());
+    if (!buffer.length) {
+      throw new ServiceUnavailableException("下载 RunningHub 音频源失败：文件内容为空");
+    }
+    const responseContentType = String(response.headers.get("content-type") || "").trim().toLowerCase();
+    const contentType = responseContentType || "audio/mpeg";
+    const fileName = this.buildRunningHubRemoteAudioFileName(normalizedUrl as string, contentType);
+    return {
+      fileName,
+      contentType,
+      dataBase64: buffer.toString("base64"),
+      sizeBytes: buffer.length,
+    };
+  }
+
   private normalizeRunningHubFieldValue(value?: string) {
     const trimmed = String(value || "").trim();
     if (!trimmed) {
@@ -22155,6 +22189,37 @@ export class WorksService {
       .join(" ")
       .toLowerCase();
     return /audio|voice|music|song|sound|loadaudio|uploadaudio|歌曲|语音|音频|配音|伴奏|bgm/.test(haystack);
+  }
+
+  private shouldConvertRunningHubRemoteAudioUrlToUpload(
+    item: {
+      fieldName?: string;
+      nodeName?: string;
+      fieldType?: string;
+      description?: string;
+      descriptionEn?: string;
+    },
+    fieldValue?: string,
+  ) {
+    const normalizedValue = this.normalizeRunningHubFieldValue(fieldValue);
+    if (!normalizedValue || !/^https?:\/\//i.test(normalizedValue)) {
+      return false;
+    }
+    return this.shouldUseRunningHubUploadedFileName(item);
+  }
+
+  private buildRunningHubRemoteAudioFileName(remoteUrl: string, contentType: string) {
+    const urlPathName = (() => {
+      try {
+        return new URL(remoteUrl).pathname;
+      } catch {
+        return remoteUrl;
+      }
+    })();
+    const rawName = urlPathName.split("/").filter(Boolean).pop() || `runninghub-audio-${Date.now()}`;
+    const sanitizedName = rawName.replace(/[<>:"/\\|?*\u0000-\u001f]+/g, "-").trim() || `runninghub-audio-${Date.now()}`;
+    const extension = this.resolveAudioExtensionFromMimeType(contentType, sanitizedName);
+    return sanitizedName.match(/\.[a-z0-9]+$/i) ? sanitizedName : `${sanitizedName}${extension}`;
   }
 
   private resolveRunningHubUploadedFieldValue(
