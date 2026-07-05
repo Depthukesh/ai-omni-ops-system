@@ -14,9 +14,11 @@ import {
   type XhsCollectionWorkspace,
 } from "../collectors/collectors.service";
 import { FeedbackService } from "../feedback/feedback.service";
+import { OpenClawCreativeMaterialService } from "./openclaw-creative-material.service";
 import { OpenClawInstallationService } from "./openclaw-installation.service";
-import { OpenClawLobsterDiaryService } from "./openclaw-lobster-diary.service";
 import { OpenClawDailyPlanService } from "./openclaw-daily-plan.service";
+import { OpenClawLobsterDiaryService } from "./openclaw-lobster-diary.service";
+import { OpenClawVideoWorkService } from "./openclaw-video-work.service";
 import {
   getOpenClawWorkspaceDashboardPath,
   getOpenClawWorkspaceDisplayName,
@@ -413,6 +415,48 @@ const OPENCLAW_WEBSITE_FUNCTION_CATALOG: OpenClawWebsiteFunctionCatalogItem[] = 
       "get_openclaw_daily_plans",
       "create_openclaw_daily_plan",
       "delete_openclaw_daily_plan",
+    ],
+  },
+  {
+    key: "openclaw_creative_material",
+    domainKey: "openclaw",
+    domainName: "OpenClaw 专区",
+    name: "查看并管理创作素材",
+    summary: "适合把 OpenClaw 通过站内第三方平台能力生成的文本、图片、视频、语音和 BGM 等素材落库到专区，并支持查看与删除。",
+    pageUrl: "/douyin",
+    pageLabel: "打开 OpenClaw 专区",
+    riskLevel: "medium",
+    intentKeywords: ["创作素材", "素材", "图片素材", "视频素材", "语音素材", "bgm", "openclaw专区"],
+    requiredInputKeys: ["title", "materialType"],
+    requiredInputs: ["标题", "素材类型"],
+    recommendedQuestions: ["帮我保存一条创作素材到 OpenClaw 专区", "帮我看当前品牌有哪些创作素材"],
+    mcpTools: [
+      "list_my_third_party_platforms",
+      "check_my_third_party_platform_runtime_access",
+      "get_openclaw_creative_materials",
+      "create_openclaw_creative_material",
+      "delete_openclaw_creative_material",
+    ],
+  },
+  {
+    key: "openclaw_video_work",
+    domainKey: "openclaw",
+    domainName: "OpenClaw 专区",
+    name: "查看并管理视频作品",
+    summary: "适合把 OpenClaw 最终整合生成的视频作品落库到专区，并在工作台中查看、删除或发起抖音发布。",
+    pageUrl: "/douyin",
+    pageLabel: "打开 OpenClaw 专区",
+    riskLevel: "medium",
+    intentKeywords: ["视频作品", "成片", "最终视频", "脚本", "发布到抖音", "openclaw专区"],
+    requiredInputKeys: ["title", "videoUrl"],
+    requiredInputs: ["作品标题", "作品视频地址"],
+    recommendedQuestions: ["帮我保存一条视频作品到 OpenClaw 专区", "帮我看当前品牌有哪些视频作品", "帮我为这条 OpenClaw 视频作品发起抖音发布"],
+    mcpTools: [
+      "get_openclaw_video_works",
+      "create_openclaw_video_work",
+      "delete_openclaw_video_work",
+      "create_openclaw_video_work_douyin_desktop_publish_session",
+      "get_douyin_desktop_publish_session",
     ],
   },
   {
@@ -1753,6 +1797,106 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
     },
   },
   {
+    name: "get_openclaw_creative_materials",
+    description: "查看当前品牌指定板块下的创作素材列表。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat"], description: "可选：指定板块作用域，默认 brand_growth。" },
+        limit: { type: "integer", minimum: 1, maximum: 100 },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "create_openclaw_creative_material",
+    description: "为当前品牌指定板块保存一条创作素材，可保存文本、图片、视频、语音或 BGM 等结果。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat"], description: "可选：写入哪个板块，默认 brand_growth。" },
+        title: { type: "string", description: "素材标题。" },
+        description: { type: "string", description: "素材描述。" },
+        materialType: { type: "string", description: "素材类型，例如 text、image、video、audio、bgm。" },
+        fileUrl: { type: "string", description: "素材文件 URL，可选。" },
+        fileName: { type: "string", description: "素材文件名，可选。" },
+        mimeType: { type: "string", description: "素材 MIME 类型，可选。" },
+        textContent: { type: "string", description: "纯文本素材正文，可选。" },
+      },
+      required: ["title", "materialType"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "delete_openclaw_creative_material",
+    description: "删除指定板块下的一条创作素材。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat"], description: "可选：删除所在板块，默认 brand_growth。" },
+        materialId: { type: "string", description: "创作素材 ID。" },
+      },
+      required: ["materialId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_openclaw_video_works",
+    description: "查看当前品牌指定板块下的视频作品列表。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat"], description: "可选：指定板块作用域，默认 brand_growth。" },
+        limit: { type: "integer", minimum: 1, maximum: 100 },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "create_openclaw_video_work",
+    description: "为当前品牌指定板块保存一条最终视频作品，可附带标题、描述、脚本、封面和视频地址。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat"], description: "可选：写入哪个板块，默认 brand_growth。" },
+        title: { type: "string", description: "作品标题。" },
+        description: { type: "string", description: "作品描述。" },
+        scriptContent: { type: "string", description: "视频文案或脚本。" },
+        coverImageUrl: { type: "string", description: "作品封面 URL，可选。" },
+        videoUrl: { type: "string", description: "作品视频 URL。" },
+      },
+      required: ["title", "videoUrl"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "delete_openclaw_video_work",
+    description: "删除指定板块下的一条视频作品。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat"], description: "可选：删除所在板块，默认 brand_growth。" },
+        workId: { type: "string", description: "视频作品 ID。" },
+      },
+      required: ["workId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "create_openclaw_video_work_douyin_desktop_publish_session",
+    description: "为指定 OpenClaw 视频作品创建抖音电脑端发布会话，便于通过浏览器扩展自动填充发布信息。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat"], description: "可选：作品所在板块，默认 brand_growth。" },
+        workId: { type: "string", description: "视频作品 ID。" },
+        accountId: { type: "string", description: "可选：目标抖音账号 ID。" },
+      },
+      required: ["workId"],
+      additionalProperties: false,
+    },
+  },
+  {
     name: "create_xiaohongshu_rewrite_note",
     description: "基于素材库中的对标作品触发小红书二创图文生成。",
     inputSchema: {
@@ -2091,6 +2235,8 @@ export class OpenClawService {
     private readonly openClawInstallationService: OpenClawInstallationService,
     private readonly openClawLobsterDiaryService: OpenClawLobsterDiaryService,
     private readonly openClawDailyPlanService: OpenClawDailyPlanService,
+    private readonly openClawCreativeMaterialService: OpenClawCreativeMaterialService,
+    private readonly openClawVideoWorkService: OpenClawVideoWorkService,
   ) {}
 
   async getCurrentBrandContext(headers: HeadersMap) {
@@ -6384,6 +6530,299 @@ export class OpenClawService {
     });
   }
 
+  async getOpenClawCreativeMaterials(
+    headers: HeadersMap,
+    options?: {
+      workspaceScope?: string;
+      limit?: number;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "view", auth);
+    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope);
+    const workspaceLabel = getOpenClawWorkspaceDisplayName(workspaceScope);
+    const workspacePath = getOpenClawWorkspaceDashboardPath(workspaceScope);
+    const workspace = await this.openClawCreativeMaterialService.listWorkspace(brandId, workspaceScope, options?.limit);
+    const items = workspace.items.slice(0, this.normalizeLimit(options?.limit));
+
+    return this.buildSummaryResponse({
+      title: `${workspaceLabel}创作素材`,
+      summary: workspace.total
+        ? `当前品牌 ${workspaceLabel} 板块共有 ${workspace.total} 条创作素材。`
+        : `当前品牌 ${workspaceLabel} 板块还没有创作素材，OpenClaw 可先调用站内能力生成并保存首条素材。`,
+      highlights: items.length
+        ? items.slice(0, 5).map((item) => `${item.materialType || "素材"}｜${item.title}`)
+        : ["素材数：0"],
+      data: {
+        total: workspace.total,
+        items,
+      },
+      links: [{ label: `打开${workspaceLabel}工作台`, url: workspacePath }],
+      resourceKind: "openclaw_creative_material",
+    });
+  }
+
+  async createOpenClawCreativeMaterial(
+    headers: HeadersMap,
+    options?: {
+      workspaceScope?: string;
+      title?: string;
+      description?: string;
+      materialType?: string;
+      fileUrl?: string;
+      fileName?: string;
+      mimeType?: string;
+      textContent?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "edit", auth);
+    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope);
+    const workspaceLabel = getOpenClawWorkspaceDisplayName(workspaceScope);
+    const workspacePath = getOpenClawWorkspaceDashboardPath(workspaceScope);
+
+    const item = await this.openClawCreativeMaterialService.createMaterial({
+      brandId,
+      workspaceScope,
+      createdByUserId: auth.userId,
+      title: options?.title,
+      description: options?.description,
+      materialType: options?.materialType,
+      fileUrl: options?.fileUrl,
+      fileName: options?.fileName,
+      mimeType: options?.mimeType,
+      textContent: options?.textContent,
+    });
+
+    return this.buildSummaryResponse({
+      title: `${workspaceLabel}创作素材已保存`,
+      summary: `已在 ${workspaceLabel} 板块保存创作素材《${item.title}》。`,
+      highlights: [
+        `素材类型：${item.materialType || "未标注"}`,
+        `素材标题：${item.title}`,
+        item.fileUrl ? `文件地址：${item.fileUrl}` : `文本长度：${String(item.textContent || "").length} 字`,
+      ],
+      data: item,
+      links: [{ label: `打开${workspaceLabel}工作台`, url: workspacePath }],
+      resourceKind: "openclaw_creative_material",
+      resultStatus: "COMPLETED",
+    });
+  }
+
+  async deleteOpenClawCreativeMaterial(
+    headers: HeadersMap,
+    options?: {
+      workspaceScope?: string;
+      materialId?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "edit", auth);
+    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope);
+    const workspaceLabel = getOpenClawWorkspaceDisplayName(workspaceScope);
+    const workspacePath = getOpenClawWorkspaceDashboardPath(workspaceScope);
+    const materialId = String(options?.materialId || "").trim();
+    if (!materialId) {
+      throw new BadRequestException("请提供 materialId");
+    }
+
+    const item = await this.openClawCreativeMaterialService.deleteMaterial(brandId, workspaceScope, materialId);
+
+    return this.buildSummaryResponse({
+      title: `${workspaceLabel}创作素材已删除`,
+      summary: `已从 ${workspaceLabel} 板块删除创作素材《${item.title}》。`,
+      highlights: [
+        `素材类型：${item.materialType || "未标注"}`,
+        `素材 ID：${item.id}`,
+      ],
+      data: item,
+      links: [{ label: `打开${workspaceLabel}工作台`, url: workspacePath }],
+      resourceKind: "openclaw_creative_material",
+      resultStatus: "COMPLETED",
+    });
+  }
+
+  async getOpenClawVideoWorks(
+    headers: HeadersMap,
+    options?: {
+      workspaceScope?: string;
+      limit?: number;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "view", auth);
+    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope);
+    const workspaceLabel = getOpenClawWorkspaceDisplayName(workspaceScope);
+    const workspacePath = getOpenClawWorkspaceDashboardPath(workspaceScope);
+    const workspace = await this.openClawVideoWorkService.listWorkspace(brandId, workspaceScope, options?.limit);
+    const items = workspace.items.slice(0, this.normalizeLimit(options?.limit));
+
+    return this.buildSummaryResponse({
+      title: `${workspaceLabel}视频作品`,
+      summary: workspace.total
+        ? `当前品牌 ${workspaceLabel} 板块共有 ${workspace.total} 条视频作品。`
+        : `当前品牌 ${workspaceLabel} 板块还没有视频作品，OpenClaw 可先保存最终成片。`,
+      highlights: items.length
+        ? items.slice(0, 5).map((item) => `${item.title}｜${item.videoUrl ? "已存视频" : "缺少视频"}`)
+        : ["作品数：0"],
+      data: {
+        total: workspace.total,
+        items,
+      },
+      links: [{ label: `打开${workspaceLabel}工作台`, url: workspacePath }],
+      resourceKind: "openclaw_video_work",
+    });
+  }
+
+  async createOpenClawVideoWork(
+    headers: HeadersMap,
+    options?: {
+      workspaceScope?: string;
+      title?: string;
+      description?: string;
+      scriptContent?: string;
+      coverImageUrl?: string;
+      videoUrl?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "edit", auth);
+    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope);
+    const workspaceLabel = getOpenClawWorkspaceDisplayName(workspaceScope);
+    const workspacePath = getOpenClawWorkspaceDashboardPath(workspaceScope);
+
+    const item = await this.openClawVideoWorkService.createVideoWork({
+      brandId,
+      workspaceScope,
+      createdByUserId: auth.userId,
+      title: options?.title,
+      description: options?.description,
+      scriptContent: options?.scriptContent,
+      coverImageUrl: options?.coverImageUrl,
+      videoUrl: options?.videoUrl,
+    });
+
+    return this.buildSummaryResponse({
+      title: `${workspaceLabel}视频作品已保存`,
+      summary: `已在 ${workspaceLabel} 板块保存视频作品《${item.title}》。`,
+      highlights: [
+        `作品标题：${item.title}`,
+        `脚本长度：${String(item.scriptContent || "").length} 字`,
+        `视频地址：${item.videoUrl}`,
+      ],
+      data: item,
+      links: [{ label: `打开${workspaceLabel}工作台`, url: workspacePath }],
+      resourceKind: "openclaw_video_work",
+      resultStatus: "COMPLETED",
+    });
+  }
+
+  async deleteOpenClawVideoWork(
+    headers: HeadersMap,
+    options?: {
+      workspaceScope?: string;
+      workId?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "edit", auth);
+    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope);
+    const workspaceLabel = getOpenClawWorkspaceDisplayName(workspaceScope);
+    const workspacePath = getOpenClawWorkspaceDashboardPath(workspaceScope);
+    const workId = String(options?.workId || "").trim();
+    if (!workId) {
+      throw new BadRequestException("请提供 workId");
+    }
+
+    const item = await this.openClawVideoWorkService.deleteVideoWork(brandId, workspaceScope, workId);
+
+    return this.buildSummaryResponse({
+      title: `${workspaceLabel}视频作品已删除`,
+      summary: `已从 ${workspaceLabel} 板块删除视频作品《${item.title}》。`,
+      highlights: [
+        `作品标题：${item.title}`,
+        `作品 ID：${item.id}`,
+      ],
+      data: item,
+      links: [{ label: `打开${workspaceLabel}工作台`, url: workspacePath }],
+      resourceKind: "openclaw_video_work",
+      resultStatus: "COMPLETED",
+    });
+  }
+
+  async createOpenClawVideoWorkDouyinDesktopPublishSession(
+    headers: HeadersMap,
+    options?: {
+      workspaceScope?: string;
+      workId?: string;
+      accountId?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "edit", auth);
+    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope);
+    const workspacePath = getOpenClawWorkspaceDashboardPath(workspaceScope);
+    const workId = String(options?.workId || "").trim();
+    if (!workId) {
+      throw new BadRequestException("请提供 workId");
+    }
+
+    const item = await this.openClawVideoWorkService.getVideoWorkById(brandId, workspaceScope, workId);
+    if (!item) {
+      throw new BadRequestException("指定的视频作品不存在或已删除");
+    }
+
+    const result = await this.publishingService.createDouyinDesktopPublishSessionFromSource(brandId, {
+      workId: item.id,
+      workKind: "OPENCLAW_VIDEO",
+      title: item.title,
+      content: item.scriptContent || item.description,
+      videoUrl: item.videoUrl,
+      coverImageUrl: item.coverImageUrl,
+      hashtags: [],
+      sourceLabel: "OpenClaw 视频作品",
+    }, {
+      accountId: String(options?.accountId || "").trim() || undefined,
+    });
+
+    const creatorUrl = this.readNestedStringField(result as Record<string, unknown>, ["session", "creatorUrl"]);
+    const accountName = this.readNestedStringField(result as Record<string, unknown>, ["session", "accountName"]) || "未指定账号";
+    const title = this.readNestedStringField(result as Record<string, unknown>, ["session", "title"]) || item.title || "未命名作品";
+    const sessionToken = this.readNestedStringField(result as Record<string, unknown>, ["session", "token"]) || "未返回";
+    const expiresAt = this.readNestedStringField(result as Record<string, unknown>, ["session", "expiresAt"]) || "未返回";
+    const accessHint = this.readNestedStringField(result as Record<string, unknown>, ["session", "accessHint"]) || "请在电脑端打开抖音创作者中心并使用浏览器扩展接力。";
+
+    return this.buildSummaryResponse({
+      title: "已创建 OpenClaw 视频作品抖音发布接力",
+      summary: `已为 OpenClaw 视频作品《${item.title}》创建抖音电脑端发布会话。`,
+      highlights: [
+        `作品标题：${title}`,
+        `发布账号：${accountName}`,
+        `会话令牌：${sessionToken}`,
+        `过期时间：${expiresAt}`,
+        accessHint,
+      ],
+      data: result,
+      links: [
+        ...(creatorUrl ? [{ label: "打开抖音创作者中心", url: creatorUrl }] : []),
+        { label: "打开 OpenClaw 视频作品板块", url: workspacePath },
+      ],
+      resultStatus: "IN_PROGRESS",
+      resourceKind: "publish_session",
+      nextActions: [
+        ...(creatorUrl ? [{ label: "打开创作者中心", action: "open_page" as const, target: creatorUrl }] : []),
+        { label: "回到对话继续确认结果", action: "continue_in_chat" as const, target: item.id },
+      ],
+    });
+  }
+
   async createBrandGrowthReport(
     headers: HeadersMap,
     options?: {
@@ -10364,6 +10803,52 @@ export class OpenClawService {
         return this.deleteOpenClawDailyPlan(headers, {
           workspaceScope: typeof toolArgs.workspaceScope === "string" ? toolArgs.workspaceScope : undefined,
           planId: typeof toolArgs.planId === "string" ? toolArgs.planId : undefined,
+        });
+      case "get_openclaw_creative_materials":
+        return this.getOpenClawCreativeMaterials(headers, {
+          workspaceScope: typeof toolArgs.workspaceScope === "string" ? toolArgs.workspaceScope : undefined,
+          limit: typeof toolArgs.limit === "number" ? toolArgs.limit : undefined,
+        });
+      case "create_openclaw_creative_material":
+        return this.createOpenClawCreativeMaterial(headers, {
+          workspaceScope: typeof toolArgs.workspaceScope === "string" ? toolArgs.workspaceScope : undefined,
+          title: typeof toolArgs.title === "string" ? toolArgs.title : undefined,
+          description: typeof toolArgs.description === "string" ? toolArgs.description : undefined,
+          materialType: typeof toolArgs.materialType === "string" ? toolArgs.materialType : undefined,
+          fileUrl: typeof toolArgs.fileUrl === "string" ? toolArgs.fileUrl : undefined,
+          fileName: typeof toolArgs.fileName === "string" ? toolArgs.fileName : undefined,
+          mimeType: typeof toolArgs.mimeType === "string" ? toolArgs.mimeType : undefined,
+          textContent: typeof toolArgs.textContent === "string" ? toolArgs.textContent : undefined,
+        });
+      case "delete_openclaw_creative_material":
+        return this.deleteOpenClawCreativeMaterial(headers, {
+          workspaceScope: typeof toolArgs.workspaceScope === "string" ? toolArgs.workspaceScope : undefined,
+          materialId: typeof toolArgs.materialId === "string" ? toolArgs.materialId : undefined,
+        });
+      case "get_openclaw_video_works":
+        return this.getOpenClawVideoWorks(headers, {
+          workspaceScope: typeof toolArgs.workspaceScope === "string" ? toolArgs.workspaceScope : undefined,
+          limit: typeof toolArgs.limit === "number" ? toolArgs.limit : undefined,
+        });
+      case "create_openclaw_video_work":
+        return this.createOpenClawVideoWork(headers, {
+          workspaceScope: typeof toolArgs.workspaceScope === "string" ? toolArgs.workspaceScope : undefined,
+          title: typeof toolArgs.title === "string" ? toolArgs.title : undefined,
+          description: typeof toolArgs.description === "string" ? toolArgs.description : undefined,
+          scriptContent: typeof toolArgs.scriptContent === "string" ? toolArgs.scriptContent : undefined,
+          coverImageUrl: typeof toolArgs.coverImageUrl === "string" ? toolArgs.coverImageUrl : undefined,
+          videoUrl: typeof toolArgs.videoUrl === "string" ? toolArgs.videoUrl : undefined,
+        });
+      case "delete_openclaw_video_work":
+        return this.deleteOpenClawVideoWork(headers, {
+          workspaceScope: typeof toolArgs.workspaceScope === "string" ? toolArgs.workspaceScope : undefined,
+          workId: typeof toolArgs.workId === "string" ? toolArgs.workId : undefined,
+        });
+      case "create_openclaw_video_work_douyin_desktop_publish_session":
+        return this.createOpenClawVideoWorkDouyinDesktopPublishSession(headers, {
+          workspaceScope: typeof toolArgs.workspaceScope === "string" ? toolArgs.workspaceScope : undefined,
+          workId: typeof toolArgs.workId === "string" ? toolArgs.workId : undefined,
+          accountId: typeof toolArgs.accountId === "string" ? toolArgs.accountId : undefined,
         });
       case "get_latest_brand_growth_report_summary":
         return this.getLatestBrandGrowthReportSummary(headers);

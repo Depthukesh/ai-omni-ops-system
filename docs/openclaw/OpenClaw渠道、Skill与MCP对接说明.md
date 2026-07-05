@@ -221,6 +221,8 @@ OpenClaw 通过 MCP 获取：
 - 知识库历史
 - 技能配置摘要
 - 抖音视频生产统一管理能力，包含数字人模板、公共语音库、我的自定义音色、音色克隆和纯 TTS 试听任务
+- OpenClaw 创作素材列表、保存与删除能力
+- OpenClaw 视频作品列表、保存、删除，以及从专区视频作品直接发起抖音电脑端发布会话
 - 公众号工作流的创建、Step 2-4 直写与生成、发布确认和正式发布
 - 公众号工作流统一管理工具 `manage_wechat_workflow`
 
@@ -279,7 +281,26 @@ OpenClaw 通过 MCP 获取：
 - 订单中心摘要
 - 各类任务触发能力
 
-## 4.5 网站是“权威后端”
+### 4.5 OpenClaw 专区里的创作素材与视频作品推荐语义
+
+对于 OpenClaw 专区新增的两类归档对象，推荐按下面语义使用：
+
+- 创作素材：
+  - `get_openclaw_creative_materials`
+  - `create_openclaw_creative_material`
+  - `delete_openclaw_creative_material`
+  - 适合保存 OpenClaw 调用站内第三方平台能力后得到的文本、图片、视频、语音、BGM 等中间成果
+- 视频作品：
+  - `get_openclaw_video_works`
+  - `create_openclaw_video_work`
+  - `delete_openclaw_video_work`
+  - 适合保存 OpenClaw 最终整合完成的成片、脚本和封面
+- 从 OpenClaw 视频作品发起抖音发布时：
+  - `create_openclaw_video_work_douyin_desktop_publish_session`
+  - 后续用 `get_douyin_desktop_publish_session` 跟进结果
+- 当前视频号发布仍通过工作台中的浏览器扩展半自动链路处理，不单独提供服务端 MCP 发布会话
+
+## 4.6 网站是“权威后端”
 
 网站仍然是：
 

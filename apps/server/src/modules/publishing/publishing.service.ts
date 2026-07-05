@@ -12,6 +12,19 @@ const DESKTOP_DRAFT_TASK_TYPE = "XHS_PUBLISH_DESKTOP_DRAFT";
 const DOUYIN_MOBILE_PUBLISH_TASK_TYPE = "DOUYIN_PUBLISH_MOBILE_HANDOFF";
 const DOUYIN_DESKTOP_PUBLISH_TASK_TYPE = "DOUYIN_PUBLISH_DESKTOP_AUTOFILL";
 
+export type DouyinPublishWorkKind = DouyinPublishableWorkRecord["workKind"] | "OPENCLAW_VIDEO";
+
+export type DouyinPublishSourcePayload = {
+  workId: string;
+  workKind: DouyinPublishWorkKind;
+  title: string;
+  content: string;
+  videoUrl: string;
+  coverImageUrl?: string;
+  hashtags: string[];
+  sourceLabel: string;
+};
+
 export type CreateMobileDraftSessionPayload = {
   accountId?: string;
 };
@@ -68,7 +81,7 @@ type DouyinMobilePublishTaskInput = {
   platform: "DOUYIN";
   mode: "PUBLISH_VIDEO";
   workId: string;
-  workKind: DouyinPublishableWorkRecord["workKind"];
+  workKind: DouyinPublishWorkKind;
   accountId?: string;
   accountName?: string;
   accountLink?: string;
@@ -88,7 +101,7 @@ type DouyinDesktopPublishTaskInput = {
   platform: "DOUYIN";
   mode: "PREPARE_PUBLISH";
   workId: string;
-  workKind: DouyinPublishableWorkRecord["workKind"];
+  workKind: DouyinPublishWorkKind;
   accountId?: string;
   accountName?: string;
   accountLink?: string;
@@ -268,6 +281,23 @@ export class PublishingService {
 
   async createDouyinDesktopPublishSession(brandId: string, workId: string, payload: CreateMobileDraftSessionPayload) {
     const work = await this.worksService.getDouyinPublishableWork(brandId, workId);
+    return this.createDouyinDesktopPublishSessionFromSource(brandId, {
+      workId: work.id,
+      workKind: work.workKind,
+      title: work.title,
+      content: work.content,
+      videoUrl: work.videoUrl,
+      coverImageUrl: work.coverImageUrl,
+      hashtags: work.hashtags,
+      sourceLabel: work.sourceLabel,
+    }, payload);
+  }
+
+  async createDouyinDesktopPublishSessionFromSource(
+    brandId: string,
+    work: DouyinPublishSourcePayload,
+    payload: CreateMobileDraftSessionPayload,
+  ) {
     await this.assertDouyinVideoAccessible(work);
     const archive = await this.brandsService.getArchive(brandId);
     const douyinAccounts = archive.platformAccounts.filter((item) => item.platform === "DOUYIN");
@@ -284,7 +314,7 @@ export class PublishingService {
       channel: "BROWSER_EXTENSION",
       platform: "DOUYIN",
       mode: "PREPARE_PUBLISH",
-      workId: work.id,
+      workId: work.workId,
       workKind: work.workKind,
       accountId: selectedAccount?.id,
       accountName: selectedAccount?.accountName || undefined,
@@ -832,7 +862,9 @@ export class PublishingService {
       mode: "PUBLISH_VIDEO",
       workId: String(record.workId ?? "").trim(),
       workKind:
-        record.workKind === "DIGITAL_HUMAN"
+        record.workKind === "OPENCLAW_VIDEO"
+          ? "OPENCLAW_VIDEO"
+          : record.workKind === "DIGITAL_HUMAN"
           ? "DIGITAL_HUMAN"
           : record.workKind === "VIDEO_DIRECT"
             ? "VIDEO_DIRECT"
@@ -867,7 +899,9 @@ export class PublishingService {
       mode: "PREPARE_PUBLISH",
       workId: String(record.workId ?? "").trim(),
       workKind:
-        record.workKind === "DIGITAL_HUMAN"
+        record.workKind === "OPENCLAW_VIDEO"
+          ? "OPENCLAW_VIDEO"
+          : record.workKind === "DIGITAL_HUMAN"
           ? "DIGITAL_HUMAN"
           : record.workKind === "VIDEO_DIRECT"
             ? "VIDEO_DIRECT"
@@ -1032,7 +1066,7 @@ export class PublishingService {
     return false;
   }
 
-  private async assertDouyinVideoAccessible(work: DouyinPublishableWorkRecord) {
+  private async assertDouyinVideoAccessible(work: { videoUrl?: string }) {
     const videoUrl = String(work.videoUrl || "").trim();
     if (!videoUrl) {
       throw new BadRequestException("当前作品还没有可发布的视频，请先完成视频生成后再发布。");

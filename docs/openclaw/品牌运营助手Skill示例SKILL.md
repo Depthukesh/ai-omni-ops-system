@@ -327,6 +327,40 @@
   - `action=get_speech_task`
 - 口型驱动视频和纯 TTS 试听是两条链路，不要把 `create_speech_task` 误当成数字人口型视频生成
 
+### 保存并管理 OpenClaw 创作素材
+
+- 当 OpenClaw 通过站内已暴露的第三方平台能力生成了文本、图片、视频、语音或 BGM 后，优先把结果保存到 OpenClaw 专区的“创作素材”板块
+- 查看素材列表时，使用：
+  - `get_openclaw_creative_materials`
+  - `workspaceScope=douyin`
+- 保存素材时，使用：
+  - `create_openclaw_creative_material`
+  - 必填：`title`、`materialType`
+  - 如果是文件型素材，优先传：`fileUrl`、`fileName`、`mimeType`
+  - 如果是文本型素材，优先传：`textContent`
+- 删除素材时，使用：
+  - `delete_openclaw_creative_material`
+  - `materialId=<素材ID>`
+- 不要把“创作素材”当成生成引擎；它是 OpenClaw 对站内第三方能力结果的归档板块
+
+### 保存并管理 OpenClaw 视频作品
+
+- 当 OpenClaw 已经整合完最终成片时，优先把结果保存到 OpenClaw 专区的“视频作品”板块
+- 查看视频作品列表时，使用：
+  - `get_openclaw_video_works`
+  - `workspaceScope=douyin`
+- 保存视频作品时，使用：
+  - `create_openclaw_video_work`
+  - 必填：`title`、`videoUrl`
+  - 可补充：`description`、`scriptContent`、`coverImageUrl`
+- 删除视频作品时，使用：
+  - `delete_openclaw_video_work`
+  - `workId=<作品ID>`
+- 若要从 OpenClaw 视频作品直接发起抖音电脑端插件发布，使用：
+  - `create_openclaw_video_work_douyin_desktop_publish_session`
+  - 然后再用 `get_douyin_desktop_publish_session` 跟进会话状态
+- 视频号发布目前仍通过工作台按钮触发浏览器扩展半自动链路，不额外提供独立 MCP 发布会话工具
+
 ### 新建知识库
 
 - 优先使用：`create_knowledge_base`

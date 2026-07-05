@@ -12,6 +12,7 @@ import {
   createDouyinDesktopPublishSession,
   type DouyinDesktopPublishSession,
 } from "../../../services/publishing";
+import { createOpenClawVideoWorkDouyinDesktopPublishSession } from "../../../services/openclaw";
 import { type DouyinPublishableWorkTarget } from "./publish-types";
 
 export function useDouyinPublishFlow(options: {
@@ -124,9 +125,13 @@ export function useDouyinPublishFlow(options: {
     options.setErrorMessage("");
 
     try {
-      const result = await createDouyinDesktopPublishSession(options.brandId, publishingTarget.id, {
-        accountId: publishingAccountValue || undefined,
-      });
+      const result = publishingTarget.workKind === "OPENCLAW_VIDEO"
+        ? await createOpenClawVideoWorkDouyinDesktopPublishSession(options.brandId, publishingTarget.id, "douyin", {
+          accountId: publishingAccountValue || undefined,
+        })
+        : await createDouyinDesktopPublishSession(options.brandId, publishingTarget.id, {
+          accountId: publishingAccountValue || undefined,
+        });
       setActiveDesktopPublishSession(result.session);
 
       const installed = await probeDesktopPublisher({

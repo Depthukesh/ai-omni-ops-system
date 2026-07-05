@@ -264,6 +264,7 @@ const RUNNING_HUB_WEBAPP_KEYS = {
   scail2CharacterMotionReplace: "scail2-character-motion-replace",
   scail2CharacterSwap: "scail2-character-swap",
   ltx23LiconMsrVideo: "ltx23-licon-msr-video",
+  ltx23DigitalHumanLipSync: "ltx23-digital-human-lip-sync",
   ecommerceTripleMainImage: "ecommerce-triple-main-image",
   ecommerceDetailPage: "ecommerce-detail-page",
 } as const;
@@ -312,6 +313,17 @@ const DOUYIN_RUNNING_HUB_APPS: DouyinRunningHubAppCardRecord[] = [
     tags: ["参考生视频", "图生视频", "创意视频", "RunningHub"],
     statusHint: "适合参考图驱动的视频生成；建议输入图主体明确、风格统一。",
     estimatedDuration: "通常 6-12 分钟",
+  },
+  {
+    key: RUNNING_HUB_WEBAPP_KEYS.ltx23DigitalHumanLipSync,
+    name: "LTX2.3数字人说话唱歌对口型",
+    summary: "上传人物图和语音或歌曲即可生成对口型数字人视频，适合口播、唱歌演绎和音频驱动角色视频。",
+    description: "对应 RunningHub 应用 `LTX2.3数字人说话唱歌对口型！优化升级kj版！B站艾橘溪`。适合单图驱动的说话、唱歌和音频口型同步场景。",
+    tutorialUrl: "https://www.runninghub.cn/call-api/api-detail/2031016553440878594?apiType=4",
+    webappId: "2031016553440878594",
+    tags: ["数字人", "对口型", "唱歌", "RunningHub"],
+    statusHint: "建议上传 9:16 人物图和清晰语音或歌曲；官方说明 1280 分辨率、30 帧、10 秒视频通常约 5 分钟。",
+    estimatedDuration: "通常 5-10 分钟",
   },
   {
     key: RUNNING_HUB_WEBAPP_KEYS.ecommerceTripleMainImage,

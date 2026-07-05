@@ -159,6 +159,32 @@ OpenClaw 调用任何工具时，服务端都必须基于绑定关系解析：
     - `create_speech_task / get_speech_task` 执行和查询纯 TTS 试听任务
   - 当前语义约束：
     - `create_speech_task` 只负责文本转语音试听，不等于数字人口型视频生成
+- OpenClaw 创作素材：
+  - `get_openclaw_creative_materials`
+  - `create_openclaw_creative_material`
+  - `delete_openclaw_creative_material`
+  - 当前用途：
+    - 把 OpenClaw 调用站内第三方平台能力后生成的文本、图片、视频、语音、BGM 等结果统一保存到专区
+  - 关键字段：
+    - `title`
+    - `description`
+    - `materialType`
+    - `fileUrl / fileName / mimeType`
+    - `textContent`
+- OpenClaw 视频作品：
+  - `get_openclaw_video_works`
+  - `create_openclaw_video_work`
+  - `delete_openclaw_video_work`
+  - `create_openclaw_video_work_douyin_desktop_publish_session`
+  - 当前用途：
+    - 保存 OpenClaw 最终整合完成的视频成片
+    - 从专区视频作品直接发起抖音电脑端插件发布会话
+  - 关键字段：
+    - `title`
+    - `description`
+    - `scriptContent`
+    - `coverImageUrl`
+    - `videoUrl`
 - 采集数据删除：
   - `delete_xhs_collected_note`
   - `delete_douyin_collected_work`

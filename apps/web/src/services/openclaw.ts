@@ -1,4 +1,5 @@
 import { jsonRequest, request, requestBlobByUrl } from "./http";
+import { type DouyinDesktopPublishSession } from "./publishing";
 
 export type OpenClawInstallTokenRecord = {
   id: string;
@@ -175,5 +176,111 @@ export async function deleteOpenClawDailyPlan(planId: string, brandId: string, w
     {
       method: "DELETE",
     },
+  );
+}
+
+export type OpenClawCreativeMaterialRecord = {
+  id: string;
+  brandId: string;
+  workspaceScope: OpenClawWorkspaceScope;
+  createdByUserId: string;
+  title: string;
+  description: string;
+  materialType: string;
+  fileUrl?: string;
+  fileName?: string;
+  mimeType?: string;
+  textContent?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type OpenClawCreativeMaterialWorkspace = {
+  items: OpenClawCreativeMaterialRecord[];
+  total: number;
+};
+
+export async function getOpenClawCreativeMaterialWorkspace(
+  brandId: string,
+  workspaceScope: OpenClawWorkspaceScope,
+  limit?: number,
+) {
+  const query = new URLSearchParams({ workspaceScope });
+  if (typeof limit === "number") {
+    query.set("limit", String(limit));
+  }
+  return request<OpenClawCreativeMaterialWorkspace>(`/openclaw/brands/${brandId}/creative-materials?${query.toString()}`);
+}
+
+export async function deleteOpenClawCreativeMaterial(
+  materialId: string,
+  brandId: string,
+  workspaceScope: OpenClawWorkspaceScope,
+) {
+  const query = new URLSearchParams({ workspaceScope });
+  return request<{ item: OpenClawCreativeMaterialRecord; workspace: OpenClawCreativeMaterialWorkspace }>(
+    `/openclaw/brands/${brandId}/creative-materials/${materialId}?${query.toString()}`,
+    {
+      method: "DELETE",
+    },
+  );
+}
+
+export type OpenClawVideoWorkRecord = {
+  id: string;
+  brandId: string;
+  workspaceScope: OpenClawWorkspaceScope;
+  createdByUserId: string;
+  title: string;
+  description: string;
+  scriptContent: string;
+  coverImageUrl?: string;
+  videoUrl: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type OpenClawVideoWorkWorkspace = {
+  items: OpenClawVideoWorkRecord[];
+  total: number;
+};
+
+export async function getOpenClawVideoWorkWorkspace(
+  brandId: string,
+  workspaceScope: OpenClawWorkspaceScope,
+  limit?: number,
+) {
+  const query = new URLSearchParams({ workspaceScope });
+  if (typeof limit === "number") {
+    query.set("limit", String(limit));
+  }
+  return request<OpenClawVideoWorkWorkspace>(`/openclaw/brands/${brandId}/video-works?${query.toString()}`);
+}
+
+export async function deleteOpenClawVideoWork(
+  workId: string,
+  brandId: string,
+  workspaceScope: OpenClawWorkspaceScope,
+) {
+  const query = new URLSearchParams({ workspaceScope });
+  return request<{ item: OpenClawVideoWorkRecord; workspace: OpenClawVideoWorkWorkspace }>(
+    `/openclaw/brands/${brandId}/video-works/${workId}?${query.toString()}`,
+    {
+      method: "DELETE",
+    },
+  );
+}
+
+export async function createOpenClawVideoWorkDouyinDesktopPublishSession(
+  brandId: string,
+  workId: string,
+  workspaceScope: OpenClawWorkspaceScope,
+  payload: { accountId?: string } = {},
+) {
+  const query = new URLSearchParams({ workspaceScope });
+  return jsonRequest<{ task: { id: string; taskStatus: string; taskTitle: string }; session: DouyinDesktopPublishSession }>(
+    `/openclaw/brands/${brandId}/video-works/${workId}/douyin-desktop-publish-session?${query.toString()}`,
+    "POST",
+    payload,
   );
 }

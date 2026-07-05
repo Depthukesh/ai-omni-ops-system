@@ -232,6 +232,106 @@ const TOOL_DEFINITIONS = [
     },
   },
   {
+    name: "get_openclaw_creative_materials",
+    description: "查看当前品牌指定板块下的创作素材列表。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat"] },
+        limit: { type: "integer", minimum: 1, maximum: 100 },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "create_openclaw_creative_material",
+    description: "为当前品牌指定板块保存一条创作素材，可保存文本、图片、视频、语音或 BGM 等结果。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat"] },
+        title: { type: "string" },
+        description: { type: "string" },
+        materialType: { type: "string" },
+        fileUrl: { type: "string" },
+        fileName: { type: "string" },
+        mimeType: { type: "string" },
+        textContent: { type: "string" },
+      },
+      required: ["title", "materialType"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "delete_openclaw_creative_material",
+    description: "删除指定板块下的一条创作素材。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat"] },
+        materialId: { type: "string" },
+      },
+      required: ["materialId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_openclaw_video_works",
+    description: "查看当前品牌指定板块下的视频作品列表。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat"] },
+        limit: { type: "integer", minimum: 1, maximum: 100 },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "create_openclaw_video_work",
+    description: "为当前品牌指定板块保存一条最终视频作品。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat"] },
+        title: { type: "string" },
+        description: { type: "string" },
+        scriptContent: { type: "string" },
+        coverImageUrl: { type: "string" },
+        videoUrl: { type: "string" },
+      },
+      required: ["title", "videoUrl"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "delete_openclaw_video_work",
+    description: "删除指定板块下的一条视频作品。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat"] },
+        workId: { type: "string" },
+      },
+      required: ["workId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "create_openclaw_video_work_douyin_desktop_publish_session",
+    description: "为指定 OpenClaw 视频作品创建抖音电脑端发布会话，便于通过浏览器扩展自动填充发布信息。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat"] },
+        workId: { type: "string" },
+        accountId: { type: "string" },
+      },
+      required: ["workId"],
+      additionalProperties: false,
+    },
+  },
+  {
     name: "get_douyin_collection_workspace",
     description: "查看当前品牌资料库中的抖音搜集数据工作区摘要。",
     inputSchema: {

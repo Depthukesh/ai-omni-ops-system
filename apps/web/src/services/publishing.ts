@@ -76,7 +76,7 @@ export type DouyinMobilePublishSession = {
   accountName?: string;
   accountLink?: string;
   workId: string;
-  workKind: "VIDEO_STORYBOARD" | "VIDEO_DIRECT" | "DIGITAL_HUMAN";
+  workKind: "VIDEO_STORYBOARD" | "VIDEO_DIRECT" | "DIGITAL_HUMAN" | "OPENCLAW_VIDEO";
   sourceLabel: string;
   createdAt: string;
   expiresAt: string;
@@ -104,7 +104,7 @@ export type DouyinDesktopPublishSession = {
   accountName?: string;
   accountLink?: string;
   workId: string;
-  workKind: "VIDEO_STORYBOARD" | "VIDEO_DIRECT" | "DIGITAL_HUMAN";
+  workKind: "VIDEO_STORYBOARD" | "VIDEO_DIRECT" | "DIGITAL_HUMAN" | "OPENCLAW_VIDEO";
   sourceLabel: string;
   createdAt: string;
   expiresAt: string;
