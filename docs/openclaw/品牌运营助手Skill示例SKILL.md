@@ -307,6 +307,26 @@
   - `rebuild_publish_config`
   - `publish_workflow`
 
+### 使用抖音数字人语音库与纯 TTS 试听
+
+- 优先使用：`manage_douyin_video_production`
+- 查看公共语音库时，使用：
+  - `section=digital_human`
+  - `action=list_voice_library`
+- 查看我的自定义音色时，使用：
+  - `section=digital_human`
+  - `action=list_custom_voices`
+- 新建自定义音色时，使用：
+  - `section=digital_human`
+  - `action=create_custom_voice`
+- 只做纯语音合成试听时，使用：
+  - `section=digital_human`
+  - `action=create_speech_task`
+- 查询纯语音合成结果时，使用：
+  - `section=digital_human`
+  - `action=get_speech_task`
+- 口型驱动视频和纯 TTS 试听是两条链路，不要把 `create_speech_task` 误当成数字人口型视频生成
+
 ### 新建知识库
 
 - 优先使用：`create_knowledge_base`

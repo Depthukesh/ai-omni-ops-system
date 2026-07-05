@@ -150,6 +150,15 @@ OpenClaw 调用任何工具时，服务端都必须基于绑定关系解析：
     - `set_article` 未显式传 `inputType` 时，服务端会按正文内容自动识别 `plain-text / markdown / html`
     - `set_html` 代表外部已给出完整 HTML 草稿
     - `generate_html` 代表系统基于正文 canonical、图片资产和风格规则重新渲染，并产出可直接发布到公众号正文的 HTML 片段
+- 抖音视频生产：
+  - `manage_douyin_video_production`
+  - 当前已支持：
+    - 抖音普通视频、直接生视频、混剪短视频、数字人、口型驱动、RunningHub 和广告预审统一入口
+    - `section=digital_human` 下可读取模板列表、公共语音库、我的自定义音色
+    - `create_custom_voice` 创建自定义音色
+    - `create_speech_task / get_speech_task` 执行和查询纯 TTS 试听任务
+  - 当前语义约束：
+    - `create_speech_task` 只负责文本转语音试听，不等于数字人口型视频生成
 - 采集数据删除：
   - `delete_xhs_collected_note`
   - `delete_douyin_collected_work`

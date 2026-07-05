@@ -146,6 +146,7 @@ MCP 在这里解决的是标准化工具接入问题。
 - 提供 `get_recent_knowledge_files`
 - 提供 `get_skill_config_summary`
 - 提供 `create_xiaohongshu_original_note`
+- 提供 `manage_douyin_video_production`
 - 提供 `list_my_third_party_platforms`
 - 提供 `check_my_third_party_platform_runtime_access`
 - 提供 `update_my_third_party_platform_secret`
@@ -219,10 +220,33 @@ OpenClaw 通过 MCP 获取：
 - 内容历史
 - 知识库历史
 - 技能配置摘要
+- 抖音视频生产统一管理能力，包含数字人模板、公共语音库、我的自定义音色、音色克隆和纯 TTS 试听任务
 - 公众号工作流的创建、Step 2-4 直写与生成、发布确认和正式发布
 - 公众号工作流统一管理工具 `manage_wechat_workflow`
 
-### 4.3 公众号工作流在 OpenClaw 中的推荐语义
+### 4.3 抖音数字人语音能力在 OpenClaw 中的推荐语义
+
+对于抖音数字人相关能力，当前推荐优先使用统一工具：
+
+- `manage_douyin_video_production`
+
+其中 `section=digital_human` 已覆盖：
+
+- `list_templates`
+- `list_voice_library`
+- `list_custom_voices`
+- `create_custom_voice`
+- `create_speech_task`
+- `get_speech_task`
+
+必须明确区分两组语义：
+
+- `create_speech_task / get_speech_task`
+  - 这是纯 TTS 试听链路，只负责把文本合成为语音结果
+- 数字人口型视频生成
+  - 仍属于数字人作品链路，不能把纯 TTS 试听任务误当成口型视频生成
+
+### 4.4 公众号工作流在 OpenClaw 中的推荐语义
 
 对于公众号工作流，当前推荐始终优先使用统一工具：
 
@@ -255,7 +279,7 @@ OpenClaw 通过 MCP 获取：
 - 订单中心摘要
 - 各类任务触发能力
 
-## 4.3 网站是“权威后端”
+## 4.5 网站是“权威后端”
 
 网站仍然是：
 

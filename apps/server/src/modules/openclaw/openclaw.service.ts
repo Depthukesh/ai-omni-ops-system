@@ -1886,12 +1886,12 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
   },
   {
     name: "manage_douyin_video_production",
-    description: "统一管理抖音视频生产，覆盖普通视频、直接生视频、混剪短视频、数字人、口型驱动、RunningHub 和广告预审。",
+    description: "统一管理抖音视频生产，覆盖普通视频、直接生视频、混剪短视频、数字人、口型驱动、RunningHub 和广告预审。数字人分支已支持模板列表、公共语音库、我的自定义音色、音色克隆、纯 TTS 试听任务和数字人作品生成。",
     inputSchema: {
       type: "object",
       properties: {
         section: { type: "string", description: "可选：video、direct_video、remix_short_video、digital_human、lip_sync、runninghub、ad_preaudit。" },
-        action: { type: "string", description: "例如 list_works、generate、recover、create_custom_voice、list_apps、save_config 等。" },
+        action: { type: "string", description: "例如 list_works、generate、recover、list_templates、list_voice_library、list_custom_voices、create_custom_voice、create_speech_task、get_speech_task、list_apps、save_config 等。" },
         workId: { type: "string" },
         taskId: { type: "string" },
         voiceId: { type: "string" },
