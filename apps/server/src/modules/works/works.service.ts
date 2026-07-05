@@ -22114,16 +22114,16 @@ export class WorksService {
   }
 
   private async submitRunningHubTask(apiKey: string, webappId: string, nodeInfoList: DouyinRunningHubAppFieldRecord[]) {
-    const response = await fetch("https://www.runninghub.cn/task/openapi/ai-app/run", {
+    const response = await fetch(`https://www.runninghub.cn/openapi/v2/run/ai-app/${encodeURIComponent(webappId)}`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        apiKey,
-        webappId: Number(webappId),
         nodeInfoList,
+        instanceType: "default",
+        usePersonalQueue: false,
       }),
     });
     if (!response.ok) {
