@@ -659,6 +659,22 @@ async function createUploadPayloadFromLocalFile(localFilePath, options = {}) {
   };
 }
 
+function extractInlineLocalFilePath(value) {
+  const normalized = String(value || "").trim();
+  if (!normalized) {
+    return "";
+  }
+  const match = normalized.match(/^localFilePath\s*=\s*(.+)$/i);
+  if (!match) {
+    return "";
+  }
+  return String(match[1] || "")
+    .trim()
+    .replace(/^[`'"]+/, "")
+    .replace(/[`'"]+$/, "")
+    .trim();
+}
+
 async function normalizeRunningHubGenerateArgs(args = {}) {
   if (String(args.section || "").trim() !== "runninghub" || String(args.action || "").trim() !== "generate") {
     return args;
@@ -676,13 +692,20 @@ async function normalizeRunningHubGenerateArgs(args = {}) {
     const nestedUpload = record.upload && typeof record.upload === "object" && !Array.isArray(record.upload)
       ? { ...record.upload }
       : undefined;
-    const localFilePath = String(record.localFilePath || nestedUpload?.localFilePath || "").trim();
+    const inlineLocalFilePath = extractInlineLocalFilePath(record.fieldValue) || extractInlineLocalFilePath(record.fieldData);
+    const localFilePath = String(record.localFilePath || nestedUpload?.localFilePath || inlineLocalFilePath || "").trim();
     if (localFilePath) {
       record.upload = await createUploadPayloadFromLocalFile(localFilePath, {
         fileName: nestedUpload?.fileName || record.fileName,
         contentType: nestedUpload?.contentType || record.mimeType,
       });
       delete record.localFilePath;
+      if (extractInlineLocalFilePath(record.fieldValue)) {
+        delete record.fieldValue;
+      }
+      if (extractInlineLocalFilePath(record.fieldData)) {
+        delete record.fieldData;
+      }
       if (record.upload && typeof record.upload === "object") {
         delete record.upload.localFilePath;
       }

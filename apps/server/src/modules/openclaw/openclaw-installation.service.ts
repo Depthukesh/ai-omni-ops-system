@@ -612,7 +612,8 @@ description: AI 全域智能体网站能力总入口 Skill。先识别用户要�
   - 从返回结果里读取 \`nodeInfoList\` 模板，只回填每个节点的 \`fieldValue\`
   - 保留原始 \`nodeId\`、\`fieldName\`、\`fieldType\`、\`description\`、\`descriptionEn\`
   - 最后再 \`section=runninghub action=generate\`
-- 如果通过 stdio MCP 调用 RunningHub，且某个上传节点对应的是当前机器上的本地图片、音频或视频文件，可直接在该节点上填写 \`localFilePath=<本地绝对路径>\`；桥接层会自动读取文件并转成 \`upload\`，不要再强行改成公网 URL
+- 如果通过 stdio MCP 调用 RunningHub，且某个上传节点对应的是当前机器上的本地图片、音频或视频文件，应在该节点对象里新增字段 \`localFilePath: "<本地绝对路径>"\`；桥接层会自动读取文件并转成 \`upload\`
+- 不要把 \`localFilePath=...\` 这种字面文本塞进 \`fieldValue\` 或 \`fieldData\`；那只是兼容旧写法，标准写法仍然是独立字段 \`localFilePath\`
 - 禁止直接猜测 RunningHub 的 \`nodeId\`，也不要在 \`nodeInfoList\` 为空时直接调用 \`generate\`
 
 ### 10. OpenClaw 专区
