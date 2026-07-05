@@ -1052,6 +1052,42 @@ model OpenClawDailyPlan {
   @@map("OpenClawDailyPlan")
 }
 
+model OpenClawCreativeMaterial {
+  id              String   @id
+  brandId         String
+  workspaceScope  String   @default("brand_growth")
+  createdByUserId String
+  title           String   @default("")
+  description     String   @default("")
+  materialType    String
+  fileUrl         String?
+  fileName        String?
+  mimeType        String?
+  textContent     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([brandId, workspaceScope, createdAt(sort: Desc)], map: "OpenClawCreativeMaterial_brand_scope_created_idx")
+  @@map("OpenClawCreativeMaterial")
+}
+
+model OpenClawVideoWork {
+  id              String   @id
+  brandId         String
+  workspaceScope  String   @default("brand_growth")
+  createdByUserId String
+  title           String   @default("")
+  description     String   @default("")
+  scriptContent   String   @default("")
+  coverImageUrl   String?
+  videoUrl        String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([brandId, workspaceScope, createdAt(sort: Desc)], map: "OpenClawVideoWork_brand_scope_created_idx")
+  @@map("OpenClawVideoWork")
+}
+
 model KnowledgeBase {
   id            String                 @id
   name          String
