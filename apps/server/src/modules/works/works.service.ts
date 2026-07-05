@@ -21701,7 +21701,9 @@ export class WorksService {
         nodeId: String(item?.nodeId || "").trim(),
         nodeName: String(item?.nodeName || "").trim() || undefined,
         fieldName: String(item?.fieldName || "").trim(),
-        fieldValue: typeof item?.fieldValue === "string" ? item.fieldValue : item?.fieldValue == null ? undefined : String(item.fieldValue),
+        fieldValue: this.normalizeRunningHubFieldValue(
+          typeof item?.fieldValue === "string" ? item.fieldValue : item?.fieldValue == null ? undefined : String(item.fieldValue),
+        ),
         fieldData: typeof item?.fieldData === "string" ? item.fieldData : item?.fieldData == null ? undefined : String(item.fieldData),
         fieldType: String(item?.fieldType || "").trim().toUpperCase() || undefined,
         description: String(item?.description || "").trim() || undefined,
@@ -22066,10 +22068,10 @@ export class WorksService {
   private async prepareRunningHubTaskNodeInfoList(brandId: string, apiKey: string, nodeInfoList: RunningHubNodeSubmissionEntry[]) {
     const prepared: DouyinRunningHubAppFieldRecord[] = [];
     for (const item of nodeInfoList) {
-      let fieldValue = item.fieldValue;
+      let fieldValue = this.normalizeRunningHubFieldValue(item.fieldValue);
       if (item.upload) {
         const uploadResult = await this.uploadRunningHubMedia(apiKey, item.upload);
-        fieldValue = uploadResult.downloadUrl || uploadResult.fileName || fieldValue;
+        fieldValue = this.resolveRunningHubUploadedFieldValue(item, uploadResult) || fieldValue;
       }
       prepared.push({
         nodeId: item.nodeId,
@@ -22111,6 +22113,62 @@ export class WorksService {
       downloadUrl: String(data?.download_url || data?.url || "").trim() || undefined,
       fileName: String(data?.fileName || "").trim() || undefined,
     };
+  }
+
+  private normalizeRunningHubFieldValue(value?: string) {
+    const trimmed = String(value || "").trim();
+    if (!trimmed) {
+      return undefined;
+    }
+    const unwrapped = trimmed
+      .replace(/^[`'"]+/, "")
+      .replace(/[`'"]+$/, "")
+      .trim();
+    return unwrapped || undefined;
+  }
+
+  private shouldUseRunningHubUploadedFileName(item: {
+    fieldName?: string;
+    nodeName?: string;
+    fieldType?: string;
+    description?: string;
+    descriptionEn?: string;
+    upload?: UploadFilePayload;
+  }) {
+    if (String(item.upload?.contentType || "").toLowerCase().startsWith("audio/")) {
+      return true;
+    }
+    const haystack = [
+      item.fieldName,
+      item.nodeName,
+      item.fieldType,
+      item.description,
+      item.descriptionEn,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    return /audio|voice|music|song|sound|loadaudio|uploadaudio|歌曲|语音|音频|配音|伴奏|bgm/.test(haystack);
+  }
+
+  private resolveRunningHubUploadedFieldValue(
+    item: {
+      fieldName?: string;
+      nodeName?: string;
+      fieldType?: string;
+      description?: string;
+      descriptionEn?: string;
+      upload?: UploadFilePayload;
+    },
+    uploadResult: {
+      downloadUrl?: string;
+      fileName?: string;
+    },
+  ) {
+    const preferredValue = this.shouldUseRunningHubUploadedFileName(item)
+      ? uploadResult.fileName || uploadResult.downloadUrl
+      : uploadResult.downloadUrl || uploadResult.fileName;
+    return this.normalizeRunningHubFieldValue(preferredValue);
   }
 
   private async submitRunningHubTask(apiKey: string, webappId: string, nodeInfoList: DouyinRunningHubAppFieldRecord[]) {
@@ -22160,11 +22218,17 @@ export class WorksService {
     const payload = await response.json().catch(() => ({}));
     const envelope = this.unwrapRunningHubEnvelope(payload);
     const data = this.asRecord(envelope.data) || this.asRecord(payload) || {};
+    const failedReason = this.asRecord(data.failedReason);
+    const failedNodeName = String(failedReason?.node_name || "").trim();
+    const failedNodeMessage = String(failedReason?.exception_message || "").trim();
+    const detailedErrorMessage = [failedNodeName ? `节点 ${failedNodeName}` : "", failedNodeMessage]
+      .filter(Boolean)
+      .join("：");
     return {
       taskId: String(data.taskId || providerTaskId),
       status: String(data.status || "RUNNING"),
       promptTips: String(data.promptTips || "").trim() || undefined,
-      errorMessage: String(data.errorMessage || envelope.message || "").trim() || undefined,
+      errorMessage: detailedErrorMessage || String(data.errorMessage || envelope.message || "").trim() || undefined,
       results: Array.isArray(data.results)
         ? data.results.map((item) => {
           const next = this.asRecord(item);

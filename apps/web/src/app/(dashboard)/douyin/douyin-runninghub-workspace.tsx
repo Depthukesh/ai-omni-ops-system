@@ -635,6 +635,21 @@ export function DouyinRunningHubWorkspace(props: DouyinRunningHubWorkspaceProps)
     void refreshWorkspace();
   }, [refreshWorkspace]);
 
+  const hasPendingWorks = useMemo(
+    () => works.some((item) => item.status === "PENDING" || item.status === "RUNNING"),
+    [works],
+  );
+
+  useEffect(() => {
+    if (!hasPendingWorks) {
+      return;
+    }
+    const timer = window.setInterval(() => {
+      void refreshWorkspace();
+    }, 10000);
+    return () => window.clearInterval(timer);
+  }, [hasPendingWorks, refreshWorkspace]);
+
   const selectedApp = useMemo(() => apps.find((item) => item.key === selectedAppKey) || null, [apps, selectedAppKey]);
 
   const openCreateDialog = useCallback(
