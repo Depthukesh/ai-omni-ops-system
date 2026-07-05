@@ -103,7 +103,7 @@ function getFieldDescription(field: DouyinRunningHubAppFieldRecord) {
   return field.descriptionEn || field.fieldData || "";
 }
 
-function inferUploadKind(field: DouyinRunningHubAppFieldRecord): "image" | "video" | null {
+function inferUploadKind(field: DouyinRunningHubAppFieldRecord): "image" | "video" | "audio" | null {
   const haystack = [
     field.fieldType,
     field.fieldName,
@@ -120,6 +120,9 @@ function inferUploadKind(field: DouyinRunningHubAppFieldRecord): "image" | "vide
   }
   if (/video|动作|motion|pose video|source video|driv/.test(haystack)) {
     return "video";
+  }
+  if (/audio|voice|music|song|sound|歌曲|语音|音频|配音|bgm|伴奏/.test(haystack)) {
+    return "audio";
   }
   return null;
 }
@@ -291,7 +294,7 @@ function RunningHubCreateDialog(props: {
                               </small>
                             </label>
                           </div>
-                        ) : (
+                        ) : uploadKind === "image" ? (
                           <>
                             <input
                               type="file"
@@ -304,10 +307,25 @@ function RunningHubCreateDialog(props: {
                                 : helperText || "请上传角色参考图或图片素材。"}
                             </small>
                           </>
+                        ) : (
+                          <>
+                            <input
+                              type="file"
+                              accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/mp4,audio/m4a,audio/aac,audio/ogg,audio/*"
+                              onChange={(event) => props.onFieldFileChange(index, event.target.files?.[0] || null)}
+                            />
+                            <small className="personal-meta">
+                              {field.uploadFile
+                                ? `已选择：${field.uploadFile.name}`
+                                : helperText || "请上传歌曲、语音或其他音频素材。"}
+                            </small>
+                          </>
                         )}
                         <small className="personal-meta">
                           {uploadKind === "video"
                             ? (helperText || "优先支持从素材中心复用参考视频，也支持直接上传本地视频文件。")
+                            : uploadKind === "audio"
+                              ? (helperText || "这里应上传音频文件，不是手动输入链接。")
                             : null}
                         </small>
                       </div>
