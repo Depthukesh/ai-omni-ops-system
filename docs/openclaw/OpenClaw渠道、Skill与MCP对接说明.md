@@ -290,6 +290,8 @@ OpenClaw 通过 MCP 获取：
   - `create_openclaw_creative_material`
   - `delete_openclaw_creative_material`
   - 适合保存 OpenClaw 调用站内第三方平台能力后得到的文本、图片、视频、语音、BGM 等中间成果
+  - 如果文件已经在当前机器本地，stdio MCP 可直接传 `localFilePath=<本地绝对路径>`，桥接层会自动上传到网站并回填站内 `fileUrl`
+  - 如果已拿到文件二进制，也可直接传 `upload.fileName`、`upload.contentType`、`upload.dataBase64`
 - 视频作品：
   - `get_openclaw_video_works`
   - `create_openclaw_video_work`

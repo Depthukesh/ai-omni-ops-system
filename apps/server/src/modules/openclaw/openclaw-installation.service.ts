@@ -612,6 +612,7 @@ description: AI 全域智能体网站能力总入口 Skill。先识别用户要�
   - 从返回结果里读取 \`nodeInfoList\` 模板，只回填每个节点的 \`fieldValue\`
   - 保留原始 \`nodeId\`、\`fieldName\`、\`fieldType\`、\`description\`、\`descriptionEn\`
   - 最后再 \`section=runninghub action=generate\`
+- 如果通过 stdio MCP 调用 RunningHub，且某个上传节点对应的是当前机器上的本地图片、音频或视频文件，可直接在该节点上填写 \`localFilePath=<本地绝对路径>\`；桥接层会自动读取文件并转成 \`upload\`，不要再强行改成公网 URL
 - 禁止直接猜测 RunningHub 的 \`nodeId\`，也不要在 \`nodeInfoList\` 为空时直接调用 \`generate\`
 
 ### 10. OpenClaw 专区
@@ -639,6 +640,8 @@ description: AI 全域智能体网站能力总入口 Skill。先识别用户要�
 - 对"创作素材"和"视频作品"场景要记住：
   - 创作素材用于沉淀文本、图片、视频、语音、BGM 等中间结果
   - 视频作品用于沉淀最终成片，并可继续创建抖音发布会话
+- 保存创作素材时，如果素材文件已经在当前机器本地，可直接调用 \`create_openclaw_creative_material\` 并传 \`localFilePath=<本地绝对路径>\`；stdio MCP 会自动把文件上传到网站并回填站内 \`fileUrl\`
+- 如果不是 stdio MCP，或文件内容已经在内存里，也可以直接传 \`upload.fileName\`、\`upload.contentType\`、\`upload.dataBase64\`
 
 ## 六、追问规则
 

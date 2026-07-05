@@ -170,6 +170,8 @@ OpenClaw 调用任何工具时，服务端都必须基于绑定关系解析：
     - `description`
     - `materialType`
     - `fileUrl / fileName / mimeType`
+    - `localFilePath`（stdio MCP 专用，本地绝对路径，桥接层会自动上传到网站）
+    - `upload.fileName / upload.contentType / upload.dataBase64`
     - `textContent`
 - OpenClaw 视频作品：
   - `get_openclaw_video_works`

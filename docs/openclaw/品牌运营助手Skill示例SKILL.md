@@ -347,6 +347,7 @@
   - `action=generate`
   - `appKey=<应用key>`
   - `payload.nodeInfoList=<来自 get_app_detail 的模板，回填 fieldValue 后原样提交>`
+- 如果通过 stdio MCP 调用，且某个上传节点对应当前机器上的本地文件，可直接在该节点对象里传 `localFilePath=<本地绝对路径>`；桥接层会自动读取文件并转成 `upload`，不要再把本地文件先改写成公网 URL
 - 不要猜测 `nodeId`，也不要在 `nodeInfoList` 为空时直接调用 `generate`
 
 ### 保存并管理 OpenClaw 创作素材
@@ -358,7 +359,9 @@
 - 保存素材时，使用：
   - `create_openclaw_creative_material`
   - 必填：`title`、`materialType`
-  - 如果是文件型素材，优先传：`fileUrl`、`fileName`、`mimeType`
+  - 如果是当前机器上的本地文件，优先传：`localFilePath=<本地绝对路径>`，stdio MCP 会自动上传到网站并回填站内 `fileUrl`
+  - 如果已经有公网或站内地址，传：`fileUrl`、`fileName`、`mimeType`
+  - 如果已经拿到文件内容，也可直接传：`upload.fileName`、`upload.contentType`、`upload.dataBase64`
   - 如果是文本型素材，优先传：`textContent`
 - 删除素材时，使用：
   - `delete_openclaw_creative_material`

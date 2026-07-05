@@ -22,9 +22,10 @@ import { OpenClawVideoWorkController } from "./openclaw-video-work.controller";
 import { OpenClawVideoWorkService } from "./openclaw-video-work.service";
 import { OrdersModule } from "../orders/orders.module";
 import { ThirdPartyPlatformsModule } from "../third-party-platforms/third-party-platforms.module";
+import { StorageModule } from "../../storage/storage.module";
 
 @Module({
-  imports: [AuthModule, TasksModule, BrandsModule, ReportsModule, UserSkillsModule, WorksModule, CollectorsModule, FeedbackModule, PublishingModule, ThirdPartyPlatformsModule, OrdersModule],
+  imports: [AuthModule, TasksModule, BrandsModule, ReportsModule, UserSkillsModule, WorksModule, CollectorsModule, FeedbackModule, PublishingModule, ThirdPartyPlatformsModule, OrdersModule, StorageModule],
   controllers: [
     OpenClawController,
     OpenClawInstallationController,

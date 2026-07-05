@@ -1,3 +1,6 @@
+import { readFile, stat } from "node:fs/promises";
+import { basename, extname } from "node:path";
+
 const baseUrl = (process.env.AI_OMNI_OPS_BASE_URL || "http://127.0.0.1:3014/api").replace(/\/$/, "");
 const account = process.env.AI_OMNI_OPS_ACCOUNT || "13800000000";
 const password = process.env.AI_OMNI_OPS_PASSWORD || "123456";
@@ -223,7 +226,7 @@ const TOOL_DEFINITIONS = [
         tagIds: { type: "array", items: { type: "integer" } },
         payload: {
           type: "object",
-          description: "对应动作的请求体。数字人 create_speech_task 需要 text，建议配合 voiceId 一起传；RunningHub generate 需要先从 get_app_detail 返回结果里取 nodeInfoList 模板，再回填 fieldValue 后原样提交。",
+          description: "对应动作的请求体。数字人 create_speech_task 需要 text，建议配合 voiceId 一起传；RunningHub generate 需要先从 get_app_detail 返回结果里取 nodeInfoList 模板，再回填 fieldValue 后原样提交。对于上传节点，可直接在 nodeInfoList 项里传 localFilePath，桥接层会自动读取本地文件并转成 upload。",
           additionalProperties: true,
         },
       },
@@ -257,6 +260,17 @@ const TOOL_DEFINITIONS = [
         fileName: { type: "string" },
         mimeType: { type: "string" },
         textContent: { type: "string" },
+        localFilePath: { type: "string", description: "stdio MCP 专用：本地文件绝对路径。桥接层会自动上传到网站并回填 fileUrl。" },
+        upload: {
+          type: "object",
+          description: "直接上传文件内容到网站，可传 fileName、contentType、dataBase64。通常在 stdio MCP 下更推荐直接传 localFilePath。",
+          properties: {
+            fileName: { type: "string" },
+            contentType: { type: "string" },
+            dataBase64: { type: "string" },
+          },
+          additionalProperties: false,
+        },
       },
       required: ["title", "materialType"],
       additionalProperties: false,
@@ -592,6 +606,117 @@ function createQuery(params = {}) {
   return query ? `?${query}` : "";
 }
 
+function resolveLocalFileContentType(filePath, fallback = "") {
+  const normalizedFallback = String(fallback || "").trim();
+  if (normalizedFallback) {
+    return normalizedFallback;
+  }
+  const extension = extname(String(filePath || "").trim()).toLowerCase();
+  if (extension === ".png") {
+    return "image/png";
+  }
+  if (extension === ".jpg" || extension === ".jpeg") {
+    return "image/jpeg";
+  }
+  if (extension === ".webp") {
+    return "image/webp";
+  }
+  if (extension === ".gif") {
+    return "image/gif";
+  }
+  if (extension === ".mp4") {
+    return "video/mp4";
+  }
+  if (extension === ".mov") {
+    return "video/quicktime";
+  }
+  if (extension === ".mp3") {
+    return "audio/mpeg";
+  }
+  if (extension === ".wav") {
+    return "audio/wav";
+  }
+  return "application/octet-stream";
+}
+
+async function createUploadPayloadFromLocalFile(localFilePath, options = {}) {
+  const normalizedPath = String(localFilePath || "").trim();
+  if (!normalizedPath) {
+    throw new Error("localFilePath 不能为空");
+  }
+  const fileStat = await stat(normalizedPath).catch(() => null);
+  if (!fileStat || !fileStat.isFile()) {
+    throw new Error(`本地文件不存在或不可读：${normalizedPath}`);
+  }
+  const buffer = await readFile(normalizedPath);
+  const fileName = String(options.fileName || "").trim() || basename(normalizedPath);
+  const contentType = resolveLocalFileContentType(normalizedPath, options.contentType);
+  return {
+    fileName,
+    contentType,
+    dataBase64: buffer.toString("base64"),
+    sizeBytes: buffer.length,
+  };
+}
+
+async function normalizeRunningHubGenerateArgs(args = {}) {
+  if (String(args.section || "").trim() !== "runninghub" || String(args.action || "").trim() !== "generate") {
+    return args;
+  }
+  const payload = args.payload && typeof args.payload === "object" && !Array.isArray(args.payload)
+    ? { ...args.payload }
+    : {};
+  const nodeInfoList = Array.isArray(payload.nodeInfoList) ? payload.nodeInfoList : [];
+  if (!nodeInfoList.length) {
+    return args;
+  }
+  const nextNodeInfoList = [];
+  for (const item of nodeInfoList) {
+    const record = item && typeof item === "object" && !Array.isArray(item) ? { ...item } : {};
+    const nestedUpload = record.upload && typeof record.upload === "object" && !Array.isArray(record.upload)
+      ? { ...record.upload }
+      : undefined;
+    const localFilePath = String(record.localFilePath || nestedUpload?.localFilePath || "").trim();
+    if (localFilePath) {
+      record.upload = await createUploadPayloadFromLocalFile(localFilePath, {
+        fileName: nestedUpload?.fileName || record.fileName,
+        contentType: nestedUpload?.contentType || record.mimeType,
+      });
+      delete record.localFilePath;
+      if (record.upload && typeof record.upload === "object") {
+        delete record.upload.localFilePath;
+      }
+    }
+    nextNodeInfoList.push(record);
+  }
+  return {
+    ...args,
+    payload: {
+      ...payload,
+      nodeInfoList: nextNodeInfoList,
+    },
+  };
+}
+
+async function normalizeToolArgs(name, args = {}) {
+  if (name === "create_openclaw_creative_material") {
+    const localFilePath = String(args.localFilePath || "").trim();
+    if (localFilePath) {
+      const upload = await createUploadPayloadFromLocalFile(localFilePath, {
+        fileName: args.fileName,
+        contentType: args.mimeType,
+      });
+      const nextArgs = { ...args, upload };
+      delete nextArgs.localFilePath;
+      return nextArgs;
+    }
+  }
+  if (name === "manage_douyin_video_production") {
+    return normalizeRunningHubGenerateArgs(args);
+  }
+  return args;
+}
+
 async function requestJson(path, options = {}) {
   const response = await fetch(`${baseUrl}${path}`, options);
   const text = await response.text();
@@ -688,6 +813,7 @@ async function callMcp(method, params = {}, id = 1) {
 }
 
 async function handleToolCall(name, args = {}) {
+  const normalizedArgs = await normalizeToolArgs(name, args);
   switch (name) {
     case "get_current_brand_context":
       return callApi("/openclaw/mcp/context/current-brand");
@@ -702,43 +828,43 @@ async function handleToolCall(name, args = {}) {
     case "get_latest_brand_growth_report_summary":
       return callApi("/openclaw/mcp/reports/brand-growth/latest-summary");
     case "create_brand_growth_report":
-      return callApi("/openclaw/mcp/reports/brand-growth/generate", { method: "POST", body: args });
+      return callApi("/openclaw/mcp/reports/brand-growth/generate", { method: "POST", body: normalizedArgs });
     case "create_half_year_marketing_plan":
-      return callApi("/openclaw/mcp/reports/half-year-marketing-plan/generate", { method: "POST", body: args });
+      return callApi("/openclaw/mcp/reports/half-year-marketing-plan/generate", { method: "POST", body: normalizedArgs });
     case "create_knowledge_base":
-      return callApi("/openclaw/mcp/knowledge-bases/create", { method: "POST", body: args });
+      return callApi("/openclaw/mcp/knowledge-bases/create", { method: "POST", body: normalizedArgs });
     case "upload_knowledge_base_files":
-      return callApi("/openclaw/mcp/knowledge-bases/upload-files", { method: "POST", body: args });
+      return callApi("/openclaw/mcp/knowledge-bases/upload-files", { method: "POST", body: normalizedArgs });
     case "create_xiaohongshu_original_note":
-      return callApi("/openclaw/mcp/works/xiaohongshu/original/generate", { method: "POST", body: args });
+      return callApi("/openclaw/mcp/works/xiaohongshu/original/generate", { method: "POST", body: normalizedArgs });
     case "create_wechat_article":
-      return callApi("/openclaw/mcp/works/wechat/articles/generate", { method: "POST", body: args });
+      return callApi("/openclaw/mcp/works/wechat/articles/generate", { method: "POST", body: normalizedArgs });
     case "manage_douyin_video_production":
-      return callMcp("tools/call", { name, arguments: args });
+      return callMcp("tools/call", { name, arguments: normalizedArgs });
     case "get_douyin_collection_workspace":
       return callApi(`/openclaw/mcp/brand-growth/douyin-collection/workspace${createQuery(args)}`);
     case "sync_douyin_brand_accounts":
-      return callApi("/openclaw/mcp/brand-growth/douyin-collection/brand-accounts/sync", { method: "POST", body: args });
+      return callApi("/openclaw/mcp/brand-growth/douyin-collection/brand-accounts/sync", { method: "POST", body: normalizedArgs });
     case "sync_douyin_competitor_accounts":
-      return callApi("/openclaw/mcp/brand-growth/douyin-collection/competitor-accounts/sync", { method: "POST", body: args });
+      return callApi("/openclaw/mcp/brand-growth/douyin-collection/competitor-accounts/sync", { method: "POST", body: normalizedArgs });
     case "sync_douyin_benchmark_works":
-      return callApi("/openclaw/mcp/brand-growth/douyin-collection/benchmark-works/sync", { method: "POST", body: args });
+      return callApi("/openclaw/mcp/brand-growth/douyin-collection/benchmark-works/sync", { method: "POST", body: normalizedArgs });
     case "sync_douyin_search_works":
-      return callApi("/openclaw/mcp/brand-growth/douyin-collection/search-works/sync", { method: "POST", body: args });
+      return callApi("/openclaw/mcp/brand-growth/douyin-collection/search-works/sync", { method: "POST", body: normalizedArgs });
     case "sync_douyin_comment_data":
-      return callApi("/openclaw/mcp/brand-growth/douyin-collection/comment-data/sync", { method: "POST", body: args });
+      return callApi("/openclaw/mcp/brand-growth/douyin-collection/comment-data/sync", { method: "POST", body: normalizedArgs });
     case "sync_douyin_keyword_recommendations":
-      return callApi("/openclaw/mcp/brand-growth/douyin-collection/keyword-recommendations/sync", { method: "POST", body: args });
+      return callApi("/openclaw/mcp/brand-growth/douyin-collection/keyword-recommendations/sync", { method: "POST", body: normalizedArgs });
     case "sync_douyin_low_fan_explosive_works":
-      return callApi("/openclaw/mcp/brand-growth/douyin-collection/low-fan-explosive-works/sync", { method: "POST", body: args });
+      return callApi("/openclaw/mcp/brand-growth/douyin-collection/low-fan-explosive-works/sync", { method: "POST", body: normalizedArgs });
     case "sync_douyin_high_completion_rate_works":
-      return callApi("/openclaw/mcp/brand-growth/douyin-collection/high-completion-rate-works/sync", { method: "POST", body: args });
+      return callApi("/openclaw/mcp/brand-growth/douyin-collection/high-completion-rate-works/sync", { method: "POST", body: normalizedArgs });
     case "sync_douyin_high_like_rate_works":
-      return callApi("/openclaw/mcp/brand-growth/douyin-collection/high-like-rate-works/sync", { method: "POST", body: args });
+      return callApi("/openclaw/mcp/brand-growth/douyin-collection/high-like-rate-works/sync", { method: "POST", body: normalizedArgs });
     case "sync_douyin_city_hotspots":
-      return callApi("/openclaw/mcp/brand-growth/douyin-collection/city-hotspots/sync", { method: "POST", body: args });
+      return callApi("/openclaw/mcp/brand-growth/douyin-collection/city-hotspots/sync", { method: "POST", body: normalizedArgs });
     default:
-      return callMcp("tools/call", { name, arguments: args });
+      return callMcp("tools/call", { name, arguments: normalizedArgs });
   }
 }
 

@@ -39,6 +39,11 @@ export class OpenClawCreativeMaterialController {
       fileName?: string;
       mimeType?: string;
       textContent?: string;
+      upload?: {
+        fileName?: string;
+        contentType?: string;
+        dataBase64?: string;
+      };
     },
   ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
@@ -57,6 +62,7 @@ export class OpenClawCreativeMaterialController {
       fileName: payload?.fileName,
       mimeType: payload?.mimeType,
       textContent: payload?.textContent,
+      upload: payload?.upload,
     });
     const workspace = await this.openClawCreativeMaterialService.listWorkspace(brandId, payload?.workspaceScope);
     return {

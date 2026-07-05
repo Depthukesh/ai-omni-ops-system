@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
-import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
+import { Inject, BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
+import { AppConfigService } from "../../config/app-config.service";
 import { PrismaService } from "../../prisma/prisma.service";
+import { OssStorageService } from "../../storage/oss-storage.service";
 import {
   DEFAULT_OPENCLAW_WORKSPACE_SCOPE,
   type OpenClawWorkspaceScope,
@@ -46,13 +48,25 @@ export type OpenClawCreativeMaterialWorkspace = {
   total: number;
 };
 
+type OpenClawCreativeMaterialUploadPayload = {
+  fileName?: string;
+  contentType?: string;
+  dataBase64?: string;
+};
+
 @Injectable()
 export class OpenClawCreativeMaterialService {
   private bootstrapPromise: Promise<void> | null = null;
 
   private readonly fallbackItems: OpenClawCreativeMaterialStoredRecord[] = [];
 
-  constructor(private readonly prismaService: PrismaService) {}
+  constructor(
+    private readonly prismaService: PrismaService,
+    @Inject(OssStorageService)
+    private readonly ossStorageService: OssStorageService,
+    @Inject(AppConfigService)
+    private readonly appConfigService: AppConfigService,
+  ) {}
 
   async listWorkspace(brandId: string, workspaceScope?: string, limit?: number): Promise<OpenClawCreativeMaterialWorkspace> {
     const items = await this.listRecords(brandId, workspaceScope, limit);
@@ -73,6 +87,7 @@ export class OpenClawCreativeMaterialService {
     fileName?: string;
     mimeType?: string;
     textContent?: string;
+    upload?: OpenClawCreativeMaterialUploadPayload;
   }): Promise<OpenClawCreativeMaterialRecord> {
     const brandId = this.requireText(payload.brandId, "缺少品牌 ID");
     const workspaceScope = normalizeOpenClawWorkspaceScope(payload.workspaceScope);
@@ -80,10 +95,17 @@ export class OpenClawCreativeMaterialService {
     const title = this.requireText(payload.title, "请填写标题", 160);
     const description = this.requireOptionalText(payload.description, 10_000);
     const materialType = this.requireText(payload.materialType, "请填写素材类型", 80);
-    const fileUrl = this.requireOptionalUrl(payload.fileUrl);
-    const fileName = this.requireOptionalText(payload.fileName, 260);
-    const mimeType = this.requireOptionalText(payload.mimeType, 160);
+    let fileUrl = this.requireOptionalUrl(payload.fileUrl);
+    let fileName = this.requireOptionalText(payload.fileName, 260);
+    let mimeType = this.requireOptionalText(payload.mimeType, 160);
     const textContent = this.requireOptionalText(payload.textContent, 50_000);
+    const upload = this.normalizeUploadPayload(payload.upload);
+    if (upload) {
+      const uploaded = await this.persistUploadedMaterialFile(brandId, upload, title);
+      fileUrl = uploaded.fileUrl;
+      fileName = fileName || uploaded.fileName;
+      mimeType = mimeType || uploaded.mimeType;
+    }
     if (!fileUrl && !textContent) {
       throw new BadRequestException("请至少提供素材文件地址或文本内容");
     }
@@ -148,6 +170,85 @@ export class OpenClawCreativeMaterialService {
     };
     this.fallbackItems.unshift(stored);
     return stored;
+  }
+
+  private normalizeUploadPayload(payload?: OpenClawCreativeMaterialUploadPayload): OpenClawCreativeMaterialUploadPayload | undefined {
+    if (!payload || typeof payload !== "object") {
+      return undefined;
+    }
+    const dataBase64 = String(payload.dataBase64 || "").trim();
+    if (!dataBase64) {
+      return undefined;
+    }
+    const fileName = this.requireOptionalText(payload.fileName, 260) || `openclaw-material-${Date.now()}`;
+    const contentType = this.requireOptionalText(payload.contentType, 160) || "application/octet-stream";
+    return {
+      fileName,
+      contentType,
+      dataBase64,
+    };
+  }
+
+  private async persistUploadedMaterialFile(
+    brandId: string,
+    upload: OpenClawCreativeMaterialUploadPayload,
+    title: string,
+  ) {
+    const fileName = this.requireOptionalText(upload.fileName, 260) || `openclaw-material-${Date.now()}`;
+    const contentType = this.requireOptionalText(upload.contentType, 160) || "application/octet-stream";
+    const base64 = String(upload.dataBase64 || "").trim();
+    if (!base64) {
+      throw new BadRequestException("上传文件内容为空");
+    }
+    const extension = this.resolveExtension(fileName, contentType);
+    const relativePath = `openclaw/creative-materials/${randomUUID()}-${this.slugifyFileName(title || fileName)}${extension}`;
+    const storageKey = `works/${brandId}/${relativePath}`;
+    await this.ossStorageService.putObject(storageKey, Buffer.from(base64, "base64"), contentType);
+    return {
+      fileUrl: `${this.appConfigService.getServerBaseUrl()}/api/works/brands/${brandId}/assets/${encodeURIComponent(relativePath)}`,
+      fileName,
+      mimeType: contentType,
+    };
+  }
+
+  private resolveExtension(fileName: string, contentType: string) {
+    const matched = /\.[a-zA-Z0-9]+$/.exec(String(fileName || "").trim());
+    if (matched) {
+      return matched[0].toLowerCase();
+    }
+    const normalizedType = String(contentType || "").trim().toLowerCase();
+    if (normalizedType === "image/png") {
+      return ".png";
+    }
+    if (normalizedType === "image/webp") {
+      return ".webp";
+    }
+    if (normalizedType === "image/gif") {
+      return ".gif";
+    }
+    if (normalizedType === "image/jpeg" || normalizedType === "image/jpg") {
+      return ".jpg";
+    }
+    if (normalizedType === "video/mp4") {
+      return ".mp4";
+    }
+    if (normalizedType === "audio/mpeg") {
+      return ".mp3";
+    }
+    if (normalizedType === "audio/wav" || normalizedType === "audio/x-wav") {
+      return ".wav";
+    }
+    return ".bin";
+  }
+
+  private slugifyFileName(input: string) {
+    const normalized = String(input || "")
+      .trim()
+      .replace(/[<>:"/\\|?*\u0000-\u001f]+/g, "-")
+      .replace(/\s+/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-+|-+$/g, "");
+    return (normalized || "material").slice(0, 80);
   }
 
   async deleteMaterial(brandId: string, workspaceScope: string | undefined, materialId: string): Promise<OpenClawCreativeMaterialRecord> {

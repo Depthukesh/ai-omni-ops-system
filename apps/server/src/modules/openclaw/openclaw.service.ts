@@ -1822,6 +1822,16 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
         fileName: { type: "string", description: "素材文件名，可选。" },
         mimeType: { type: "string", description: "素材 MIME 类型，可选。" },
         textContent: { type: "string", description: "纯文本素材正文，可选。" },
+        upload: {
+          type: "object",
+          description: "如需直接把文件内容上传到网站，可传 fileName、contentType、dataBase64。stdio MCP 也支持直接传 localFilePath，由桥接层自动转成 upload。",
+          properties: {
+            fileName: { type: "string", description: "原始文件名，例如 hero.png。" },
+            contentType: { type: "string", description: "文件 MIME 类型，例如 image/png。" },
+            dataBase64: { type: "string", description: "文件二进制的 Base64 内容。" },
+          },
+          additionalProperties: false,
+        },
       },
       required: ["title", "materialType"],
       additionalProperties: false,
@@ -2050,7 +2060,7 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
         tagIds: { type: "array", items: { type: "integer" } },
         payload: {
           type: "object",
-          description: "对应动作的请求体。数字人 create_speech_task 需要 text，建议配合 voiceId 一起传；RunningHub generate 需要先从 get_app_detail 返回结果里取 nodeInfoList 模板，再回填 fieldValue 后原样提交。",
+          description: "对应动作的请求体。数字人 create_speech_task 需要 text，建议配合 voiceId 一起传；RunningHub generate 需要先从 get_app_detail 返回结果里取 nodeInfoList 模板，再回填 fieldValue 后原样提交。若通过 stdio MCP 运行，payload.nodeInfoList 里的上传节点可直接传 localFilePath，桥接层会自动转成 upload.dataBase64。",
           additionalProperties: true,
         },
       },
@@ -6574,6 +6584,11 @@ export class OpenClawService {
       fileName?: string;
       mimeType?: string;
       textContent?: string;
+      upload?: {
+        fileName?: string;
+        contentType?: string;
+        dataBase64?: string;
+      };
     },
   ) {
     const auth = await this.requireAuth(headers);
@@ -6594,6 +6609,7 @@ export class OpenClawService {
       fileName: options?.fileName,
       mimeType: options?.mimeType,
       textContent: options?.textContent,
+      upload: options?.upload,
     });
 
     return this.buildSummaryResponse({
@@ -10829,6 +10845,19 @@ export class OpenClawService {
           fileName: typeof toolArgs.fileName === "string" ? toolArgs.fileName : undefined,
           mimeType: typeof toolArgs.mimeType === "string" ? toolArgs.mimeType : undefined,
           textContent: typeof toolArgs.textContent === "string" ? toolArgs.textContent : undefined,
+          upload: toolArgs.upload && typeof toolArgs.upload === "object" && !Array.isArray(toolArgs.upload)
+            ? {
+                fileName: typeof (toolArgs.upload as Record<string, unknown>).fileName === "string"
+                  ? (toolArgs.upload as Record<string, unknown>).fileName as string
+                  : undefined,
+                contentType: typeof (toolArgs.upload as Record<string, unknown>).contentType === "string"
+                  ? (toolArgs.upload as Record<string, unknown>).contentType as string
+                  : undefined,
+                dataBase64: typeof (toolArgs.upload as Record<string, unknown>).dataBase64 === "string"
+                  ? (toolArgs.upload as Record<string, unknown>).dataBase64 as string
+                  : undefined,
+              }
+            : undefined,
         });
       case "delete_openclaw_creative_material":
         return this.deleteOpenClawCreativeMaterial(headers, {
