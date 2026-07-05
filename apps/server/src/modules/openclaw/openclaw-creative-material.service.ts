@@ -205,7 +205,7 @@ export class OpenClawCreativeMaterialService {
     const storageKey = `works/${brandId}/${relativePath}`;
     await this.ossStorageService.putObject(storageKey, Buffer.from(base64, "base64"), contentType);
     return {
-      fileUrl: `${this.appConfigService.getServerBaseUrl()}/api/works/brands/${brandId}/assets/${encodeURIComponent(relativePath)}`,
+      fileUrl: `${this.appConfigService.getServerBaseUrl()}/api/works/brands/${brandId}/assets?fileName=${encodeURIComponent(relativePath)}`,
       fileName,
       mimeType: contentType,
     };

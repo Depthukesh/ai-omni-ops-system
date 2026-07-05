@@ -28641,10 +28641,14 @@ export class WorksService {
 
   private extractLocalAssetFileName(url: string, brandId: string) {
     const expectedPrefix = `${this.resolveServerBaseUrl()}/api/works/brands/${brandId}/assets/`;
-    if (!url.startsWith(expectedPrefix)) {
-      return "";
+    if (url.startsWith(expectedPrefix)) {
+      return decodeURIComponent(url.slice(expectedPrefix.length));
     }
-    return decodeURIComponent(url.slice(expectedPrefix.length));
+    const queryPrefix = `${this.resolveServerBaseUrl()}/api/works/brands/${brandId}/assets?fileName=`;
+    if (url.startsWith(queryPrefix)) {
+      return decodeURIComponent(url.slice(queryPrefix.length));
+    }
+    return "";
   }
 
   private resolveServerBaseUrl() {
@@ -28664,7 +28668,7 @@ export class WorksService {
   }
 
   private resolveGeneratedAssetUrl(brandId: string, fileName: string) {
-    return `${this.resolveServerBaseUrl()}/api/works/brands/${brandId}/assets/${encodeURIComponent(fileName)}`;
+    return `${this.resolveServerBaseUrl()}/api/works/brands/${brandId}/assets?fileName=${encodeURIComponent(fileName)}`;
   }
 
   private async resolveThirdPartyAccessibleAssetUrl(url: string | undefined, brandId: string) {

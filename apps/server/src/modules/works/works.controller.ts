@@ -1635,11 +1635,39 @@ export class WorksController {
     });
   }
 
+  @Get("brands/:brandId/assets")
+  async getGeneratedAssetByQuery(
+    @Param("brandId") brandId: string,
+    @Query("fileName") fileName: string,
+    @Res() response: { setHeader(name: string, value: string): unknown; send(body: Buffer): unknown },
+  ) {
+    return this.sendGeneratedAsset(brandId, fileName, response);
+  }
+
   @Get("brands/:brandId/assets/:fileName")
   async getGeneratedAsset(
     @Param("brandId") brandId: string,
     @Param("fileName") fileName: string,
     @Res() response: { setHeader(name: string, value: string): unknown; send(body: Buffer): unknown },
+  ) {
+    return this.sendGeneratedAsset(brandId, fileName, response);
+  }
+
+  @Get("brands/:brandId/assets/:scope/:category/:fileName")
+  async getGeneratedNestedAsset(
+    @Param("brandId") brandId: string,
+    @Param("scope") scope: string,
+    @Param("category") category: string,
+    @Param("fileName") fileName: string,
+    @Res() response: { setHeader(name: string, value: string): unknown; send(body: Buffer): unknown },
+  ) {
+    return this.sendGeneratedAsset(brandId, `${scope}/${category}/${fileName}`, response);
+  }
+
+  private async sendGeneratedAsset(
+    brandId: string,
+    fileName: string,
+    response: { setHeader(name: string, value: string): unknown; send(body: Buffer): unknown },
   ) {
     const file = await this.worksService.getGeneratedAsset(brandId, fileName);
     response.setHeader("Content-Type", file.contentType);
