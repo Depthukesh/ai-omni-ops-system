@@ -103,6 +103,24 @@ function getFieldDescription(field: DouyinRunningHubAppFieldRecord) {
   return field.descriptionEn || field.fieldData || "";
 }
 
+function shouldUseNumberInput(field: DouyinRunningHubAppFieldRecord) {
+  const fieldType = String(field.fieldType || "").toLowerCase();
+  if (/(^|[^a-z])(int|integer|float|double|decimal|number)([^a-z]|$)/.test(fieldType)) {
+    return true;
+  }
+  const haystack = [
+    field.fieldName,
+    field.nodeName,
+    field.description,
+    field.descriptionEn,
+    field.fieldData,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  return /generate seconds|lip-syncing from|fps|frame rate|width|height|max resolution|generate duration|start time|开始对口型|几秒|秒内|生成秒数|帧率|分辨率|宽度|高度/.test(haystack);
+}
+
 function inferUploadKind(field: DouyinRunningHubAppFieldRecord): "image" | "video" | "audio" | null {
   const haystack = [
     field.fieldType,
@@ -228,7 +246,7 @@ function RunningHubCreateDialog(props: {
                   <input type="text" value={props.title} onChange={(event) => props.onTitleChange(event.target.value)} />
                 </label>
                 {props.fields.map((field, index) => {
-                  const uploadKind = inferUploadKind(field);
+                  const uploadKind = shouldUseNumberInput(field) ? null : inferUploadKind(field);
                   const helperText = getFieldDescription(field);
                   const fieldKey = `${field.nodeId || "node"}-${field.fieldName || "field"}-${index}`;
                   if (uploadKind) {
@@ -329,6 +347,20 @@ function RunningHubCreateDialog(props: {
                             : null}
                         </small>
                       </div>
+                    );
+                  }
+                  if (shouldUseNumberInput(field)) {
+                    return (
+                      <label key={fieldKey} className="design-v3-field">
+                        <span>{getFieldLabel(field)}</span>
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          value={field.value}
+                          onChange={(event) => props.onFieldValueChange(index, event.target.value)}
+                          placeholder={helperText || "请输入数值"}
+                        />
+                      </label>
                     );
                   }
                   if (shouldUseTextarea(field)) {
