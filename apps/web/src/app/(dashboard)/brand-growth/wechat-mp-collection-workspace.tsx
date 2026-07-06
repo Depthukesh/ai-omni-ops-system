@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
+import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import type { OptionalDateFormatter, OptionalNumberFormatter } from "./shared-types";
 import type {
   WechatMpArticleRecord,
@@ -595,6 +595,17 @@ type BrandAccountDataPanelProps = {
 };
 
 function BrandAccountDataPanel(props: BrandAccountDataPanelProps) {
+  const accountNameById = useMemo(
+    () =>
+      new Map(
+        props.brandAccounts.map((account) => [
+          account.id,
+          account.accountName?.trim() || account.ghUsername,
+        ]),
+      ),
+    [props.brandAccounts],
+  );
+
   return (
     <>
       <article className="light-data-panel xhs-account-builder" style={{ marginBottom: 16 }}>
@@ -624,6 +635,7 @@ function BrandAccountDataPanel(props: BrandAccountDataPanelProps) {
                       </span>
                       {hasMore ? <span className="archive-pill status-pending">可翻页</span> : null}
                     </div>
+                    <strong>{account.accountName || account.ghUsername}</strong>
                     <strong>{account.ghUsername}</strong>
                   </div>
                   <div className="xhs-account-entry-row__actions">
@@ -655,6 +667,7 @@ function BrandAccountDataPanel(props: BrandAccountDataPanelProps) {
         {props.articles.length ? (
           <WechatMpArticleTable
             items={props.articles}
+            accountNameById={accountNameById}
             readingIds={props.readingArticleIds}
             onReadArticle={props.onReadArticle}
             onCopyContent={props.onCopyContent}
@@ -893,6 +906,7 @@ function WechatSearchPanel(props: WechatSearchPanelProps) {
 
 function WechatMpArticleTable(props: {
   items: WechatMpArticleRecord[];
+  accountNameById: Map<string, string>;
   readingIds: string[];
   onReadArticle: (article: WechatMpArticleRecord) => void;
   onCopyContent: (content: string) => void;
@@ -904,6 +918,7 @@ function WechatMpArticleTable(props: {
       <table className="soft-table">
         <thead>
           <tr>
+            <th>账号名称</th>
             <th>标题</th>
             <th>链接</th>
             <th className="table-cell-wide">文章</th>
@@ -917,8 +932,10 @@ function WechatMpArticleTable(props: {
           {props.items.map((article) => {
             const isReading = props.readingIds.includes(article.id);
             const hasContent = Boolean(article.articleContent?.trim());
+            const accountName = props.accountNameById.get(article.sourceAccountId) || article.ghUsername || "-";
             return (
               <tr key={article.id}>
+                <td>{accountName}</td>
                 <td className="wechat-mp-title-cell">
                   <span className="wechat-mp-title-text" title={article.digest || undefined}>{article.title || "-"}</span>
                 </td>

@@ -1072,7 +1072,8 @@ function XhsAccountBindingSubmitPanel(props: {
         {props.entries.length ? (
           <div className="xhs-account-entry-list">
             {props.entries.map((entry) => {
-              const hasSyncedResult = props.syncedAccounts.some((item) => doesXhsAccountMatchEntry(item, entry));
+              const matchedAccount = props.syncedAccounts.find((item) => doesXhsAccountMatchEntry(item, entry));
+              const hasSyncedResult = Boolean(matchedAccount);
               return (
                 <div key={entry.id} className="xhs-account-entry-row">
                   <div className="xhs-account-entry-row__body">
@@ -1084,6 +1085,7 @@ function XhsAccountBindingSubmitPanel(props: {
                         {hasSyncedResult ? "已采集" : "待提交"}
                       </span>
                     </div>
+                    {matchedAccount?.accountName ? <strong>{matchedAccount.accountName}</strong> : null}
                     <strong>{entry.locator}</strong>
                   </div>
                   <div className="xhs-account-entry-row__actions">
@@ -1218,7 +1220,8 @@ function DouyinAccountBindingSubmitPanel(props: {
         {props.entries.length ? (
           <div className="xhs-account-entry-list">
             {props.entries.map((entry) => {
-              const hasSyncedResult = props.syncedAccounts.some((item) => doesDouyinAccountMatchEntry(item, entry));
+              const matchedAccount = props.syncedAccounts.find((item) => doesDouyinAccountMatchEntry(item, entry));
+              const hasSyncedResult = Boolean(matchedAccount);
               return (
                 <div key={entry.id} className="xhs-account-entry-row">
                   <div className="xhs-account-entry-row__body">
@@ -1230,6 +1233,7 @@ function DouyinAccountBindingSubmitPanel(props: {
                         {hasSyncedResult ? "已采集" : "待提交"}
                       </span>
                     </div>
+                    {matchedAccount?.accountName ? <strong>{matchedAccount.accountName}</strong> : null}
                     <strong>{entry.locator}</strong>
                   </div>
                   <div className="xhs-account-entry-row__actions">
