@@ -17,6 +17,7 @@ import { FeedbackService } from "../feedback/feedback.service";
 import { OpenClawCreativeMaterialService } from "./openclaw-creative-material.service";
 import { OpenClawInstallationService } from "./openclaw-installation.service";
 import { OpenClawDailyPlanService } from "./openclaw-daily-plan.service";
+import { OpenClawGeoVisibilityReportService } from "./openclaw-geo-visibility-report.service";
 import { OpenClawLobsterDiaryService } from "./openclaw-lobster-diary.service";
 import { OpenClawVideoWorkService } from "./openclaw-video-work.service";
 import {
@@ -457,6 +458,25 @@ const OPENCLAW_WEBSITE_FUNCTION_CATALOG: OpenClawWebsiteFunctionCatalogItem[] = 
       "delete_openclaw_video_work",
       "create_openclaw_video_work_douyin_desktop_publish_session",
       "get_douyin_desktop_publish_session",
+    ],
+  },
+  {
+    key: "openclaw_geo_visibility_report",
+    domainKey: "geo",
+    domainName: "GEO",
+    name: "查看并管理 GEO 可见度诊断",
+    summary: "适合把 OpenClaw 生成好的 GEO 可见度诊断 HTML 报告落库到 GEO 工作台，并支持查看与删除。",
+    pageUrl: "/geo",
+    pageLabel: "打开 GEO 工作台",
+    riskLevel: "medium",
+    intentKeywords: ["geo", "GEO", "geo可见度", "可见度诊断", "诊断报告", "html报告"],
+    requiredInputKeys: ["title", "htmlContent"],
+    requiredInputs: ["报告标题", "HTML 报告内容"],
+    recommendedQuestions: ["帮我保存一份 GEO 可见度诊断报告", "帮我看当前品牌有哪些 GEO 可见度诊断报告"],
+    mcpTools: [
+      "get_openclaw_geo_visibility_reports",
+      "create_openclaw_geo_visibility_report",
+      "delete_openclaw_geo_visibility_report",
     ],
   },
   {
@@ -1722,7 +1742,7 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
     inputSchema: {
       type: "object",
       properties: {
-        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat"], description: "可选：指定板块作用域，默认 brand_growth。" },
+        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat", "geo"], description: "可选：指定板块作用域，默认 brand_growth。" },
         limit: { type: "integer", minimum: 1, maximum: 100 },
       },
       additionalProperties: false,
@@ -1734,7 +1754,7 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
     inputSchema: {
       type: "object",
       properties: {
-        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat"], description: "可选：写入哪个板块，默认 brand_growth。" },
+        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat", "geo"], description: "可选：写入哪个板块，默认 brand_growth。" },
         diaryDate: { type: "string", description: "日期，格式为 YYYY-MM-DD。" },
         title: { type: "string", description: "日记标题。" },
         content: { type: "string", description: "日记正文内容。" },
@@ -1749,7 +1769,7 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
     inputSchema: {
       type: "object",
       properties: {
-        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat"], description: "可选：删除所在板块，默认 brand_growth。" },
+        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat", "geo"], description: "可选：删除所在板块，默认 brand_growth。" },
         diaryId: { type: "string", description: "每日复盘 ID。" },
       },
       required: ["diaryId"],
@@ -1762,7 +1782,7 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
     inputSchema: {
       type: "object",
       properties: {
-        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat"], description: "可选：指定板块作用域，默认 brand_growth。" },
+        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat", "geo"], description: "可选：指定板块作用域，默认 brand_growth。" },
         limit: { type: "integer", minimum: 1, maximum: 100 },
       },
       additionalProperties: false,
@@ -1774,7 +1794,7 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
     inputSchema: {
       type: "object",
       properties: {
-        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat"], description: "可选：写入哪个板块，默认 brand_growth。" },
+        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat", "geo"], description: "可选：写入哪个板块，默认 brand_growth。" },
         planDate: { type: "string", description: "日期，格式为 YYYY-MM-DD。" },
         title: { type: "string", description: "计划标题。" },
         content: { type: "string", description: "计划正文内容。" },
@@ -1789,7 +1809,7 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
     inputSchema: {
       type: "object",
       properties: {
-        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat"], description: "可选：删除所在板块，默认 brand_growth。" },
+        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat", "geo"], description: "可选：删除所在板块，默认 brand_growth。" },
         planId: { type: "string", description: "每日计划 ID。" },
       },
       required: ["planId"],
@@ -1802,7 +1822,7 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
     inputSchema: {
       type: "object",
       properties: {
-        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat"], description: "可选：指定板块作用域，默认 brand_growth。" },
+        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat", "geo"], description: "可选：指定板块作用域，默认 brand_growth。" },
         limit: { type: "integer", minimum: 1, maximum: 100 },
       },
       additionalProperties: false,
@@ -1814,7 +1834,7 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
     inputSchema: {
       type: "object",
       properties: {
-        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat"], description: "可选：写入哪个板块，默认 brand_growth。" },
+        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat", "geo"], description: "可选：写入哪个板块，默认 brand_growth。" },
         title: { type: "string", description: "素材标题。" },
         description: { type: "string", description: "素材描述。" },
         materialType: { type: "string", description: "素材类型，例如 text、image、video、audio、bgm。" },
@@ -1843,7 +1863,7 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
     inputSchema: {
       type: "object",
       properties: {
-        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat"], description: "可选：删除所在板块，默认 brand_growth。" },
+        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat", "geo"], description: "可选：删除所在板块，默认 brand_growth。" },
         materialId: { type: "string", description: "创作素材 ID。" },
       },
       required: ["materialId"],
@@ -1856,7 +1876,7 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
     inputSchema: {
       type: "object",
       properties: {
-        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat"], description: "可选：指定板块作用域，默认 brand_growth。" },
+        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat", "geo"], description: "可选：指定板块作用域，默认 brand_growth。" },
         limit: { type: "integer", minimum: 1, maximum: 100 },
       },
       additionalProperties: false,
@@ -1868,7 +1888,7 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
     inputSchema: {
       type: "object",
       properties: {
-        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat"], description: "可选：写入哪个板块，默认 brand_growth。" },
+        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat", "geo"], description: "可选：写入哪个板块，默认 brand_growth。" },
         title: { type: "string", description: "作品标题。" },
         description: { type: "string", description: "作品描述。" },
         scriptContent: { type: "string", description: "视频文案或脚本。" },
@@ -1885,7 +1905,7 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
     inputSchema: {
       type: "object",
       properties: {
-        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat"], description: "可选：删除所在板块，默认 brand_growth。" },
+        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat", "geo"], description: "可选：删除所在板块，默认 brand_growth。" },
         workId: { type: "string", description: "视频作品 ID。" },
       },
       required: ["workId"],
@@ -1898,11 +1918,51 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
     inputSchema: {
       type: "object",
       properties: {
-        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat"], description: "可选：作品所在板块，默认 brand_growth。" },
+        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat", "geo"], description: "可选：作品所在板块，默认 brand_growth。" },
         workId: { type: "string", description: "视频作品 ID。" },
         accountId: { type: "string", description: "可选：目标抖音账号 ID。" },
       },
       required: ["workId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_openclaw_geo_visibility_reports",
+    description: "查看当前品牌指定板块下的 GEO 可见度诊断报告列表。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat", "geo"], description: "可选：指定板块作用域，默认 geo。" },
+        limit: { type: "integer", minimum: 1, maximum: 100 },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "create_openclaw_geo_visibility_report",
+    description: "为当前品牌指定板块保存一份 GEO 可见度诊断 HTML 报告。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat", "geo"], description: "可选：写入哪个板块，默认 geo。" },
+        title: { type: "string", description: "报告标题。" },
+        description: { type: "string", description: "报告摘要或补充说明，可选。" },
+        htmlContent: { type: "string", description: "完整的 HTML 报告内容。" },
+      },
+      required: ["title", "htmlContent"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "delete_openclaw_geo_visibility_report",
+    description: "删除指定板块下的一份 GEO 可见度诊断报告。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat", "geo"], description: "可选：删除所在板块，默认 geo。" },
+        reportId: { type: "string", description: "GEO 可见度诊断报告 ID。" },
+      },
+      required: ["reportId"],
       additionalProperties: false,
     },
   },
@@ -2246,6 +2306,7 @@ export class OpenClawService {
     private readonly openClawLobsterDiaryService: OpenClawLobsterDiaryService,
     private readonly openClawDailyPlanService: OpenClawDailyPlanService,
     private readonly openClawCreativeMaterialService: OpenClawCreativeMaterialService,
+    private readonly openClawGeoVisibilityReportService: OpenClawGeoVisibilityReportService,
     private readonly openClawVideoWorkService: OpenClawVideoWorkService,
   ) {}
 
@@ -6694,6 +6755,113 @@ export class OpenClawService {
     });
   }
 
+  async getOpenClawGeoVisibilityReports(
+    headers: HeadersMap,
+    options?: {
+      workspaceScope?: string;
+      limit?: number;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "view", auth);
+    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope || "geo");
+    const workspaceLabel = getOpenClawWorkspaceDisplayName(workspaceScope);
+    const workspacePath = getOpenClawWorkspaceDashboardPath(workspaceScope);
+    const workspace = await this.openClawGeoVisibilityReportService.listWorkspace(brandId, workspaceScope, options?.limit);
+    const items = workspace.items.slice(0, this.normalizeLimit(options?.limit));
+
+    return this.buildSummaryResponse({
+      title: `${workspaceLabel}可见度诊断报告`,
+      summary: workspace.total
+        ? `当前品牌 ${workspaceLabel} 板块共有 ${workspace.total} 份 GEO 可见度诊断报告。`
+        : `当前品牌 ${workspaceLabel} 板块还没有 GEO 可见度诊断报告，OpenClaw 可先保存首份 HTML 报告。`,
+      highlights: items.length
+        ? items.slice(0, 5).map((item) => `${item.title}｜HTML ${item.htmlContent ? "已保存" : "缺失"}`)
+        : ["报告数：0"],
+      data: {
+        total: workspace.total,
+        items,
+      },
+      links: [{ label: `打开${workspaceLabel}工作台`, url: workspacePath }],
+      resourceKind: "openclaw_geo_visibility_report",
+    });
+  }
+
+  async createOpenClawGeoVisibilityReport(
+    headers: HeadersMap,
+    options?: {
+      workspaceScope?: string;
+      title?: string;
+      description?: string;
+      htmlContent?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "edit", auth);
+    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope || "geo");
+    const workspaceLabel = getOpenClawWorkspaceDisplayName(workspaceScope);
+    const workspacePath = getOpenClawWorkspaceDashboardPath(workspaceScope);
+
+    const item = await this.openClawGeoVisibilityReportService.createReport({
+      brandId,
+      workspaceScope,
+      createdByUserId: auth.userId,
+      title: options?.title,
+      description: options?.description,
+      htmlContent: options?.htmlContent,
+    });
+
+    return this.buildSummaryResponse({
+      title: `${workspaceLabel}可见度诊断报告已保存`,
+      summary: `已在 ${workspaceLabel} 板块保存 GEO 可见度诊断报告《${item.title}》。`,
+      highlights: [
+        `报告标题：${item.title}`,
+        `HTML 长度：${String(item.htmlContent || "").length} 字符`,
+        item.description ? `报告摘要：${item.description}` : "报告摘要：未填写",
+      ],
+      data: item,
+      links: [{ label: `打开${workspaceLabel}工作台`, url: workspacePath }],
+      resourceKind: "openclaw_geo_visibility_report",
+      resultStatus: "COMPLETED",
+    });
+  }
+
+  async deleteOpenClawGeoVisibilityReport(
+    headers: HeadersMap,
+    options?: {
+      workspaceScope?: string;
+      reportId?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "edit", auth);
+    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope || "geo");
+    const workspaceLabel = getOpenClawWorkspaceDisplayName(workspaceScope);
+    const workspacePath = getOpenClawWorkspaceDashboardPath(workspaceScope);
+    const reportId = String(options?.reportId || "").trim();
+    if (!reportId) {
+      throw new BadRequestException("请提供 reportId");
+    }
+
+    const item = await this.openClawGeoVisibilityReportService.deleteReport(brandId, workspaceScope, reportId);
+
+    return this.buildSummaryResponse({
+      title: `${workspaceLabel}可见度诊断报告已删除`,
+      summary: `已从 ${workspaceLabel} 板块删除 GEO 可见度诊断报告《${item.title}》。`,
+      highlights: [
+        `报告标题：${item.title}`,
+        `报告 ID：${item.id}`,
+      ],
+      data: item,
+      links: [{ label: `打开${workspaceLabel}工作台`, url: workspacePath }],
+      resourceKind: "openclaw_geo_visibility_report",
+      resultStatus: "COMPLETED",
+    });
+  }
+
   async createOpenClawVideoWork(
     headers: HeadersMap,
     options?: {
@@ -10868,6 +11036,23 @@ export class OpenClawService {
         return this.getOpenClawVideoWorks(headers, {
           workspaceScope: typeof toolArgs.workspaceScope === "string" ? toolArgs.workspaceScope : undefined,
           limit: typeof toolArgs.limit === "number" ? toolArgs.limit : undefined,
+        });
+      case "get_openclaw_geo_visibility_reports":
+        return this.getOpenClawGeoVisibilityReports(headers, {
+          workspaceScope: typeof toolArgs.workspaceScope === "string" ? toolArgs.workspaceScope : undefined,
+          limit: typeof toolArgs.limit === "number" ? toolArgs.limit : undefined,
+        });
+      case "create_openclaw_geo_visibility_report":
+        return this.createOpenClawGeoVisibilityReport(headers, {
+          workspaceScope: typeof toolArgs.workspaceScope === "string" ? toolArgs.workspaceScope : undefined,
+          title: typeof toolArgs.title === "string" ? toolArgs.title : undefined,
+          description: typeof toolArgs.description === "string" ? toolArgs.description : undefined,
+          htmlContent: typeof toolArgs.htmlContent === "string" ? toolArgs.htmlContent : undefined,
+        });
+      case "delete_openclaw_geo_visibility_report":
+        return this.deleteOpenClawGeoVisibilityReport(headers, {
+          workspaceScope: typeof toolArgs.workspaceScope === "string" ? toolArgs.workspaceScope : undefined,
+          reportId: typeof toolArgs.reportId === "string" ? toolArgs.reportId : undefined,
         });
       case "create_openclaw_video_work":
         return this.createOpenClawVideoWork(headers, {

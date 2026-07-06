@@ -1088,6 +1088,21 @@ model OpenClawVideoWork {
   @@map("OpenClawVideoWork")
 }
 
+model OpenClawGeoVisibilityReport {
+  id              String   @id
+  brandId         String
+  workspaceScope  String   @default("geo")
+  createdByUserId String
+  title           String   @default("")
+  description     String   @default("")
+  htmlContent     String   @default("")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([brandId, workspaceScope, createdAt(sort: Desc)], map: "OpenClawGeoVisibilityReport_brand_scope_created_idx")
+  @@map("OpenClawGeoVisibilityReport")
+}
+
 model KnowledgeBase {
   id            String                 @id
   name          String

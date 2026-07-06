@@ -387,6 +387,21 @@
   - 然后再用 `get_douyin_desktop_publish_session` 跟进会话状态
 - 视频号发布目前仍通过工作台按钮触发浏览器扩展半自动链路，不额外提供独立 MCP 发布会话工具
 
+### 保存并管理 GEO 可见度诊断报告
+
+- 当 OpenClaw 已经生成完整的 GEO 可见度诊断 HTML 报告时，优先把结果保存到独立的 `GEO` 板块
+- 查看 GEO 可见度诊断报告列表时，使用：
+  - `get_openclaw_geo_visibility_reports`
+  - `workspaceScope=geo`
+- 保存 GEO 可见度诊断报告时，使用：
+  - `create_openclaw_geo_visibility_report`
+  - 必填：`title`、`htmlContent`
+  - 可补充：`description`
+- 删除 GEO 可见度诊断报告时，使用：
+  - `delete_openclaw_geo_visibility_report`
+  - `reportId=<报告ID>`
+- 这个板块只负责归档和查看 HTML 诊断报告，不负责在站内重新生成 GEO 诊断内容
+
 ### 新建知识库
 
 - 优先使用：`create_knowledge_base`

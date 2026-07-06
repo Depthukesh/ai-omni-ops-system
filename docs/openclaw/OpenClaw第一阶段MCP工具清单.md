@@ -187,6 +187,18 @@ OpenClaw 调用任何工具时，服务端都必须基于绑定关系解析：
     - `scriptContent`
     - `coverImageUrl`
     - `videoUrl`
+- GEO 可见度诊断报告：
+  - `get_openclaw_geo_visibility_reports`
+  - `create_openclaw_geo_visibility_report`
+  - `delete_openclaw_geo_visibility_report`
+  - 当前用途：
+    - 保存 OpenClaw 生成完成的 GEO 可见度诊断 HTML 报告
+    - 在独立 GEO 工作台中查看和删除这些报告
+  - 关键字段：
+    - `workspaceScope=geo`
+    - `title`
+    - `description`
+    - `htmlContent`
 - 采集数据删除：
   - `delete_xhs_collected_note`
   - `delete_douyin_collected_work`

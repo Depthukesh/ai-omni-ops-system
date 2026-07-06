@@ -13,6 +13,7 @@ const primaryNavItems = [
   { href: "/xiaohongshu", label: "某书", shortLabel: "书" },
   { href: "/douyin", label: "某音/某号", shortLabel: "音" },
   { href: "/wechat", label: "公众号", shortLabel: "公" },
+  { href: "/geo", label: "GEO", shortLabel: "G" },
   { href: "/more-features", label: "更多功能", shortLabel: "更" },
   { href: "/personal-center", label: "个人中心", shortLabel: "我" },
 ];

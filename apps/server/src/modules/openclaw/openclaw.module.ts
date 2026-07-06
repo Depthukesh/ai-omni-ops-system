@@ -15,6 +15,8 @@ import { OpenClawDailyPlanController } from "./openclaw-daily-plan.controller";
 import { OpenClawDailyPlanService } from "./openclaw-daily-plan.service";
 import { OpenClawInstallationController } from "./openclaw-installation.controller";
 import { OpenClawInstallationService } from "./openclaw-installation.service";
+import { OpenClawGeoVisibilityReportController } from "./openclaw-geo-visibility-report.controller";
+import { OpenClawGeoVisibilityReportService } from "./openclaw-geo-visibility-report.service";
 import { OpenClawLobsterDiaryController } from "./openclaw-lobster-diary.controller";
 import { OpenClawLobsterDiaryService } from "./openclaw-lobster-diary.service";
 import { OpenClawService } from "./openclaw.service";
@@ -29,6 +31,7 @@ import { StorageModule } from "../../storage/storage.module";
   controllers: [
     OpenClawController,
     OpenClawInstallationController,
+    OpenClawGeoVisibilityReportController,
     OpenClawLobsterDiaryController,
     OpenClawDailyPlanController,
     OpenClawCreativeMaterialController,
@@ -37,6 +40,7 @@ import { StorageModule } from "../../storage/storage.module";
   providers: [
     OpenClawService,
     OpenClawInstallationService,
+    OpenClawGeoVisibilityReportService,
     OpenClawLobsterDiaryService,
     OpenClawDailyPlanService,
     OpenClawCreativeMaterialService,
@@ -45,6 +49,7 @@ import { StorageModule } from "../../storage/storage.module";
   exports: [
     OpenClawService,
     OpenClawInstallationService,
+    OpenClawGeoVisibilityReportService,
     OpenClawLobsterDiaryService,
     OpenClawDailyPlanService,
     OpenClawCreativeMaterialService,

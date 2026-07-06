@@ -99,7 +99,7 @@ export async function downloadOpenClawSkillPackage(downloadPath: string) {
   return requestBlobByUrl(downloadPath);
 }
 
-export type OpenClawWorkspaceScope = "brand_growth" | "xiaohongshu" | "douyin" | "wechat";
+export type OpenClawWorkspaceScope = "brand_growth" | "xiaohongshu" | "douyin" | "wechat" | "geo";
 
 export type OpenClawLobsterDiaryRecord = {
   id: string;
@@ -282,5 +282,48 @@ export async function createOpenClawVideoWorkDouyinDesktopPublishSession(
     `/openclaw/brands/${brandId}/video-works/${workId}/douyin-desktop-publish-session?${query.toString()}`,
     "POST",
     payload,
+  );
+}
+
+export type OpenClawGeoVisibilityReportRecord = {
+  id: string;
+  brandId: string;
+  workspaceScope: OpenClawWorkspaceScope;
+  createdByUserId: string;
+  title: string;
+  description: string;
+  htmlContent: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type OpenClawGeoVisibilityReportWorkspace = {
+  items: OpenClawGeoVisibilityReportRecord[];
+  total: number;
+};
+
+export async function getOpenClawGeoVisibilityReportWorkspace(
+  brandId: string,
+  workspaceScope: OpenClawWorkspaceScope,
+  limit?: number,
+) {
+  const query = new URLSearchParams({ workspaceScope });
+  if (typeof limit === "number") {
+    query.set("limit", String(limit));
+  }
+  return request<OpenClawGeoVisibilityReportWorkspace>(`/openclaw/brands/${brandId}/geo-visibility-reports?${query.toString()}`);
+}
+
+export async function deleteOpenClawGeoVisibilityReport(
+  reportId: string,
+  brandId: string,
+  workspaceScope: OpenClawWorkspaceScope,
+) {
+  const query = new URLSearchParams({ workspaceScope });
+  return request<{ item: OpenClawGeoVisibilityReportRecord; workspace: OpenClawGeoVisibilityReportWorkspace }>(
+    `/openclaw/brands/${brandId}/geo-visibility-reports/${reportId}?${query.toString()}`,
+    {
+      method: "DELETE",
+    },
   );
 }

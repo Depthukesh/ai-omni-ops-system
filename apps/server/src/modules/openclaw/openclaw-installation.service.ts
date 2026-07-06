@@ -632,6 +632,9 @@ description: AI 全域智能体网站能力总入口 Skill。先识别用户要�
   - \`create_openclaw_video_work\`
   - \`delete_openclaw_video_work\`
   - \`create_openclaw_video_work_douyin_desktop_publish_session\`
+  - \`get_openclaw_geo_visibility_reports\`
+  - \`create_openclaw_geo_visibility_report\`
+  - \`delete_openclaw_geo_visibility_report\`
   - \`get_website_function_catalog\`
   - \`get_website_function_execution_plan\`
 - 对"每日计划"和"每日复盘"场景要记住：
@@ -641,6 +644,11 @@ description: AI 全域智能体网站能力总入口 Skill。先识别用户要�
 - 对"创作素材"和"视频作品"场景要记住：
   - 创作素材用于沉淀文本、图片、视频、语音、BGM 等中间结果
   - 视频作品用于沉淀最终成片，并可继续创建抖音发布会话
+- 对"GEO 可见度诊断"场景要记住：
+  - 默认落到 \`workspaceScope=geo\`
+  - 页面端用户只能查看和删除
+  - 新建由 OpenClaw Agent 发起
+  - 输入至少需要 \`title\` 和 \`htmlContent\`
 - 保存创作素材时，如果素材文件已经在当前机器本地，可直接调用 \`create_openclaw_creative_material\` 并传 \`localFilePath=<本地绝对路径>\`；stdio MCP 会自动把文件上传到网站并回填站内 \`fileUrl\`
 - 如果不是 stdio MCP，或文件内容已经在内存里，也可以直接传 \`upload.fileName\`、\`upload.contentType\`、\`upload.dataBase64\`
 
