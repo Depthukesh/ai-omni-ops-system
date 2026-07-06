@@ -126,7 +126,7 @@ export function OpenClawGeoVisibilityWorkspace(props: OpenClawGeoVisibilityWorks
               <iframe
                 title={selectedReport.title || "GEO 可见度诊断报告"}
                 srcDoc={selectedReport.htmlContent || "<html><body><p>暂无 HTML 内容</p></body></html>"}
-                sandbox="allow-same-origin"
+                sandbox="allow-same-origin allow-scripts"
                 style={{
                   width: "100%",
                   height: "70vh",
