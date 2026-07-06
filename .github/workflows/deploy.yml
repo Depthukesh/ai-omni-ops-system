@@ -19,6 +19,10 @@ jobs:
           ALIYUN_SSH_KEY: ${{ secrets.ALIYUN_SSH_KEY }}
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
           TIKHUB_API_KEY: ${{ secrets.TIKHUB_API_KEY }}
+          PRISMA_ENGINES_MIRROR: ${{ secrets.PRISMA_ENGINES_MIRROR }}
+          HTTPS_PROXY: ${{ secrets.HTTPS_PROXY }}
+          HTTP_PROXY: ${{ secrets.HTTP_PROXY }}
+          NO_PROXY: ${{ secrets.NO_PROXY }}
         run: |
           set -Eeuo pipefail
 
@@ -30,6 +34,10 @@ jobs:
 
           REMOTE_DEPLOY_PATH="$(printf '%q' "$DEPLOY_PATH")"
           REMOTE_TIKHUB_API_KEY="$(printf '%q' "${TIKHUB_API_KEY:-}")"
+          REMOTE_PRISMA_ENGINES_MIRROR="$(printf '%q' "${PRISMA_ENGINES_MIRROR:-}")"
+          REMOTE_HTTPS_PROXY="$(printf '%q' "${HTTPS_PROXY:-}")"
+          REMOTE_HTTP_PROXY="$(printf '%q' "${HTTP_PROXY:-}")"
+          REMOTE_NO_PROXY="$(printf '%q' "${NO_PROXY:-}")"
 
           ssh \
             -i "$HOME/.ssh/deploy_key" \
@@ -40,7 +48,7 @@ jobs:
             -o ServerAliveCountMax=6 \
             -o TCPKeepAlive=yes \
             "$ALIYUN_USER@$ALIYUN_HOST" \
-            "DEPLOY_PATH=$REMOTE_DEPLOY_PATH TIKHUB_API_KEY=$REMOTE_TIKHUB_API_KEY bash -se" <<'REMOTE_SCRIPT'
+            "DEPLOY_PATH=$REMOTE_DEPLOY_PATH TIKHUB_API_KEY=$REMOTE_TIKHUB_API_KEY PRISMA_ENGINES_MIRROR=$REMOTE_PRISMA_ENGINES_MIRROR HTTPS_PROXY=$REMOTE_HTTPS_PROXY HTTP_PROXY=$REMOTE_HTTP_PROXY NO_PROXY=$REMOTE_NO_PROXY bash -se" <<'REMOTE_SCRIPT'
             set -Eeuo pipefail
             APP_RUNTIME_USER="aiops"
 
@@ -144,6 +152,14 @@ jobs:
               echo "部署警告：GitHub Secret TIKHUB_API_KEY 为空，每日热点自动抓取会不可用。"
             fi
 
+            if [ -n "${PRISMA_ENGINES_MIRROR:-}" ]; then
+              echo "部署信息：Prisma 引擎将通过自定义镜像下载 -> $PRISMA_ENGINES_MIRROR"
+            elif [ -n "${HTTPS_PROXY:-}${HTTP_PROXY:-}" ]; then
+              echo "部署信息：Prisma 引擎将通过代理下载。"
+            else
+              echo "部署提示：未配置 Prisma 镜像或代理，默认直连 binaries.prisma.sh。"
+            fi
+
             ensure_ffmpeg() {
               if command -v ffmpeg >/dev/null 2>&1; then
                 echo "检测到系统 ffmpeg: $(command -v ffmpeg)"
@@ -159,7 +175,7 @@ jobs:
 
             ensure_ffmpeg
 
-            runuser -u "$APP_RUNTIME_USER" -- env DEPLOY_PATH="$DEPLOY_PATH" TIKHUB_API_KEY="$TIKHUB_API_KEY" bash <<'RUNUSER_SCRIPT'
+            runuser -u "$APP_RUNTIME_USER" -- env DEPLOY_PATH="$DEPLOY_PATH" TIKHUB_API_KEY="$TIKHUB_API_KEY" PRISMA_ENGINES_MIRROR="${PRISMA_ENGINES_MIRROR:-}" HTTPS_PROXY="${HTTPS_PROXY:-}" HTTP_PROXY="${HTTP_PROXY:-}" NO_PROXY="${NO_PROXY:-}" bash <<'RUNUSER_SCRIPT'
               set -Eeuo pipefail
 
               log_step() {
@@ -241,8 +257,8 @@ jobs:
                 exit 1
               fi
 
-              run_checked "npm ci" npm ci --foreground-scripts --loglevel=notice
-              run_checked "npm run prisma:generate" npm run prisma:generate
+              run_checked "npm ci" env PRISMA_SKIP_POSTINSTALL_GENERATE=1 PRISMA_ENGINES_MIRROR="${PRISMA_ENGINES_MIRROR:-}" HTTPS_PROXY="${HTTPS_PROXY:-}" HTTP_PROXY="${HTTP_PROXY:-}" NO_PROXY="${NO_PROXY:-}" npm ci --foreground-scripts --loglevel=notice
+              run_checked "npm run prisma:generate" env PRISMA_ENGINES_MIRROR="${PRISMA_ENGINES_MIRROR:-}" HTTPS_PROXY="${HTTPS_PROXY:-}" HTTP_PROXY="${HTTP_PROXY:-}" NO_PROXY="${NO_PROXY:-}" npm run prisma:generate
               run_checked "npm run prisma:db:push" npm run prisma:db:push
               run_checked "npm run prisma:seed:registration-invite-codes" npm run prisma:seed:registration-invite-codes
 
