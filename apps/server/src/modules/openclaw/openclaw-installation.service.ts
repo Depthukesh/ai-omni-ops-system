@@ -613,8 +613,8 @@ description: AI 全域智能体网站能力总入口 Skill。先识别用户要�
   - 保留原始 \`nodeId\`、\`fieldName\`、\`fieldType\`、\`description\`、\`descriptionEn\`
   - 最后再 \`section=runninghub action=generate\`
 - 如果通过 stdio MCP 调用 RunningHub，且某个上传节点对应的是当前机器上的本地图片、音频或视频文件，应在该节点对象里新增字段 \`localFilePath: "<本地绝对路径>"\`；桥接层会自动读取文件
-- 对标准图片上传节点（例如 \`LoadImage\` 且模板 \`fieldData\` 内含 \`image_upload\`），服务端会先把图片保存到网站，再把可访问 URL 回填给 RunningHub；不要自行把本地文件名或模板里的示例图名写进 \`fieldValue\`
-- 对音频上传节点（例如 \`VHS_LoadAudioUpload\`），服务端会把音频上传到 RunningHub，并自动回填它真正可用的值
+- 对图片、音频、视频上传节点，服务端都会先把文件上传到 RunningHub，再把 RunningHub 官方返回的可用路径回填给对应节点
+- 对标准图片上传节点（例如 \`LoadImage\` 且模板 \`fieldData\` 内含 \`image_upload\`），不要再把网站 URL 手动写进 \`fieldValue\`；应交给服务端上传并回填
 - 不要把 \`localFilePath=...\` 这种字面文本塞进 \`fieldValue\` 或 \`fieldData\`；那只是兼容旧写法，标准写法仍然是独立字段 \`localFilePath\`
 - 不要手动修改模板里的 \`fieldData\`；尤其不要保留或手填 \`example.png\` 这类占位值，保持 \`get_app_detail\` 返回模板原样即可
 - 禁止直接猜测 RunningHub 的 \`nodeId\`，也不要在 \`nodeInfoList\` 为空时直接调用 \`generate\`

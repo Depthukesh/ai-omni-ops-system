@@ -22079,13 +22079,9 @@ export class WorksService {
       let fieldData = item.fieldData;
       const uploadPayload = item.upload || await this.resolveRunningHubRemoteUploadPayload(item, fieldValue);
       if (uploadPayload) {
-        if (this.shouldUseRunningHubDirectUrlForImageNode(item)) {
-          fieldValue = await this.persistRunningHubDirectUrlAsset(brandId, uploadPayload);
-        } else {
-          const uploadResult = await this.uploadRunningHubMedia(apiKey, uploadPayload);
-          fieldValue = this.resolveRunningHubUploadedFieldValue(item, uploadResult) || fieldValue;
-          fieldData = this.resolveRunningHubUploadedFieldData(item, uploadResult, originalFieldValue, fieldData);
-        }
+        const uploadResult = await this.uploadRunningHubMedia(apiKey, item, uploadPayload);
+        fieldValue = this.resolveRunningHubUploadedFieldValue(item, uploadResult) || fieldValue;
+        fieldData = this.resolveRunningHubUploadedFieldData(item, uploadResult, originalFieldValue, fieldData);
       }
       prepared.push({
         nodeId: item.nodeId,
@@ -22101,7 +22097,19 @@ export class WorksService {
     return prepared;
   }
 
-  private async uploadRunningHubMedia(apiKey: string, upload: UploadFilePayload) {
+  private async uploadRunningHubMedia(
+    apiKey: string,
+    item: {
+      fieldName?: string;
+      nodeName?: string;
+      fieldType?: string;
+      fieldData?: string;
+      description?: string;
+      descriptionEn?: string;
+      upload?: UploadFilePayload;
+    },
+    upload: UploadFilePayload,
+  ) {
     const form = new FormData();
     form.append(
       "file",
@@ -22110,6 +22118,7 @@ export class WorksService {
       }),
       upload.fileName || "runninghub-upload.bin",
     );
+    form.append("fileType", this.resolveRunningHubMediaUploadType(item, upload));
     const response = await fetch("https://www.runninghub.cn/openapi/v2/media/upload/binary", {
       method: "POST",
       headers: {
@@ -22127,6 +22136,51 @@ export class WorksService {
       downloadUrl: String(data?.download_url || data?.url || "").trim() || undefined,
       fileName: String(data?.fileName || "").trim() || undefined,
     };
+  }
+
+  private resolveRunningHubMediaUploadType(
+    item: {
+      fieldName?: string;
+      nodeName?: string;
+      fieldType?: string;
+      fieldData?: string;
+      description?: string;
+      descriptionEn?: string;
+      upload?: UploadFilePayload;
+    },
+    upload: UploadFilePayload,
+  ) {
+    const contentType = String(upload.contentType || "").trim().toLowerCase();
+    if (contentType.startsWith("image/")) {
+      return "image";
+    }
+    if (contentType.startsWith("audio/")) {
+      return "audio";
+    }
+    if (contentType.startsWith("video/")) {
+      return "video";
+    }
+    const haystack = [
+      item.fieldName,
+      item.nodeName,
+      item.fieldType,
+      item.fieldData,
+      item.description,
+      item.descriptionEn,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    if (/image|loadimage|图片|图像|照片/.test(haystack)) {
+      return "image";
+    }
+    if (/audio|voice|music|song|sound|loadaudio|uploadaudio|歌曲|语音|音频|配音|伴奏|bgm/.test(haystack)) {
+      return "audio";
+    }
+    if (/video|movie|clip|视频|影像/.test(haystack)) {
+      return "video";
+    }
+    return "input";
   }
 
   private async resolveRunningHubRemoteUploadPayload(
@@ -22212,45 +22266,6 @@ export class WorksService {
       }
     }
     return false;
-  }
-
-  private shouldUseRunningHubDirectUrlForImageNode(item: {
-    fieldName?: string;
-    nodeName?: string;
-    fieldType?: string;
-    fieldData?: string;
-    description?: string;
-    descriptionEn?: string;
-    upload?: UploadFilePayload;
-  }) {
-    const contentType = String(item.upload?.contentType || "").toLowerCase();
-    if (!contentType.startsWith("image/")) {
-      return false;
-    }
-    const haystack = [
-      item.fieldName,
-      item.nodeName,
-      item.fieldType,
-      item.fieldData,
-      item.description,
-      item.descriptionEn,
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .toLowerCase();
-    const isStandardLoadImageNode = /(^|[^a-z])loadimage([^a-z]|$)/.test(haystack)
-      && !/loadimagefromurl|imagefromurl/.test(haystack);
-    return isStandardLoadImageNode && haystack.includes("image_upload");
-  }
-
-  private async persistRunningHubDirectUrlAsset(brandId: string, upload: UploadFilePayload) {
-    const extension = this.resolveImageExtensionFromMimeType(upload.contentType, upload.fileName);
-    const stored = await this.persistUploadFile(
-      brandId,
-      `${randomUUID()}-runninghub-direct-image${extension}`,
-      upload,
-    );
-    return stored.url;
   }
 
   private shouldConvertRunningHubRemoteAudioUrlToUpload(

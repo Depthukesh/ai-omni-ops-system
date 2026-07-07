@@ -161,8 +161,8 @@ OpenClaw 调用任何工具时，服务端都必须基于绑定关系解析：
     - `create_speech_task` 只负责文本转语音试听，不等于数字人口型视频生成
     - RunningHub `generate` 必须先从 `get_app_detail` 读取 `nodeInfoList` 模板，再只回填 `fieldValue` 后提交
     - 若通过 stdio MCP 传本地文件，应在上传节点对象里使用独立字段 `localFilePath`
-    - 标准图片上传节点（如 `LoadImage + image_upload`）会由服务端先保存到网站，再回填可访问 URL
-    - 音频上传节点（如 `VHS_LoadAudioUpload`）会由服务端上传到 RunningHub，并回填它真正可用的值
+    - 图片、音频、视频上传节点都会由服务端先上传到 RunningHub，再回填 RunningHub 官方返回的可用路径
+    - 标准图片上传节点（如 `LoadImage + image_upload`）不要再手动回填网站 URL
     - 不要把 `localFilePath=...` 塞进 `fieldValue` 或 `fieldData`，也不要手改模板 `fieldData` 或保留 `example.png`
 - OpenClaw 创作素材：
   - `get_openclaw_creative_materials`

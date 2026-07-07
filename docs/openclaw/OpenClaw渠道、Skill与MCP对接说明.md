@@ -305,8 +305,8 @@ OpenClaw 通过 MCP 获取：
 - 如果要调用 RunningHub：
   - 必须先 `list_apps`，再 `get_app_detail` 读取 `nodeInfoList` 模板，最后才 `generate`
   - 只回填模板里的 `fieldValue`，不要手改 `fieldData`
-  - 标准图片上传节点（如 `LoadImage + image_upload`）会由服务端先保存到网站，再回填可访问 URL
-  - 音频上传节点（如 `VHS_LoadAudioUpload`）会由服务端上传到 RunningHub，并回填真正可用的值
+  - 图片、音频、视频上传节点都会由服务端先上传到 RunningHub，再回填 RunningHub 官方返回的可用路径
+  - 标准图片上传节点（如 `LoadImage + image_upload`）不要再手动回填网站 URL
   - 不要把 `localFilePath=...` 这种字面文本塞进 `fieldValue` 或 `fieldData`
   - 不要保留或手填模板里的 `example.png` 这类占位值
 
