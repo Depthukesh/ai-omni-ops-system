@@ -707,6 +707,9 @@ async function normalizeRunningHubGenerateArgs(args = {}) {
       if (record.upload && typeof record.upload === "object") {
         delete record.upload.localFilePath;
       }
+      // #region debug-point A:bridge-normalized-runninghub-image
+      await (async()=>{let u=`${baseUrl}/openclaw/mcp/debug/runninghub-wrong-image/event`,s='runninghub-wrong-image';try{const e=await readFile('.dbg/runninghub-wrong-image.env','utf8');u=e.match(/DEBUG_SERVER_URL=(.+)/)?.[1]||u;s=e.match(/DEBUG_SESSION_ID=(.+)/)?.[1]||s}catch{}await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:s,runId:'pre-fix',hypothesisId:'A',location:'scripts/openclaw-ai-omni-mcp-server.mjs:697',msg:'[DEBUG] runninghub bridge normalized local file node',data:{nodeId:String(record.nodeId||''),nodeName:String(record.nodeName||''),fieldName:String(record.fieldName||''),fieldType:String(record.fieldType||''),hadInlineLocalFilePath:Boolean(inlineLocalFilePath),clearedFieldValue:!('fieldValue'in record),clearedFieldData:!('fieldData'in record),uploadFileName:String(record.upload?.fileName||''),uploadContentType:String(record.upload?.contentType||'')},ts:Date.now()})}).catch(()=>{})})();
+      // #endregion
     }
     nextNodeInfoList.push(record);
   }

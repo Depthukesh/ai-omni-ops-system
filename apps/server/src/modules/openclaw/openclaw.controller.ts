@@ -1,3 +1,5 @@
+import { appendFile, mkdir, readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { Body, Controller, Get, Headers, Param, Patch, Post, Query } from "@nestjs/common";
 import { OpenClawService } from "./openclaw.service";
 
@@ -7,12 +9,48 @@ type HeadersMap = Record<string, string | string[] | undefined>;
 export class OpenClawController {
   constructor(private readonly openClawService: OpenClawService) {}
 
+  private getRunningHubWrongImageDebugLogPath() {
+    return join(process.cwd(), ".dbg", "trae-debug-log-runninghub-wrong-image.ndjson");
+  }
+
   @Post()
   async handleMcpRequest(
     @Headers() headers: HeadersMap,
     @Body() payload?: Record<string, unknown>,
   ) {
     return this.openClawService.handleMcpRpcRequest(headers, payload);
+  }
+
+  @Post("debug/runninghub-wrong-image/event")
+  async collectRunningHubWrongImageDebugEvent(@Body() payload?: Record<string, unknown>) {
+    const filePath = this.getRunningHubWrongImageDebugLogPath();
+    await mkdir(join(process.cwd(), ".dbg"), { recursive: true });
+    await appendFile(
+      filePath,
+      `${JSON.stringify({
+        ...(payload || {}),
+        ts: typeof payload?.ts === "number" ? payload.ts : Date.now(),
+      })}\n`,
+      "utf8",
+    );
+    return { success: true };
+  }
+
+  @Get("debug/runninghub-wrong-image/logs")
+  async getRunningHubWrongImageDebugLogs() {
+    const filePath = this.getRunningHubWrongImageDebugLogPath();
+    try {
+      const content = await readFile(filePath, "utf8");
+      return {
+        items: content
+          .split(/\r?\n/)
+          .map((line) => line.trim())
+          .filter(Boolean)
+          .map((line) => JSON.parse(line) as Record<string, unknown>),
+      };
+    } catch {
+      return { items: [] as Array<Record<string, unknown>> };
+    }
   }
 
   @Get("website-functions")

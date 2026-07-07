@@ -22078,11 +22078,17 @@ export class WorksService {
       let fieldValue = originalFieldValue;
       let fieldData = item.fieldData;
       const uploadPayload = item.upload || await this.resolveRunningHubRemoteUploadPayload(item, fieldValue);
+      // #region debug-point B:server-pre-upload-node
+      await (async()=>{let u=`${this.appConfigService.getPublicApiBaseUrl()}/openclaw/mcp/debug/runninghub-wrong-image/event`,s='runninghub-wrong-image';try{const e=await readFile('.dbg/runninghub-wrong-image.env','utf8');u=e.match(/DEBUG_SERVER_URL=(.+)/)?.[1]||u;s=e.match(/DEBUG_SESSION_ID=(.+)/)?.[1]||s}catch{}await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:s,runId:'pre-fix',hypothesisId:'B',location:'works.service.ts:22080',msg:'[DEBUG] runninghub server preparing node before upload',data:{nodeId:String(item.nodeId||''),nodeName:String(item.nodeName||''),fieldName:String(item.fieldName||''),fieldType:String(item.fieldType||''),originalFieldValue:String(originalFieldValue||''),fieldDataPreview:String((fieldData||'').slice(0,180)),hasUploadPayload:Boolean(uploadPayload),uploadFileName:String(uploadPayload?.fileName||''),uploadContentType:String(uploadPayload?.contentType||'')},ts:Date.now()})}).catch(()=>{})})();
+      // #endregion
       if (uploadPayload) {
         const uploadResult = await this.uploadRunningHubMedia(apiKey, item, uploadPayload);
         fieldValue = this.resolveRunningHubUploadedFieldValue(item, uploadResult) || fieldValue;
         fieldData = this.resolveRunningHubUploadedFieldData(item, uploadResult, originalFieldValue, fieldData);
       }
+      // #region debug-point C:server-post-prepare-node
+      await (async()=>{let u=`${this.appConfigService.getPublicApiBaseUrl()}/openclaw/mcp/debug/runninghub-wrong-image/event`,s='runninghub-wrong-image';try{const e=await readFile('.dbg/runninghub-wrong-image.env','utf8');u=e.match(/DEBUG_SERVER_URL=(.+)/)?.[1]||u;s=e.match(/DEBUG_SESSION_ID=(.+)/)?.[1]||s}catch{}await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:s,runId:'pre-fix',hypothesisId:'C',location:'works.service.ts:22086',msg:'[DEBUG] runninghub server prepared final node payload',data:{nodeId:String(item.nodeId||''),nodeName:String(item.nodeName||''),fieldName:String(item.fieldName||''),finalFieldValue:String(fieldValue||''),finalFieldDataPreview:String((fieldData||'').slice(0,180))},ts:Date.now()})}).catch(()=>{})})();
+      // #endregion
       prepared.push({
         nodeId: item.nodeId,
         nodeName: item.nodeName,
@@ -22100,6 +22106,7 @@ export class WorksService {
   private async uploadRunningHubMedia(
     apiKey: string,
     item: {
+      nodeId?: string;
       fieldName?: string;
       nodeName?: string;
       fieldType?: string;
@@ -22132,6 +22139,9 @@ export class WorksService {
     const payload = await response.json().catch(() => ({}));
     const envelope = this.unwrapRunningHubEnvelope(payload);
     const data = this.asRecord(envelope.data);
+    // #region debug-point D:runninghub-upload-response
+    await (async()=>{let u=`${this.appConfigService.getPublicApiBaseUrl()}/openclaw/mcp/debug/runninghub-wrong-image/event`,s='runninghub-wrong-image';try{const e=await readFile('.dbg/runninghub-wrong-image.env','utf8');u=e.match(/DEBUG_SERVER_URL=(.+)/)?.[1]||u;s=e.match(/DEBUG_SESSION_ID=(.+)/)?.[1]||s}catch{}await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:s,runId:'pre-fix',hypothesisId:'D',location:'works.service.ts:22132',msg:'[DEBUG] runninghub upload returned media payload',data:{nodeId:String(item.nodeId||''),nodeName:String(item.nodeName||''),fieldName:String(item.fieldName||''),uploadFileName:String(upload.fileName||''),uploadContentType:String(upload.contentType||''),resolvedFileType:this.resolveRunningHubMediaUploadType(item, upload),responseFileName:String(data?.fileName||''),responseDownloadUrl:String(data?.download_url||data?.url||'')},ts:Date.now()})}).catch(()=>{})})();
+    // #endregion
     return {
       downloadUrl: String(data?.download_url || data?.url || "").trim() || undefined,
       fileName: String(data?.fileName || "").trim() || undefined,
