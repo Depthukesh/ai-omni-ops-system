@@ -22171,24 +22171,40 @@ export class WorksService {
     fieldName?: string;
     nodeName?: string;
     fieldType?: string;
+    fieldData?: string;
     description?: string;
     descriptionEn?: string;
     upload?: UploadFilePayload;
   }) {
-    if (String(item.upload?.contentType || "").toLowerCase().startsWith("audio/")) {
+    const contentType = String(item.upload?.contentType || "").toLowerCase();
+    if (contentType.startsWith("audio/")) {
       return true;
     }
     const haystack = [
       item.fieldName,
       item.nodeName,
       item.fieldType,
+      item.fieldData,
       item.description,
       item.descriptionEn,
     ]
       .filter(Boolean)
       .join(" ")
       .toLowerCase();
-    return /audio|voice|music|song|sound|loadaudio|uploadaudio|歌曲|语音|音频|配音|伴奏|bgm/.test(haystack);
+    if (/audio|voice|music|song|sound|loadaudio|uploadaudio|歌曲|语音|音频|配音|伴奏|bgm/.test(haystack)) {
+      return true;
+    }
+    if (contentType.startsWith("image/")) {
+      const isUploadStyleImageNode = haystack.includes("image_upload")
+        || /(^|[^a-z])loadimage([^a-z]|$)/.test(haystack)
+        || /(^|[^a-z])image([^a-z]|$)/.test(haystack)
+        || /图片|图像|照片|头像|人物图|参考图/.test(haystack);
+      const isUrlStyleImageNode = /loadimagefromurl|imagefromurl|url/.test(haystack);
+      if (isUploadStyleImageNode && !isUrlStyleImageNode) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private shouldConvertRunningHubRemoteAudioUrlToUpload(
@@ -22227,6 +22243,7 @@ export class WorksService {
       fieldName?: string;
       nodeName?: string;
       fieldType?: string;
+      fieldData?: string;
       description?: string;
       descriptionEn?: string;
       upload?: UploadFilePayload;

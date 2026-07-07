@@ -700,9 +700,7 @@ async function normalizeRunningHubGenerateArgs(args = {}) {
         contentType: nestedUpload?.contentType || record.mimeType,
       });
       delete record.localFilePath;
-      if (extractInlineLocalFilePath(record.fieldValue)) {
-        delete record.fieldValue;
-      }
+      delete record.fieldValue;
       if (extractInlineLocalFilePath(record.fieldData)) {
         delete record.fieldData;
       }
