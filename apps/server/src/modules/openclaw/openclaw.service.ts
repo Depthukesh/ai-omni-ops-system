@@ -2120,7 +2120,7 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
         tagIds: { type: "array", items: { type: "integer" } },
         payload: {
           type: "object",
-          description: "对应动作的请求体。数字人 create_speech_task 需要 text，建议配合 voiceId 一起传；RunningHub generate 需要先从 get_app_detail 返回结果里取 nodeInfoList 模板，再回填 fieldValue 后原样提交。若通过 stdio MCP 运行，payload.nodeInfoList 里的上传节点可直接传 localFilePath。图片、音频、视频上传节点都会先上传到 RunningHub，再把官方返回的可用路径回填给对应节点；其中标准图片上传节点（如 LoadImage + image_upload）不要再回填网站 URL。不要把 localFilePath=... 这种字面文本塞进 fieldValue 或 fieldData，不要手改模板 fieldData，也不要保留 example.png 这类模板占位值。",
+          description: "对应动作的请求体。数字人 create_speech_task 需要 text，建议配合 voiceId 一起传；RunningHub generate 需要先从 get_app_detail 返回结果里取 nodeInfoList 模板，再回填 fieldValue 后原样提交。若通过 stdio MCP 运行，payload.nodeInfoList 里的上传节点可直接传 localFilePath。图片、音频、视频上传节点都会先上传到 RunningHub，再把官方返回的可用路径回填给对应节点；其中标准图片上传节点（如 LoadImage + image_upload）不要再回填网站 URL。不要把 localFilePath=... 这种字面文本塞进 fieldValue 或 fieldData，不要手改模板 fieldData，也不要保留 example.png 这类模板占位值；如果图片节点最终没有真实上传、仍保留模板占位值，服务端会直接报错拦截，避免继续误用示例图。",
           additionalProperties: true,
         },
       },

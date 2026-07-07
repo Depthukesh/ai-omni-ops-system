@@ -33,10 +33,28 @@
   - `apps/server/src/modules/works/works.service.ts`：RunningHub 上传返回后记录 `fileName / downloadUrl / fileType`
   - `apps/server/src/modules/works/works.service.ts`：最终提交前记录 `fieldValue / fieldData`
   - `apps/server/src/modules/openclaw/openclaw.controller.ts`：新增网站侧日志接收与读取接口，供远端环境回传调试证据
+- 网站侧复现证据（`https://17ai.site/api/openclaw/mcp/debug/runninghub-wrong-image/logs`）显示：
+  - `nodeId=444 / nodeName=LoadImage / fieldName=image`
+  - 服务端上传前：`hasUploadPayload=false`
+  - `originalFieldValue=ad1d3a5cfac9c22f651f56ced659c61bd36db51c935ef8f60bd4bdaabf36d288.png`
+  - `fieldDataPreview` 仍为 `[[\"example.png\", \"None\", \"example.png\", \"keep_this_dic\"], {\"image_upload\": true}]`
+  - 服务端最终提交前，`finalFieldValue` 与 `finalFieldData` 未变化
+- 对照同批日志：
+  - 音频节点 `nodeId=1755 / VHS_LoadAudioUpload` 的 `hasUploadPayload=true`
+  - 且成功拿到了 RunningHub `responseFileName=openapi/...mp3`
+  - 说明服务端上传与回填链路本身是通的，问题只出在图片节点这次请求没有真正把上传带进来
 
 ## 当前状态
 
 - 已创建调试会话文件。
 - 已完成调试日志链路与最小插桩。
 - 已完成网站侧日志接收点，远端环境可直接回传证据。
-- 下一步：把仅日志版发到网站环境，等待用户按原路径复现 1 次。
+- 已确认假设状态：
+  - 假设 1：部分成立。当前复现里桥接层日志未上报到网站，但服务端证据已证明图片节点没有真实上传进入请求。
+  - 假设 2：被证伪。服务端没有把正确上传覆盖成女生图；它这次压根没拿到图片上传。
+  - 假设 3：成立。`fieldData` 中模板占位值 `example.png` 仍保留到最终提交。
+  - 假设 4：被证伪。音频节点上传返回值正常，说明 RunningHub 上传接口与回填机制可用。
+  - 假设 5：被证伪。`LoadImage + image_upload` 识别无误，问题不在节点识别分支。
+- 已新增最小修复：
+  - 对标准图片上传节点，如果最终没有真实上传、仍保留模板占位值，服务端直接报错拦截，避免继续误用示例女生图。
+- 下一步：提交并推送这版修复，等待用户再次网站复现，验证“错误请求被明确拦截”。

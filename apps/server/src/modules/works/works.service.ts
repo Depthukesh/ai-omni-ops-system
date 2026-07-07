@@ -22078,6 +22078,7 @@ export class WorksService {
       let fieldValue = originalFieldValue;
       let fieldData = item.fieldData;
       const uploadPayload = item.upload || await this.resolveRunningHubRemoteUploadPayload(item, fieldValue);
+      this.assertRunningHubImageUploadResolved(item, uploadPayload, originalFieldValue, fieldData);
       // #region debug-point B:server-pre-upload-node
       await (async()=>{let u=`${this.appConfigService.getPublicApiBaseUrl()}/openclaw/mcp/debug/runninghub-wrong-image/event`,s='runninghub-wrong-image';try{const e=await readFile('.dbg/runninghub-wrong-image.env','utf8');u=e.match(/DEBUG_SERVER_URL=(.+)/)?.[1]||u;s=e.match(/DEBUG_SESSION_ID=(.+)/)?.[1]||s}catch{}await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:s,runId:'pre-fix',hypothesisId:'B',location:'works.service.ts:22080',msg:'[DEBUG] runninghub server preparing node before upload',data:{nodeId:String(item.nodeId||''),nodeName:String(item.nodeName||''),fieldName:String(item.fieldName||''),fieldType:String(item.fieldType||''),originalFieldValue:String(originalFieldValue||''),fieldDataPreview:String((fieldData||'').slice(0,180)),hasUploadPayload:Boolean(uploadPayload),uploadFileName:String(uploadPayload?.fileName||''),uploadContentType:String(uploadPayload?.contentType||'')},ts:Date.now()})}).catch(()=>{})})();
       // #endregion
@@ -22193,6 +22194,42 @@ export class WorksService {
     return "input";
   }
 
+  private assertRunningHubImageUploadResolved(
+    item: {
+      nodeId?: string;
+      fieldName?: string;
+      nodeName?: string;
+      fieldType?: string;
+      fieldData?: string;
+      description?: string;
+      descriptionEn?: string;
+      upload?: UploadFilePayload;
+    },
+    uploadPayload: UploadFilePayload | undefined,
+    fieldValue?: string,
+    fieldData?: string,
+  ) {
+    if (uploadPayload || !this.isRunningHubImageUploadNode(item)) {
+      return;
+    }
+    const normalizedFieldValue = this.normalizeRunningHubFieldValue(fieldValue);
+    const normalizedFieldData = String(fieldData || "");
+    const hasTemplatePlaceholder = /example\.(png|jpg|jpeg|webp)|keep_this_dic/i.test(normalizedFieldData);
+    const looksLikeBareImageFileName = Boolean(
+      normalizedFieldValue
+      && !/^https?:\/\//i.test(normalizedFieldValue)
+      && !/^(openapi|input|output|uploads?|temp)\//i.test(normalizedFieldValue)
+      && !/[\\/]/.test(normalizedFieldValue)
+      && /\.(png|jpe?g|webp|gif|bmp|avif)$/i.test(normalizedFieldValue),
+    );
+    if (!hasTemplatePlaceholder && !looksLikeBareImageFileName) {
+      return;
+    }
+    throw new BadRequestException(
+      `RunningHub 图片节点 ${String(item.nodeName || item.fieldName || item.nodeId || "").trim() || "image"} 未收到真实上传文件。当前请求仍保留模板图片占位值，服务端已拦截本次提交，避免继续误用示例女生图。请确认 OpenClaw 通过 stdio MCP 脚本传入 localFilePath，或直接传 upload.fileName / upload.contentType / upload.dataBase64。`,
+    );
+  }
+
   private async resolveRunningHubRemoteUploadPayload(
     item: {
       fieldName?: string;
@@ -22236,6 +22273,33 @@ export class WorksService {
       .replace(/[`'"]+$/, "")
       .trim();
     return unwrapped || undefined;
+  }
+
+  private isRunningHubImageUploadNode(item: {
+    fieldName?: string;
+    nodeName?: string;
+    fieldType?: string;
+    fieldData?: string;
+    description?: string;
+    descriptionEn?: string;
+  }) {
+    const haystack = [
+      item.fieldName,
+      item.nodeName,
+      item.fieldType,
+      item.fieldData,
+      item.description,
+      item.descriptionEn,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    const isUploadStyleImageNode = haystack.includes("image_upload")
+      || /(^|[^a-z])loadimage([^a-z]|$)/.test(haystack)
+      || /(^|[^a-z])image([^a-z]|$)/.test(haystack)
+      || /图片|图像|照片|头像|人物图|参考图/.test(haystack);
+    const isUrlStyleImageNode = /loadimagefromurl|imagefromurl/.test(haystack);
+    return isUploadStyleImageNode && !isUrlStyleImageNode;
   }
 
   private shouldUseRunningHubUploadedFileName(item: {
