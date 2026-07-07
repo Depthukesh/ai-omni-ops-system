@@ -22079,9 +22079,13 @@ export class WorksService {
       let fieldData = item.fieldData;
       const uploadPayload = item.upload || await this.resolveRunningHubRemoteUploadPayload(item, fieldValue);
       if (uploadPayload) {
-        const uploadResult = await this.uploadRunningHubMedia(apiKey, uploadPayload);
-        fieldValue = this.resolveRunningHubUploadedFieldValue(item, uploadResult) || fieldValue;
-        fieldData = this.resolveRunningHubUploadedFieldData(item, uploadResult, originalFieldValue, fieldData);
+        if (this.shouldUseRunningHubDirectUrlForImageNode(item)) {
+          fieldValue = await this.persistRunningHubDirectUrlAsset(brandId, uploadPayload);
+        } else {
+          const uploadResult = await this.uploadRunningHubMedia(apiKey, uploadPayload);
+          fieldValue = this.resolveRunningHubUploadedFieldValue(item, uploadResult) || fieldValue;
+          fieldData = this.resolveRunningHubUploadedFieldData(item, uploadResult, originalFieldValue, fieldData);
+        }
       }
       prepared.push({
         nodeId: item.nodeId,
@@ -22208,6 +22212,45 @@ export class WorksService {
       }
     }
     return false;
+  }
+
+  private shouldUseRunningHubDirectUrlForImageNode(item: {
+    fieldName?: string;
+    nodeName?: string;
+    fieldType?: string;
+    fieldData?: string;
+    description?: string;
+    descriptionEn?: string;
+    upload?: UploadFilePayload;
+  }) {
+    const contentType = String(item.upload?.contentType || "").toLowerCase();
+    if (!contentType.startsWith("image/")) {
+      return false;
+    }
+    const haystack = [
+      item.fieldName,
+      item.nodeName,
+      item.fieldType,
+      item.fieldData,
+      item.description,
+      item.descriptionEn,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    const isStandardLoadImageNode = /(^|[^a-z])loadimage([^a-z]|$)/.test(haystack)
+      && !/loadimagefromurl|imagefromurl/.test(haystack);
+    return isStandardLoadImageNode && haystack.includes("image_upload");
+  }
+
+  private async persistRunningHubDirectUrlAsset(brandId: string, upload: UploadFilePayload) {
+    const extension = this.resolveImageExtensionFromMimeType(upload.contentType, upload.fileName);
+    const stored = await this.persistUploadFile(
+      brandId,
+      `${randomUUID()}-runninghub-direct-image${extension}`,
+      upload,
+    );
+    return stored.url;
   }
 
   private shouldConvertRunningHubRemoteAudioUrlToUpload(

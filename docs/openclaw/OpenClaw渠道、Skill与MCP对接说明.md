@@ -291,7 +291,7 @@ OpenClaw 通过 MCP 获取：
   - `create_openclaw_creative_material`
   - `delete_openclaw_creative_material`
   - 适合保存 OpenClaw 调用站内第三方平台能力后得到的文本、图片、视频、语音、BGM 等中间成果
-  - 如果文件已经在当前机器本地，stdio MCP 可直接传 `localFilePath=<本地绝对路径>`，桥接层会自动上传到网站并回填站内 `fileUrl`
+  - 如果文件已经在当前机器本地，stdio MCP 可直接传对象字段 `localFilePath: "<本地绝对路径>"`，桥接层会自动上传到网站并回填站内 `fileUrl`
   - 如果已拿到文件二进制，也可直接传 `upload.fileName`、`upload.contentType`、`upload.dataBase64`
 - 视频作品：
   - `get_openclaw_video_works`
@@ -302,6 +302,13 @@ OpenClaw 通过 MCP 获取：
   - `create_openclaw_video_work_douyin_desktop_publish_session`
   - 后续用 `get_douyin_desktop_publish_session` 跟进结果
 - 当前视频号发布仍通过工作台中的浏览器扩展半自动链路处理，不单独提供服务端 MCP 发布会话
+- 如果要调用 RunningHub：
+  - 必须先 `list_apps`，再 `get_app_detail` 读取 `nodeInfoList` 模板，最后才 `generate`
+  - 只回填模板里的 `fieldValue`，不要手改 `fieldData`
+  - 标准图片上传节点（如 `LoadImage + image_upload`）会由服务端先保存到网站，再回填可访问 URL
+  - 音频上传节点（如 `VHS_LoadAudioUpload`）会由服务端上传到 RunningHub，并回填真正可用的值
+  - 不要把 `localFilePath=...` 这种字面文本塞进 `fieldValue` 或 `fieldData`
+  - 不要保留或手填模板里的 `example.png` 这类占位值
 
 ## 4.6 网站是“权威后端”
 
