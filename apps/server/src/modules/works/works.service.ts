@@ -22074,18 +22074,21 @@ export class WorksService {
   private async prepareRunningHubTaskNodeInfoList(brandId: string, apiKey: string, nodeInfoList: RunningHubNodeSubmissionEntry[]) {
     const prepared: DouyinRunningHubAppFieldRecord[] = [];
     for (const item of nodeInfoList) {
-      let fieldValue = this.normalizeRunningHubFieldValue(item.fieldValue);
+      const originalFieldValue = this.normalizeRunningHubFieldValue(item.fieldValue);
+      let fieldValue = originalFieldValue;
+      let fieldData = item.fieldData;
       const uploadPayload = item.upload || await this.resolveRunningHubRemoteUploadPayload(item, fieldValue);
       if (uploadPayload) {
         const uploadResult = await this.uploadRunningHubMedia(apiKey, uploadPayload);
         fieldValue = this.resolveRunningHubUploadedFieldValue(item, uploadResult) || fieldValue;
+        fieldData = this.resolveRunningHubUploadedFieldData(item, uploadResult, originalFieldValue, fieldData);
       }
       prepared.push({
         nodeId: item.nodeId,
         nodeName: item.nodeName,
         fieldName: item.fieldName,
         fieldValue,
-        fieldData: item.fieldData,
+        fieldData,
         fieldType: item.fieldType,
         description: item.description,
         descriptionEn: item.descriptionEn,
@@ -22257,6 +22260,68 @@ export class WorksService {
       ? uploadResult.fileName || uploadResult.downloadUrl
       : uploadResult.downloadUrl || uploadResult.fileName;
     return this.normalizeRunningHubFieldValue(preferredValue);
+  }
+
+  private resolveRunningHubUploadedFieldData(
+    item: {
+      fieldName?: string;
+      nodeName?: string;
+      fieldType?: string;
+      fieldData?: string;
+      description?: string;
+      descriptionEn?: string;
+      upload?: UploadFilePayload;
+    },
+    uploadResult: {
+      downloadUrl?: string;
+      fileName?: string;
+    },
+    originalFieldValue?: string,
+    fieldData?: string,
+  ) {
+    const nextFileName = this.normalizeRunningHubFieldValue(uploadResult.fileName);
+    const rawFieldData = String(fieldData || "").trim();
+    if (!nextFileName || !rawFieldData) {
+      return fieldData;
+    }
+    const contentType = String(item.upload?.contentType || "").toLowerCase();
+    if (!contentType.startsWith("image/") || !rawFieldData.toLowerCase().includes("image_upload")) {
+      return fieldData;
+    }
+
+    const replacePlaceholder = (value: unknown): unknown => {
+      if (Array.isArray(value)) {
+        return value.map((entry) => replacePlaceholder(entry));
+      }
+      if (value && typeof value === "object") {
+        return Object.fromEntries(
+          Object.entries(value as Record<string, unknown>).map(([key, entry]) => [key, replacePlaceholder(entry)]),
+        );
+      }
+      if (typeof value !== "string") {
+        return value;
+      }
+      const normalizedValue = this.normalizeRunningHubFieldValue(value);
+      if (!normalizedValue) {
+        return value;
+      }
+      if (normalizedValue === "None" || normalizedValue === "keep_this_dic") {
+        return value;
+      }
+      if (originalFieldValue && normalizedValue === originalFieldValue) {
+        return nextFileName;
+      }
+      if (/\.(png|jpe?g|webp|gif|bmp|avif|heic|heif)$/i.test(normalizedValue)) {
+        return nextFileName;
+      }
+      return value;
+    };
+
+    try {
+      return JSON.stringify(replacePlaceholder(JSON.parse(rawFieldData)));
+    } catch {
+      return fieldData;
+    }
   }
 
   private normalizeRunningHubInstanceType(instanceType?: string): RunningHubInstanceType {
