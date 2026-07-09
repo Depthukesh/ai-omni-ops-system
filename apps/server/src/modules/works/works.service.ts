@@ -65,6 +65,8 @@ const WECHAT_IMAGE_TASK_TOTAL_TIMEOUT_MS = 20 * 60 * 1000;
 const WECHAT_IMAGE_POLL_TOTAL_TIMEOUT_MS = 8 * 60 * 1000;
 const VIDEO_TASK_QUERY_TIMEOUT_MS = 20 * 1000;
 const VIDEO_TASK_TOTAL_TIMEOUT_MS = 20 * 60 * 1000;
+const RUNNINGHUB_TASK_POLL_INTERVAL_MS = 15 * 1000;
+const RUNNINGHUB_TASK_TOTAL_TIMEOUT_MS = 2 * 60 * 60 * 1000;
 const WORKS_KNOWLEDGE_BINDING_LIMIT = 3;
 const WORKS_KNOWLEDGE_TOP_K = 4;
 const DOUYIN_AD_PRE_AUDIT_TASK_TYPE = "DOUYIN_AD_PRE_AUDIT";
@@ -22048,7 +22050,16 @@ export class WorksService {
       }, {
         modelName: `RunningHub + ${app.name}`,
       });
-      await this.refreshRunningHubWorkSnapshot(brandId, workMediaId);
+      const latestMeta = await this.refreshRunningHubWorkSnapshot(brandId, workMediaId);
+      if (latestMeta.status === "PENDING" || latestMeta.status === "RUNNING") {
+        await this.monitorRunningHubWorkUntilSettled({
+          brandId,
+          workId: workMediaId,
+          storageKey,
+          taskId,
+          appName: app.name,
+        });
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : "RunningHub 任务提交失败";
       await this.saveRunningHubWorkMetadataSnapshot(brandId, workMediaId, storageKey, {
@@ -22557,6 +22568,44 @@ export class WorksService {
     } catch {
       return meta;
     }
+  }
+
+  private async monitorRunningHubWorkUntilSettled(params: {
+    brandId: string;
+    workId: string;
+    storageKey: string;
+    taskId: string;
+    appName: string;
+  }) {
+    const deadlineAt = Date.now() + RUNNINGHUB_TASK_TOTAL_TIMEOUT_MS;
+    let latestMeta = await this.refreshRunningHubWorkSnapshot(params.brandId, params.workId);
+    while ((latestMeta.status === "PENDING" || latestMeta.status === "RUNNING") && Date.now() < deadlineAt) {
+      const remainingMs = deadlineAt - Date.now();
+      await wait(Math.min(RUNNINGHUB_TASK_POLL_INTERVAL_MS, Math.max(remainingMs, 0)));
+      latestMeta = await this.refreshRunningHubWorkSnapshot(params.brandId, params.workId);
+    }
+    if (latestMeta.status === "SUCCESS" || latestMeta.status === "FAILED") {
+      return latestMeta;
+    }
+    const timeoutMinutes = Math.round(RUNNINGHUB_TASK_TOTAL_TIMEOUT_MS / 60000);
+    const timeoutMessage = `RunningHub 任务轮询超过 ${timeoutMinutes} 分钟，当前先保留运行中状态；如果第三方已完成但网站尚未同步，请稍后刷新列表重试同步。`;
+    const nextMeta = await this.saveRunningHubWorkMetadataSnapshot(params.brandId, params.workId, params.storageKey, {
+      ...latestMeta,
+      promptTips: latestMeta.promptTips || timeoutMessage,
+    });
+    if (params.taskId) {
+      await this.updateTaskRunningOutput(params.taskId, {
+        workId: params.workId,
+        providerTaskId: nextMeta.providerTaskId,
+        status: nextMeta.status,
+        progress: nextMeta.progress,
+        appName: nextMeta.appName,
+        appKey: nextMeta.appKey,
+      }, {
+        modelName: `RunningHub + ${params.appName}`,
+      });
+    }
+    return nextMeta;
   }
 
   private async persistRunningHubQueryResult(
