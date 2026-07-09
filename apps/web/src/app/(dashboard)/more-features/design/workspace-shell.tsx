@@ -101,6 +101,7 @@ const DESIGN_SKILL_SLUGS_BY_MODULE: Record<DesignModuleKey, string[]> = {
 };
 
 const DESIGN_SKILL_LEAVES = flattenSkillCenterLeaves().filter((item) => item.primaryId === "design-workspace");
+const DESIGN_WORKS_PER_PAGE = 21;
 
 const PRODUCT_SKIP_OPTION = {
   id: "",
@@ -531,6 +532,21 @@ function ModuleWorks({
   deletingWorkId: string | null;
   onViewWork: (work: DesignWork) => void;
 }) {
+  const [page, setPage] = useState(1);
+  const totalPages = Math.max(1, Math.ceil(works.length / DESIGN_WORKS_PER_PAGE));
+  const visibleWorks = useMemo(() => {
+    const startIndex = (page - 1) * DESIGN_WORKS_PER_PAGE;
+    return works.slice(startIndex, startIndex + DESIGN_WORKS_PER_PAGE);
+  }, [page, works]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [module.key]);
+
+  useEffect(() => {
+    setPage((current) => Math.min(current, totalPages));
+  }, [totalPages]);
+
   return (
     <section className="design-v3-works">
       <div className="collection-result-head">
@@ -538,11 +554,16 @@ function ModuleWorks({
           <h3>作品结果</h3>
           <p>按作品卡片直接浏览结果、状态和操作，尽量减少中间说明区块。</p>
         </div>
-        <span className="archive-pill status-ready">已展示 {works.length} 个</span>
+        <div className="design-v3-work-head-actions">
+          <span className="archive-pill status-ready">共 {works.length} 个</span>
+          {works.length > 0 ? (
+            <span className="archive-pill status-pending">第 {page} / {totalPages} 页</span>
+          ) : null}
+        </div>
       </div>
 
       <div className="design-v3-work-grid">
-        {works.map((work) => (
+        {visibleWorks.map((work) => (
           <article
             key={`${module.key}-${getWorkId(work)}`}
             className={`design-v3-work-card ${selectedWorkId === getWorkId(work) ? "is-selected" : ""}`}
@@ -591,6 +612,30 @@ function ModuleWorks({
           </article>
         ))}
       </div>
+
+      {totalPages > 1 ? (
+        <div className="design-v3-pagination">
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={() => setPage((current) => Math.max(1, current - 1))}
+            disabled={page <= 1}
+          >
+            上一页
+          </button>
+          <span className="design-v3-pagination-text">
+            当前第 {page} 页，每页 21 个，按一行 3 个排版
+          </span>
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
+            disabled={page >= totalPages}
+          >
+            下一页
+          </button>
+        </div>
+      ) : null}
 
       {works.length === 0 ? (
         <div className="empty-state" style={{ marginTop: 16 }}>

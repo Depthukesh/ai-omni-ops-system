@@ -13229,15 +13229,15 @@ button {
   margin-top: 16px;
   display: grid;
   gap: 18px;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 360px));
-  justify-content: start;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: start;
 }
 
 .design-v3-work-card {
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  width: min(100%, 360px);
+  width: 100%;
   border-radius: 22px;
   border: 1px solid var(--site-hero-border);
   background: var(--card-surface);
@@ -13386,6 +13386,44 @@ button {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.design-v3-work-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.design-v3-pagination {
+  margin-top: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.design-v3-pagination-text {
+  color: var(--site-hero-muted);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+@media (max-width: 1280px) {
+  .design-v3-work-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .design-v3-work-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .design-v3-pagination {
+    justify-content: flex-start;
+  }
 }
 
 .design-v3-dialog-backdrop {
