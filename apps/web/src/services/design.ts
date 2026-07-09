@@ -55,6 +55,7 @@ export type GenerateDesignWorkPayload = {
     contentType: string;
     dataBase64: string;
   };
+  referenceImageUrl?: string;
   modelSelection?: string;
   spec?: string;
   additionalInstruction?: string;

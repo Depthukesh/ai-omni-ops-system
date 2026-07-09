@@ -1538,7 +1538,7 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
   },
   {
     name: "create_design_work",
-    description: "在网站设计工作台中直接创建一个设计任务。",
+    description: "在网站设计工作台中直接创建一个设计任务。支持纯文字需求，也支持补充参考图 URL 或参考图上传对象。",
     inputSchema: {
       type: "object",
       properties: {
@@ -1548,6 +1548,18 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
         calendarItemId: { type: "string" },
         productId: { type: "string" },
         injectBrandProfile: { type: "boolean" },
+        referenceImageUrl: { type: "string", description: "可选：已存在的参考图 URL，适合图片已在网站或公网可访问地址时使用。" },
+        referenceImage: {
+          type: "object",
+          description: "可选：直接上传参考图。可传 fileName、contentType、dataBase64。",
+          properties: {
+            fileName: { type: "string" },
+            contentType: { type: "string" },
+            dataBase64: { type: "string" },
+          },
+          required: ["dataBase64"],
+          additionalProperties: false,
+        },
         modelSelection: { type: "string" },
         spec: { type: "string" },
         additionalInstruction: { type: "string" },
@@ -5551,6 +5563,12 @@ export class OpenClawService {
       calendarItemId?: string;
       productId?: string;
       injectBrandProfile?: boolean;
+      referenceImage?: {
+        fileName?: string;
+        contentType?: string;
+        dataBase64?: string;
+      };
+      referenceImageUrl?: string;
       modelSelection?: string;
       spec?: string;
       additionalInstruction?: string;
@@ -5572,6 +5590,14 @@ export class OpenClawService {
       calendarItemId: String(options?.calendarItemId || "").trim() || undefined,
       productId: String(options?.productId || "").trim() || undefined,
       injectBrandProfile: typeof options?.injectBrandProfile === "boolean" ? options.injectBrandProfile : undefined,
+      referenceImage: options?.referenceImage?.dataBase64
+        ? {
+          fileName: String(options.referenceImage.fileName || "").trim() || "reference-image",
+          contentType: String(options.referenceImage.contentType || "").trim() || "application/octet-stream",
+          dataBase64: String(options.referenceImage.dataBase64 || "").trim(),
+        }
+        : undefined,
+      referenceImageUrl: String(options?.referenceImageUrl || "").trim() || undefined,
       modelSelection: String(options?.modelSelection || "").trim() || undefined,
       spec: String(options?.spec || "").trim() || undefined,
       additionalInstruction: this.normalizeSafeInstruction(options?.additionalInstruction, "设计补充要求") || undefined,
@@ -5584,6 +5610,7 @@ export class OpenClawService {
         `模块：${module}`,
         options?.designType ? `设计类型：${options.designType}` : "设计类型：按默认技能生成",
         options?.productId ? `产品：${options.productId}` : "产品：未指定",
+        options?.referenceImage?.dataBase64 ? "参考图：已上传参考图" : (options?.referenceImageUrl ? "参考图：已提供图片链接" : "参考图：未提供"),
       ],
       data: result,
       links: [{ label: "打开设计工作台", url: "/personal-center/works" }],
@@ -10915,6 +10942,20 @@ export class OpenClawService {
           calendarItemId: typeof toolArgs.calendarItemId === "string" ? toolArgs.calendarItemId : undefined,
           productId: typeof toolArgs.productId === "string" ? toolArgs.productId : undefined,
           injectBrandProfile: typeof toolArgs.injectBrandProfile === "boolean" ? toolArgs.injectBrandProfile : undefined,
+          referenceImage: toolArgs.referenceImage && typeof toolArgs.referenceImage === "object" && !Array.isArray(toolArgs.referenceImage)
+            ? {
+              fileName: typeof (toolArgs.referenceImage as Record<string, unknown>).fileName === "string"
+                ? (toolArgs.referenceImage as Record<string, unknown>).fileName as string
+                : undefined,
+              contentType: typeof (toolArgs.referenceImage as Record<string, unknown>).contentType === "string"
+                ? (toolArgs.referenceImage as Record<string, unknown>).contentType as string
+                : undefined,
+              dataBase64: typeof (toolArgs.referenceImage as Record<string, unknown>).dataBase64 === "string"
+                ? (toolArgs.referenceImage as Record<string, unknown>).dataBase64 as string
+                : undefined,
+            }
+            : undefined,
+          referenceImageUrl: typeof toolArgs.referenceImageUrl === "string" ? toolArgs.referenceImageUrl : undefined,
           modelSelection: typeof toolArgs.modelSelection === "string" ? toolArgs.modelSelection : undefined,
           spec: typeof toolArgs.spec === "string" ? toolArgs.spec : undefined,
           additionalInstruction: typeof toolArgs.additionalInstruction === "string" ? toolArgs.additionalInstruction : undefined,

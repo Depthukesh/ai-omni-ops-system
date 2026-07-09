@@ -865,6 +865,7 @@ export type GenerateDesignWorkPayload = {
   injectBrandProfile?: boolean;
   designType?: string;
   referenceImage?: UploadFilePayload;
+  referenceImageUrl?: string;
   modelSelection?: string;
   spec?: string;
   additionalInstruction?: string;
@@ -3432,7 +3433,7 @@ export class WorksService {
           providers,
           executionPrompt: `你是一名商业设计视觉生成助手，需要产出可直接用于营销和品牌传播的高完成度设计图，当前设计技能为：${skillProfile.label}。`,
           prompt: imagePrompt,
-          referenceImageUrls: [],
+          referenceImageUrls: payload.referenceImageUrl ? [payload.referenceImageUrl] : [],
           referenceImagePayloads: payload.referenceImage ? [payload.referenceImage] : [],
           promptMode: "social_graphic",
           imageSizeOverride,
