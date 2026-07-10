@@ -2425,10 +2425,25 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     if (this.readMetaString(meta, "transcript")) {
       return false;
     }
-    if (this.readMetaString(meta, "transcriptStatus") === "PENDING") {
+    if (this.readMetaString(meta, "transcriptStatus") === "FAILED") {
       return false;
     }
     return Boolean(this.resolveDouyinTranscriptVideoUrl(asset, meta));
+  }
+
+  private async markDouyinTranscriptPending(asset: AssetRecord) {
+    if (!this.shouldAutoExtractDouyinTranscript(asset)) {
+      return asset;
+    }
+    const meta = this.asMeta(asset.metadataJson);
+    if (this.readMetaString(meta, "transcriptStatus") === "PENDING") {
+      return asset;
+    }
+    await this.updateCollectorAssetMeta(asset.brandId, asset.id, {
+      transcriptStatus: "PENDING",
+      transcriptLastError: "",
+    });
+    return this.getCollectorAssetById(asset.brandId, asset.id);
   }
 
   private async cleanupExpiredDouyinVideoCaches() {
@@ -4474,10 +4489,12 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
         metadata,
       });
 
-      this.enqueueDouyinVideoCache(asset);
-      this.enqueueDouyinTranscriptExtraction(asset);
+      const transcriptReadyAsset = await this.markDouyinTranscriptPending(asset);
 
-      rows.push(this.mapDouyinCollectedWork(asset, kind));
+      this.enqueueDouyinVideoCache(transcriptReadyAsset);
+      this.enqueueDouyinTranscriptExtraction(transcriptReadyAsset);
+
+      rows.push(this.mapDouyinCollectedWork(transcriptReadyAsset, kind));
     }
 
     return rows;
@@ -4726,10 +4743,12 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       metadata,
     });
 
-    this.enqueueDouyinVideoCache(asset);
-    this.enqueueDouyinTranscriptExtraction(asset);
+    const transcriptReadyAsset = await this.markDouyinTranscriptPending(asset);
 
-    return this.mapDouyinCollectedWork(asset, "DOUYIN_BENCHMARK_WORK");
+    this.enqueueDouyinVideoCache(transcriptReadyAsset);
+    this.enqueueDouyinTranscriptExtraction(transcriptReadyAsset);
+
+    return this.mapDouyinCollectedWork(transcriptReadyAsset, "DOUYIN_BENCHMARK_WORK");
   }
 
   private normalizeDouyinSearchSelectValue(value: string | undefined, allowedValues: string[], fallback: string) {

@@ -2348,7 +2348,13 @@ function DouyinTranscriptCell(props: {
         {isExtracting ? "提取中..." : "提取文案"}
       </button>
       {!hasTranscript && item.transcriptStatus === "FAILED" && item.transcriptLastError ? (
-        <span className="form-help form-help--error">{item.transcriptLastError}</span>
+        <span
+          className="transcript-error-pill"
+          title={item.transcriptLastError}
+          aria-label={item.transcriptLastError}
+        >
+          提取失败
+        </span>
       ) : null}
     </div>
   );

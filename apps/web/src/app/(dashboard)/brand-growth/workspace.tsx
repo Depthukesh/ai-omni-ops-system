@@ -1218,6 +1218,12 @@ export function BrandGrowthWorkspace() {
     () => sortByCollectedAtDesc(douyinCollectionWorkspace.benchmarkWorks),
     [douyinCollectionWorkspace.benchmarkWorks],
   );
+  const hasPendingDouyinTranscript = useMemo(
+    () =>
+      [...douyinCollectionWorkspace.competitorWorks, ...douyinCollectionWorkspace.benchmarkWorks]
+        .some((item) => !String(item.transcript || "").trim() && item.transcriptStatus !== "FAILED"),
+    [douyinCollectionWorkspace.benchmarkWorks, douyinCollectionWorkspace.competitorWorks],
+  );
   const sortedDouyinSearchWorks = useMemo(
     () => sortByCollectedAtDesc(douyinCollectionWorkspace.searchWorks),
     [douyinCollectionWorkspace.searchWorks],
@@ -1248,6 +1254,34 @@ export function BrandGrowthWorkspace() {
     ),
     [douyinCollectionWorkspace.cityHotspots],
   );
+
+  useEffect(() => {
+    if (activePage !== "douyinCollection" || !hasPendingDouyinTranscript) {
+      return;
+    }
+    const brandId = activeBrandId || archive.brand.id;
+    if (!brandId) {
+      return;
+    }
+
+    let disposed = false;
+    const timer = window.setInterval(async () => {
+      try {
+        const workspace = await getDouyinCollectionWorkspace(brandId);
+        if (!disposed) {
+          setDouyinCollectionWorkspace(workspace);
+        }
+      } catch {
+        // Ignore transient polling failures and keep current data visible.
+      }
+    }, 5000);
+
+    return () => {
+      disposed = true;
+      window.clearInterval(timer);
+    };
+  }, [activeBrandId, activePage, archive.brand.id, hasPendingDouyinTranscript]);
+
   const brandNotesPageCount = Math.max(1, Math.ceil(sortedBrandNotes.length / brandNotesPageSize));
   const paginatedBrandNotes = useMemo(() => {
     const startIndex = (brandNotesPage - 1) * brandNotesPageSize;
