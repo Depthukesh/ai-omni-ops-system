@@ -665,6 +665,9 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
   private static readonly DAILY_HOTSPOT_JOB_NAME = "collectors.daily-hotspots.sync";
   private static readonly DOUYIN_VIDEO_CACHE_CLEANUP_JOB_NAME = "collectors.douyin-video-cache.cleanup";
   private static readonly DOUYIN_VIDEO_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+  private static readonly MATHMIND_API_BASE_URL = "https://api.mathmind.cn";
+  private static readonly DOUYIN_TRANSCRIPT_POLL_INTERVAL_MS = 3000;
+  private static readonly DOUYIN_TRANSCRIPT_POLL_MAX_ATTEMPTS = 40;
   private static readonly REMOTE_IMAGE_DOWNLOAD_TIMEOUT_MS = 90 * 1000;
   private static readonly REMOTE_VIDEO_DOWNLOAD_TIMEOUT_MS = 10 * 60 * 1000;
   private static readonly DOUYIN_CONTENT_TAG_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
@@ -674,6 +677,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
   private static readonly DOUYIN_METADATA_CACHE_DESCRIPTION = "抖音采集元数据缓存，仅供服务端复用。";
   private readonly logger = new Logger(CollectorsService.name);
   private douyinVideoCacheQueue = Promise.resolve();
+  private douyinTranscriptQueue = Promise.resolve();
   private douyinContentTagCache: { expiresAt: number; items: DouyinContentTagOption[] } | null = null;
   private douyinCityOptionCache: { expiresAt: number; items: DouyinCityOption[] } | null = null;
 
@@ -707,6 +711,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       onTick: () => this.cleanupExpiredDouyinVideoCaches(),
     });
     void this.resumePendingDouyinVideoCaches();
+    void this.resumePendingDouyinTranscriptExtractions();
   }
 
   onModuleDestroy() {
@@ -1320,12 +1325,10 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       transcriptLastError: "",
     });
     try {
-      const result = await this.glmOpenService.extractVideoTranscript(brandId, transcriptSourceUrl, {
-        userId: `douyin-${brandId}`,
-      });
+      const transcript = await this.extractDouyinTranscriptByMathMind(brandId, transcriptSourceUrl);
       await this.updateCollectorAssetMeta(brandId, assetId, {
-        transcript: result.text,
-        transcriptSource: result.model || "glm-5v-turbo",
+        transcript,
+        transcriptSource: "mathmind-video-tools",
         transcriptStatus: "SUCCESS",
         transcriptLastError: "",
         transcribedAt: new Date().toISOString(),
@@ -1346,10 +1349,157 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
   }
 
   private resolveDouyinTranscriptVideoUrl(asset: AssetRecord, meta: Record<string, unknown>) {
-    return this.resolveDouyinVideoPlaybackUrl(asset, meta)
-      || this.readMetaString(meta, "videoSourceUrl")
-      || this.readMetaString(meta, "videoUrl")
-      || "";
+    const workUrl =
+      this.normalizeDouyinShareUrl(this.readMetaString(meta, "workUrl"))
+      || this.normalizeDouyinShareUrl(String(asset.fileUrl || ""))
+      || this.readMetaString(meta, "workUrl")
+      || String(asset.fileUrl || "").trim();
+    if (workUrl) {
+      return workUrl;
+    }
+    const workId = this.readMetaString(meta, "workId");
+    const workType = this.readMetaString(meta, "workType") || "鐭棰?";
+    return this.normalizeDouyinNoteUrl(workId, workType);
+  }
+
+  private async extractDouyinTranscriptByMathMind(brandId: string, videoUrl: string) {
+    const resolution = await this.thirdPartyPlatformsService.resolveBrandRuntimeApiKeys(brandId, [
+      CollectorsService.MATHMIND_API_BASE_URL,
+    ]);
+    if (resolution.status === "brand-api-key-missing") {
+      throw new ServiceUnavailableException(
+        `褰撳墠鍝佺墝灏氭湭閰嶇疆绗笁鏂瑰钩鍙?${resolution.platform.name}鐨?API Key锛岃鍏堝埌涓汉涓績-绗笁鏂规帴鍙ｉ厤缃腑瀹屾垚璁剧疆`,
+      );
+    }
+
+    const apiKey = String(resolution.status === "resolved" ? resolution.apiKeys[0] || "" : "").trim();
+    if (!apiKey) {
+      throw new ServiceUnavailableException("MathMind 骞冲彴鏈厤缃彲鐢?API Key锛屾殏鏃舵棤娉曟彁鍙栬棰戞枃妗?");
+    }
+
+    const requestJson = async (url: string, method: "GET" | "POST", body?: Record<string, unknown>) => {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 120000);
+      try {
+        const response = await fetch(url, {
+          method,
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+            "x-api-key": apiKey,
+          },
+          body: body ? JSON.stringify(body) : undefined,
+          signal: controller.signal,
+        });
+        const rawText = await response.text();
+        let payload: Record<string, unknown> | undefined;
+        try {
+          payload = rawText ? this.asMeta(JSON.parse(rawText)) : undefined;
+        } catch {
+          payload = undefined;
+        }
+        if (!response.ok) {
+          const errorText = (
+            this.readMetaString(payload || {}, "message")
+            || this.readMetaString(payload || {}, "msg")
+            || rawText
+            || `${response.status} ${response.statusText}`
+          ).slice(0, 240);
+          throw new ServiceUnavailableException(
+            errorText,
+          );
+        }
+        return payload || {};
+      } catch (error) {
+        if (error instanceof ServiceUnavailableException) {
+          throw error;
+        }
+        if (error instanceof Error && error.name === "AbortError") {
+          throw new ServiceUnavailableException("MathMind 鎻愬彇瑙嗛鏂囨瓒呮椂锛岃绋嶅悗鍐嶈瘯");
+        }
+        throw error;
+      } finally {
+        clearTimeout(timer);
+      }
+    };
+
+    const extractResultText = (payload: Record<string, unknown>) => {
+      const resultRecord = this.asMeta(payload.result) || this.asMeta(payload.data) || payload;
+      const candidates = [
+        this.readMetaString(resultRecord, "result"),
+        this.readMetaString(resultRecord, "content"),
+        this.readMetaString(resultRecord, "text"),
+        this.readMetaString(resultRecord, "copy"),
+        this.readMetaString(resultRecord, "transcript"),
+        this.readMetaString(payload, "result"),
+        this.readMetaString(payload, "content"),
+        this.readMetaString(payload, "text"),
+      ];
+      return candidates.find((item) => item.trim())?.trim() || "";
+    };
+
+    const readTaskStatus = (payload: Record<string, unknown>) => {
+      const resultRecord = this.asMeta(payload.data) || this.asMeta(payload.result) || payload;
+      return (
+        this.readMetaString(resultRecord, "status")
+        || this.readMetaString(resultRecord, "state")
+        || this.readMetaString(payload, "status")
+        || this.readMetaString(payload, "state")
+        || ""
+      ).trim().toUpperCase();
+    };
+
+    const submitPayload = await requestJson(
+      `${CollectorsService.MATHMIND_API_BASE_URL}/minimalist/api/video-audio/video2txtAsync`,
+      "POST",
+      { videoUrl },
+    );
+    const immediateResult = extractResultText(submitPayload);
+    if (immediateResult) {
+      return immediateResult;
+    }
+
+    const submitData = this.asMeta(submitPayload.data);
+    const taskId = (this.readMetaString(submitData, "taskId") || this.readMetaString(submitPayload, "taskId")).trim();
+    const statusUrl = (this.readMetaString(submitData, "statusUrl") || this.readMetaString(submitPayload, "statusUrl")).trim();
+    if (!taskId && !statusUrl) {
+      throw new ServiceUnavailableException("MathMind 鏈繑鍥炲彲鏌ヨ鐨勪换鍔?ID锛屾棤娉曠户缁彁鍙栬棰戞枃妗?");
+    }
+
+    const pollUrl = statusUrl
+      ? (statusUrl.startsWith("http")
+        ? statusUrl
+        : `${CollectorsService.MATHMIND_API_BASE_URL}/${statusUrl.replace(/^\/+/, "")}`)
+      : `${CollectorsService.MATHMIND_API_BASE_URL}/minimalist/api/task/${encodeURIComponent(taskId)}?timeout=50`;
+
+    for (let attempt = 1; attempt <= CollectorsService.DOUYIN_TRANSCRIPT_POLL_MAX_ATTEMPTS; attempt += 1) {
+      if (attempt > 1) {
+        await new Promise((resolvePromise) =>
+          setTimeout(resolvePromise, CollectorsService.DOUYIN_TRANSCRIPT_POLL_INTERVAL_MS)
+        );
+      }
+
+      const pollPayload = await requestJson(pollUrl, "GET");
+      const resultText = extractResultText(pollPayload);
+      if (resultText) {
+        return resultText;
+      }
+
+      const status = readTaskStatus(pollPayload);
+      if (["FAILED", "ERROR", "CANCELLED", "TIMEOUT"].includes(status)) {
+        throw new ServiceUnavailableException(
+          this.readMetaString(this.asMeta(pollPayload.data), "message")
+            || this.readMetaString(pollPayload, "message")
+            || this.readMetaString(pollPayload, "msg")
+            || "MathMind 鎻愬彇瑙嗛鏂囨澶辫触锛岃绋嶅悗鍐嶈瘯",
+        );
+      }
+      if (["SUCCESS", "SUCCEEDED", "DONE", "FINISHED", "COMPLETED"].includes(status)) {
+        throw new ServiceUnavailableException("MathMind 宸插畬鎴愪换鍔★紝浣嗘病鏈夎繑鍥炲彲鐢ㄧ殑瑙嗛鏂囨缁撴灉");
+      }
+    }
+
+    throw new ServiceUnavailableException("MathMind 鎻愬彇瑙嗛鏂囨瓒呮椂锛岃绋嶅悗鍐嶈瘯");
   }
 
   async removeDouyinKeywordRecommendation(brandId: string, assetId: string) {
@@ -2227,6 +2377,58 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
         this.enqueueDouyinVideoCache(asset);
       }
     }
+  }
+
+  private enqueueDouyinTranscriptExtraction(asset: AssetRecord) {
+    if (!this.shouldAutoExtractDouyinTranscript(asset)) {
+      return;
+    }
+
+    this.douyinTranscriptQueue = this.douyinTranscriptQueue
+      .then(async () => {
+        let latestAsset: AssetRecord;
+        try {
+          latestAsset = await this.getCollectorAssetById(asset.brandId, asset.id);
+        } catch {
+          return;
+        }
+
+        if (!this.shouldAutoExtractDouyinTranscript(latestAsset)) {
+          return;
+        }
+
+        try {
+          await this.extractDouyinWorkTranscript(latestAsset.brandId, latestAsset.id);
+        } catch (error) {
+          const detail = error instanceof Error ? error.message : "unknown error";
+          this.logger.warn(`Auto extract douyin transcript failed for asset ${latestAsset.id}: ${detail}`);
+        }
+      })
+      .catch(() => undefined);
+  }
+
+  private async resumePendingDouyinTranscriptExtractions() {
+    const assets = await this.listAllCollectorAssets();
+    for (const asset of assets) {
+      if (this.shouldAutoExtractDouyinTranscript(asset)) {
+        this.enqueueDouyinTranscriptExtraction(asset);
+      }
+    }
+  }
+
+  private shouldAutoExtractDouyinTranscript(asset: AssetRecord) {
+    const meta = this.asMeta(asset.metadataJson);
+    const kind = this.readMetaString(meta, "kind");
+    if (kind !== "DOUYIN_COMPETITOR_WORK" && kind !== "DOUYIN_BENCHMARK_WORK") {
+      return false;
+    }
+    if (this.readMetaString(meta, "transcript")) {
+      return false;
+    }
+    if (this.readMetaString(meta, "transcriptStatus") === "PENDING") {
+      return false;
+    }
+    return Boolean(this.resolveDouyinTranscriptVideoUrl(asset, meta));
   }
 
   private async cleanupExpiredDouyinVideoCaches() {
@@ -4273,6 +4475,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       });
 
       this.enqueueDouyinVideoCache(asset);
+      this.enqueueDouyinTranscriptExtraction(asset);
 
       rows.push(this.mapDouyinCollectedWork(asset, kind));
     }
@@ -4524,6 +4727,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     });
 
     this.enqueueDouyinVideoCache(asset);
+    this.enqueueDouyinTranscriptExtraction(asset);
 
     return this.mapDouyinCollectedWork(asset, "DOUYIN_BENCHMARK_WORK");
   }
