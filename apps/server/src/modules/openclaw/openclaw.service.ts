@@ -30,6 +30,7 @@ import { PublishingService } from "../publishing/publishing.service";
 import { ReportsService } from "../reports/reports.service";
 import { TasksService } from "../tasks/tasks.service";
 import { ThirdPartyPlatformsService } from "../third-party-platforms/third-party-platforms.service";
+import { VolcengineMusicService } from "../third-party-platforms/volcengine-music.service";
 import { UserSkillsService } from "../user-skills/user-skills.service";
 import { WorksService } from "../works/works.service";
 
@@ -98,7 +99,7 @@ type OpenClawWebsiteFunctionCatalogItem = {
 
 const OPENCLAW_MCP_SERVER_INFO = {
   name: "ai-omni-ops-openclaw-mcp-http",
-  version: "0.4.0",
+  version: "0.5.0",
 };
 
 const OPENCLAW_WEBSITE_FUNCTION_CATALOG: OpenClawWebsiteFunctionCatalogItem[] = [
@@ -416,6 +417,26 @@ const OPENCLAW_WEBSITE_FUNCTION_CATALOG: OpenClawWebsiteFunctionCatalogItem[] = 
       "get_openclaw_daily_plans",
       "create_openclaw_daily_plan",
       "delete_openclaw_daily_plan",
+    ],
+  },
+  {
+    key: "openclaw_music_generation",
+    domainKey: "openclaw",
+    domainName: "OpenClaw 专区",
+    name: "生成歌曲或纯音乐并沉淀素材",
+    summary: "适合直接调用火山音乐后付费接口生成带人声歌曲或纯音乐，再按需沉淀到 OpenClaw 创作素材。",
+    pageUrl: "/brand-growth",
+    pageLabel: "打开 OpenClaw 专区",
+    riskLevel: "medium",
+    intentKeywords: ["歌曲", "纯音乐", "bgm", "配乐", "人声歌曲", "音乐", "伴奏", "开场音乐", "火山音乐"],
+    requiredInputKeys: ["taskType", "promptOrText"],
+    requiredInputs: ["音乐类型", "歌词或音乐描述"],
+    recommendedQuestions: ["帮我生成一首带人声的歌曲", "帮我做一段 60 秒纯音乐 BGM 并保存到创作素材"],
+    mcpTools: [
+      "create_volcengine_music_task",
+      "get_volcengine_music_task",
+      "get_openclaw_creative_materials",
+      "create_openclaw_creative_material",
     ],
   },
   {
@@ -1829,6 +1850,43 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
     },
   },
   {
+    name: "create_volcengine_music_task",
+    description: "调用火山音乐后付费接口创建音乐任务，可生成带人声歌曲或纯音乐 BGM。创建后请再调用 get_volcengine_music_task 轮询结果；如果要沉淀到 OpenClaw 创作素材，建议在查询成功后再保存。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat", "geo"], description: "可选：这次音乐任务主要服务于哪个板块，默认 brand_growth。" },
+        taskType: { type: "string", enum: ["song", "bgm"], description: "song=生成人声歌曲，bgm=生成纯音乐。" },
+        title: { type: "string", description: "可选：这次任务的业务标题，便于回读时展示。" },
+        payload: {
+          type: "object",
+          description: "火山音乐请求体。song 模式常用 Lyrics / Prompt / ModelVersion / Genre / Mood / Gender / Timbre / Duration；bgm 模式常用 Text / Version / Duration / EnableInputRewrite / Segments。支持直接按火山文档字段名传入。",
+          additionalProperties: true,
+        },
+      },
+      required: ["taskType", "payload"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_volcengine_music_task",
+    description: "查询火山音乐任务结果。成功后可选择直接把音频链接沉淀到 OpenClaw 创作素材，适合保存为 audio 或 bgm 素材。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat", "geo"], description: "可选：素材要落到哪个板块，默认 brand_growth。" },
+        taskId: { type: "string", description: "火山音乐 TaskID。" },
+        taskType: { type: "string", enum: ["song", "bgm"], description: "可选：补充任务类型，便于生成业务文案和默认素材类型。" },
+        saveToCreativeMaterial: { type: "boolean", description: "可选：任务成功后是否自动保存到 OpenClaw 创作素材。" },
+        materialTitle: { type: "string", description: "可选：自动保存素材时使用的标题。" },
+        materialDescription: { type: "string", description: "可选：自动保存素材时使用的描述。" },
+        materialType: { type: "string", description: "可选：自动保存素材时的类型，默认 song=>audio，bgm=>bgm。" },
+      },
+      required: ["taskId"],
+      additionalProperties: false,
+    },
+  },
+  {
     name: "get_openclaw_creative_materials",
     description: "查看当前品牌指定板块下的创作素材列表。",
     inputSchema: {
@@ -2311,6 +2369,7 @@ export class OpenClawService {
     private readonly publishingService: PublishingService,
     private readonly reportsService: ReportsService,
     private readonly thirdPartyPlatformsService: ThirdPartyPlatformsService,
+    private readonly volcengineMusicService: VolcengineMusicService,
     private readonly ordersService: OrdersService,
     private readonly userSkillsService: UserSkillsService,
     private readonly worksService: WorksService,
@@ -6662,6 +6721,146 @@ export class OpenClawService {
     });
   }
 
+  async createVolcengineMusicTask(
+    headers: HeadersMap,
+    options?: {
+      workspaceScope?: string;
+      taskType?: string;
+      title?: string;
+      payload?: Record<string, unknown>;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "edit", auth);
+    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope);
+    const workspaceLabel = getOpenClawWorkspaceDisplayName(workspaceScope);
+    const workspacePath = getOpenClawWorkspaceDashboardPath(workspaceScope);
+    const taskType = this.normalizeVolcengineMusicTaskType(options?.taskType);
+    if (!taskType) {
+      throw new BadRequestException("请提供有效的 taskType：song 或 bgm");
+    }
+
+    const result = taskType === "song"
+      ? await this.volcengineMusicService.createSongTask(brandId, options?.payload)
+      : await this.volcengineMusicService.createBgmTask(brandId, options?.payload);
+    const businessTitle = String(options?.title || "").trim()
+      || this.deriveVolcengineMusicTaskTitle(taskType, options?.payload);
+
+    return this.buildSummaryResponse({
+      title: taskType === "song" ? "人声歌曲任务已受理" : "纯音乐任务已受理",
+      summary: `已为当前品牌创建火山音乐${taskType === "song" ? "人声歌曲" : "纯音乐"}任务，请继续轮询任务结果。`,
+      highlights: [
+        `任务类型：${taskType === "song" ? "人声歌曲" : "纯音乐 BGM"}`,
+        `任务 ID：${result.taskId}`,
+        typeof result.predictedWaitTime === "number" ? `预计等待：${result.predictedWaitTime} 秒` : "预计等待：火山未返回",
+        businessTitle ? `业务标题：${businessTitle}` : `服务板块：${workspaceLabel}`,
+      ],
+      data: {
+        workspaceScope,
+        title: businessTitle || undefined,
+        ...result,
+      },
+      links: [{ label: `打开${workspaceLabel}工作台`, url: workspacePath }],
+      resourceKind: "volcengine_music_task",
+      resultStatus: "IN_PROGRESS",
+      nextActions: [
+        { label: "继续查询任务结果", action: "check_status", target: result.taskId },
+        { label: `打开${workspaceLabel}工作台`, action: "open_page", target: workspacePath },
+      ],
+    });
+  }
+
+  async getVolcengineMusicTask(
+    headers: HeadersMap,
+    options?: {
+      workspaceScope?: string;
+      taskId?: string;
+      taskType?: string;
+      saveToCreativeMaterial?: boolean;
+      materialTitle?: string;
+      materialDescription?: string;
+      materialType?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "view", auth);
+    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope);
+    const workspaceLabel = getOpenClawWorkspaceDisplayName(workspaceScope);
+    const workspacePath = getOpenClawWorkspaceDashboardPath(workspaceScope);
+    const taskId = String(options?.taskId || "").trim();
+    if (!taskId) {
+      throw new BadRequestException("请提供 taskId");
+    }
+    const taskType = this.normalizeVolcengineMusicTaskType(options?.taskType);
+    const result = await this.volcengineMusicService.querySongTask(brandId, taskId);
+    const statusLabel = this.getVolcengineMusicStatusLabel(result.status);
+    const isSuccess = result.status === 2;
+    const isFailed = result.status === 3;
+    const shouldSave = options?.saveToCreativeMaterial === true && isSuccess && !!result.songDetail.audioUrl;
+    let savedMaterial: Record<string, unknown> | undefined;
+
+    if (options?.saveToCreativeMaterial === true) {
+      await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "edit", auth);
+    }
+
+    if (shouldSave) {
+      const defaultMaterialType = String(options?.materialType || "").trim()
+        || (taskType === "bgm" ? "bgm" : "audio");
+      const material = await this.openClawCreativeMaterialService.createMaterial({
+        brandId,
+        workspaceScope,
+        createdByUserId: auth.userId,
+        title: String(options?.materialTitle || "").trim()
+          || this.deriveVolcengineMusicMaterialTitle(taskType, taskId, result.songDetail.prompt, result.songDetail.lyrics),
+        description: String(options?.materialDescription || "").trim()
+          || this.buildVolcengineMusicMaterialDescription(taskType, result),
+        materialType: defaultMaterialType,
+        fileUrl: result.songDetail.audioUrl,
+        fileName: this.deriveVolcengineMusicFileName(taskType, taskId, result.songDetail.audioUrl),
+        mimeType: this.inferAudioMimeType(result.songDetail.audioUrl),
+        textContent: result.songDetail.lyrics,
+      });
+      savedMaterial = material as unknown as Record<string, unknown>;
+    }
+
+    return this.buildSummaryResponse({
+      title: `火山音乐任务结果：${statusLabel}`,
+      summary: isSuccess
+        ? `任务 ${taskId} 已生成成功${savedMaterial ? "，并已沉淀到 OpenClaw 创作素材" : "。"}`
+        : isFailed
+          ? `任务 ${taskId} 已失败，请根据失败原因调整歌词、描述或时长后重试。`
+          : `任务 ${taskId} 当前仍在处理中，可继续轮询状态。`,
+      highlights: [
+        `任务状态：${statusLabel}`,
+        typeof result.progress === "number" ? `当前进度：${result.progress}%` : "当前进度：火山未返回",
+        result.songDetail.duration ? `音频时长：${result.songDetail.duration.toFixed(2)} 秒` : "音频时长：待生成",
+        result.songDetail.audioUrl ? "音频结果：已返回下载地址" : "音频结果：暂未返回",
+        ...(result.failureReason?.message ? [`失败原因：${result.failureReason.message}`] : []),
+        ...(savedMaterial?.id ? [`已保存素材：${String(savedMaterial.id)}`] : []),
+      ],
+      data: {
+        workspaceScope,
+        taskType: taskType || undefined,
+        statusLabel,
+        ...result,
+        ...(savedMaterial ? { savedMaterial } : {}),
+      },
+      links: [
+        ...(result.songDetail.audioUrl ? [{ label: "打开音频结果", url: result.songDetail.audioUrl }] : []),
+        { label: `打开${workspaceLabel}工作台`, url: workspacePath },
+      ],
+      resourceKind: "volcengine_music_task",
+      resultStatus: isSuccess ? "COMPLETED" : isFailed ? "ACTION_REQUIRED" : "IN_PROGRESS",
+      nextActions: [
+        ...(!isSuccess ? [{ label: "继续轮询任务", action: "check_status" as const, target: taskId }] : []),
+        ...(savedMaterial?.id ? [{ label: "回到对话继续处理素材", action: "continue_in_chat" as const, target: String(savedMaterial.id) }] : []),
+        { label: `打开${workspaceLabel}工作台`, action: "open_page" as const, target: workspacePath },
+      ],
+    });
+  }
+
   async createOpenClawCreativeMaterial(
     headers: HeadersMap,
     options?: {
@@ -10172,6 +10371,113 @@ export class OpenClawService {
     }
   }
 
+  private normalizeVolcengineMusicTaskType(value: string | undefined) {
+    const normalized = String(value || "").trim().toLowerCase();
+    if (normalized === "song" || normalized === "bgm") {
+      return normalized as "song" | "bgm";
+    }
+    return undefined;
+  }
+
+  private deriveVolcengineMusicTaskTitle(taskType: "song" | "bgm", payload?: Record<string, unknown>) {
+    const source = payload && typeof payload === "object" ? payload : {};
+    const lyrics = this.readOptionalString((source as Record<string, unknown>).Lyrics)
+      || this.readOptionalString((source as Record<string, unknown>).lyrics);
+    const prompt = this.readOptionalString((source as Record<string, unknown>).Prompt)
+      || this.readOptionalString((source as Record<string, unknown>).prompt)
+      || this.readOptionalString((source as Record<string, unknown>).Text)
+      || this.readOptionalString((source as Record<string, unknown>).text);
+    const raw = lyrics || prompt || (taskType === "song" ? "人声歌曲任务" : "纯音乐任务");
+    return raw.slice(0, 48);
+  }
+
+  private deriveVolcengineMusicMaterialTitle(
+    taskType: "song" | "bgm" | undefined,
+    taskId: string,
+    prompt?: string,
+    lyrics?: string,
+  ) {
+    const base = lyrics || prompt || (taskType === "bgm" ? "火山纯音乐" : "火山歌曲");
+    return `${base.slice(0, 40)}_${taskId.slice(-6)}`;
+  }
+
+  private buildVolcengineMusicMaterialDescription(
+    taskType: "song" | "bgm" | undefined,
+    result: {
+      status?: number;
+      songDetail: {
+        duration?: number;
+        prompt?: string;
+        genre?: string;
+        mood?: string;
+        lang?: string;
+      };
+    },
+  ) {
+    return [
+      `来源：火山音乐${taskType === "bgm" ? "纯音乐" : "人声歌曲"}后付费接口`,
+      `状态：${this.getVolcengineMusicStatusLabel(result.status)}`,
+      typeof result.songDetail.duration === "number" ? `时长：${result.songDetail.duration.toFixed(2)} 秒` : "",
+      result.songDetail.genre ? `曲风：${result.songDetail.genre}` : "",
+      result.songDetail.mood ? `情绪：${result.songDetail.mood}` : "",
+      result.songDetail.lang ? `语言：${result.songDetail.lang}` : "",
+      result.songDetail.prompt ? `描述：${result.songDetail.prompt.slice(0, 120)}` : "",
+    ].filter(Boolean).join("；");
+  }
+
+  private getVolcengineMusicStatusLabel(status?: number) {
+    switch (status) {
+      case 0:
+        return "等待中";
+      case 1:
+        return "处理中";
+      case 2:
+        return "已完成";
+      case 3:
+        return "已失败";
+      default:
+        return "待确认";
+    }
+  }
+
+  private deriveVolcengineMusicFileName(taskType: "song" | "bgm" | undefined, taskId: string, audioUrl?: string) {
+    const extension = this.extractFileExtensionFromUrl(audioUrl) || "wav";
+    return `${taskType === "bgm" ? "volcengine-bgm" : "volcengine-song"}-${taskId}.${extension}`;
+  }
+
+  private inferAudioMimeType(audioUrl?: string) {
+    const extension = this.extractFileExtensionFromUrl(audioUrl);
+    switch (extension) {
+      case "mp3":
+        return "audio/mpeg";
+      case "wav":
+        return "audio/wav";
+      case "m4a":
+        return "audio/mp4";
+      case "flac":
+        return "audio/flac";
+      case "ogg":
+        return "audio/ogg";
+      default:
+        return "audio/wav";
+    }
+  }
+
+  private extractFileExtensionFromUrl(url?: string) {
+    const normalized = String(url || "").trim();
+    if (!normalized) {
+      return undefined;
+    }
+    try {
+      const pathname = new URL(normalized).pathname || "";
+      const match = pathname.match(/\.([a-z0-9]+)$/i);
+      return match?.[1]?.toLowerCase();
+    } catch {
+      const match = normalized.match(/\.([a-z0-9]+)(?:\?|#|$)/i);
+      return match?.[1]?.toLowerCase();
+    }
+  }
+
   private readStringField(record: Record<string, unknown>, key: string) {
     const value = record[key];
     return typeof value === "string" ? value : undefined;
@@ -10186,6 +10492,10 @@ export class OpenClawService {
       current = (current as Record<string, unknown>)[key];
     }
     return typeof current === "string" ? current : undefined;
+  }
+
+  private readOptionalString(value: unknown) {
+    return typeof value === "string" && value.trim() ? value.trim() : undefined;
   }
 
   private normalizeOptionalString(value: unknown) {
@@ -11039,6 +11349,25 @@ export class OpenClawService {
         return this.deleteOpenClawDailyPlan(headers, {
           workspaceScope: typeof toolArgs.workspaceScope === "string" ? toolArgs.workspaceScope : undefined,
           planId: typeof toolArgs.planId === "string" ? toolArgs.planId : undefined,
+        });
+      case "create_volcengine_music_task":
+        return this.createVolcengineMusicTask(headers, {
+          workspaceScope: typeof toolArgs.workspaceScope === "string" ? toolArgs.workspaceScope : undefined,
+          taskType: typeof toolArgs.taskType === "string" ? toolArgs.taskType : undefined,
+          title: typeof toolArgs.title === "string" ? toolArgs.title : undefined,
+          payload: toolArgs.payload && typeof toolArgs.payload === "object" && !Array.isArray(toolArgs.payload)
+            ? toolArgs.payload as Record<string, unknown>
+            : undefined,
+        });
+      case "get_volcengine_music_task":
+        return this.getVolcengineMusicTask(headers, {
+          workspaceScope: typeof toolArgs.workspaceScope === "string" ? toolArgs.workspaceScope : undefined,
+          taskId: typeof toolArgs.taskId === "string" ? toolArgs.taskId : undefined,
+          taskType: typeof toolArgs.taskType === "string" ? toolArgs.taskType : undefined,
+          saveToCreativeMaterial: typeof toolArgs.saveToCreativeMaterial === "boolean" ? toolArgs.saveToCreativeMaterial : undefined,
+          materialTitle: typeof toolArgs.materialTitle === "string" ? toolArgs.materialTitle : undefined,
+          materialDescription: typeof toolArgs.materialDescription === "string" ? toolArgs.materialDescription : undefined,
+          materialType: typeof toolArgs.materialType === "string" ? toolArgs.materialType : undefined,
         });
       case "get_openclaw_creative_materials":
         return this.getOpenClawCreativeMaterials(headers, {

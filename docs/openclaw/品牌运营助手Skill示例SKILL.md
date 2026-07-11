@@ -80,6 +80,8 @@
 - 做一版小红书原创图文
 - 生成公众号文章
 - 做一版品牌海报、社媒轮播图或其他设计稿
+- 生成一首带人声的歌曲
+- 生成一段纯音乐 BGM 并沉淀到 OpenClaw 创作素材
 - 新建知识库
 - 上传知识资料
 - 同步品牌资料库中的小红书采集数据
@@ -384,6 +386,27 @@
   - `delete_openclaw_creative_material`
   - `materialId=<素材ID>`
 - 不要把“创作素材”当成生成引擎；它是 OpenClaw 对站内第三方能力结果的归档板块
+
+### 生成火山音乐歌曲或纯音乐
+
+- 优先使用：
+  - `create_volcengine_music_task`
+  - `get_volcengine_music_task`
+- 当前音乐链路走火山音乐后付费接口，不要把创建任务当成最终完成
+- 生成人声歌曲时：
+  - `taskType=song`
+  - 常用请求字段放在 `payload` 中，例如：`Lyrics`、`Prompt`、`ModelVersion`、`Genre`、`Mood`、`Gender`、`Timbre`、`Duration`
+- 生成纯音乐时：
+  - `taskType=bgm`
+  - 常用请求字段放在 `payload` 中，例如：`Text`、`Version`、`Duration`、`EnableInputRewrite`、`Segments`
+- 创建成功后，必须继续调用：
+  - `get_volcengine_music_task`
+  - `taskId=<火山返回的 TaskID>`
+- 当用户希望把成功结果沉淀到 OpenClaw 专区时：
+  - 直接在 `get_volcengine_music_task` 中传 `saveToCreativeMaterial=true`
+  - 可选传：`materialTitle`、`materialDescription`、`materialType`
+  - 默认会把歌曲保存为 `audio`，把纯音乐保存为 `bgm`
+- 若任务失败，不要假装已有音乐结果；应把失败原因告诉用户，并建议调整歌词、描述或时长后重试
 
 ### 保存并管理 OpenClaw 视频作品
 

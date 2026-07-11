@@ -623,17 +623,39 @@ export class ThirdPartyPlatformsService {
       "api.tikhub.io": ["TIKHUB_API_KEY"],
       "api.xskill.ai": ["APIZ_API_KEY", "NEX_AI_API_KEY"],
       "ark.cn-beijing.volces.com": ["ARK_API_KEY", "VOLCENGINE_ARK_API_KEY", "DOUBAO_API_KEY"],
+      "open.volcengineapi.com": ["VOLCENGINE_MUSIC_OPENAPI_CREDENTIAL", "VOLCENGINE_MUSIC_API_CREDENTIAL", "VOLCENGINE_OPENAPI_AKSK"],
       "open.bigmodel.cn": ["GLM_API_KEY", "ZHIPU_API_KEY"],
       "www.right.codes": ["RIGHT_CODES_API_KEY"],
     };
 
-    return Array.from(
+    const directEnvValues = Array.from(
       new Set(
         (envKeysByHost[host] || [])
           .map((envName) => String(process.env[envName] || "").trim())
           .filter(Boolean),
       ),
     );
+    if (host !== "open.volcengineapi.com") {
+      return directEnvValues;
+    }
+
+    const accessKeyId = String(
+      process.env.VOLCENGINE_MUSIC_ACCESS_KEY_ID
+      || process.env.VOLCENGINE_ACCESS_KEY_ID
+      || process.env.VOLCENGINE_AK
+      || "",
+    ).trim();
+    const secretAccessKey = String(
+      process.env.VOLCENGINE_MUSIC_SECRET_ACCESS_KEY
+      || process.env.VOLCENGINE_SECRET_ACCESS_KEY
+      || process.env.VOLCENGINE_SK
+      || "",
+    ).trim();
+    const combinedCredential = accessKeyId && secretAccessKey ? `${accessKeyId}::${secretAccessKey}` : "";
+    return Array.from(new Set([
+      ...directEnvValues,
+      combinedCredential,
+    ].filter(Boolean)));
   }
 
   private normalizeUserPlatform(platform: ThirdPartyPlatformRecord, apiKey: string): UserThirdPartyPlatformRecord {

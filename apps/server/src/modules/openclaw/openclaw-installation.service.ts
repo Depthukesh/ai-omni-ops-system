@@ -353,6 +353,8 @@ export class OpenClawInstallationService {
           "帮我看当前品牌最近的增长报告重点",
           "帮我提取当前品牌档案摘要，顺便看一下竞品账号和行业资料",
           "帮我看品牌资料库里抖音和小红书搜集数据板块",
+          "帮我生成一段 60 秒纯音乐 BGM，查成功后直接保存到 OpenClaw 创作素材",
+          "帮我做一首带人声的歌曲，先创建任务，再轮询结果",
           "帮我直接创建一条公众号工作流，生成正文、配图和 HTML",
           "帮我生成一条抖音视频，或者直接走数字人 / RunningHub / 广告预审",
           "帮我看当前品牌机会洞察做到哪一步了，能继续就直接继续",
@@ -515,6 +517,8 @@ description: AI 全域智能体网站能力总入口 Skill。先识别用户要�
 - \`get_openclaw_daily_plans\`
 - \`create_openclaw_daily_plan\`
 - \`delete_openclaw_daily_plan\`
+- \`create_volcengine_music_task\`
+- \`get_volcengine_music_task\`
 - \`get_openclaw_creative_materials\`
 - \`create_openclaw_creative_material\`
 - \`delete_openclaw_creative_material\`
@@ -646,6 +650,8 @@ description: AI 全域智能体网站能力总入口 Skill。先识别用户要�
   - \`get_openclaw_daily_plans\`
   - \`create_openclaw_daily_plan\`
   - \`delete_openclaw_daily_plan\`
+  - \`create_volcengine_music_task\`
+  - \`get_volcengine_music_task\`
   - \`get_openclaw_lobster_diaries\`
   - \`create_openclaw_lobster_diary\`
   - \`delete_openclaw_lobster_diary\`
@@ -668,6 +674,13 @@ description: AI 全域智能体网站能力总入口 Skill。先识别用户要�
 - 对"创作素材"和"视频作品"场景要记住：
   - 创作素材用于沉淀文本、图片、视频、语音、BGM 等中间结果
   - 视频作品用于沉淀最终成片，并可继续创建抖音发布会话
+- 对"音乐生成"场景要记住：
+  - 火山音乐当前走后付费接口
+  - 人声歌曲使用 \`create_volcengine_music_task\` 且 \`taskType=song\`
+  - 纯音乐使用 \`create_volcengine_music_task\` 且 \`taskType=bgm\`
+  - 创建任务后不要假装已经成功，必须继续调用 \`get_volcengine_music_task\` 轮询
+  - 查询成功后，如用户希望沉淀到专区，可在 \`get_volcengine_music_task\` 中直接传 \`saveToCreativeMaterial=true\`
+  - 自动保存素材时，默认会把歌曲存为 \`audio\`，把纯音乐存为 \`bgm\`
 - 对"GEO 可见度诊断"场景要记住：
   - 默认落到 \`workspaceScope=geo\`
   - 页面端用户只能查看和删除
@@ -733,6 +746,8 @@ description: AI 全域智能体网站能力总入口 Skill。先识别用户要�
 - 帮我提取当前品牌档案摘要，并更新一个产品资料
 - 先帮我看设计工作台有哪些模型选项，再用火山方舟 \`doubao-seedream-5-0-pro-260628\` 做一张品牌海报
 - 帮我在设计工作台做一版社媒轮播图，如果有参考图就一起带上
+- 帮我生成一段 60 秒纯音乐 BGM，查到成功后直接保存到 OpenClaw 创作素材
+- 帮我做一首带人声的歌曲，先创建任务，再帮我轮询结果
 - 帮我看品牌资料库里抖音和小红书搜集数据板块
 - 帮我创建一条公众号工作流，并直接生成正文和 HTML
 - 帮我把一篇已经定稿的公众号文章直接写入工作流，再继续生成配图和 HTML

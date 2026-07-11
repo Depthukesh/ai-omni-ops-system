@@ -190,6 +190,24 @@ OpenClaw 调用任何工具时，服务端都必须基于绑定关系解析：
     - `localFilePath`（stdio MCP 专用，本地绝对路径，桥接层会自动读取本地文件并上传到网站）
     - `upload.fileName / upload.contentType / upload.dataBase64`
     - `textContent`
+- 火山音乐生成：
+  - `create_volcengine_music_task`
+  - `get_volcengine_music_task`
+  - 当前用途：
+    - 通过火山音乐后付费接口生成人声歌曲或纯音乐
+    - 查询任务结果后，可直接沉淀到 OpenClaw 创作素材
+  - 关键字段：
+    - `taskType=song | bgm`
+    - `payload`
+    - `taskId`
+    - `saveToCreativeMaterial`
+    - `materialTitle / materialDescription / materialType`
+  - 当前语义约束：
+    - 创建任务只代表受理，不代表音乐已生成完成
+    - 人声歌曲使用 `taskType=song`，常用参数是 `Lyrics / Prompt / ModelVersion / Genre / Mood / Duration`
+    - 纯音乐使用 `taskType=bgm`，常用参数是 `Text / Version / Duration / EnableInputRewrite / Segments`
+    - 必须先 `create_volcengine_music_task`，再 `get_volcengine_music_task` 轮询
+    - 查询成功后，如需归档，可在查询工具里直接打开 `saveToCreativeMaterial=true`
 - OpenClaw 视频作品：
   - `get_openclaw_video_works`
   - `create_openclaw_video_work`
