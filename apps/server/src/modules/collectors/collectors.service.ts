@@ -1325,10 +1325,12 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       transcriptLastError: "",
     });
     try {
-      const transcript = await this.extractDouyinTranscriptByMathMind(brandId, transcriptSourceUrl);
+      const result = await this.glmOpenService.extractVideoTranscript(brandId, transcriptSourceUrl, {
+        userId: `douyin-${brandId}`,
+      });
       await this.updateCollectorAssetMeta(brandId, assetId, {
-        transcript,
-        transcriptSource: "mathmind-video-tools",
+        transcript: result.text,
+        transcriptSource: result.model || "glm-5v-turbo",
         transcriptStatus: "SUCCESS",
         transcriptLastError: "",
         transcribedAt: new Date().toISOString(),
@@ -1349,6 +1351,11 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
   }
 
   private resolveDouyinTranscriptVideoUrl(asset: AssetRecord, meta: Record<string, unknown>) {
+    return this.resolveDouyinVideoPlaybackUrl(asset, meta)
+      || this.readMetaString(meta, "videoSourceUrl")
+      || this.readMetaString(meta, "videoUrl")
+      || "";
+
     const workUrl =
       this.normalizeDouyinShareUrl(this.readMetaString(meta, "workUrl"))
       || this.normalizeDouyinShareUrl(String(asset.fileUrl || ""))
@@ -2425,7 +2432,9 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     if (this.readMetaString(meta, "transcript")) {
       return false;
     }
-    if (this.readMetaString(meta, "transcriptStatus") === "FAILED") {
+    const transcriptStatus = this.readMetaString(meta, "transcriptStatus");
+    const transcriptSource = this.readMetaString(meta, "transcriptSource");
+    if (transcriptStatus === "FAILED" && transcriptSource !== "mathmind-video-tools") {
       return false;
     }
     return Boolean(this.resolveDouyinTranscriptVideoUrl(asset, meta));
