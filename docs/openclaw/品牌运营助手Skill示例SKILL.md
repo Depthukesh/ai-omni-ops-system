@@ -408,6 +408,24 @@
   - 默认会把歌曲保存为 `audio`，把纯音乐保存为 `bgm`
 - 若任务失败，不要假装已有音乐结果；应把失败原因告诉用户，并建议调整歌词、描述或时长后重试
 
+### 处理公众号采集数据
+
+- 优先使用：
+  - `get_wechat_collection_workspace`
+  - `sync_wechat_brand_accounts`
+  - `fetch_wechat_brand_articles`
+  - `sync_wechat_benchmark_articles`
+  - `sync_wechat_search_articles`
+  - `update_wechat_article_stats`
+- 当用户说“帮我提交公众号采集”“帮我抓品牌公众号历史文章”“品牌公众号数据里点提交”时，不要只停留在查看工作区
+- 正确顺序通常是：
+  - 先用 `sync_wechat_brand_accounts` 绑定 `ghUsername`
+  - 再用 `fetch_wechat_brand_articles` 抓历史文章；需要翻页时继续传 `offset`
+  - 如果是对标文章，则用 `sync_wechat_benchmark_articles`
+  - 如果是微信搜一搜，则用 `sync_wechat_search_articles`
+  - 如果是更新阅读量、点赞量等统计，则用 `update_wechat_article_stats`
+- `fetch_wechat_brand_articles` 就是页面里“品牌公众号数据”卡片上的“提交 / 获取下一页”动作
+
 ### 保存并管理 OpenClaw 视频作品
 
 - 当 OpenClaw 已经整合完最终成片时，优先把结果保存到 OpenClaw 专区的“视频作品”板块

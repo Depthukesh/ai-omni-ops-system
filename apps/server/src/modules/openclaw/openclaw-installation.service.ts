@@ -505,6 +505,8 @@ description: AI 全域智能体网站能力总入口 Skill。先识别用户要�
 - \`get_unified_material_library_items\`
 - \`get_douyin_material_library_items\`
 - \`get_wechat_collection_workspace\`
+- \`sync_wechat_brand_accounts\`
+- \`fetch_wechat_brand_articles\`
 - \`sync_wechat_benchmark_articles\`
 - \`sync_wechat_search_articles\`
 - \`update_wechat_article_stats\`
@@ -589,6 +591,8 @@ description: AI 全域智能体网站能力总入口 Skill。先识别用户要�
 - 当用户提到“素材库”“统一素材库”“公众号采集”“删除采集内容”“更新公众号阅读量/点赞量”时，先判断：
   - 是否要看统一素材库：\`get_unified_material_library_items\` / \`get_douyin_material_library_items\`
   - 是否要看公众号采集工作区：\`get_wechat_collection_workspace\`
+  - 是否要绑定品牌公众号：\`sync_wechat_brand_accounts\`
+  - 是否要抓品牌公众号历史文章（页面里的“提交”动作）：\`fetch_wechat_brand_articles\`
   - 是否要同步公众号数据：\`sync_wechat_benchmark_articles\` / \`sync_wechat_search_articles\` / \`update_wechat_article_stats\`
   - 是否要删除采集结果：\`delete_xhs_collected_note\` / \`delete_douyin_collected_work\` / \`delete_wechat_collected_article\`
 

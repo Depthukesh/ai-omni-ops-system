@@ -528,17 +528,19 @@ const OPENCLAW_WEBSITE_FUNCTION_CATALOG: OpenClawWebsiteFunctionCatalogItem[] = 
     key: "wechat_collection_workspace",
     domainKey: "brand_growth",
     domainName: "品牌增长",
-    name: "查看并同步公众号采集数据",
-    summary: "适合读取品牌资料库中的公众号采集数据工作区，并直接触发对标文章和微信搜一搜同步。",
+    name: "查看并提交公众号采集数据",
+    summary: "适合读取品牌资料库中的公众号采集数据工作区，并直接绑定品牌公众号、抓取历史文章、同步对标文章和微信搜一搜。",
     pageUrl: "/brand-growth",
     pageLabel: "打开品牌增长工作台",
     riskLevel: "medium",
-    intentKeywords: ["公众号采集", "微信搜一搜", "对标文章", "公众号数据", "文章统计"],
+    intentKeywords: ["公众号采集", "微信搜一搜", "对标文章", "公众号数据", "文章统计", "品牌公众号数据", "gh_username", "抓历史文章", "提交采集"],
     requiredInputKeys: ["brandId"],
     requiredInputs: ["当前品牌"],
-    recommendedQuestions: ["帮我看公众号采集数据板块", "帮我同步微信搜一搜数据", "帮我更新这篇文章的阅读量"],
+    recommendedQuestions: ["帮我看公众号采集数据板块", "帮我绑定这个公众号并抓历史文章", "帮我同步微信搜一搜数据", "帮我更新这篇文章的阅读量"],
     mcpTools: [
       "get_wechat_collection_workspace",
+      "sync_wechat_brand_accounts",
+      "fetch_wechat_brand_articles",
       "sync_wechat_benchmark_articles",
       "sync_wechat_search_articles",
       "update_wechat_article_stats",
@@ -2265,6 +2267,31 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
       properties: {
         limit: { type: "integer", minimum: 1, maximum: 50 },
       },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "sync_wechat_brand_accounts",
+    description: "绑定或同步品牌资料库里的公众号账号，需要提供 ghUsername。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        ghUsername: { type: "string", description: "公众号 gh_username。" },
+      },
+      required: ["ghUsername"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "fetch_wechat_brand_articles",
+    description: "抓取指定品牌公众号的历史文章列表，对应页面里的“提交”动作。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        ghUsername: { type: "string", description: "公众号 gh_username。" },
+        offset: { type: "string", description: "翻页游标；首次抓取可不传。" },
+      },
+      required: ["ghUsername"],
       additionalProperties: false,
     },
   },
@@ -6238,6 +6265,74 @@ export class OpenClawService {
       },
       links: [{ label: "打开品牌增长工作台", url: "/brand-growth" }],
       resourceKind: "wechat_collection",
+    });
+  }
+
+  async syncWechatBrandAccounts(
+    headers: HeadersMap,
+    options?: {
+      ghUsername?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.collection.wechatMpCollection", "edit", auth);
+
+    const ghUsername = this.normalizeSafeInstruction(options?.ghUsername, "公众号 gh_username");
+    if (!ghUsername) {
+      throw new BadRequestException("请提供 ghUsername");
+    }
+    const result = await this.collectorsService.syncWechatMpBrandAccount(brandId, ghUsername);
+
+    return this.buildSummaryResponse({
+      title: "品牌公众号已绑定",
+      summary: `已绑定公众号 ${ghUsername}，当前品牌公众号采集工作区已更新。`,
+      highlights: [
+        `gh_username：${ghUsername}`,
+        result.item?.id ? `账号 ID：${result.item.id}` : "账号 ID：未返回",
+        result.item?.accountName ? `账号名称：${result.item.accountName}` : "账号名称：未返回",
+      ],
+      data: result,
+      links: [{ label: "打开品牌增长工作台", url: "/brand-growth" }],
+      resultStatus: "COMPLETED",
+      resourceKind: "wechat_collection",
+    });
+  }
+
+  async fetchWechatBrandArticles(
+    headers: HeadersMap,
+    options?: {
+      ghUsername?: string;
+      offset?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.collection.wechatMpCollection", "edit", auth);
+
+    const ghUsername = this.normalizeSafeInstruction(options?.ghUsername, "公众号 gh_username");
+    if (!ghUsername) {
+      throw new BadRequestException("请提供 ghUsername");
+    }
+    const offset = this.normalizeSafeInstruction(options?.offset, "公众号文章翻页游标") || undefined;
+    const result = await this.collectorsService.fetchWechatMpArticles(brandId, ghUsername, offset);
+
+    return this.buildSummaryResponse({
+      title: "公众号历史文章已抓取",
+      summary: `已为公众号 ${ghUsername} 抓取 ${result.count} 篇历史文章${result.isEnd ? "，当前已到末页。" : "，还可继续翻页抓取。"}。`,
+      highlights: [
+        `gh_username：${ghUsername}`,
+        `本次抓取：${result.count}`,
+        result.nextOffset ? `下一页游标：${result.nextOffset}` : "下一页游标：无",
+        `是否到末页：${result.isEnd ? "是" : "否"}`,
+      ],
+      data: result,
+      links: [{ label: "打开品牌增长工作台", url: "/brand-growth" }],
+      resultStatus: "COMPLETED",
+      resourceKind: "wechat_collection",
+      nextActions: result.isEnd
+        ? [{ label: "打开品牌增长工作台", action: "open_page", target: "/brand-growth" }]
+        : [{ label: "继续抓取下一页", action: "check_status", target: result.nextOffset || "" }],
     });
   }
 
@@ -11534,6 +11629,15 @@ export class OpenClawService {
       case "get_wechat_collection_workspace":
         return this.getWechatCollectionWorkspace(headers, {
           limit: typeof toolArgs.limit === "number" ? toolArgs.limit : undefined,
+        });
+      case "sync_wechat_brand_accounts":
+        return this.syncWechatBrandAccounts(headers, {
+          ghUsername: typeof toolArgs.ghUsername === "string" ? toolArgs.ghUsername : undefined,
+        });
+      case "fetch_wechat_brand_articles":
+        return this.fetchWechatBrandArticles(headers, {
+          ghUsername: typeof toolArgs.ghUsername === "string" ? toolArgs.ghUsername : undefined,
+          offset: typeof toolArgs.offset === "string" ? toolArgs.offset : undefined,
         });
       case "sync_wechat_benchmark_articles":
         return this.syncWechatBenchmarkArticles(headers, {
