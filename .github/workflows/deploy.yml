@@ -307,6 +307,29 @@ jobs:
                 echo "release directory: $RELEASE_DIR"
               }
 
+              hydrate_release_env_files() {
+                local env_file
+                for env_file in \
+                  "$DEPLOY_PATH/.env" \
+                  "$DEPLOY_PATH/.env.local" \
+                  "$DEPLOY_PATH/.env.production" \
+                  "$DEPLOY_PATH/.env.production.local" \
+                  "$DEPLOY_PATH/apps/web/.env" \
+                  "$DEPLOY_PATH/apps/web/.env.local" \
+                  "$DEPLOY_PATH/apps/web/.env.production" \
+                  "$DEPLOY_PATH/apps/web/.env.production.local" \
+                  "$DEPLOY_PATH/apps/server/.env" \
+                  "$DEPLOY_PATH/apps/server/.env.local" \
+                  "$DEPLOY_PATH/apps/server/.env.production" \
+                  "$DEPLOY_PATH/apps/server/.env.production.local"
+                do
+                  if [ -f "$env_file" ]; then
+                    mkdir -p "$RELEASE_DIR/$(dirname "${env_file#$DEPLOY_PATH/}")"
+                    cp "$env_file" "$RELEASE_DIR/${env_file#$DEPLOY_PATH/}"
+                  fi
+                done
+              }
+
               sync_prepared_release_into_deploy_path() {
                 rsync -a --delete \
                   --exclude '.git' \
@@ -340,6 +363,7 @@ jobs:
               fi
 
               prepare_release_worktree
+              run_checked "hydrate release env files" hydrate_release_env_files
 
               cd "$RELEASE_DIR"
               run_checked "git rev-parse HEAD" git rev-parse HEAD
