@@ -497,6 +497,9 @@ description: AI 全域智能体网站能力总入口 Skill。先识别用户要�
 - \`get_website_function_detail\`
 - \`route_website_function_by_intent\`
 - \`get_website_function_execution_plan\`
+- \`get_design_workspace_options\`
+- \`get_recent_design_works\`
+- \`create_design_work\`
 - \`get_unified_material_library_items\`
 - \`get_douyin_material_library_items\`
 - \`get_wechat_collection_workspace\`
@@ -620,7 +623,24 @@ description: AI 全域智能体网站能力总入口 Skill。先识别用户要�
 - 不要手动修改模板里的 \`fieldData\`；尤其不要保留或手填 \`example.png\` 这类占位值，保持 \`get_app_detail\` 返回模板原样即可
 - 禁止直接猜测 RunningHub 的 \`nodeId\`，也不要在 \`nodeInfoList\` 为空时直接调用 \`generate\`
 
-### 10. OpenClaw 专区
+### 10. 设计工作台
+
+- 当用户提到海报、封面、KV、轮播图、信息长图、落地页视觉稿、HTML 原型、Deck、故事板或“做一版设计”时，优先使用：
+  - \`get_design_workspace_options\`
+  - \`get_recent_design_works\`
+  - \`create_design_work\`
+- 在真正创建设计任务前，优先先调用 \`get_design_workspace_options\`：
+  - 读取可用模块、设计类型、产品、营销日历和模型选项
+  - 如果用户明确要求指定生图模型，必须从 \`moduleOptions.image.models\` 里读取对应 \`selectionKey\`
+  - 再把这个 \`selectionKey\` 原样传入 \`create_design_work.modelSelection\`
+- 当用户要用火山方舟的 \`doubao-seedream-5-0-pro-260628\` 做图时：
+  - 先在 \`moduleOptions.image.models\` 中找到对应的火山方舟模型项
+  - 使用返回的 \`selectionKey\`，不要手写或猜测 providerId
+- 如果用户给了参考图：
+  - 已有公网或站内图片地址时，优先传 \`referenceImageUrl\`
+  - 如果图片就在当前会话里，也可以直接传 \`referenceImage.fileName / contentType / dataBase64\`
+
+### 11. OpenClaw 专区
 
 - 当用户提到 OpenClaw 专区、每日计划、每日复盘、安装页、品牌运营助手 Skill 时，优先使用：
   - \`get_openclaw_daily_plans\`
@@ -711,6 +731,8 @@ description: AI 全域智能体网站能力总入口 Skill。先识别用户要�
 建议先用下面这些话做安装验收：
 - 帮我看一下个人中心总览
 - 帮我提取当前品牌档案摘要，并更新一个产品资料
+- 先帮我看设计工作台有哪些模型选项，再用火山方舟 \`doubao-seedream-5-0-pro-260628\` 做一张品牌海报
+- 帮我在设计工作台做一版社媒轮播图，如果有参考图就一起带上
 - 帮我看品牌资料库里抖音和小红书搜集数据板块
 - 帮我创建一条公众号工作流，并直接生成正文和 HTML
 - 帮我把一篇已经定稿的公众号文章直接写入工作流，再继续生成配图和 HTML

@@ -1522,7 +1522,7 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
   },
   {
     name: "get_design_workspace_options",
-    description: "查看设计工作台可用模块、设计类型、产品、营销日历和模型选项。",
+    description: "查看设计工作台可用模块、设计类型、产品、营销日历和模型选项，并读取可直接传给 create_design_work.modelSelection 的 selectionKey。",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
   },
   {
@@ -1538,7 +1538,7 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
   },
   {
     name: "create_design_work",
-    description: "在网站设计工作台中直接创建一个设计任务。支持纯文字需求，也支持补充参考图 URL 或参考图上传对象。",
+    description: "在网站设计工作台中直接创建一个设计任务。支持纯文字需求，也支持补充参考图 URL 或参考图上传对象；如需指定生图模型，应先调用 get_design_workspace_options，再把返回的 selectionKey 传入 modelSelection。",
     inputSchema: {
       type: "object",
       properties: {
@@ -1560,7 +1560,7 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
           required: ["dataBase64"],
           additionalProperties: false,
         },
-        modelSelection: { type: "string" },
+        modelSelection: { type: "string", description: "可选：使用 get_design_workspace_options 返回的模型 selectionKey，例如 providerId::modelName。" },
         spec: { type: "string" },
         additionalInstruction: { type: "string" },
       },
@@ -5507,11 +5507,12 @@ export class OpenClawService {
     const workspace = await this.worksService.getDesignWorkspaceOptions(brandId);
     return this.buildSummaryResponse({
       title: "设计工作台可用选项",
-      summary: `当前品牌支持 ${Object.keys(workspace.moduleOptions).length} 个设计模块，可直接在对话里确认模块、设计类型、产品和营销日历后发起任务。`,
+      summary: `当前品牌支持 ${Object.keys(workspace.moduleOptions).length} 个设计模块，可直接在对话里确认模块、设计类型、产品、营销日历和模型 selectionKey 后发起任务。`,
       highlights: [
         `营销日历选项：${workspace.calendarOptions.length}`,
         `产品选项：${workspace.productOptions.length}`,
         `推荐模块：${Object.entries(workspace.moduleOptions).map(([key, value]) => `${key}(${value.types.length})`).join("、")}`,
+        `图片模型支持从 moduleOptions.image.models 里读取 selectionKey，并可直接传给 create_design_work.modelSelection`,
       ],
       data: {
         brandId: workspace.brandId,

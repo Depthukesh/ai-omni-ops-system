@@ -150,6 +150,18 @@ OpenClaw 调用任何工具时，服务端都必须基于绑定关系解析：
     - `set_article` 未显式传 `inputType` 时，服务端会按正文内容自动识别 `plain-text / markdown / html`
     - `set_html` 代表外部已给出完整 HTML 草稿
     - `generate_html` 代表系统基于正文 canonical、图片资产和风格规则重新渲染，并产出可直接发布到公众号正文的 HTML 片段
+- 设计工作台：
+  - `get_design_workspace_options`
+  - `get_recent_design_works`
+  - `create_design_work`
+  - 当前已支持：
+    - 查询设计工作台可用模块、设计类型、产品、营销日历和模型选项
+    - 直接创建 image / html / deck / video 设计任务
+    - 通过 `referenceImageUrl` 或 `referenceImage` 传入参考图
+    - 通过 `modelSelection` 指定具体生图模型
+  - 当前语义约束：
+    - `modelSelection` 不应手写或猜测，应先从 `get_design_workspace_options` 返回的 `moduleOptions.<module>.models[].selectionKey` 中读取
+    - OpenClaw 如需调用火山方舟 `doubao-seedream-5-0-pro-260628` 生图，也应使用上述返回的 `selectionKey`
 - 抖音视频生产：
   - `manage_douyin_video_production`
   - 当前已支持：

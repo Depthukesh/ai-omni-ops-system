@@ -78,6 +78,18 @@ type VolcengineArkEmbeddingSeedInput = {
   supportsSparseEmbedding?: boolean;
 };
 
+type VolcengineArkImageSeedInput = {
+  id: string;
+  name: string;
+  tutorialUrl: string;
+  modelId: string;
+  displayOrder: number;
+  remark: string;
+  supportsTextToImage: boolean;
+  supportsReferenceImages: boolean;
+  requiresReferenceImages?: boolean;
+};
+
 type ApizTaskImageSeedInput = {
   id: string;
   name: string;
@@ -231,6 +243,38 @@ function createVolcengineArkEmbeddingSeed(input: VolcengineArkEmbeddingSeedInput
       supportsSparseEmbedding: input.supportsSparseEmbedding === true,
       dimensions: input.dimensions || [256, 512, 1024],
       sourceFolder: "火山方舟 Doubao 多模态向量化",
+    },
+    remark: input.remark,
+  });
+}
+
+function createVolcengineArkImageSeed(input: VolcengineArkImageSeedInput) {
+  return createSeed({
+    id: input.id,
+    name: input.name,
+    providerType: "DOUBAO",
+    status: "ACTIVE",
+    baseUrl: "https://ark.cn-beijing.volces.com/api/v3",
+    tutorialUrl: input.tutorialUrl,
+    modelWhitelist: [input.modelId],
+    apiKey: "",
+    defaultModel: input.modelId,
+    organization: "",
+    project: "",
+    timeoutMs: 300000,
+    streamEnabled: false,
+    customHeaders: {},
+    extraParams: {
+      runtimeKey: "image-generation",
+      runtimeTags: ["image-generation", "works-runtime"],
+      baseUrls: ["https://ark.cn-beijing.volces.com/api/v3"],
+      completionPath: "/images/generations",
+      requestMode: "images-generations",
+      supportsTextToImage: input.supportsTextToImage,
+      supportsReferenceImages: input.supportsReferenceImages,
+      requiresReferenceImages: input.requiresReferenceImages === true,
+      displayOrder: input.displayOrder,
+      sourceFolder: "火山方舟 Seedream 图像生成",
     },
     remark: input.remark,
   });
@@ -501,6 +545,19 @@ const VOLCENGINE_ARK_EMBEDDING_PROVIDER_SEEDS: ApiProviderSeedRecord[] = [
     supportsImage: true,
     supportsVideo: true,
     supportsSparseEmbedding: true,
+  }),
+];
+
+const VOLCENGINE_ARK_IMAGE_PROVIDER_SEEDS: ApiProviderSeedRecord[] = [
+  createVolcengineArkImageSeed({
+    id: "provider_runtime_image_volcengine_seedream_50_pro_260628",
+    name: "火山方舟 · Doubao Seedream 5.0 Pro 260628",
+    tutorialUrl: "https://www.volcengine.com/docs/82379/1541523?lang=zh",
+    modelId: "doubao-seedream-5-0-pro-260628",
+    displayOrder: 80,
+    remark: "火山方舟 Seedream 5.0 Pro 图像生成接口，支持文生图与参考图生成；平台 Key 由品牌 Owner 在个人中心第三方接口配置维护。",
+    supportsTextToImage: true,
+    supportsReferenceImages: true,
   }),
 ];
 
@@ -954,6 +1011,7 @@ export const SYSTEM_API_PROVIDER_SEEDS: ApiProviderSeedRecord[] = [
       "doubao-seed-2-0-pro-260215",
       "doubao-seed-2-0-mini-260215",
       "doubao-seed-2-1-pro-260628",
+      "doubao-seedream-5-0-pro-260628",
     ],
     apiKey: "ark-5042c849-c599-40e3-9074-b4c5b3c143af-35e56",
     defaultModel: "doubao-seed-2-0-pro-260215",
@@ -1089,6 +1147,7 @@ export const SYSTEM_API_PROVIDER_SEEDS: ApiProviderSeedRecord[] = [
     },
     remark: "Right Codes 平台支持文生图与图生图；运行时会使用 `/v1/images/generations`，并继续遵守品牌 Owner 私钥隔离规则。",
   }),
+  ...VOLCENGINE_ARK_IMAGE_PROVIDER_SEEDS,
   ...APIZ_IMAGE_PROVIDER_SEEDS,
   ...AGNES_IMAGE_PROVIDER_SEEDS,
   ...VOLCENGINE_ARK_VIDEO_PROVIDER_SEEDS,

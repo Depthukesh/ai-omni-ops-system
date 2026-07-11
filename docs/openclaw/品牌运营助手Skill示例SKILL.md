@@ -79,6 +79,7 @@
 - 生成半年营销规划
 - 做一版小红书原创图文
 - 生成公众号文章
+- 做一版品牌海报、社媒轮播图或其他设计稿
 - 新建知识库
 - 上传知识资料
 - 同步品牌资料库中的小红书采集数据
@@ -290,6 +291,18 @@
 ### 生成公众号文章
 
 - 优先使用：`create_wechat_article`
+
+### 做一版品牌海报、轮播图或其他设计稿
+
+- 先使用：`get_design_workspace_options`
+- 再使用：`create_design_work`
+- 查看最近结果时，使用：`get_recent_design_works`
+- 如果用户明确指定生图模型，必须先从 `get_design_workspace_options` 返回的 `moduleOptions.image.models` 中读取对应 `selectionKey`
+- 再把该 `selectionKey` 原样传给 `create_design_work.modelSelection`
+- 如果用户要用火山方舟 `doubao-seedream-5-0-pro-260628`，不要手写 providerId，直接使用模型列表里返回的 `selectionKey`
+- 如果用户提供了参考图：
+  - 图片已有 URL 时优先传 `referenceImageUrl`
+  - 图片在当前会话里时可直接传 `referenceImage.fileName / contentType / dataBase64`
 
 ### 处理公众号工作流
 
