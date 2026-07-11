@@ -218,9 +218,25 @@ jobs:
             }
 
             ensure_ffmpeg
+            ensure_rsync() {
+              if command -v rsync >/dev/null 2>&1; then
+                echo "detected system rsync: $(command -v rsync)"
+                rsync --version | head -n 1 || true
+                return 0
+              fi
+              log_step "install system rsync"
+              export DEBIAN_FRONTEND=noninteractive
+              apt-get update
+              apt-get install -y rsync
+              rsync --version | head -n 1
+            }
+
+            ensure_rsync
 
             runuser -u "$APP_RUNTIME_USER" -- env DEPLOY_PATH="$DEPLOY_PATH" TIKHUB_API_KEY="$TIKHUB_API_KEY" PRISMA_ENGINES_MIRROR="${PRISMA_ENGINES_MIRROR:-}" HTTPS_PROXY="${HTTPS_PROXY:-}" HTTP_PROXY="${HTTP_PROXY:-}" NO_PROXY="${NO_PROXY:-}" bash <<'RUNUSER_SCRIPT'
               set -Eeuo pipefail
+              RELEASE_ROOT="$HOME/.deploy-releases"
+              RELEASE_DIR=""
 
               log_step() {
                 printf '\n[%s] %s\n' "$(date -Iseconds)" "$1"
@@ -232,14 +248,26 @@ jobs:
                 "$@"
               }
 
-              prepare_web_build_dir() {
-                rm -rf apps/web/.next
-                mkdir -p apps/web/.next
+              cleanup_release_dir() {
+                if [ -z "$RELEASE_DIR" ] || [ ! -d "$RELEASE_DIR" ]; then
+                  return 0
+                fi
+                git -C "$DEPLOY_PATH" worktree remove --force "$RELEASE_DIR" >/dev/null 2>&1 || rm -rf "$RELEASE_DIR"
               }
 
-              suspend_web_process() {
+              trap cleanup_release_dir EXIT
+
+              prepare_web_build_dir() {
+                local target_root="${1:-$PWD}"
+                rm -rf "$target_root/apps/web/.next"
+                mkdir -p "$target_root/apps/web/.next"
+              }
+
+              suspend_runtime_processes() {
                 pm2 stop ai-omni-web || true
                 pm2 delete ai-omni-web || true
+                pm2 stop ai-omni-server || true
+                pm2 delete ai-omni-server || true
               }
 
               backup_and_clean_worktree() {
@@ -269,6 +297,26 @@ jobs:
                 run_checked "git clean -fd" git clean -fd
               }
 
+              prepare_release_worktree() {
+                local target_ref target_sha
+                target_ref="origin/main"
+                target_sha="$(git rev-parse --short "$target_ref")"
+                mkdir -p "$RELEASE_ROOT"
+                RELEASE_DIR="$RELEASE_ROOT/$(date +%Y%m%d-%H%M%S)-$target_sha"
+                run_checked "prepare detached release worktree" git worktree add --force --detach "$RELEASE_DIR" "$target_ref"
+                echo "release directory: $RELEASE_DIR"
+              }
+
+              sync_prepared_release_into_deploy_path() {
+                rsync -a --delete \
+                  --exclude '.git' \
+                  --exclude '.env' \
+                  --exclude '.env.*' \
+                  --exclude '.deploy-worktree-backups' \
+                  --exclude '.deploy-releases' \
+                  "$RELEASE_DIR"/ "$DEPLOY_PATH"/
+              }
+
               cd "$DEPLOY_PATH"
               log_step "工作区信息"
               pwd
@@ -291,6 +339,20 @@ jobs:
                 fi
               fi
 
+              prepare_release_worktree
+
+              cd "$RELEASE_DIR"
+              run_checked "git rev-parse HEAD" git rev-parse HEAD
+              run_checked "npm ci" env PRISMA_SKIP_POSTINSTALL_GENERATE=1 PRISMA_ENGINES_MIRROR="${PRISMA_ENGINES_MIRROR:-}" HTTPS_PROXY="${HTTPS_PROXY:-}" HTTP_PROXY="${HTTP_PROXY:-}" NO_PROXY="${NO_PROXY:-}" npm ci --foreground-scripts --loglevel=notice
+              run_checked "npm run prisma:generate" env PRISMA_ENGINES_MIRROR="${PRISMA_ENGINES_MIRROR:-}" HTTPS_PROXY="${HTTPS_PROXY:-}" HTTP_PROXY="${HTTP_PROXY:-}" NO_PROXY="${NO_PROXY:-}" npm run prisma:generate
+              run_checked "npm run prisma:db:push" npm run prisma:db:push
+              run_checked "npm run prisma:seed:registration-invite-codes" npm run prisma:seed:registration-invite-codes
+
+              run_checked "npm run build:server" npm run build:server
+              run_checked "prepare web build directory" prepare_web_build_dir "$RELEASE_DIR"
+              run_checked "npm run build:web" npm run build:web
+
+              cd "$DEPLOY_PATH"
               run_checked "git reset --hard origin/main" git reset --hard origin/main
               run_checked "git rev-parse HEAD" git rev-parse HEAD
 
@@ -301,39 +363,32 @@ jobs:
                 exit 1
               fi
 
-              run_checked "npm ci" env PRISMA_SKIP_POSTINSTALL_GENERATE=1 PRISMA_ENGINES_MIRROR="${PRISMA_ENGINES_MIRROR:-}" HTTPS_PROXY="${HTTPS_PROXY:-}" HTTP_PROXY="${HTTP_PROXY:-}" NO_PROXY="${NO_PROXY:-}" npm ci --foreground-scripts --loglevel=notice
-              run_checked "npm run prisma:generate" env PRISMA_ENGINES_MIRROR="${PRISMA_ENGINES_MIRROR:-}" HTTPS_PROXY="${HTTPS_PROXY:-}" HTTP_PROXY="${HTTP_PROXY:-}" NO_PROXY="${NO_PROXY:-}" npm run prisma:generate
-              run_checked "npm run prisma:db:push" npm run prisma:db:push
-              run_checked "npm run prisma:seed:registration-invite-codes" npm run prisma:seed:registration-invite-codes
-
-              run_checked "npm run build:server" npm run build:server
-              run_checked "prepare web build directory" prepare_web_build_dir
-              run_checked "npm run build:web" npm run build:web
-              run_checked "stop stale pm2 web process" suspend_web_process
+              run_checked "stop pm2 runtime processes for cutover" suspend_runtime_processes
+              run_checked "sync prepared release into deploy path" sync_prepared_release_into_deploy_path
           RUNUSER_SCRIPT
 
-            clear_port_3001_conflicts() {
+            clear_port_conflicts() {
+              local port="$1"
               local listeners attempt pids
-              listeners="$(ss -lntp | grep -E '127\.0\.0\.1:3001|0\.0\.0\.0:3001|:::3001' || true)"
+              listeners="$(ss -lntp | grep -E "127\\.0\\.0\\.1:${port}|0\\.0\\.0\\.0:${port}|:::${port}" || true)"
               if [ -z "$listeners" ]; then
-                echo "3001 端口当前空闲，无需清理。"
+                echo "port ${port} is currently free."
                 return 0
               fi
 
-              echo "检测到 3001 端口已有监听，准备释放："
+              echo "found active listeners on port ${port}, preparing cleanup:"
               printf '%s\n' "$listeners"
 
               pids="$(printf '%s\n' "$listeners" | grep -o 'pid=[0-9]\+' | cut -d= -f2 | sort -u | tr '\n' ' ')"
               if [ -n "$pids" ]; then
-                # root 精确回收仍占着 3001 的历史 next-server 进程
                 kill -9 $pids || true
               fi
 
               attempt=1
-              while ss -lnt | grep -qE '127\.0\.0\.1:3001|0\.0\.0\.0:3001|:::3001'; do
+              while ss -lnt | grep -qE "127\\.0\\.0\\.1:${port}|0\\.0\\.0\\.0:${port}|:::${port}"; do
                 if [ "$attempt" -gt 15 ]; then
-                  echo "部署终止：3001 端口在清理后仍被占用。"
-                  ss -lntp | grep -E '127\.0\.0\.1:3001|0\.0\.0\.0:3001|:::3001' || true
+                  echo "Deploy aborted: port ${port} is still occupied after cleanup."
+                  ss -lntp | grep -E "127\\.0\\.0\\.1:${port}|0\\.0\\.0\\.0:${port}|:::${port}" || true
                   return 1
                 fi
                 sleep 1
@@ -341,7 +396,8 @@ jobs:
               done
             }
 
-            run_checked "clear stale web listener on 3001" clear_port_3001_conflicts
+            run_checked "clear stale web listener on 3001" clear_port_conflicts 3001
+            run_checked "clear stale server listener on 3011" clear_port_conflicts 3011
 
             runuser -u "$APP_RUNTIME_USER" -- env DEPLOY_PATH="$DEPLOY_PATH" TIKHUB_API_KEY="$TIKHUB_API_KEY" bash <<'PM2_SCRIPT'
               set -Eeuo pipefail
