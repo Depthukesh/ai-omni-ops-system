@@ -110,6 +110,19 @@
 
 这轮的目标不是一次性做到极限瘦身，而是先把最重、最确定、最不影响线上稳定性的那一块前端运行时依赖从根目录发布包里拿掉。
 
+## 2026-07-15 standalone 回归修正
+
+第二轮瘦身上线后，部署日志暴露出一个实际问题：
+
+1. `tar --exclude="node_modules/next"` 这类写法会模糊匹配到 `apps/web/.next/standalone/node_modules/next`
+2. 导致 standalone 自带的前端运行时依赖被错误排除
+3. 线上 PM2 启动 `apps/web/.next/standalone/apps/web/server.js` 时出现 `Error: Cannot find module 'next'`
+
+因此又做了一次收口：
+
+1. 所有发布包排除规则改成以 `./` 开头，只作用于仓库根目录目标
+2. 保留 standalone 内嵌 `node_modules`，避免再误伤前端运行时
+
 ## 验证建议
 
 部署完成后重点看：
