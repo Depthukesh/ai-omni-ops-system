@@ -379,15 +379,7 @@ jobs:
               chown -R "$APP_RUNTIME_USER:$APP_RUNTIME_USER" "$release_dir"
             }
 
-            RELEASE_DIR="$(prepare_release_dir)"
-            log_step "prepare detached release directory"
-            echo "release directory: $RELEASE_DIR"
-
-            run_checked "extract runner release archive" runuser -u "$APP_RUNTIME_USER" -- tar -xzf "$RELEASE_ARCHIVE_PATH" -C "$RELEASE_DIR"
-            run_checked "hydrate release env files" hydrate_release_env_files "$RELEASE_DIR"
-            rm -f "$RELEASE_ARCHIVE_PATH"
-
-            runuser -u "$APP_RUNTIME_USER" -- env DEPLOY_PATH="$DEPLOY_PATH" RELEASE_DIR="$RELEASE_DIR" TIKHUB_API_KEY="$TIKHUB_API_KEY" bash <<'RUNUSER_SCRIPT'
+            runuser_release_main() {
               set -Eeuo pipefail
 
               log_step() {
@@ -439,14 +431,6 @@ jobs:
                 run_checked "purge runtime artifacts" purge_runtime_artifacts
               }
 
-              verify_pm2_runtime_secret() {
-                if [ -z "${TIKHUB_API_KEY:-}" ]; then
-                  echo "跳过 pm2 TIKHUB_API_KEY 校验：GitHub Secret 未配置。"
-                  return 0
-                fi
-                node -e 'const { execSync } = require("node:child_process"); const apps = JSON.parse(execSync("pm2 jlist", { encoding: "utf8" })); const server = apps.find((item) => item.name === "ai-omni-server"); if (!server) { console.error("部署终止：pm2 中未找到 ai-omni-server 进程。"); process.exit(1); } const token = server.pm2_env?.TIKHUB_API_KEY; console.log("pm2 ai-omni-server TIKHUB_API_KEY: " + (token ? "present" : "missing")); if (!token) { process.exit(1); }'
-              }
-
               sync_prepared_release_into_deploy_path() {
                 rsync -a --delete \
                   --exclude '.git' \
@@ -496,7 +480,35 @@ jobs:
               run_checked "stop pm2 runtime processes for cutover" suspend_runtime_processes
               run_checked "sync prepared release into deploy path" sync_prepared_release_into_deploy_path
               run_checked "purge runtime artifacts" purge_runtime_artifacts
-            RUNUSER_SCRIPT
+            }
+
+            runuser_pm2_main() {
+              set -Eeuo pipefail
+
+              verify_pm2_runtime_secret() {
+                if [ -z "${TIKHUB_API_KEY:-}" ]; then
+                  echo "跳过 pm2 TIKHUB_API_KEY 校验：GitHub Secret 未配置。"
+                  return 0
+                fi
+                node -e 'const { execSync } = require("node:child_process"); const apps = JSON.parse(execSync("pm2 jlist", { encoding: "utf8" })); const server = apps.find((item) => item.name === "ai-omni-server"); if (!server) { console.error("部署终止：pm2 中未找到 ai-omni-server 进程。"); process.exit(1); } const token = server.pm2_env?.TIKHUB_API_KEY; console.log("pm2 ai-omni-server TIKHUB_API_KEY: " + (token ? "present" : "missing")); if (!token) { process.exit(1); }'
+              }
+
+              cd "$DEPLOY_PATH"
+              pm2 startOrReload ecosystem.config.cjs --update-env
+              verify_pm2_runtime_secret
+              pm2 save
+              pm2 status
+            }
+
+            RELEASE_DIR="$(prepare_release_dir)"
+            log_step "prepare detached release directory"
+            echo "release directory: $RELEASE_DIR"
+
+            run_checked "extract runner release archive" runuser -u "$APP_RUNTIME_USER" -- tar -xzf "$RELEASE_ARCHIVE_PATH" -C "$RELEASE_DIR"
+            run_checked "hydrate release env files" hydrate_release_env_files "$RELEASE_DIR"
+            rm -f "$RELEASE_ARCHIVE_PATH"
+
+            runuser -u "$APP_RUNTIME_USER" -- env DEPLOY_PATH="$DEPLOY_PATH" RELEASE_DIR="$RELEASE_DIR" TIKHUB_API_KEY="$TIKHUB_API_KEY" bash -lc "$(declare -f runuser_release_main); runuser_release_main"
 
             clear_port_conflicts() {
               local port="$1"
@@ -530,23 +542,7 @@ jobs:
             run_checked "clear stale web listener on 3001" clear_port_conflicts 3001
             run_checked "clear stale server listener on 3011" clear_port_conflicts 3011
 
-            runuser -u "$APP_RUNTIME_USER" -- env DEPLOY_PATH="$DEPLOY_PATH" TIKHUB_API_KEY="$TIKHUB_API_KEY" bash <<'PM2_SCRIPT'
-              set -Eeuo pipefail
-
-              verify_pm2_runtime_secret() {
-                if [ -z "${TIKHUB_API_KEY:-}" ]; then
-                  echo "跳过 pm2 TIKHUB_API_KEY 校验：GitHub Secret 未配置。"
-                  return 0
-                fi
-                node -e 'const { execSync } = require("node:child_process"); const apps = JSON.parse(execSync("pm2 jlist", { encoding: "utf8" })); const server = apps.find((item) => item.name === "ai-omni-server"); if (!server) { console.error("部署终止：pm2 中未找到 ai-omni-server 进程。"); process.exit(1); } const token = server.pm2_env?.TIKHUB_API_KEY; console.log("pm2 ai-omni-server TIKHUB_API_KEY: " + (token ? "present" : "missing")); if (!token) { process.exit(1); }'
-              }
-
-              cd "$DEPLOY_PATH"
-              pm2 startOrReload ecosystem.config.cjs --update-env
-              verify_pm2_runtime_secret
-              pm2 save
-              pm2 status
-          PM2_SCRIPT
+            runuser -u "$APP_RUNTIME_USER" -- env DEPLOY_PATH="$DEPLOY_PATH" TIKHUB_API_KEY="$TIKHUB_API_KEY" bash -lc "$(declare -f runuser_pm2_main); runuser_pm2_main"
 
             wait_for_http() {
               local url="$1"

@@ -60,6 +60,7 @@
    - Web standalone 化
    - Server 运行依赖进一步裁剪
    - release archive 体积控制
+4. 远端 SSH 脚本避免继续使用易受缩进影响的嵌套 here-doc，改为 `declare -f + runuser bash -lc` 方式执行，减少 YAML 内嵌 bash 的解析风险
 
 ## 验证建议
 
