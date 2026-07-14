@@ -469,6 +469,8 @@ jobs:
                   --exclude '.git' \
                   --exclude '.env' \
                   --exclude '.env.*' \
+                  --exclude '.dbg' \
+                  --exclude '.trae' \
                   --exclude '.deploy-worktree-backups' \
                   --exclude '.deploy-releases' \
                   "$RELEASE_DIR"/ "$DEPLOY_PATH"/

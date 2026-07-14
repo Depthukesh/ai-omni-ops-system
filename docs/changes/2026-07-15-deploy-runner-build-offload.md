@@ -136,6 +136,21 @@
 1. `ecosystem.config.cjs` 为 `ai-omni-web` 显式注入 `PORT=3001` 与 `HOSTNAME=127.0.0.1`
 2. `scripts/run-web-standalone.cjs` 再做一层兜底，确保 standalone 与 fallback 模式都固定监听 `127.0.0.1:3001`
 
+## 2026-07-15 服务器工作区反复变脏修正
+
+部署链跑通后，又确认了一个残留问题：
+
+1. `.dbg` 与 `.trae/documents` 虽然不该进入 release archive，但它们仍然是 Git 已跟踪文件
+2. 发布同步阶段使用 `rsync --delete` 时，会把服务器工作区里的这些已跟踪文件删掉
+3. 于是下一次部署时，`git status` 总会看到一串 `D .dbg/...` 和 `D .trae/...`，被误判成“服务器工作区未收口”
+
+因此补了一次同步层修正：
+
+1. `sync_prepared_release_into_deploy_path` 增加 `--exclude '.dbg'`
+2. `sync_prepared_release_into_deploy_path` 增加 `--exclude '.trae'`
+
+这样服务器工作区中的这些 Git 跟踪文件会被保留下来，不再在下一轮部署里反复制造假脏状态。
+
 ## 验证建议
 
 部署完成后重点看：
