@@ -1,5 +1,14 @@
 # OpenClaw 第一阶段 MCP 工具清单
 
+> 状态说明：这份文档保留为“第一阶段设计稿 + 早期落地记录”。  
+> 当前正式交付与 Skill ZIP 请优先参考：
+>
+> - `docs/openclaw/skill-package/00-品牌运营助手Skill网站功能域地图.md`
+> - `docs/openclaw/skill-package/01-品牌运营助手Skill-MCP工具矩阵.md`
+> - `docs/openclaw/skill-package/02-品牌运营助手Skill高频任务路由手册.md`
+>
+> 如果三者口径冲突，以当前代码、安装中心导出的 Skill ZIP 和上述三份现行文档为准。
+
 ## 1. 文档定位
 
 这份文档只讨论我们系统侧第一阶段需要提供给 OpenClaw 的 `MCP` 工具，不讨论：

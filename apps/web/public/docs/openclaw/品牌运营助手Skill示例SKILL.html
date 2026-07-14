@@ -17,30 +17,41 @@
   <main>
     <h1>品牌运营助手 Skill 示例</h1>
     <div class="card">
-      <p>这个 Skill 的职责不是直接保存网站账号密码，而是把自然语言请求编排成 MCP 工具调用。</p>
+      <p>当前正式交付已经不是“只有一份短 SKILL 文档”，而是主 Skill 加外部手册一起组成的完整能力包。</p>
       <ul>
-        <li>优先读取当前品牌上下文</li>
-        <li>能少追问就少追问</li>
-        <li>默认围绕当前品牌工作区处理</li>
-        <li>结果先给摘要，再按需展开</li>
+        <li>主 Skill 负责总规则、路由、确认边界和输出方式</li>
+        <li>外部手册负责整站功能域地图、MCP 工具矩阵和高频任务路由</li>
+        <li>OpenClaw 调用时不应只记住几个示例任务，而要把整站功能一起考虑</li>
       </ul>
     </div>
 
-    <h2>推荐提问</h2>
+    <h2>当前正式结构</h2>
     <div class="card">
       <ul>
-        <li>帮我看当前品牌最近的增长报告重点</li>
-        <li>最近 30 天失败任务主要是什么问题</li>
-        <li>帮我创建一个知识库并上传这份资料</li>
-        <li>帮我生成一份半年营销规划</li>
+        <li><code>SKILL.md</code>：主 Skill</li>
+        <li><code>docs/00-网站功能域地图.md</code>：网站功能域地图</li>
+        <li><code>docs/01-MCP工具矩阵.md</code>：MCP 工具矩阵</li>
+        <li><code>docs/02-高频任务路由手册.md</code>：高频任务路由手册</li>
       </ul>
     </div>
 
     <h2>调用原则</h2>
-    <pre><code>1. 先取当前品牌上下文
-2. 能直接执行就直接执行
-3. 缺少关键信息时再补问
-4. 输出时优先给标题、摘要、重点、下一步建议</code></pre>
+    <pre><code>1. 先 route_website_function_by_intent
+2. 再 get_website_function_execution_plan
+3. 优先使用统一管理工具
+4. 缺少关键信息时只做 1 到 2 次业务化追问
+5. 需要回网页时明确告诉用户去哪个页面</code></pre>
+
+    <h2>推荐验收话术</h2>
+    <div class="card">
+      <ul>
+        <li>帮我看一下个人中心总览和当前要优先处理的事</li>
+        <li>帮我看品牌资料库里抖音、小红书和公众号采集板块</li>
+        <li>帮我创建一条公众号工作流，并直接生成正文、配图和 HTML</li>
+        <li>帮我生成一条抖音视频，或者直接给我数字人 / RunningHub / 广告预审入口</li>
+        <li>帮我看当前品牌机会洞察做到哪一步了，能继续就直接继续</li>
+      </ul>
+    </div>
   </main>
 </body>
 </html>

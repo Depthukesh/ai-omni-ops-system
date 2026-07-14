@@ -32,7 +32,7 @@ import { TasksService } from "../tasks/tasks.service";
 import { ThirdPartyPlatformsService } from "../third-party-platforms/third-party-platforms.service";
 import { VolcengineMusicService } from "../third-party-platforms/volcengine-music.service";
 import { UserSkillsService } from "../user-skills/user-skills.service";
-import { WorksService } from "../works/works.service";
+import { type GeneratedAssetUploadPayload, WorksService } from "../works/works.service";
 
 type HeadersMap = Record<string, string | string[] | undefined>;
 
@@ -124,8 +124,8 @@ const OPENCLAW_WEBSITE_FUNCTION_CATALOG: OpenClawWebsiteFunctionCatalogItem[] = 
     domainName: "品牌资产",
     name: "创建知识库并管理资料",
     summary: "适合通过对话创建品牌知识库、上传资料并查看最近知识文件。",
-    pageUrl: "/brand-growth/business-assets",
-    pageLabel: "打开知识库",
+    pageUrl: "/brand-growth",
+    pageLabel: "打开品牌增长工作台",
     riskLevel: "medium",
     intentKeywords: ["知识库", "资料", "文档", "文件", "资产", "上传"],
     requiredInputKeys: ["knowledgeBaseName", "assetDescription"],
@@ -139,8 +139,8 @@ const OPENCLAW_WEBSITE_FUNCTION_CATALOG: OpenClawWebsiteFunctionCatalogItem[] = 
     domainName: "技能中心",
     name: "查看并调整品牌技能配置",
     summary: "适合查看网站技能当前生效配置、调整品牌级覆盖或恢复平台基线。",
-    pageUrl: "/skills",
-    pageLabel: "打开技能中心",
+    pageUrl: "/personal-center/skills",
+    pageLabel: "打开个人中心技能中心",
     riskLevel: "high",
     intentKeywords: ["技能", "提示词", "prompt", "配置", "基线", "模型", "覆盖"],
     requiredInputKeys: ["skillIdentifier", "changeTarget"],
@@ -214,8 +214,8 @@ const OPENCLAW_WEBSITE_FUNCTION_CATALOG: OpenClawWebsiteFunctionCatalogItem[] = 
     domainName: "任务中心",
     name: "跟踪任务并提交结果反馈",
     summary: "适合查看任务详情、取消重试任务并记录结果反馈。",
-    pageUrl: "/brand-growth/tasks",
-    pageLabel: "打开任务中心",
+    pageUrl: "/personal-center/tasks",
+    pageLabel: "打开个人中心任务中心",
     riskLevel: "medium",
     intentKeywords: ["任务", "状态", "进度", "反馈", "重试", "取消", "结果"],
     requiredInputKeys: ["taskId", "feedbackOrReason"],
@@ -229,8 +229,8 @@ const OPENCLAW_WEBSITE_FUNCTION_CATALOG: OpenClawWebsiteFunctionCatalogItem[] = 
     domainName: "品牌档案",
     name: "提取品牌档案、竞品账号和行业资料",
     summary: "适合直接读取当前品牌的建档问卷、平台账号、竞品账号、行业资料和业务资产摘要。",
-    pageUrl: "/brand-growth/archive",
-    pageLabel: "打开品牌档案",
+    pageUrl: "/brand-growth",
+    pageLabel: "打开品牌增长工作台",
     riskLevel: "low",
     intentKeywords: ["品牌档案", "问卷", "品牌账号", "竞品", "行业资料", "行业报告", "业务资产"],
     requiredInputKeys: ["brandId"],
@@ -298,8 +298,8 @@ const OPENCLAW_WEBSITE_FUNCTION_CATALOG: OpenClawWebsiteFunctionCatalogItem[] = 
     domainName: "机会洞察",
     name: "查看并推进机会洞察步骤",
     summary: "适合读取机会洞察工作区状态，并在对话中直接推进 step1、step2、step3 的生成。",
-    pageUrl: "/brand-growth/reports?report=opportunity-insight",
-    pageLabel: "打开机会洞察",
+    pageUrl: "/brand-growth",
+    pageLabel: "打开品牌增长工作台",
     riskLevel: "medium",
     intentKeywords: ["机会洞察", "账号分析", "评论洞察", "step1", "step2", "step3", "总报告"],
     requiredInputKeys: ["brandId"],
@@ -445,7 +445,7 @@ const OPENCLAW_WEBSITE_FUNCTION_CATALOG: OpenClawWebsiteFunctionCatalogItem[] = 
     domainName: "OpenClaw 专区",
     name: "查看并管理创作素材",
     summary: "适合把 OpenClaw 通过站内第三方平台能力生成的文本、图片、视频、语音和 BGM 等素材落库到专区，并支持查看与删除。",
-    pageUrl: "/douyin",
+    pageUrl: "/brand-growth",
     pageLabel: "打开 OpenClaw 专区",
     riskLevel: "medium",
     intentKeywords: ["创作素材", "素材", "图片素材", "视频素材", "语音素材", "bgm", "openclaw专区"],
@@ -466,7 +466,7 @@ const OPENCLAW_WEBSITE_FUNCTION_CATALOG: OpenClawWebsiteFunctionCatalogItem[] = 
     domainName: "OpenClaw 专区",
     name: "查看并管理视频作品",
     summary: "适合把 OpenClaw 最终整合生成的视频作品落库到专区，并在工作台中查看、删除或发起抖音发布。",
-    pageUrl: "/douyin",
+    pageUrl: "/brand-growth",
     pageLabel: "打开 OpenClaw 专区",
     riskLevel: "medium",
     intentKeywords: ["视频作品", "成片", "最终视频", "脚本", "发布到抖音", "openclaw专区"],
@@ -563,6 +563,133 @@ const OPENCLAW_WEBSITE_FUNCTION_CATALOG: OpenClawWebsiteFunctionCatalogItem[] = 
     mcpTools: [
       "delete_xhs_collected_note",
       "delete_douyin_collected_work",
+    ],
+  },
+  {
+    key: "growth_reports_and_plans",
+    domainKey: "brand_growth",
+    domainName: "品牌增长",
+    name: "生成品牌增长报告、营销规划与统一素材库结果",
+    summary: "适合在对话中直接触发品牌增长报告、半年营销规划、营销策划，并读取营销日历、选题库和统一素材库结果。",
+    pageUrl: "/brand-growth",
+    pageLabel: "打开品牌增长工作台",
+    riskLevel: "medium",
+    intentKeywords: ["增长报告", "半年营销规划", "营销策划", "营销日历", "选题库", "统一素材库", "品牌增长报告"],
+    requiredInputKeys: ["brandId"],
+    requiredInputs: ["当前品牌"],
+    recommendedQuestions: ["帮我做一份品牌增长报告", "帮我生成半年营销规划并看看最近素材库有什么可复用内容"],
+    mcpTools: [
+      "manage_growth_reports",
+      "get_latest_brand_growth_report_summary",
+      "create_brand_growth_report",
+      "create_half_year_marketing_plan",
+      "get_unified_material_library_items",
+    ],
+  },
+  {
+    key: "xiaohongshu_video_workspace",
+    domainKey: "xiaohongshu",
+    domainName: "小红书",
+    name: "管理小红书视频笔记与草稿接力",
+    summary: "适合通过对话管理小红书视频笔记工作流，并在需要时继续创建手机或电脑端草稿接力会话。",
+    pageUrl: "/xiaohongshu",
+    pageLabel: "打开小红书工作区",
+    riskLevel: "medium",
+    intentKeywords: ["小红书视频", "视频笔记", "小红书草稿箱", "小红书草稿", "视频工作流"],
+    requiredInputKeys: ["topicOrProduct"],
+    requiredInputs: ["主题、产品或视频方向"],
+    recommendedQuestions: ["帮我做一条小红书视频笔记", "帮我把这条小红书作品送到草稿箱"],
+    mcpTools: [
+      "manage_xiaohongshu_video",
+      "create_xiaohongshu_mobile_draft_session",
+      "get_xiaohongshu_mobile_draft_session",
+      "create_xiaohongshu_desktop_draft_session",
+      "get_xiaohongshu_desktop_draft_session",
+    ],
+  },
+  {
+    key: "douyin_video_production_workspace",
+    domainKey: "douyin",
+    domainName: "抖音",
+    name: "生成抖音视频、直接视频与发布会话",
+    summary: "适合通过统一视频生产入口处理普通视频、直接生视频、混剪短视频，并在需要时继续创建抖音发布会话。",
+    pageUrl: "/douyin",
+    pageLabel: "打开抖音工作台",
+    riskLevel: "medium",
+    intentKeywords: ["抖音视频", "AI生视频", "直接视频", "混剪短视频", "抖音发布", "抖音作品"],
+    requiredInputKeys: ["topicOrProduct"],
+    requiredInputs: ["主题、产品或视频方向"],
+    recommendedQuestions: ["帮我做一条抖音视频", "帮我生成视频后继续发起抖音发布会话"],
+    mcpTools: [
+      "manage_douyin_video_production",
+      "create_douyin_mobile_publish_session",
+      "get_douyin_mobile_publish_session",
+      "create_douyin_desktop_publish_session",
+      "get_douyin_desktop_publish_session",
+    ],
+  },
+  {
+    key: "douyin_digital_human_workspace",
+    domainKey: "douyin",
+    domainName: "抖音",
+    name: "管理数字人、音色克隆与纯 TTS 试听",
+    summary: "适合通过抖音统一视频生产入口使用数字人模板、公共语音库、自定义音色、音色克隆和纯 TTS 试听。",
+    pageUrl: "/douyin",
+    pageLabel: "打开抖音工作台",
+    riskLevel: "medium",
+    intentKeywords: ["数字人", "音色克隆", "语音库", "TTS", "纯语音试听", "口播音色"],
+    requiredInputKeys: ["scriptOrText"],
+    requiredInputs: ["文案或语音内容"],
+    recommendedQuestions: ["帮我看数字人语音库并做一次纯 TTS 试听", "帮我创建一个自定义音色"],
+    mcpTools: ["manage_douyin_video_production"],
+  },
+  {
+    key: "douyin_runninghub_workspace",
+    domainKey: "douyin",
+    domainName: "抖音",
+    name: "调用 RunningHub 应用生成结果",
+    summary: "适合通过抖音统一视频生产入口读取 RunningHub 应用列表、节点模板并完成生成。",
+    pageUrl: "/douyin",
+    pageLabel: "打开抖音工作台",
+    riskLevel: "medium",
+    intentKeywords: ["runninghub", "应用工作流", "节点模板", "生成应用", "comfyui"],
+    requiredInputKeys: ["appKey"],
+    requiredInputs: ["RunningHub 应用 key"],
+    recommendedQuestions: ["帮我看 RunningHub 有哪些应用", "帮我按节点模板把这个 RunningHub 应用跑起来"],
+    mcpTools: ["manage_douyin_video_production"],
+  },
+  {
+    key: "douyin_ad_preaudit_workspace",
+    domainKey: "douyin",
+    domainName: "抖音",
+    name: "执行广告预审并查看回填结果",
+    summary: "适合通过抖音统一视频生产入口执行广告预审，并查看 Vid、FileId 与预审结果。",
+    pageUrl: "/douyin",
+    pageLabel: "打开抖音工作台",
+    riskLevel: "medium",
+    intentKeywords: ["广告预审", "预审", "vid", "fileid", "广告审核", "投流预审"],
+    requiredInputKeys: ["videoSource"],
+    requiredInputs: ["视频来源或视频地址"],
+    recommendedQuestions: ["帮我做一次广告预审", "帮我看这条视频的预审结果和回填信息"],
+    mcpTools: ["manage_douyin_video_production"],
+  },
+  {
+    key: "openclaw_installation_center",
+    domainKey: "personal_center",
+    domainName: "个人中心",
+    name: "查看 OpenClaw 安装中心与 Skill 交付说明",
+    summary: "适合识别 OpenClaw 安装中心、MCP 安装、Skill ZIP 下载和交付文档入口；当前安装复制动作仍以网站页面承接为主。",
+    pageUrl: "/personal-center/openclaw",
+    pageLabel: "打开 OpenClaw 安装中心",
+    riskLevel: "low",
+    intentKeywords: ["openclaw安装", "mcp安装", "skill安装", "安装中心", "安装令牌", "workbuddy", "cursor", "claude desktop"],
+    requiredInputKeys: [],
+    requiredInputs: [],
+    recommendedQuestions: ["帮我看看 OpenClaw 安装中心现在有什么可以交付的内容", "告诉我 OpenClaw 和 Skill 现在该怎么安装"],
+    mcpTools: [
+      "get_website_function_catalog",
+      "get_website_function_detail",
+      "get_website_function_execution_plan",
     ],
   },
 ];
@@ -2092,7 +2219,7 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
   },
   {
     name: "manage_wechat_workflow",
-    description: "统一管理公众号工作流，支持偏好、工作流创建、Step 2-4 直写与生成、发布确认、正式发布和删除；其中 set_article 未显式传 inputType 时会按正文内容自动识别 plain-text/markdown/html，set_html 代表外部已给出完整 HTML 草稿，generate_html 代表系统基于正文 canonical、图片资产与风格规则重新渲染，并产出可直接发布到公众号正文的 HTML 片段。",
+    description: "统一管理公众号工作流，支持偏好、工作流创建、Step 2-4 直写与生成、发布确认、正式发布和删除；其中 set_article 未显式传 inputType 时会按正文内容自动识别 plain-text/markdown/html，set_images 除了直接传图片 URL 外，也支持在 coverImage / bodyImages 里传 fileUrl、materialId，或通过 upload.fileName / contentType / dataBase64 直传图片文件，set_html 代表外部已给出完整 HTML 草稿，generate_html 代表系统基于正文 canonical、图片资产与风格规则重新渲染，并产出可直接发布到公众号正文的 HTML 片段。",
     inputSchema: {
       type: "object",
       properties: {
@@ -2103,7 +2230,7 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
         limit: { type: "integer", minimum: 1, maximum: 50 },
         payload: {
           type: "object",
-          description: "对应动作的请求体，结构与网站原始接口保持一致。",
+          description: "对应动作的请求体，结构与网站原始接口保持一致。set_images 除原有 coverImageUrl / bodyImageUrls 外，还支持 coverImage、bodyImages[]，每项可传 url / fileUrl / materialId，或 upload.fileName / upload.contentType / upload.dataBase64。",
           additionalProperties: true,
         },
       },
@@ -8002,6 +8129,125 @@ export class OpenClawService {
     return timestamp >= since.getTime();
   }
 
+  private normalizeWechatWorkflowImageUpload(input: unknown): GeneratedAssetUploadPayload | undefined {
+    if (!input || typeof input !== "object" || Array.isArray(input)) {
+      return undefined;
+    }
+    const source = (
+      input
+      && typeof (input as Record<string, unknown>).upload === "object"
+      && !Array.isArray((input as Record<string, unknown>).upload)
+    )
+      ? (input as { upload: Record<string, unknown> }).upload
+      : input as Record<string, unknown>;
+    const dataBase64 = typeof source.dataBase64 === "string" ? source.dataBase64.trim() : "";
+    const tempFilePath = typeof source.tempFilePath === "string" ? source.tempFilePath.trim() : "";
+    if (!dataBase64 && !tempFilePath) {
+      return undefined;
+    }
+    return {
+      fileName: typeof source.fileName === "string" ? source.fileName.trim() : undefined,
+      contentType: typeof source.contentType === "string" ? source.contentType.trim() : undefined,
+      dataBase64: dataBase64 || undefined,
+      tempFilePath: tempFilePath || undefined,
+    };
+  }
+
+  private buildWechatWorkflowInlineImageFileName(
+    workflowId: string,
+    role: "cover" | "body",
+    index: number,
+    upload?: GeneratedAssetUploadPayload,
+  ) {
+    const originalFileName = String(upload?.fileName || "").trim();
+    if (originalFileName) {
+      return originalFileName;
+    }
+    return `wechat-workflow-${workflowId}-${role}-${index + 1}.bin`;
+  }
+
+  private async getWechatWorkflowCreativeMaterialFileUrl(brandId: string, materialId: string) {
+    const scopes = ["wechat", "brand_growth", "douyin", "xiaohongshu", "geo"];
+    for (const scope of scopes) {
+      const matched = await this.openClawCreativeMaterialService.getMaterialById(brandId, scope, materialId);
+      if (matched?.fileUrl) {
+        return matched.fileUrl;
+      }
+    }
+    return undefined;
+  }
+
+  private async resolveWechatWorkflowImageSource(
+    brandId: string,
+    workflowId: string,
+    input: unknown,
+    role: "cover" | "body",
+    index = 0,
+  ) {
+    if (typeof input === "string") {
+      const directUrl = input.trim();
+      return directUrl || undefined;
+    }
+    if (!input || typeof input !== "object" || Array.isArray(input)) {
+      return undefined;
+    }
+    const record = input as Record<string, unknown>;
+    const directUrl = typeof record.fileUrl === "string"
+      ? record.fileUrl.trim()
+      : (typeof record.url === "string" ? record.url.trim() : "");
+    if (directUrl) {
+      return directUrl;
+    }
+    const materialId = typeof record.materialId === "string" ? record.materialId.trim() : "";
+    if (materialId) {
+      const materialFileUrl = await this.getWechatWorkflowCreativeMaterialFileUrl(brandId, materialId);
+      if (!materialFileUrl) {
+        throw new BadRequestException(`未找到可用的公众号图片素材：${materialId}`);
+      }
+      return materialFileUrl;
+    }
+    const upload = this.normalizeWechatWorkflowImageUpload(record);
+    if (!upload) {
+      return undefined;
+    }
+    const saved = await this.worksService.uploadGeneratedAsset(
+      brandId,
+      this.buildWechatWorkflowInlineImageFileName(workflowId, role, index, upload),
+      upload,
+    );
+    return saved.url;
+  }
+
+  private async normalizeWechatWorkflowSetImagesPayload(
+    brandId: string,
+    workflowId: string,
+    payload: Record<string, unknown>,
+  ): Promise<Parameters<WorksService["setWechatWorkflowImages"]>[2]> {
+    const directCoverImageUrl = typeof payload.coverImageUrl === "string" ? payload.coverImageUrl.trim() : "";
+    const directBodyImageUrls = Array.isArray(payload.bodyImageUrls)
+      ? payload.bodyImageUrls.map((item) => String(item || "").trim()).filter(Boolean)
+      : [];
+    const coverImageUrl = await this.resolveWechatWorkflowImageSource(
+      brandId,
+      workflowId,
+      payload.coverImage,
+      "cover",
+      0,
+    );
+    const bodyImages = Array.isArray(payload.bodyImages) ? payload.bodyImages : [];
+    const normalizedBodyImages = (
+      await Promise.all(
+        bodyImages.map((item, index) =>
+          this.resolveWechatWorkflowImageSource(brandId, workflowId, item, "body", index)),
+      )
+    ).filter((item): item is string => Boolean(item));
+    return {
+      ...(payload as Parameters<WorksService["setWechatWorkflowImages"]>[2]),
+      coverImageUrl: coverImageUrl || directCoverImageUrl || undefined,
+      bodyImageUrls: [...directBodyImageUrls, ...normalizedBodyImages],
+    };
+  }
+
   async manageWechatWorkflow(
     headers: HeadersMap,
     options?: {
@@ -8160,10 +8406,11 @@ export class OpenClawService {
           throw new BadRequestException("请提供 workflowId");
         }
         await this.authService.assertBrandPermission(brandId, "wechat.original", "edit", auth);
+        const normalizedPayload = await this.normalizeWechatWorkflowSetImagesPayload(brandId, workflowId, payload);
         const result = await this.worksService.setWechatWorkflowImages(
           brandId,
           workflowId,
-          payload as Parameters<WorksService["setWechatWorkflowImages"]>[2],
+          normalizedPayload,
         );
         return this.buildManagedOperationResponse({
           title: "公众号图片已写入工作流",

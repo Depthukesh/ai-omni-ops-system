@@ -20,45 +20,28 @@
 <body>
   <main>
     <h1>OpenClaw 正式安装与网站对接说明</h1>
-    <p class="muted">截至 2026-06-12，安装链路已基本完成，但按最新产品口径，MCP 还不能定义为“全部开发完成”。</p>
+    <p class="muted">当前口径：安装链路已正式可交付，品牌运营助手 Skill 也已提供正式 ZIP 包；后续仍继续围绕 MCP 闭环迭代。</p>
 
     <h2>当前结论</h2>
     <div class="card">
       <ul>
         <li>安装中心、品牌令牌、MCP HTTP 网关已经打通。</li>
-        <li>当前 MCP 工具面已扩到约 54 个，覆盖品牌、任务、知识库、内容生成、发布接力和技能配置治理。</li>
-        <li>但“生成结果反馈、反馈分析、提示词优化闭环”尚未落地。</li>
-        <li>因此当前不建议定义为 MCP 全部开发完成，也不建议马上进入正式 Skill 开发。</li>
+        <li>当前 MCP 已覆盖品牌增长、小红书、抖音、公众号、设计、团队协作、统一素材库、OpenClaw 专区等网站主链路。</li>
+        <li>品牌运营助手 Skill 已改成“主 Skill + 外部手册”结构，不再只靠一份短文档硬撑全部能力。</li>
+        <li>反馈分析、提示词优化与完整审计仍在继续补齐，但不影响当前正式安装与交付。</li>
       </ul>
     </div>
 
-    <h2>目标</h2>
+    <h2>正式交付口径</h2>
     <div class="card">
-      <p>正式交付时，品牌用户不需要理解 MCP、Skill、CLI 差异，也不需要暴露网站登录密码。用户只需要登录网站，切到目标品牌，打开安装中心，复制配置，粘贴到 OpenClaw、WorkBuddy、Cursor 或 Claude Desktop 即可。</p>
       <ul>
-        <li>当前真正需要安装的是网站 MCP。</li>
-        <li>页面里的“品牌运营助手 Skill”目前仍是官方说明和示例，不是正式执行包。</li>
-        <li>后续正式 Skill 也应调用网站 MCP，而不是复制网站原生功能。</li>
+        <li>真正需要安装的是网站 MCP。</li>
+        <li>安装中心会同时提供正式 Skill ZIP 下载。</li>
+        <li>正式 Skill 不复制网站功能，而是先路由网站功能，再调用 MCP。</li>
       </ul>
     </div>
 
     <h2>安装片段示例</h2>
-    <pre><code>{
-  "mcp": {
-    "servers": {
-      "ai-omni-ops-品牌名": {
-        "enabled": true,
-        "url": "https://你的域名/api/openclaw/mcp",
-        "transport": "streamable-http",
-        "headers": {
-          "Authorization": "Bearer ocp_xxx",
-          "x-brand-id": "br_xxx"
-        }
-      }
-    }
-  }
-}</code></pre>
-
     <pre><code>{
   "mcpServers": {
     "ai-omni-ops-品牌名": {
@@ -73,44 +56,23 @@
   }
 }</code></pre>
 
-    <h2>当前 MCP 开发状态</h2>
+    <h2>Skill ZIP 现在包含什么</h2>
     <div class="card">
       <ul>
-        <li>已完成：品牌上下文、任务、知识库、小红书、抖音、设计、公众号、发布接力、技能配置治理等主线。</li>
-        <li>未完成：生成结果反馈、反馈与技能/提示词绑定、反馈分析、提示词优化建议、完整调用审计。</li>
-        <li>结论：MCP 已基本可用，但还没到“全部开发完成”。</li>
+        <li><code>SKILL.md</code>：主 Skill，负责总规则、路由与高风险边界。</li>
+        <li><code>README.md</code>：导入说明与验收话术。</li>
+        <li><code>docs/00-网站功能域地图.md</code>：整站功能域与页面入口。</li>
+        <li><code>docs/01-MCP工具矩阵.md</code>：当前真实 MCP 工具矩阵。</li>
+        <li><code>docs/02-高频任务路由手册.md</code>：高频任务如何路由到网站功能与工具链。</li>
       </ul>
     </div>
 
-    <h2>Skill 与 MCP 的关系</h2>
+    <h2>当前能力边界</h2>
     <div class="card">
       <ul>
-        <li>网站里的技能和提示词，是唯一生产内核。</li>
-        <li>MCP 负责把网站能力、配置、数据和状态暴露出来。</li>
-        <li>未来正式 Skill 的主要职责应是编排、跟踪、反馈回流和优化建议，而不是复制网站功能。</li>
-        <li>在反馈闭环落地前，不建议进入正式 Skill 开发。</li>
-      </ul>
-    </div>
-
-    <h2>进入 Skill 开发前的条件</h2>
-    <div class="card">
-      <ol>
-        <li>已支持提交生成结果反馈</li>
-        <li>已能把反馈与任务、作品、技能、提示词绑定</li>
-        <li>已能查看某个技能最近的问题分布与失败模式</li>
-        <li>已能输出提示词优化建议</li>
-        <li>已补充关键调用日志和效果统计</li>
-      </ol>
-    </div>
-
-    <h2>当前阶段结论</h2>
-    <div class="card">
-      <ul>
-        <li>MCP 安装链路：已完成</li>
-        <li>MCP 核心业务能力：已完成大半</li>
-        <li>MCP 技能治理能力：已开始接入</li>
-        <li>MCP 反馈优化闭环：未完成</li>
-        <li>正式 Skill 开发：暂缓</li>
+        <li>已适合正式安装：查询、生成、工作流推进、发布接力、资料库维护、团队协作、专区归档。</li>
+        <li>仍以页面承接为主：安全设置、安装中心里的可视化复制动作、后台管理台等纯页面型能力。</li>
+        <li>仍在补齐：更完整的反馈分析、提示词优化闭环和调用审计。</li>
       </ul>
     </div>
   </main>

@@ -830,6 +830,13 @@ export type SetWechatWorkflowImagesPayload = {
   bodyModelName?: string;
 };
 
+export type GeneratedAssetUploadPayload = {
+  fileName?: string;
+  contentType?: string;
+  dataBase64?: string;
+  tempFilePath?: string;
+};
+
 export type SetWechatWorkflowHtmlPayload = {
   htmlContent: string;
   htmlStyleConfig?: Partial<WechatHtmlStyleConfig>;
@@ -28670,6 +28677,22 @@ export class WorksService {
       storageKey,
       url: this.resolveGeneratedAssetUrl(brandId, fileName),
     };
+  }
+
+  async uploadGeneratedAsset(brandId: string, fileName: string, payload: GeneratedAssetUploadPayload) {
+    const normalizedFileName = String(fileName || payload.fileName || "").trim();
+    if (!normalizedFileName) {
+      throw new BadRequestException("上传站内素材时缺少文件名");
+    }
+    if (!String(payload.dataBase64 || "").trim() && !String(payload.tempFilePath || "").trim()) {
+      throw new BadRequestException("上传站内素材时缺少文件内容");
+    }
+    return this.persistUploadFile(brandId, normalizedFileName, {
+      fileName: String(payload.fileName || normalizedFileName).trim() || normalizedFileName,
+      contentType: String(payload.contentType || "").trim() || "application/octet-stream",
+      dataBase64: String(payload.dataBase64 || "").trim() || undefined,
+      tempFilePath: String(payload.tempFilePath || "").trim() || undefined,
+    });
   }
 
   private async persistUploadFile(brandId: string, fileName: string, payload: UploadFilePayload) {
