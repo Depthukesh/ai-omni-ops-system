@@ -152,6 +152,7 @@
 ### 正在执行
 
 1. 将 `npm ci + build` 前移到 GitHub Runner，服务器只做接收产物和切换
+2. 将前端交付从根目录 `next start` 逐步收缩到 `Next standalone`，继续压缩 release archive 体积
 
 ### 下一步
 
@@ -170,3 +171,4 @@
 5. 生产环境是否仍在生成不必要的 debug 请求和 `.dbg` 写入
 6. release archive 是否仍混入 `.runtime`、`.tmp*`、`.dbg` 等本地运行时垃圾
 7. 线上工作区在一次完整部署后是否仍保持干净，不再因为丢失 `.gitignore` 一类基础文件而误报脏状态
+8. 前端是否已优先通过 standalone 启动，且 `/health` 与首页可正常返回

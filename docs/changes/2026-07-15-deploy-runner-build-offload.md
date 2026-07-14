@@ -54,7 +54,7 @@
 
 ## 风险与注意事项
 
-1. 当前前端仍不是 standalone 交付，因此 release archive 会包含运行时所需依赖与构建产物
+1. 当前前端已开始切到 standalone 交付，但后端运行依赖和部分根目录运行时文件仍会进入 release archive
 2. `prisma db push` 和 seed 仍然留在服务器执行，因为数据库连接和环境文件以线上为准
 3. 如果后续继续做部署瘦身，下一步应评估：
    - Web standalone 化
@@ -83,6 +83,32 @@
 
 1. 避免继续把本地运行时垃圾带进发布包，控制 `release archive` 体积
 2. 避免线上工作区因为缺失 `.gitignore` 等文件而出现“明明没改代码却到处都是未跟踪文件”的假脏状态
+
+## 2026-07-15 第二轮瘦身
+
+为了继续压缩 `release archive`，前端交付方式又做了一轮收缩：
+
+1. `apps/web` 改为 `Next standalone` 输出
+2. PM2 启动前端时优先走 standalone 的 `server.js`
+3. GitHub Runner 在打包前，先把 standalone 运行所需的 `static/public` 资源补齐到 standalone 目录
+4. 发布包排除一批已经不再需要由根目录 `node_modules` 提供的前端运行时依赖，例如：
+   - `node_modules/next`
+   - `node_modules/@next`
+   - `node_modules/@img`
+   - `node_modules/react`
+   - `node_modules/react-dom`
+   - `node_modules/styled-jsx`
+   - `node_modules/lucide-react`
+   - `node_modules/lunar-javascript`
+   - `node_modules/qrcode`
+5. 发布包同时排除旧的前端构建输出里仅用于传统 `next start` 的部分目录，例如：
+   - `apps/web/.next/server`
+   - `apps/web/.next/types`
+   - `apps/web/.next/trace`
+   - `apps/web/.next/diagnostics`
+   - `apps/web/.next/export`
+
+这轮的目标不是一次性做到极限瘦身，而是先把最重、最确定、最不影响线上稳定性的那一块前端运行时依赖从根目录发布包里拿掉。
 
 ## 验证建议
 

@@ -23,10 +23,9 @@ module.exports = {
     },
     {
       name: "ai-omni-web",
-      cwd: path.join(__dirname, "apps", "web"),
-      script: path.join(__dirname, "node_modules", "next", "dist", "bin", "next"),
-      interpreter: "node",
-      args: "start --hostname 127.0.0.1 --port 3001",
+      cwd: __dirname,
+      script: "node",
+      args: "scripts/run-web-standalone.cjs",
       env: {
         NODE_ENV: "production",
         ENABLE_RUNTIME_DEBUG: process.env.ENABLE_RUNTIME_DEBUG || "false",
