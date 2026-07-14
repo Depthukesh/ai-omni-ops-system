@@ -178,3 +178,30 @@
 1. GitHub Actions 是否在 Runner 端完成 `npm ci + build`
 2. 服务器日志里是否已经不再出现原地 `npm ci + build`
 3. 部署期间首页和 API 是否比之前更稳
+
+## 2026-07-15 日志 44 验证结果
+
+基于 `报错信息/44` 这轮最新部署日志，可以确认这次改动已经完整生效：
+
+1. GitHub Actions 已实际运行 `actions/checkout@v5` 与 `actions/setup-node@v5`
+2. 日志里已不再出现此前持续存在的 `Node.js 20 actions are deprecated`
+3. `npm ci` 阶段已不再出现 `multer@1.4.4-lts.1` 的 deprecated 告警
+4. Runner 端完成了：
+   - `npm ci`
+   - `npm run prisma:generate`
+   - `npm run build:server`
+   - `npm run build:web`
+   - release archive 打包
+5. 服务器侧只执行产物解包、`prisma db push`、seed、PM2 切换和健康检查，没有回退到原地构建
+6. 最终验证结果为：
+   - `ai-omni-server` online
+   - `ai-omni-web` online
+   - `http://127.0.0.1:3011/api/health` 通过
+   - `http://127.0.0.1:3001/health` 通过
+
+日志中仍可见两类非阻塞信息：
+
+1. `setup-node@v5` 自身输出的 `punycode` / `url.parse()` deprecation warning
+2. 后端刚拉起时第一次 `curl 127.0.0.1:3011/api/health` 短暂 `Connection refused`，随后在等待窗口内恢复
+
+这两项目前都没有影响部署闭环。到这一步，部署链第二阶段的关键收口目标已经完成，可以把重心转到首屏性能和后续体积收缩。

@@ -148,17 +148,22 @@
 3. 这份治理方案文档落地
 4. `pm2-aiops` 开机自启动脚本与恢复手册落地
 5. 生产运行时 debug 上报默认关闭
+6. `npm ci + build` 已前移到 GitHub Runner，并在 `报错信息/44` 这轮日志中完成闭环验证
+7. 前端 `Next standalone` 交付、端口修正、发布包误排除修正、服务器工作区假脏修正均已验证通过
+8. `@nestjs/platform-express` 已升级到 `10.4.20`，`multer 1.x` 告警已收口
+9. GitHub Actions 已切到 `actions/checkout@v5` 与 `actions/setup-node@v5`，`Node.js 20 actions are deprecated` 告警已收口
 
 ### 正在执行
 
-1. 将 `npm ci + build` 前移到 GitHub Runner，服务器只做接收产物和切换
-2. 将前端交付从根目录 `next start` 逐步收缩到 `Next standalone`，继续压缩 release archive 体积
+1. 继续收缩 release archive 体积与运行时依赖边界
+2. 开始拆抖音工作台首屏的过量并发加载
 
 ### 下一步
 
-1. 验证新的部署链是否稳定跑通
+1. 连续观察后续多轮部署日志，确认新的部署链不再回退
 2. 继续收缩 release archive 体积与运行时依赖边界
 3. 开始拆抖音工作台首屏的过量并发加载
+4. 评估更深一层的健康检查，减少“进程刚启动时短暂拒绝连接”带来的误判
 
 ## 验证清单
 
@@ -172,3 +177,4 @@
 6. release archive 是否仍混入 `.runtime`、`.tmp*`、`.dbg` 等本地运行时垃圾
 7. 线上工作区在一次完整部署后是否仍保持干净，不再因为丢失 `.gitignore` 一类基础文件而误报脏状态
 8. 前端是否已优先通过 standalone 启动，且 `/health` 与首页可正常返回
+9. 部署日志里是否已经不再出现 `multer 1.4.4-lts.1` 与 `Node.js 20 actions are deprecated` 这两类已知告警
