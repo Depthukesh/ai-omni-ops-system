@@ -123,6 +123,19 @@
 1. 所有发布包排除规则改成以 `./` 开头，只作用于仓库根目录目标
 2. 保留 standalone 内嵌 `node_modules`，避免再误伤前端运行时
 
+## 2026-07-15 standalone 端口修正
+
+再次部署后，前端不再缺 `next`，但又暴露出新的现场问题：
+
+1. standalone `server.js` 在缺少 `PORT/HOSTNAME` 时会退回默认的 `3000 / 0.0.0.0`
+2. 线上 Nginx 和部署探活仍然按 `127.0.0.1:3001` 检查
+3. 结果变成“前端其实已经启动，但启动在错误端口上”，导致部署误判失败
+
+因此补了第二次收口：
+
+1. `ecosystem.config.cjs` 为 `ai-omni-web` 显式注入 `PORT=3001` 与 `HOSTNAME=127.0.0.1`
+2. `scripts/run-web-standalone.cjs` 再做一层兜底，确保 standalone 与 fallback 模式都固定监听 `127.0.0.1:3001`
+
 ## 验证建议
 
 部署完成后重点看：

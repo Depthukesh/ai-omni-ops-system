@@ -28,6 +28,8 @@ module.exports = {
       args: "scripts/run-web-standalone.cjs",
       env: {
         NODE_ENV: "production",
+        PORT: "3001",
+        HOSTNAME: "127.0.0.1",
         ENABLE_RUNTIME_DEBUG: process.env.ENABLE_RUNTIME_DEBUG || "false",
         NEXT_PUBLIC_ENABLE_RUNTIME_DEBUG: process.env.NEXT_PUBLIC_ENABLE_RUNTIME_DEBUG || "false",
       },

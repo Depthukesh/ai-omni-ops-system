@@ -86,13 +86,21 @@ function spawnAndPipe(command, args, options) {
   });
 }
 
+function buildWebRuntimeEnv() {
+  return {
+    ...process.env,
+    PORT: process.env.PORT || "3001",
+    HOSTNAME: process.env.HOSTNAME || "127.0.0.1",
+  };
+}
+
 const standaloneServer = resolveStandaloneServer();
 
 if (standaloneServer) {
   const standaloneAppRoot = path.dirname(standaloneServer);
   spawnAndPipe(process.execPath, [standaloneServer], {
     cwd: standaloneAppRoot,
-    env: process.env,
+    env: buildWebRuntimeEnv(),
   });
 } else {
   const nextBin = resolveNextBin();
@@ -104,6 +112,6 @@ if (standaloneServer) {
 
   spawnAndPipe(process.execPath, [nextBin, "start", "--hostname", "127.0.0.1", "--port", "3001"], {
     cwd: webRoot,
-    env: process.env,
+    env: buildWebRuntimeEnv(),
   });
 }
