@@ -62,6 +62,28 @@
    - release archive 体积控制
 4. 远端 SSH 脚本避免继续使用易受缩进影响的嵌套 here-doc，改为 `declare -f + runuser bash -lc` 方式执行，减少 YAML 内嵌 bash 的解析风险
 
+## 2026-07-15 补充修正
+
+在 Runner 构建版首次稳定跑通后，又补了一轮发布包治理：
+
+1. `release archive` 去掉 `tar --exclude-vcs`
+   - 之前这个参数会把 `.gitignore`、`.gitattributes` 这类被 Git 跟踪但属于 VCS 配置的文件也排除掉
+   - 服务器同步产物后，这些文件会被 `rsync --delete` 一起删掉，进一步导致 `node_modules` 等本应被忽略的目录全部冒成未收口文件
+2. 发布包显式排除本地运行时垃圾目录：
+   - `.runtime`
+   - `.tmp*`
+   - `.dbg`
+   - `.lark-cli`
+   - `.trae`
+   - `.pnpm-store`
+   - `coverage`
+3. 根目录 `.dbg` 也加入 `.gitignore`
+
+这轮修正的目标有两个：
+
+1. 避免继续把本地运行时垃圾带进发布包，控制 `release archive` 体积
+2. 避免线上工作区因为缺失 `.gitignore` 等文件而出现“明明没改代码却到处都是未跟踪文件”的假脏状态
+
 ## 验证建议
 
 部署完成后重点看：

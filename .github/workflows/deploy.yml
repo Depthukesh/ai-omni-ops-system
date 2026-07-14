@@ -80,10 +80,19 @@ jobs:
 
           log_step "prepare release archive"
           tar -czf "$RELEASE_ARCHIVE" \
-            --exclude-vcs \
+            --exclude=".git" \
             --exclude=".deploy-artifacts" \
             --exclude=".env" \
             --exclude=".env.*" \
+            --exclude=".runtime" \
+            --exclude=".tmp" \
+            --exclude=".tmp*" \
+            --exclude=".dbg" \
+            --exclude=".lark-cli" \
+            --exclude=".trae" \
+            --exclude=".pnpm-store" \
+            --exclude="coverage" \
+            --exclude=".DS_Store" \
             --exclude="apps/server/.dbg" \
             --exclude="apps/web/.next/cache" \
             --exclude="node_modules/.cache" \

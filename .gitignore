@@ -12,5 +12,6 @@ coverage
 .lark-cli
 .trae
 .tmp*
+.dbg
 prisma/dev.db
 apps/server/.dbg/
