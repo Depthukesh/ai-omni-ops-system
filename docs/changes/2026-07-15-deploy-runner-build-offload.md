@@ -151,6 +151,26 @@
 
 这样服务器工作区中的这些 Git 跟踪文件会被保留下来，不再在下一轮部署里反复制造假脏状态。
 
+## 2026-07-15 依赖与 CI 运行时告警收口
+
+在部署链已经恢复稳定之后，还剩两类持续出现但尚未正式处理的告警：
+
+1. `@nestjs/platform-express@10.4.8` 仍然依赖 `multer 1.4.4-lts.1`
+2. GitHub Actions 仍在使用 `actions/checkout@v4` 与 `actions/setup-node@v4`，部署日志会持续提示 `Node.js 20 actions are deprecated`
+
+这轮做了两个收口动作：
+
+1. `apps/server/package.json` 里的 `@nestjs/common`、`@nestjs/core`、`@nestjs/platform-express` 统一升级到 `10.4.20`
+2. `.github/workflows/deploy.yml` 里的：
+   - `actions/checkout@v4` -> `actions/checkout@v5`
+   - `actions/setup-node@v4` -> `actions/setup-node@v5`
+
+这次没有同步提高 workflow 的 `node-version`，仍然保持 `20`，原因是：
+
+1. 本次目标是先消掉 GitHub Actions 自身的 Node 20 runtime 弃用告警
+2. 生产机当前仍以 Node 20 为主，先保持构建 Node 版本一致，减少额外变量
+3. 等部署链和线上运行都完全稳定后，再单独评估业务代码切到 Node 22/24 的兼容性
+
 ## 验证建议
 
 部署完成后重点看：
