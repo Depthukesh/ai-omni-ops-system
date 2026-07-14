@@ -13,3 +13,4 @@ coverage
 .trae
 .tmp*
 prisma/dev.db
+apps/server/.dbg/

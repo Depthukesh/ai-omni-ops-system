@@ -263,6 +263,10 @@ jobs:
                 mkdir -p "$target_root/apps/web/.next"
               }
 
+              purge_runtime_artifacts() {
+                rm -rf "$DEPLOY_PATH/apps/server/.dbg"
+              }
+
               suspend_runtime_processes() {
                 pm2 stop ai-omni-web || true
                 pm2 delete ai-omni-web || true
@@ -295,6 +299,7 @@ jobs:
 
                 run_checked "git reset --hard HEAD" git reset --hard HEAD
                 run_checked "git clean -fd" git clean -fd
+                run_checked "purge runtime artifacts" purge_runtime_artifacts
               }
 
               prepare_release_worktree() {
@@ -348,6 +353,7 @@ jobs:
 
               run_checked "git fetch origin main" git fetch origin main
               run_checked "git checkout main" git checkout main
+              run_checked "purge runtime artifacts" purge_runtime_artifacts
 
               PRE_DEPLOY_STATUS="$(git status --porcelain=v1 -uall)"
               if [ -n "$PRE_DEPLOY_STATUS" ]; then
@@ -378,6 +384,7 @@ jobs:
 
               cd "$DEPLOY_PATH"
               run_checked "git reset --hard origin/main" git reset --hard origin/main
+              run_checked "purge runtime artifacts" purge_runtime_artifacts
               run_checked "git rev-parse HEAD" git rev-parse HEAD
 
               POST_SYNC_STATUS="$(git status --porcelain=v1 -uall)"
