@@ -248,6 +248,32 @@ jobs:
                 "$@"
               }
 
+              run_checked_with_timeout() {
+                local timeout_window="$1"
+                local step_name="$2"
+                shift 2
+                log_step "$step_name"
+                if timeout --foreground "$timeout_window" "$@"; then
+                  return 0
+                fi
+                local exit_code="$?"
+                if [ "$exit_code" -ne 0 ]; then
+                  if [ "$exit_code" -eq 124 ]; then
+                    echo "步骤超时：$step_name 超过 $timeout_window 仍未完成。"
+                  fi
+                  return "$exit_code"
+                fi
+              }
+
+              print_npm_install_diagnostics() {
+                echo "npm registry: $(npm config get registry)"
+                echo "npm cache dir: $(npm config get cache)"
+                echo "node version: $(node --version)"
+                echo "npm version: $(npm --version)"
+                echo "尝试 npm ping registry"
+                npm ping --loglevel=notice || true
+              }
+
               cleanup_release_dir() {
                 if [ -z "$RELEASE_DIR" ] || [ ! -d "$RELEASE_DIR" ]; then
                   return 0
@@ -373,7 +399,18 @@ jobs:
 
               cd "$RELEASE_DIR"
               run_checked "git rev-parse HEAD" git rev-parse HEAD
-              run_checked "npm ci" env PRISMA_SKIP_POSTINSTALL_GENERATE=1 PRISMA_ENGINES_MIRROR="${PRISMA_ENGINES_MIRROR:-}" HTTPS_PROXY="${HTTPS_PROXY:-}" HTTP_PROXY="${HTTP_PROXY:-}" NO_PROXY="${NO_PROXY:-}" npm ci --foreground-scripts --loglevel=notice
+              run_checked "npm install diagnostics" print_npm_install_diagnostics
+              run_checked_with_timeout "25m" "npm ci" env \
+                PRISMA_SKIP_POSTINSTALL_GENERATE=1 \
+                PRISMA_ENGINES_MIRROR="${PRISMA_ENGINES_MIRROR:-}" \
+                HTTPS_PROXY="${HTTPS_PROXY:-}" \
+                HTTP_PROXY="${HTTP_PROXY:-}" \
+                NO_PROXY="${NO_PROXY:-}" \
+                NPM_CONFIG_FETCH_RETRIES=5 \
+                NPM_CONFIG_FETCH_RETRY_MINTIMEOUT=10000 \
+                NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT=120000 \
+                NPM_CONFIG_FETCH_TIMEOUT=60000 \
+                npm ci --foreground-scripts --loglevel=notice --no-audit
               run_checked "npm run prisma:generate" env PRISMA_ENGINES_MIRROR="${PRISMA_ENGINES_MIRROR:-}" HTTPS_PROXY="${HTTPS_PROXY:-}" HTTP_PROXY="${HTTP_PROXY:-}" NO_PROXY="${NO_PROXY:-}" npm run prisma:generate
               run_checked "npm run prisma:db:push" npm run prisma:db:push
               run_checked "npm run prisma:seed:registration-invite-codes" npm run prisma:seed:registration-invite-codes
