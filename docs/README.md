@@ -39,6 +39,8 @@
   - 个人中心、多用户、品牌协作与权限设计
 - `docs/system-refactor-roadmap.md`
   - 当前结构收口与重构路线
+- `docs/production-stability-and-performance-remediation-plan.md`
+  - 生产稳定性、部署降压、首屏性能和慢任务异步化治理方案
 - `docs/wechat-infrastructure-refactor-plan.md`
   - 公众号 Step 2-5 单一事实源、服务拆分与底层改造方案
 - `docs/production-web-port-conflict-recovery.md`
@@ -114,6 +116,8 @@
 
 - `docs/changes/2026-06-30-wechat-infrastructure-refactor-phase-5.md`
   - 公众号 Step 5 发布前收口下沉与 `WechatWorkflowPublishService`
+- `docs/changes/2026-07-14-production-stability-remediation-phase-1.md`
+  - 生产稳定性治理第一阶段：系统方案文档与运行时调试收口
 - `docs/changes/2026-06-30-wechat-infrastructure-refactor-phase-4.md`
   - 清理 `WorksService` 中历史遗留的公众号 HTML helper
 - `docs/changes/2026-06-30-wechat-infrastructure-refactor-phase-3.md`

@@ -1,6 +1,7 @@
 import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { Body, Controller, Delete, Get, Post, Query } from "@nestjs/common";
+import { isRuntimeDebugEnabled } from "./common/runtime-debug";
 
 type BrowserDebugEvent = {
   sessionId?: string;
@@ -33,6 +34,10 @@ export class AppController {
 
   @Post("debug/browser-event")
   async recordBrowserDebugEvent(@Body() payload: BrowserDebugEvent) {
+    if (!isRuntimeDebugEnabled()) {
+      return { ok: false, disabled: true };
+    }
+
     const sessionId = normalizeSessionId(payload.sessionId);
     const filePath = resolveLogFilePath(sessionId);
     await mkdir(resolve(process.cwd(), ".dbg"), { recursive: true });
@@ -51,6 +56,15 @@ export class AppController {
 
   @Get("debug/browser-logs")
   async getBrowserDebugLogs(@Query("sessionId") sessionIdQuery?: string, @Query("last") lastQuery?: string) {
+    if (!isRuntimeDebugEnabled()) {
+      return {
+        sessionId: normalizeSessionId(sessionIdQuery),
+        count: 0,
+        items: [],
+        disabled: true,
+      };
+    }
+
     const sessionId = normalizeSessionId(sessionIdQuery);
     const filePath = resolveLogFilePath(sessionId);
     const content = await readFile(filePath, "utf8").catch(() => "");
@@ -69,6 +83,10 @@ export class AppController {
 
   @Delete("debug/browser-logs")
   async clearBrowserDebugLogs(@Query("sessionId") sessionIdQuery?: string) {
+    if (!isRuntimeDebugEnabled()) {
+      return { ok: false, disabled: true, sessionId: normalizeSessionId(sessionIdQuery) };
+    }
+
     const sessionId = normalizeSessionId(sessionIdQuery);
     const filePath = resolveLogFilePath(sessionId);
     await mkdir(resolve(process.cwd(), ".dbg"), { recursive: true });

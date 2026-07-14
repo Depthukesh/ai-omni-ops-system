@@ -209,6 +209,36 @@ curl -s "https://17ai.site/brand-growth?ts=$(date +%s)" | grep -o '/_next/static
 pm2 save
 ```
 
+### 7.5 补齐开机自启动
+
+如果服务器曾经出现“重启后 `3001/3011` 没起来，需要手动 `pm2 restart`”的问题，恢复后要立刻补这一步。
+
+项目里已经提供 root 可执行脚本：
+
+```bash
+cd /srv/ai-omni-ops-system
+bash scripts/ops/setup-pm2-aiops-startup.sh
+```
+
+执行完成后验证：
+
+```bash
+systemctl status pm2-aiops --no-pager
+su - aiops
+pm2 status
+```
+
+判断方式：
+
+- `pm2-aiops` 为 `active (running)`
+- `ai-omni-web` 和 `ai-omni-server` 能在系统重启后自动恢复
+
+如果线上仍出现“服务器一重启就掉站”，优先回到：
+
+- `docs/production-stability-and-performance-remediation-plan.md`
+
+按 Phase 0 继续收口，而不是只做临时手工拉起。
+
 ## 8. 和历史文档的关系
 
 - 本文档是“线上前端 `3001` 端口冲突”专项排障手册。

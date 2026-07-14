@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException, UnauthorizedException } from "@nestjs/common";
 import { TaskStatus } from "@prisma/client";
 import { createId, database } from "../../common/mock-data";
+import { postRuntimeDebugEvent } from "../../common/runtime-debug";
 import { PrismaService } from "../../prisma/prisma.service";
 import type { RequestAuthContext } from "../auth/auth.service";
 
@@ -38,26 +39,21 @@ export class TasksService {
     const userId = this.requireUserId(auth);
     const brandId = String(auth?.brandId || "").trim() || undefined;
     // #region debug-point C:list-tasks-enter
-    fetch("http://127.0.0.1:7777/event",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:"digital-human-silent-upload",runId:"pre-fix",hypothesisId:"C",location:"tasks.service.ts:37",msg:"[DEBUG] list tasks enter",data:{userId,brandId:auth?.brandId||null},ts:Date.now()})}).catch(()=>{});
+    postRuntimeDebugEvent({sessionId:"digital-human-silent-upload",runId:"pre-fix",hypothesisId:"C",location:"tasks.service.ts:37",msg:"[DEBUG] list tasks enter",data:{userId,brandId:auth?.brandId||null}});
     // #endregion
     // #region debug-point F:list-tasks-enter-current-session
-    fetch("http://127.0.0.1:7777/event", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        sessionId: "digital-human-502-list",
-        runId: "pre-fix",
-        hypothesisId: "F",
-        location: "apps/server/src/modules/tasks/tasks.service.ts:listTasks",
-        msg: "[DEBUG] TasksService 开始查询任务中心",
-        data: {
-          userId,
-          brandId: brandId || null,
-          authSource: auth?.source || null,
-        },
-        ts: Date.now(),
-      }),
-    }).catch(() => {});
+    postRuntimeDebugEvent({
+      sessionId: "digital-human-502-list",
+      runId: "pre-fix",
+      hypothesisId: "F",
+      location: "apps/server/src/modules/tasks/tasks.service.ts:listTasks",
+      msg: "[DEBUG] TasksService 开始查询任务中心",
+      data: {
+        userId,
+        brandId: brandId || null,
+        authSource: auth?.source || null,
+      },
+    });
     // #endregion
     if (await this.prismaService.canUseDatabase()) {
       const tasks = await this.prismaService.task.findMany({
@@ -73,31 +69,26 @@ export class TasksService {
       });
       const normalizedTasks = await Promise.all(tasks.map((task) => this.normalizeDatabaseTaskStatus(task)));
       // #region debug-point C:list-tasks-db-result
-      fetch("http://127.0.0.1:7777/event",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:"digital-human-silent-upload",runId:"pre-fix",hypothesisId:"C",location:"tasks.service.ts:44",msg:"[DEBUG] list tasks db result",data:{userId,count:normalizedTasks.length,digitalHumanCount:normalizedTasks.filter((task)=>task.taskType==="DOUYIN_DIGITAL_HUMAN_CUSTOM").length},ts:Date.now()})}).catch(()=>{});
+      postRuntimeDebugEvent({sessionId:"digital-human-silent-upload",runId:"pre-fix",hypothesisId:"C",location:"tasks.service.ts:44",msg:"[DEBUG] list tasks db result",data:{userId,count:normalizedTasks.length,digitalHumanCount:normalizedTasks.filter((task)=>task.taskType==="DOUYIN_DIGITAL_HUMAN_CUSTOM").length}});
       // #endregion
       // #region debug-point F:list-tasks-db-result-current-session
-      fetch("http://127.0.0.1:7777/event", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sessionId: "digital-human-502-list",
-          runId: "pre-fix",
-          hypothesisId: "F",
-          location: "apps/server/src/modules/tasks/tasks.service.ts:listTasks",
-          msg: "[DEBUG] TasksService 返回任务中心结果",
-          data: {
-            userId,
-            brandId: brandId || null,
-            totalCount: normalizedTasks.length,
-            digitalHumanCount: normalizedTasks.filter((task) => task.taskType === "DOUYIN_DIGITAL_HUMAN_CUSTOM").length,
-            latestDigitalHumanTaskIds: normalizedTasks
-              .filter((task) => task.taskType === "DOUYIN_DIGITAL_HUMAN_CUSTOM")
-              .slice(0, 5)
-              .map((task) => task.id),
-          },
-          ts: Date.now(),
-        }),
-      }).catch(() => {});
+      postRuntimeDebugEvent({
+        sessionId: "digital-human-502-list",
+        runId: "pre-fix",
+        hypothesisId: "F",
+        location: "apps/server/src/modules/tasks/tasks.service.ts:listTasks",
+        msg: "[DEBUG] TasksService 返回任务中心结果",
+        data: {
+          userId,
+          brandId: brandId || null,
+          totalCount: normalizedTasks.length,
+          digitalHumanCount: normalizedTasks.filter((task) => task.taskType === "DOUYIN_DIGITAL_HUMAN_CUSTOM").length,
+          latestDigitalHumanTaskIds: normalizedTasks
+            .filter((task) => task.taskType === "DOUYIN_DIGITAL_HUMAN_CUSTOM")
+            .slice(0, 5)
+            .map((task) => task.id),
+        },
+      });
       // #endregion
 
       return normalizedTasks.map((task) => ({
@@ -128,7 +119,7 @@ export class TasksService {
   async createTask(payload: CreateTaskPayload, auth?: RequestAuthContext) {
     const userId = this.requireUserId(auth);
     // #region debug-point C:create-task-enter
-    fetch("http://127.0.0.1:7777/event",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:"digital-human-silent-upload",runId:"pre-fix",hypothesisId:"C",location:"tasks.service.ts:71",msg:"[DEBUG] create task enter",data:{authUserId:auth?.userId||null,resolvedUserId:userId,authBrandId:auth?.brandId||null,payloadBrandId:payload.brandId||null,taskType:payload.taskType,taskTitle:payload.taskTitle},ts:Date.now()})}).catch(()=>{});
+    postRuntimeDebugEvent({sessionId:"digital-human-silent-upload",runId:"pre-fix",hypothesisId:"C",location:"tasks.service.ts:71",msg:"[DEBUG] create task enter",data:{authUserId:auth?.userId||null,resolvedUserId:userId,authBrandId:auth?.brandId||null,payloadBrandId:payload.brandId||null,taskType:payload.taskType,taskTitle:payload.taskTitle}});
     // #endregion
     if (await this.prismaService.canUseDatabase()) {
       const brandId = auth?.brandId ?? payload.brandId;
@@ -149,7 +140,7 @@ export class TasksService {
         },
       });
       // #region debug-point C:create-task-db-result
-      fetch("http://127.0.0.1:7777/event",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:"digital-human-silent-upload",runId:"pre-fix",hypothesisId:"C",location:"tasks.service.ts:80",msg:"[DEBUG] create task db result",data:{taskId:task.id,userId:task.userId,brandId:task.brandId||null,taskType:task.taskType,taskStatus:task.taskStatus},ts:Date.now()})}).catch(()=>{});
+      postRuntimeDebugEvent({sessionId:"digital-human-silent-upload",runId:"pre-fix",hypothesisId:"C",location:"tasks.service.ts:80",msg:"[DEBUG] create task db result",data:{taskId:task.id,userId:task.userId,brandId:task.brandId||null,taskType:task.taskType,taskStatus:task.taskStatus}});
       // #endregion
 
       return {
@@ -187,7 +178,7 @@ export class TasksService {
 
     database.tasks.unshift(task);
     // #region debug-point C:create-task-mock-result
-    fetch("http://127.0.0.1:7777/event",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:"digital-human-silent-upload",runId:"pre-fix",hypothesisId:"C",location:"tasks.service.ts:125",msg:"[DEBUG] create task mock result",data:{taskId:task.id,userId:task.userId,brandId:task.brandId||null,taskType:task.taskType,taskStatus:task.taskStatus},ts:Date.now()})}).catch(()=>{});
+    postRuntimeDebugEvent({sessionId:"digital-human-silent-upload",runId:"pre-fix",hypothesisId:"C",location:"tasks.service.ts:125",msg:"[DEBUG] create task mock result",data:{taskId:task.id,userId:task.userId,brandId:task.brandId||null,taskType:task.taskType,taskStatus:task.taskStatus}});
     // #endregion
     return task;
   }

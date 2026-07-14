@@ -1,3 +1,4 @@
+import { postRuntimeDebugEvent } from "../lib/runtime-debug";
 import { clearStoredAuthSession, getStoredAuthSession, setStoredAuthSession, type AuthUser } from "./auth-session";
 
 export const API_BASE_URL = resolveApiBaseUrl();
@@ -53,24 +54,19 @@ async function performRequestUrl(url: string, init?: RequestInit) {
 
   // #region debug-point H:http-request-start
   if (resolvedPathname.includes("/douyin/digital-human")) {
-    fetch("http://127.0.0.1:7777/event", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        sessionId: DOUYIN_WORKSPACE_DEBUG_SESSION_ID,
-        runId: "pre-fix",
-        hypothesisId: "H",
-        location: "apps/web/src/services/http.ts:performRequestUrl",
-        msg: "[DEBUG] 前端开始请求数字人接口",
-        data: {
-          method: init?.method || "GET",
-          url,
-          resolvedPathname,
-          currentBrandId: session?.currentBrandId || null,
-        },
-        ts: Date.now(),
-      }),
-    }).catch(() => {});
+    postRuntimeDebugEvent({
+      sessionId: DOUYIN_WORKSPACE_DEBUG_SESSION_ID,
+      runId: "pre-fix",
+      hypothesisId: "H",
+      location: "apps/web/src/services/http.ts:performRequestUrl",
+      msg: "[DEBUG] 前端开始请求数字人接口",
+      data: {
+        method: init?.method || "GET",
+        url,
+        resolvedPathname,
+        currentBrandId: session?.currentBrandId || null,
+      },
+    });
   }
   // #endregion
 
@@ -81,25 +77,20 @@ async function performRequestUrl(url: string, init?: RequestInit) {
   });
   // #region debug-point H:http-request-response
   if (resolvedPathname.includes("/douyin/digital-human")) {
-    fetch("http://127.0.0.1:7777/event", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        sessionId: DOUYIN_WORKSPACE_DEBUG_SESSION_ID,
-        runId: "pre-fix",
-        hypothesisId: "H",
-        location: "apps/web/src/services/http.ts:performRequestUrl",
-        msg: "[DEBUG] 前端收到数字人接口响应",
-        data: {
-          method: init?.method || "GET",
-          url,
-          resolvedPathname,
-          status: response.status,
-          statusText: response.statusText,
-        },
-        ts: Date.now(),
-      }),
-    }).catch(() => {});
+    postRuntimeDebugEvent({
+      sessionId: DOUYIN_WORKSPACE_DEBUG_SESSION_ID,
+      runId: "pre-fix",
+      hypothesisId: "H",
+      location: "apps/web/src/services/http.ts:performRequestUrl",
+      msg: "[DEBUG] 前端收到数字人接口响应",
+      data: {
+        method: init?.method || "GET",
+        url,
+        resolvedPathname,
+        status: response.status,
+        statusText: response.statusText,
+      },
+    });
   }
   // #endregion
   return response;
@@ -162,25 +153,20 @@ async function readJsonResponse<T>(response: Response) {
     const message = await readErrorMessage(response);
     // #region debug-point H:http-json-error
     if (readPathname(response.url).includes("/douyin/digital-human")) {
-      fetch("http://127.0.0.1:7777/event", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sessionId: DOUYIN_WORKSPACE_DEBUG_SESSION_ID,
-          runId: "pre-fix",
-          hypothesisId: "H",
-          location: "apps/web/src/services/http.ts:readJsonResponse",
-          msg: "[DEBUG] 前端数字人接口进入错误分支",
-          data: {
-            url: response.url,
-            pathname: readPathname(response.url),
-            status: response.status,
-            statusText: response.statusText,
-            message,
-          },
-          ts: Date.now(),
-        }),
-      }).catch(() => {});
+      postRuntimeDebugEvent({
+        sessionId: DOUYIN_WORKSPACE_DEBUG_SESSION_ID,
+        runId: "pre-fix",
+        hypothesisId: "H",
+        location: "apps/web/src/services/http.ts:readJsonResponse",
+        msg: "[DEBUG] 前端数字人接口进入错误分支",
+        data: {
+          url: response.url,
+          pathname: readPathname(response.url),
+          status: response.status,
+          statusText: response.statusText,
+          message,
+        },
+      });
     }
     // #endregion
     throw new Error(message || `Request failed: ${response.status}`);
@@ -237,25 +223,20 @@ async function readErrorMessage(response: Response) {
       if (/<html[\s>]/i.test(trimmed) || /<body[\s>]/i.test(trimmed) || /502 Bad Gateway/i.test(trimmed)) {
         // #region debug-point H:http-html-502-translation
         if (readPathname(response.url).includes("/douyin/digital-human")) {
-          fetch("http://127.0.0.1:7777/event", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              sessionId: DOUYIN_WORKSPACE_DEBUG_SESSION_ID,
-              runId: "pre-fix",
-              hypothesisId: "H",
-              location: "apps/web/src/services/http.ts:readErrorMessage",
-              msg: "[DEBUG] 前端把数字人接口响应翻译为 502 通用文案",
-              data: {
-                url: response.url,
-                pathname: readPathname(response.url),
-                status: response.status,
-                contentType,
-                preview: trimmed.slice(0, 180),
-              },
-              ts: Date.now(),
-            }),
-          }).catch(() => {});
+          postRuntimeDebugEvent({
+            sessionId: DOUYIN_WORKSPACE_DEBUG_SESSION_ID,
+            runId: "pre-fix",
+            hypothesisId: "H",
+            location: "apps/web/src/services/http.ts:readErrorMessage",
+            msg: "[DEBUG] 前端把数字人接口响应翻译为 502 通用文案",
+            data: {
+              url: response.url,
+              pathname: readPathname(response.url),
+              status: response.status,
+              contentType,
+              preview: trimmed.slice(0, 180),
+            },
+          });
         }
         // #endregion
         return "上游服务暂时不可用（502 Bad Gateway），请稍后重试";
