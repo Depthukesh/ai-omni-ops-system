@@ -9,8 +9,88 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 90
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Build release bundle on runner
+        env:
+          PRISMA_ENGINES_MIRROR: ${{ secrets.PRISMA_ENGINES_MIRROR }}
+          HTTPS_PROXY: ${{ secrets.HTTPS_PROXY }}
+          HTTP_PROXY: ${{ secrets.HTTP_PROXY }}
+          NO_PROXY: ${{ secrets.NO_PROXY }}
+          NEXT_PUBLIC_API_BASE_URL: ${{ secrets.NEXT_PUBLIC_API_BASE_URL }}
+          INTERNAL_API_BASE_URL: ${{ secrets.INTERNAL_API_BASE_URL }}
+          API_PROXY_TARGET: ${{ secrets.API_PROXY_TARGET }}
+          NEXT_PUBLIC_ENABLE_RUNTIME_DEBUG: "false"
+          ENABLE_RUNTIME_DEBUG: "false"
+        run: |
+          set -Eeuo pipefail
+
+          log_step() {
+            printf '\n[%s] %s\n' "$(date -Iseconds)" "$1"
+          }
+
+          print_npm_install_diagnostics() {
+            echo "npm registry: $(npm config get registry)"
+            echo "npm cache dir: $(npm config get cache)"
+            echo "node version: $(node --version)"
+            echo "npm version: $(npm --version)"
+            echo "尝试 npm ping registry"
+            npm ping --loglevel=notice || true
+          }
+
+          SHORT_SHA="${GITHUB_SHA::7}"
+          RELEASE_ARCHIVE=".deploy-artifacts/release-${SHORT_SHA}.tar.gz"
+
+          mkdir -p .deploy-artifacts
+
+          log_step "npm install diagnostics"
+          print_npm_install_diagnostics
+
+          log_step "npm ci on runner"
+          timeout --foreground 25m env \
+            PRISMA_SKIP_POSTINSTALL_GENERATE=1 \
+            PRISMA_ENGINES_MIRROR="${PRISMA_ENGINES_MIRROR:-}" \
+            HTTPS_PROXY="${HTTPS_PROXY:-}" \
+            HTTP_PROXY="${HTTP_PROXY:-}" \
+            NO_PROXY="${NO_PROXY:-}" \
+            NPM_CONFIG_FETCH_RETRIES=5 \
+            NPM_CONFIG_FETCH_RETRY_MINTIMEOUT=10000 \
+            NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT=120000 \
+            NPM_CONFIG_FETCH_TIMEOUT=60000 \
+            npm ci --foreground-scripts --loglevel=notice --no-audit
+
+          log_step "npm run prisma:generate on runner"
+          env PRISMA_ENGINES_MIRROR="${PRISMA_ENGINES_MIRROR:-}" HTTPS_PROXY="${HTTPS_PROXY:-}" HTTP_PROXY="${HTTP_PROXY:-}" NO_PROXY="${NO_PROXY:-}" npm run prisma:generate
+
+          log_step "npm run build:server on runner"
+          npm run build:server
+
+          log_step "npm run build:web on runner"
+          npm run build:web
+
+          log_step "prepare release archive"
+          tar -czf "$RELEASE_ARCHIVE" \
+            --exclude-vcs \
+            --exclude=".deploy-artifacts" \
+            --exclude=".env" \
+            --exclude=".env.*" \
+            --exclude="apps/server/.dbg" \
+            --exclude="apps/web/.next/cache" \
+            --exclude="node_modules/.cache" \
+            .
+
+          ls -lh "$RELEASE_ARCHIVE"
+
       - name: Deploy via SSH
         env:
           ALIYUN_HOST: ${{ secrets.ALIYUN_HOST }}
@@ -67,11 +147,33 @@ jobs:
           require_secret ALIYUN_SSH_KEY
           require_secret DEPLOY_PATH
 
+          SHORT_SHA="${GITHUB_SHA::7}"
+          RELEASE_ARCHIVE=".deploy-artifacts/release-${SHORT_SHA}.tar.gz"
+          REMOTE_ARCHIVE_PATH="/tmp/ai-omni-release-${GITHUB_RUN_ID}-${SHORT_SHA}.tar.gz"
+          RELEASE_KEY="${GITHUB_RUN_ID}-${SHORT_SHA}"
+
+          if [ ! -f "$RELEASE_ARCHIVE" ]; then
+            echo "部署终止：未找到构建产物 $RELEASE_ARCHIVE"
+            exit 1
+          fi
+
           install -d -m 700 "$HOME/.ssh"
           printf '%s\n' "$ALIYUN_SSH_KEY" > "$HOME/.ssh/deploy_key"
           chmod 600 "$HOME/.ssh/deploy_key"
           prepare_server_known_hosts
           chmod 600 "$HOME/.ssh/known_hosts"
+
+          log_local_step "上传 release archive 到服务器"
+          scp \
+            -i "$HOME/.ssh/deploy_key" \
+            -P "$ALIYUN_PORT" \
+            -o BatchMode=yes \
+            -o ConnectTimeout=10 \
+            -o ConnectionAttempts=2 \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            "$RELEASE_ARCHIVE" \
+            "$ALIYUN_USER@$ALIYUN_HOST:$REMOTE_ARCHIVE_PATH"
 
           REMOTE_DEPLOY_PATH="$(printf '%q' "$DEPLOY_PATH")"
           REMOTE_TIKHUB_API_KEY="$(printf '%q' "${TIKHUB_API_KEY:-}")"
@@ -79,6 +181,8 @@ jobs:
           REMOTE_HTTPS_PROXY="$(printf '%q' "${HTTPS_PROXY:-}")"
           REMOTE_HTTP_PROXY="$(printf '%q' "${HTTP_PROXY:-}")"
           REMOTE_NO_PROXY="$(printf '%q' "${NO_PROXY:-}")"
+          REMOTE_ARCHIVE_PATH_ESCAPED="$(printf '%q' "$REMOTE_ARCHIVE_PATH")"
+          REMOTE_RELEASE_KEY="$(printf '%q' "$RELEASE_KEY")"
 
           ssh \
             -i "$HOME/.ssh/deploy_key" \
@@ -92,9 +196,10 @@ jobs:
             -o ServerAliveCountMax=6 \
             -o TCPKeepAlive=yes \
             "$ALIYUN_USER@$ALIYUN_HOST" \
-            "DEPLOY_PATH=$REMOTE_DEPLOY_PATH TIKHUB_API_KEY=$REMOTE_TIKHUB_API_KEY PRISMA_ENGINES_MIRROR=$REMOTE_PRISMA_ENGINES_MIRROR HTTPS_PROXY=$REMOTE_HTTPS_PROXY HTTP_PROXY=$REMOTE_HTTP_PROXY NO_PROXY=$REMOTE_NO_PROXY bash -se" <<'REMOTE_SCRIPT'
+            "DEPLOY_PATH=$REMOTE_DEPLOY_PATH TIKHUB_API_KEY=$REMOTE_TIKHUB_API_KEY PRISMA_ENGINES_MIRROR=$REMOTE_PRISMA_ENGINES_MIRROR HTTPS_PROXY=$REMOTE_HTTPS_PROXY HTTP_PROXY=$REMOTE_HTTP_PROXY NO_PROXY=$REMOTE_NO_PROXY RELEASE_ARCHIVE_PATH=$REMOTE_ARCHIVE_PATH_ESCAPED RELEASE_KEY=$REMOTE_RELEASE_KEY bash -se" <<'REMOTE_SCRIPT'
             set -Eeuo pipefail
             APP_RUNTIME_USER="aiops"
+            RELEASE_ROOT="/home/$APP_RUNTIME_USER/.deploy-releases"
 
             log_step() {
               printf '\n[%s] %s\n' "$(date -Iseconds)" "$1"
@@ -111,6 +216,8 @@ jobs:
               echo "whoami: $(whoami)"
               echo "pwd: $(pwd)"
               echo "deploy path: $DEPLOY_PATH"
+              echo "release archive: $RELEASE_ARCHIVE_PATH"
+              echo "release key: $RELEASE_KEY"
               echo "listeners:"
               ss -lntp || true
               echo "curl 127.0.0.1:3011/api/health:"
@@ -140,6 +247,11 @@ jobs:
 
             if [ ! -f /root/.ssh/github_repo_readonly ]; then
               echo "部署终止：缺少 /root/.ssh/github_repo_readonly，无法让 $APP_RUNTIME_USER 拉取私有仓库。"
+              exit 1
+            fi
+
+            if [ ! -f "$RELEASE_ARCHIVE_PATH" ]; then
+              echo "部署终止：服务器上缺少 release archive -> $RELEASE_ARCHIVE_PATH"
               exit 1
             fi
 
@@ -218,6 +330,7 @@ jobs:
             }
 
             ensure_ffmpeg
+
             ensure_rsync() {
               if command -v rsync >/dev/null 2>&1; then
                 echo "detected system rsync: $(command -v rsync)"
@@ -233,10 +346,49 @@ jobs:
 
             ensure_rsync
 
-            runuser -u "$APP_RUNTIME_USER" -- env DEPLOY_PATH="$DEPLOY_PATH" TIKHUB_API_KEY="$TIKHUB_API_KEY" PRISMA_ENGINES_MIRROR="${PRISMA_ENGINES_MIRROR:-}" HTTPS_PROXY="${HTTPS_PROXY:-}" HTTP_PROXY="${HTTP_PROXY:-}" NO_PROXY="${NO_PROXY:-}" bash <<'RUNUSER_SCRIPT'
+            prepare_release_dir() {
+              local release_dir="$RELEASE_ROOT/$RELEASE_KEY"
+              rm -rf "$release_dir"
+              mkdir -p "$release_dir"
+              chown -R "$APP_RUNTIME_USER:$APP_RUNTIME_USER" "$release_dir"
+              echo "$release_dir"
+            }
+
+            hydrate_release_env_files() {
+              local release_dir="$1"
+              local env_file
+              for env_file in \
+                "$DEPLOY_PATH/.env" \
+                "$DEPLOY_PATH/.env.local" \
+                "$DEPLOY_PATH/.env.production" \
+                "$DEPLOY_PATH/.env.production.local" \
+                "$DEPLOY_PATH/apps/web/.env" \
+                "$DEPLOY_PATH/apps/web/.env.local" \
+                "$DEPLOY_PATH/apps/web/.env.production" \
+                "$DEPLOY_PATH/apps/web/.env.production.local" \
+                "$DEPLOY_PATH/apps/server/.env" \
+                "$DEPLOY_PATH/apps/server/.env.local" \
+                "$DEPLOY_PATH/apps/server/.env.production" \
+                "$DEPLOY_PATH/apps/server/.env.production.local"
+              do
+                if [ -f "$env_file" ]; then
+                  mkdir -p "$release_dir/$(dirname "${env_file#$DEPLOY_PATH/}")"
+                  cp "$env_file" "$release_dir/${env_file#$DEPLOY_PATH/}"
+                fi
+              done
+              chown -R "$APP_RUNTIME_USER:$APP_RUNTIME_USER" "$release_dir"
+            }
+
+            RELEASE_DIR="$(prepare_release_dir)"
+            log_step "prepare detached release directory"
+            echo "release directory: $RELEASE_DIR"
+
+            run_checked "extract runner release archive" runuser -u "$APP_RUNTIME_USER" -- tar -xzf "$RELEASE_ARCHIVE_PATH" -C "$RELEASE_DIR"
+            run_checked "hydrate release env files" hydrate_release_env_files "$RELEASE_DIR"
+            rm -f "$RELEASE_ARCHIVE_PATH"
+
+            runuser -u "$APP_RUNTIME_USER" -- env DEPLOY_PATH="$DEPLOY_PATH" RELEASE_DIR="$RELEASE_DIR" TIKHUB_API_KEY="$TIKHUB_API_KEY" bash <<'RUNUSER_SCRIPT'
               set -Eeuo pipefail
-              RELEASE_ROOT="$HOME/.deploy-releases"
-              RELEASE_DIR=""
 
               log_step() {
                 printf '\n[%s] %s\n' "$(date -Iseconds)" "$1"
@@ -246,47 +398,6 @@ jobs:
                 log_step "$1"
                 shift
                 "$@"
-              }
-
-              run_checked_with_timeout() {
-                local timeout_window="$1"
-                local step_name="$2"
-                shift 2
-                log_step "$step_name"
-                if timeout --foreground "$timeout_window" "$@"; then
-                  return 0
-                fi
-                local exit_code="$?"
-                if [ "$exit_code" -ne 0 ]; then
-                  if [ "$exit_code" -eq 124 ]; then
-                    echo "步骤超时：$step_name 超过 $timeout_window 仍未完成。"
-                  fi
-                  return "$exit_code"
-                fi
-              }
-
-              print_npm_install_diagnostics() {
-                echo "npm registry: $(npm config get registry)"
-                echo "npm cache dir: $(npm config get cache)"
-                echo "node version: $(node --version)"
-                echo "npm version: $(npm --version)"
-                echo "尝试 npm ping registry"
-                npm ping --loglevel=notice || true
-              }
-
-              cleanup_release_dir() {
-                if [ -z "$RELEASE_DIR" ] || [ ! -d "$RELEASE_DIR" ]; then
-                  return 0
-                fi
-                git -C "$DEPLOY_PATH" worktree remove --force "$RELEASE_DIR" >/dev/null 2>&1 || rm -rf "$RELEASE_DIR"
-              }
-
-              trap cleanup_release_dir EXIT
-
-              prepare_web_build_dir() {
-                local target_root="${1:-$PWD}"
-                rm -rf "$target_root/apps/web/.next"
-                mkdir -p "$target_root/apps/web/.next"
               }
 
               purge_runtime_artifacts() {
@@ -328,37 +439,12 @@ jobs:
                 run_checked "purge runtime artifacts" purge_runtime_artifacts
               }
 
-              prepare_release_worktree() {
-                local target_ref target_sha
-                target_ref="origin/main"
-                target_sha="$(git rev-parse --short "$target_ref")"
-                mkdir -p "$RELEASE_ROOT"
-                RELEASE_DIR="$RELEASE_ROOT/$(date +%Y%m%d-%H%M%S)-$target_sha"
-                run_checked "prepare detached release worktree" git worktree add --force --detach "$RELEASE_DIR" "$target_ref"
-                echo "release directory: $RELEASE_DIR"
-              }
-
-              hydrate_release_env_files() {
-                local env_file
-                for env_file in \
-                  "$DEPLOY_PATH/.env" \
-                  "$DEPLOY_PATH/.env.local" \
-                  "$DEPLOY_PATH/.env.production" \
-                  "$DEPLOY_PATH/.env.production.local" \
-                  "$DEPLOY_PATH/apps/web/.env" \
-                  "$DEPLOY_PATH/apps/web/.env.local" \
-                  "$DEPLOY_PATH/apps/web/.env.production" \
-                  "$DEPLOY_PATH/apps/web/.env.production.local" \
-                  "$DEPLOY_PATH/apps/server/.env" \
-                  "$DEPLOY_PATH/apps/server/.env.local" \
-                  "$DEPLOY_PATH/apps/server/.env.production" \
-                  "$DEPLOY_PATH/apps/server/.env.production.local"
-                do
-                  if [ -f "$env_file" ]; then
-                    mkdir -p "$RELEASE_DIR/$(dirname "${env_file#$DEPLOY_PATH/}")"
-                    cp "$env_file" "$RELEASE_DIR/${env_file#$DEPLOY_PATH/}"
-                  fi
-                done
+              verify_pm2_runtime_secret() {
+                if [ -z "${TIKHUB_API_KEY:-}" ]; then
+                  echo "跳过 pm2 TIKHUB_API_KEY 校验：GitHub Secret 未配置。"
+                  return 0
+                fi
+                node -e 'const { execSync } = require("node:child_process"); const apps = JSON.parse(execSync("pm2 jlist", { encoding: "utf8" })); const server = apps.find((item) => item.name === "ai-omni-server"); if (!server) { console.error("部署终止：pm2 中未找到 ai-omni-server 进程。"); process.exit(1); } const token = server.pm2_env?.TIKHUB_API_KEY; console.log("pm2 ai-omni-server TIKHUB_API_KEY: " + (token ? "present" : "missing")); if (!token) { process.exit(1); }'
               }
 
               sync_prepared_release_into_deploy_path() {
@@ -394,46 +480,23 @@ jobs:
                 fi
               fi
 
-              prepare_release_worktree
-              run_checked "hydrate release env files" hydrate_release_env_files
-
-              cd "$RELEASE_DIR"
-              run_checked "git rev-parse HEAD" git rev-parse HEAD
-              run_checked "npm install diagnostics" print_npm_install_diagnostics
-              run_checked_with_timeout "25m" "npm ci" env \
-                PRISMA_SKIP_POSTINSTALL_GENERATE=1 \
-                PRISMA_ENGINES_MIRROR="${PRISMA_ENGINES_MIRROR:-}" \
-                HTTPS_PROXY="${HTTPS_PROXY:-}" \
-                HTTP_PROXY="${HTTP_PROXY:-}" \
-                NO_PROXY="${NO_PROXY:-}" \
-                NPM_CONFIG_FETCH_RETRIES=5 \
-                NPM_CONFIG_FETCH_RETRY_MINTIMEOUT=10000 \
-                NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT=120000 \
-                NPM_CONFIG_FETCH_TIMEOUT=60000 \
-                npm ci --foreground-scripts --loglevel=notice --no-audit
-              run_checked "npm run prisma:generate" env PRISMA_ENGINES_MIRROR="${PRISMA_ENGINES_MIRROR:-}" HTTPS_PROXY="${HTTPS_PROXY:-}" HTTP_PROXY="${HTTP_PROXY:-}" NO_PROXY="${NO_PROXY:-}" npm run prisma:generate
-              run_checked "npm run prisma:db:push" npm run prisma:db:push
-              run_checked "npm run prisma:seed:registration-invite-codes" npm run prisma:seed:registration-invite-codes
-
-              run_checked "npm run build:server" npm run build:server
-              run_checked "prepare web build directory" prepare_web_build_dir "$RELEASE_DIR"
-              run_checked "npm run build:web" npm run build:web
-
-              cd "$DEPLOY_PATH"
               run_checked "git reset --hard origin/main" git reset --hard origin/main
-              run_checked "purge runtime artifacts" purge_runtime_artifacts
               run_checked "git rev-parse HEAD" git rev-parse HEAD
 
-              POST_SYNC_STATUS="$(git status --porcelain=v1 -uall)"
-              if [ -n "$POST_SYNC_STATUS" ]; then
+              run_checked "npm run prisma:db:push on release" bash -lc "cd '$RELEASE_DIR' && npm run prisma:db:push"
+              run_checked "npm run prisma:seed:registration-invite-codes on release" bash -lc "cd '$RELEASE_DIR' && npm run prisma:seed:registration-invite-codes"
+
+              POST_RESET_STATUS="$(git status --porcelain=v1 -uall)"
+              if [ -n "$POST_RESET_STATUS" ]; then
                 echo "部署终止：同步远端提交后工作区未保持干净，请先人工排查服务器现场。"
-                printf "%s\n" "$POST_SYNC_STATUS"
+                printf "%s\n" "$POST_RESET_STATUS"
                 exit 1
               fi
 
               run_checked "stop pm2 runtime processes for cutover" suspend_runtime_processes
               run_checked "sync prepared release into deploy path" sync_prepared_release_into_deploy_path
-          RUNUSER_SCRIPT
+              run_checked "purge runtime artifacts" purge_runtime_artifacts
+            RUNUSER_SCRIPT
 
             clear_port_conflicts() {
               local port="$1"

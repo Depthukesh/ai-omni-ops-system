@@ -118,6 +118,8 @@
   - 公众号 Step 5 发布前收口下沉与 `WechatWorkflowPublishService`
 - `docs/changes/2026-07-14-production-stability-remediation-phase-1.md`
   - 生产稳定性治理第一阶段：系统方案文档与运行时调试收口
+- `docs/changes/2026-07-15-deploy-runner-build-offload.md`
+  - 部署链治理第二阶段：将 `npm ci + build` 前移到 GitHub Runner
 - `docs/changes/2026-06-30-wechat-infrastructure-refactor-phase-4.md`
   - 清理 `WorksService` 中历史遗留的公众号 HTML helper
 - `docs/changes/2026-06-30-wechat-infrastructure-refactor-phase-3.md`
