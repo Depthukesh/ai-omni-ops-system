@@ -4693,6 +4693,39 @@ button {
   min-width: 1120px;
 }
 
+.openclaw-video-table {
+  min-width: 1500px;
+  table-layout: fixed;
+}
+
+.openclaw-video-table__col-title {
+  width: 220px;
+}
+
+.openclaw-video-table__col-description {
+  width: 240px;
+}
+
+.openclaw-video-table__col-script {
+  width: 280px;
+}
+
+.openclaw-video-table__col-cover {
+  width: 120px;
+}
+
+.openclaw-video-table__col-video {
+  width: 120px;
+}
+
+.openclaw-video-table__col-created {
+  width: 160px;
+}
+
+.openclaw-video-table__col-actions {
+  width: 360px;
+}
+
 .openclaw-record-table__col-date {
   width: 11%;
 }
@@ -4765,6 +4798,7 @@ button {
   gap: 8px;
   flex-wrap: nowrap;
   white-space: nowrap;
+  min-width: max-content;
 }
 
 .table-cell-wide {

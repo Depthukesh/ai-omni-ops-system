@@ -1,0 +1,53 @@
+[1mdiff --git a/apps/web/src/app/(dashboard)/brand-growth/workspace.tsx b/apps/web/src/app/(dashboard)/brand-growth/workspace.tsx[m
+[1mindex 929773d..2f633fe 100644[m
+[1m--- a/apps/web/src/app/(dashboard)/brand-growth/workspace.tsx[m
+[1m+++ b/apps/web/src/app/(dashboard)/brand-growth/workspace.tsx[m
+[36m@@ -645,6 +645,7 @@[m [mtype ReportScopeSnapshot = {[m
+   marketingCalendarWorkspace: XiaohongshuMarketingCalendarWorkspace;[m
+   douyinTopicLibraryWorkspace: DouyinHotTopicCandidatesWorkspace;[m
+   openClawLobsterDiaryWorkspace: OpenClawLobsterDiaryWorkspaceRecord;[m
+[32m+[m[32m  openClawDailyPlanWorkspace: OpenClawDailyPlanWorkspaceRecord;[m
+ };[m
+ [m
+ function buildReportScopeSnapshotKey(brandId: string) {[m
+[36m@@ -1001,6 +1002,8 @@[m [mexport function BrandGrowthWorkspace() {[m
+     useState<DouyinHotTopicCandidatesWorkspace>(douyinHotTopicCandidatesSeed);[m
+   const [openClawLobsterDiaryWorkspace, setOpenClawLobsterDiaryWorkspace] =[m
+     useState<OpenClawLobsterDiaryWorkspaceRecord>(createEmptyOpenClawLobsterDiaryWorkspace);[m
+[32m+[m[32m  const [openClawDailyPlanWorkspace, setOpenClawDailyPlanWorkspace] =[m
+[32m+[m[32m    useState<OpenClawDailyPlanWorkspaceRecord>(createEmptyOpenClawDailyPlanWorkspace);[m
+   const [feishuBinding, setFeishuBinding] = useState<FeishuBindingRecord | null>(null);[m
+   const [feishuAppConfig, setFeishuAppConfig] = useState<FeishuAppConfigRecord | null>(null);[m
+   const [feishuAuthStatus, setFeishuAuthStatus] = useState<FeishuAuthStatusRecord | null>(null);[m
+[36m@@ -1615,6 +1618,7 @@[m [mexport function BrandGrowthWorkspace() {[m
+       marketingCalendarWorkspace,[m
+       douyinTopicLibraryWorkspace,[m
+       openClawLobsterDiaryWorkspace,[m
+[32m+[m[32m      openClawDailyPlanWorkspace,[m
+     });[m
+   }, [[m
+     activeBrandId,[m
+[36m@@ -1628,6 +1632,7 @@[m [mexport function BrandGrowthWorkspace() {[m
+     xiaohongshuMarketingPlanWorkspace,[m
+     douyinTopicLibraryWorkspace,[m
+     openClawLobsterDiaryWorkspace,[m
+[32m+[m[32m    openClawDailyPlanWorkspace,[m
+   ]);[m
+ [m
+   async function loadArchive(options?: { targetPage?: StrategyPageKey; force?: boolean }) {[m
+[36m@@ -1772,6 +1777,7 @@[m [mexport function BrandGrowthWorkspace() {[m
+           marketingCalendarResult,[m
+           douyinTopicLibraryResult,[m
+           openClawLobsterDiaryResult,[m
+[32m+[m[32m          openClawDailyPlanResult,[m
+         ] = await Promise.allSettled([[m
+           getXiaohongshuCollectionWorkspace(resolvedActiveBrandId),[m
+           getGrowthReportWorkspace(resolvedActiveBrandId),[m
+[36m@@ -1782,6 +1788,7 @@[m [mexport function BrandGrowthWorkspace() {[m
+           getXiaohongshuMarketingCalendarWorkspace(resolvedActiveBrandId),[m
+           getDouyinHotTopicCandidatesWorkspace(resolvedActiveBrandId),[m
+           getOpenClawLobsterDiaryWorkspace(resolvedActiveBrandId),[m
+[32m+[m[32m          getOpenClawDailyPlanWorkspace(resolvedActiveBrandId),[m
+         ]);[m
+ [m
+         if (collectionResult.status === "fulfilled") {[m

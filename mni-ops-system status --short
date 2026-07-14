@@ -1,0 +1,97 @@
+[1mdiff --git a/apps/server/src/modules/works/works.service.ts b/apps/server/src/modules/works/works.service.ts[m
+[1mindex c8690d3..8ecaab2 100644[m
+[1m--- a/apps/server/src/modules/works/works.service.ts[m
+[1m+++ b/apps/server/src/modules/works/works.service.ts[m
+[36m@@ -22074,18 +22074,21 @@[m [mexport class WorksService {[m
+   private async prepareRunningHubTaskNodeInfoList(brandId: string, apiKey: string, nodeInfoList: RunningHubNodeSubmissionEntry[]) {[m
+     const prepared: DouyinRunningHubAppFieldRecord[] = [];[m
+     for (const item of nodeInfoList) {[m
+[31m-      let fieldValue = this.normalizeRunningHubFieldValue(item.fieldValue);[m
+[32m+[m[32m      const originalFieldValue = this.normalizeRunningHubFieldValue(item.fieldValue);[m
+[32m+[m[32m      let fieldValue = originalFieldValue;[m
+[32m+[m[32m      let fieldData = item.fieldData;[m
+       const uploadPayload = item.upload || await this.resolveRunningHubRemoteUploadPayload(item, fieldValue);[m
+       if (uploadPayload) {[m
+         const uploadResult = await this.uploadRunningHubMedia(apiKey, uploadPayload);[m
+         fieldValue = this.resolveRunningHubUploadedFieldValue(item, uploadResult) || fieldValue;[m
+[32m+[m[32m        fieldData = this.resolveRunningHubUploadedFieldData(item, uploadResult, originalFieldValue, fieldData);[m
+       }[m
+       prepared.push({[m
+         nodeId: item.nodeId,[m
+         nodeName: item.nodeName,[m
+         fieldName: item.fieldName,[m
+         fieldValue,[m
+[31m-        fieldData: item.fieldData,[m
+[32m+[m[32m        fieldData,[m
+         fieldType: item.fieldType,[m
+         description: item.description,[m
+         descriptionEn: item.descriptionEn,[m
+[36m@@ -22259,6 +22262,68 @@[m [mexport class WorksService {[m
+     return this.normalizeRunningHubFieldValue(preferredValue);[m
+   }[m
+ [m
+[32m+[m[32m  private resolveRunningHubUploadedFieldData([m
+[32m+[m[32m    item: {[m
+[32m+[m[32m      fieldName?: string;[m
+[32m+[m[32m      nodeName?: string;[m
+[32m+[m[32m      fieldType?: string;[m
+[32m+[m[32m      fieldData?: string;[m
+[32m+[m[32m      description?: string;[m
+[32m+[m[32m      descriptionEn?: string;[m
+[32m+[m[32m      upload?: UploadFilePayload;[m
+[32m+[m[32m    },[m
+[32m+[m[32m    uploadResult: {[m
+[32m+[m[32m      downloadUrl?: string;[m
+[32m+[m[32m      fileName?: string;[m
+[32m+[m[32m    },[m
+[32m+[m[32m    originalFieldValue?: string,[m
+[32m+[m[32m    fieldData?: string,[m
+[32m+[m[32m  ) {[m
+[32m+[m[32m    const nextFileName = this.normalizeRunningHubFieldValue(uploadResult.fileName);[m
+[32m+[m[32m    const rawFieldData = String(fieldData || "").trim();[m
+[32m+[m[32m    if (!nextFileName || !rawFieldData) {[m
+[32m+[m[32m      return fieldData;[m
+[32m+[m[32m    }[m
+[32m+[m[32m    const contentType = String(item.upload?.contentType || "").toLowerCase();[m
+[32m+[m[32m    if (!contentType.startsWith("image/") || !rawFieldData.toLowerCase().includes("image_upload")) {[m
+[32m+[m[32m      return fieldData;[m
+[32m+[m[32m    }[m
+[32m+[m
+[32m+[m[32m    const replacePlaceholder = (value: unknown): unknown => {[m
+[32m+[m[32m      if (Array.isArray(value)) {[m
+[32m+[m[32m        return value.map((entry) => replacePlaceholder(entry));[m
+[32m+[m[32m      }[m
+[32m+[m[32m      if (value && typeof value === "object") {[m
+[32m+[m[32m        return Object.fromEntries([m
+[32m+[m[32m          Object.entries(value as Record<string, unknown>).map(([key, entry]) => [key, replacePlaceholder(entry)]),[m
+[32m+[m[32m        );[m
+[32m+[m[32m      }[m
+[32m+[m[32m      if (typeof value !== "string") {[m
+[32m+[m[32m        return value;[m
+[32m+[m[32m      }[m
+[32m+[m[32m      const normalizedValue = this.normalizeRunningHubFieldValue(value);[m
+[32m+[m[32m      if (!normalizedValue) {[m
+[32m+[m[32m        return value;[m
+[32m+[m[32m      }[m
+[32m+[m[32m      if (normalizedValue === "None" || normalizedValue === "keep_this_dic") {[m
+[32m+[m[32m        return value;[m
+[32m+[m[32m      }[m
+[32m+[m[32m      if (originalFieldValue && normalizedValue === originalFieldValue) {[m
+[32m+[m[32m        return nextFileName;[m
+[32m+[m[32m      }[m
+[32m+[m[32m      if (/\.(png|jpe?g|webp|gif|bmp|avif|heic|heif)$/i.test(normalizedValue)) {[m
+[32m+[m[32m        return nextFileName;[m
+[32m+[m[32m      }[m
+[32m+[m[32m      return value;[m
+[32m+[m[32m    };[m
+[32m+[m
+[32m+[m[32m    try {[m
+[32m+[m[32m      return JSON.stringify(replacePlaceholder(JSON.parse(rawFieldData)));[m
+[32m+[m[32m    } catch {[m
+[32m+[m[32m      return fieldData;[m
+[32m+[m[32m    }[m
+[32m+[m[32m  }[m
+[32m+[m
+   private normalizeRunningHubInstanceType(instanceType?: string): RunningHubInstanceType {[m
+     return String(instanceType || "").trim().toLowerCase() === "plus" ? "plus" : "default";[m
+   }[m

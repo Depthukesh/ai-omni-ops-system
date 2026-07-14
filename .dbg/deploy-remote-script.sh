@@ -1,0 +1,357 @@
+            set -Eeuo pipefail
+            APP_RUNTIME_USER="aiops"
+
+            log_step() {
+              printf '\n[%s] %s\n' "$(date -Iseconds)" "$1"
+            }
+
+            run_checked() {
+              log_step "$1"
+              shift
+              "$@"
+            }
+
+            dump_remote_debug() {
+              log_step "远端调试信息"
+              echo "whoami: $(whoami)"
+              echo "pwd: $(pwd)"
+              echo "deploy path: $DEPLOY_PATH"
+              echo "listeners:"
+              ss -lntp || true
+              echo "curl 127.0.0.1:3011/api/health:"
+              curl -iS --max-time 8 http://127.0.0.1:3011/api/health || true
+              echo "curl 127.0.0.1:3001/health:"
+              curl -iS --max-time 8 http://127.0.0.1:3001/health || true
+              echo "pm2 status:"
+              runuser -u "$APP_RUNTIME_USER" -- bash -lc 'pm2 status || true'
+              echo "pm2 recent logs:"
+              runuser -u "$APP_RUNTIME_USER" -- bash -lc 'pm2 logs --nostream --lines 40 || true'
+            }
+
+            on_error() {
+              local exit_code="$1"
+              local line_no="$2"
+              local failed_command="$3"
+              echo "部署失败：exit_code=$exit_code line=$line_no command=$failed_command"
+              dump_remote_debug
+              exit "$exit_code"
+            }
+
+            trap 'on_error "$?" "$LINENO" "$BASH_COMMAND"' ERR
+
+            if ! id -u "$APP_RUNTIME_USER" >/dev/null 2>&1; then
+              useradd --system --create-home --shell /bin/bash "$APP_RUNTIME_USER"
+            fi
+
+            if [ ! -f /root/.ssh/github_repo_readonly ]; then
+              echo "部署终止：缺少 /root/.ssh/github_repo_readonly，无法让 $APP_RUNTIME_USER 拉取私有仓库。"
+              exit 1
+            fi
+
+            install -d -m 755 -o "$APP_RUNTIME_USER" -g "$APP_RUNTIME_USER" "/home/$APP_RUNTIME_USER/.pm2"
+            install -d -m 700 -o "$APP_RUNTIME_USER" -g "$APP_RUNTIME_USER" "/home/$APP_RUNTIME_USER/.ssh"
+            install -m 600 -o "$APP_RUNTIME_USER" -g "$APP_RUNTIME_USER" /root/.ssh/github_repo_readonly "/home/$APP_RUNTIME_USER/.ssh/github_repo_readonly"
+
+            prepare_github_known_hosts() {
+              local target_file temp_file attempt
+              target_file="/home/$APP_RUNTIME_USER/.ssh/known_hosts"
+              temp_file="$(mktemp)"
+              : > "$temp_file"
+
+              if [ -f /root/.ssh/known_hosts ]; then
+                grep -E '(^|[[:space:]])github\.com([[:space:]]|,|$)|(^|[[:space:]])\[ssh\.github\.com\]:443([[:space:]]|,|$)' /root/.ssh/known_hosts >> "$temp_file" || true
+              fi
+
+              for attempt in 1 2 3; do
+                ssh-keyscan -H -T 10 -p 443 ssh.github.com >> "$temp_file" 2>/dev/null || true
+                ssh-keyscan -H -T 10 github.com >> "$temp_file" 2>/dev/null || true
+                if [ -s "$temp_file" ]; then
+                  break
+                fi
+                echo "GitHub known_hosts 准备重试 ($attempt/3)"
+                sleep 2
+              done
+
+              if [ ! -s "$temp_file" ]; then
+                rm -f "$temp_file"
+                echo "部署终止：无法为 GitHub SSH 准备 known_hosts。请检查服务器到 github.com / ssh.github.com:443 的出网连通性。"
+                return 1
+              fi
+
+              sort -u "$temp_file" > "$target_file"
+              rm -f "$temp_file"
+              chown "$APP_RUNTIME_USER:$APP_RUNTIME_USER" "$target_file"
+              chmod 600 "$target_file"
+            }
+
+            prepare_github_known_hosts
+            cat > "/home/$APP_RUNTIME_USER/.ssh/config" <<GITHUB_SSH_CONFIG
+            Host github.com
+              HostName ssh.github.com
+              Port 443
+              User git
+              IdentityFile /home/$APP_RUNTIME_USER/.ssh/github_repo_readonly
+              IdentitiesOnly yes
+          GITHUB_SSH_CONFIG
+            chown "$APP_RUNTIME_USER:$APP_RUNTIME_USER" "/home/$APP_RUNTIME_USER/.ssh/config"
+            chmod 600 "/home/$APP_RUNTIME_USER/.ssh/config"
+            chown -R "$APP_RUNTIME_USER:$APP_RUNTIME_USER" "$DEPLOY_PATH"
+
+            if [ -z "${TIKHUB_API_KEY:-}" ]; then
+              echo "部署警告：GitHub Secret TIKHUB_API_KEY 为空，每日热点自动抓取会不可用。"
+            fi
+
+            if [ -n "${PRISMA_ENGINES_MIRROR:-}" ]; then
+              echo "部署信息：Prisma 引擎将通过自定义镜像下载 -> $PRISMA_ENGINES_MIRROR"
+            elif [ -n "${HTTPS_PROXY:-}${HTTP_PROXY:-}" ]; then
+              echo "部署信息：Prisma 引擎将通过代理下载。"
+            else
+              echo "部署提示：未配置 Prisma 镜像或代理，默认直连 binaries.prisma.sh。"
+            fi
+
+            ensure_ffmpeg() {
+              if command -v ffmpeg >/dev/null 2>&1; then
+                echo "检测到系统 ffmpeg: $(command -v ffmpeg)"
+                ffmpeg -version | head -n 1 || true
+                return 0
+              fi
+              log_step "安装系统 ffmpeg"
+              export DEBIAN_FRONTEND=noninteractive
+              apt-get update
+              apt-get install -y ffmpeg
+              ffmpeg -version | head -n 1
+            }
+
+            ensure_ffmpeg
+            ensure_rsync() {
+              if command -v rsync >/dev/null 2>&1; then
+                echo "detected system rsync: $(command -v rsync)"
+                rsync --version | head -n 1 || true
+                return 0
+              fi
+              log_step "install system rsync"
+              export DEBIAN_FRONTEND=noninteractive
+              apt-get update
+              apt-get install -y rsync
+              rsync --version | head -n 1
+            }
+
+            ensure_rsync
+
+            runuser -u "$APP_RUNTIME_USER" -- env DEPLOY_PATH="$DEPLOY_PATH" TIKHUB_API_KEY="$TIKHUB_API_KEY" PRISMA_ENGINES_MIRROR="${PRISMA_ENGINES_MIRROR:-}" HTTPS_PROXY="${HTTPS_PROXY:-}" HTTP_PROXY="${HTTP_PROXY:-}" NO_PROXY="${NO_PROXY:-}" bash <<'RUNUSER_SCRIPT'
+              set -Eeuo pipefail
+              RELEASE_ROOT="$HOME/.deploy-releases"
+              RELEASE_DIR=""
+
+              log_step() {
+                printf '\n[%s] %s\n' "$(date -Iseconds)" "$1"
+              }
+
+              run_checked() {
+                log_step "$1"
+                shift
+                "$@"
+              }
+
+              cleanup_release_dir() {
+                if [ -z "$RELEASE_DIR" ] || [ ! -d "$RELEASE_DIR" ]; then
+                  return 0
+                fi
+                git -C "$DEPLOY_PATH" worktree remove --force "$RELEASE_DIR" >/dev/null 2>&1 || rm -rf "$RELEASE_DIR"
+              }
+
+              trap cleanup_release_dir EXIT
+
+              prepare_web_build_dir() {
+                local target_root="${1:-$PWD}"
+                rm -rf "$target_root/apps/web/.next"
+                mkdir -p "$target_root/apps/web/.next"
+              }
+
+              suspend_runtime_processes() {
+                pm2 stop ai-omni-web || true
+                pm2 delete ai-omni-web || true
+                pm2 stop ai-omni-server || true
+                pm2 delete ai-omni-server || true
+              }
+
+              backup_and_clean_worktree() {
+                local backup_root backup_dir changed_files_path
+                backup_root="$HOME/.deploy-worktree-backups"
+                mkdir -p "$backup_root"
+                backup_dir="$backup_root/$(date +%Y%m%d-%H%M%S)-$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
+                changed_files_path="$backup_dir/worktree-files.txt"
+
+                mkdir -p "$backup_dir"
+                git rev-parse HEAD > "$backup_dir/head-before.txt" || true
+                git branch --show-current > "$backup_dir/branch.txt" || true
+                git status --porcelain=v1 -uall > "$backup_dir/git-status.txt" || true
+                git diff --binary > "$backup_dir/worktree.diff" || true
+                git diff --binary --cached > "$backup_dir/index.diff" || true
+                git ls-files -d > "$backup_dir/deleted-files.txt" || true
+                git ls-files -z -m -o --exclude-standard > "$changed_files_path" || true
+
+                if [ -s "$changed_files_path" ]; then
+                  tar -czf "$backup_dir/worktree-files.tar.gz" --null --files-from="$changed_files_path" --ignore-failed-read
+                fi
+
+                printf "%s\n" "$backup_dir" > "$backup_root/latest.txt"
+                echo "检测到远端工作区有未收口改动，已先备份到: $backup_dir"
+
+                run_checked "git reset --hard HEAD" git reset --hard HEAD
+                run_checked "git clean -fd" git clean -fd
+              }
+
+              prepare_release_worktree() {
+                local target_ref target_sha
+                target_ref="origin/main"
+                target_sha="$(git rev-parse --short "$target_ref")"
+                mkdir -p "$RELEASE_ROOT"
+                RELEASE_DIR="$RELEASE_ROOT/$(date +%Y%m%d-%H%M%S)-$target_sha"
+                run_checked "prepare detached release worktree" git worktree add --force --detach "$RELEASE_DIR" "$target_ref"
+                echo "release directory: $RELEASE_DIR"
+              }
+
+              sync_prepared_release_into_deploy_path() {
+                rsync -a --delete \
+                  --exclude '.git' \
+                  --exclude '.env' \
+                  --exclude '.env.*' \
+                  --exclude '.deploy-worktree-backups' \
+                  --exclude '.deploy-releases' \
+                  "$RELEASE_DIR"/ "$DEPLOY_PATH"/
+              }
+
+              cd "$DEPLOY_PATH"
+              log_step "工作区信息"
+              pwd
+              node --version
+              npm --version
+
+              run_checked "git fetch origin main" git fetch origin main
+              run_checked "git checkout main" git checkout main
+
+              PRE_DEPLOY_STATUS="$(git status --porcelain=v1 -uall)"
+              if [ -n "$PRE_DEPLOY_STATUS" ]; then
+                echo "检测到服务器工作区存在未收口改动或额外文件，开始自动备份并收口。"
+                printf "%s\n" "$PRE_DEPLOY_STATUS"
+                backup_and_clean_worktree
+                PRE_DEPLOY_STATUS="$(git status --porcelain=v1 -uall)"
+                if [ -n "$PRE_DEPLOY_STATUS" ]; then
+                  echo "部署终止：自动收口后工作区仍不干净。"
+                  printf "%s\n" "$PRE_DEPLOY_STATUS"
+                  exit 1
+                fi
+              fi
+
+              prepare_release_worktree
+
+              cd "$RELEASE_DIR"
+              run_checked "git rev-parse HEAD" git rev-parse HEAD
+              run_checked "npm ci" env PRISMA_SKIP_POSTINSTALL_GENERATE=1 PRISMA_ENGINES_MIRROR="${PRISMA_ENGINES_MIRROR:-}" HTTPS_PROXY="${HTTPS_PROXY:-}" HTTP_PROXY="${HTTP_PROXY:-}" NO_PROXY="${NO_PROXY:-}" npm ci --foreground-scripts --loglevel=notice
+              run_checked "npm run prisma:generate" env PRISMA_ENGINES_MIRROR="${PRISMA_ENGINES_MIRROR:-}" HTTPS_PROXY="${HTTPS_PROXY:-}" HTTP_PROXY="${HTTP_PROXY:-}" NO_PROXY="${NO_PROXY:-}" npm run prisma:generate
+              run_checked "npm run prisma:db:push" npm run prisma:db:push
+              run_checked "npm run prisma:seed:registration-invite-codes" npm run prisma:seed:registration-invite-codes
+
+              run_checked "npm run build:server" npm run build:server
+              run_checked "prepare web build directory" prepare_web_build_dir "$RELEASE_DIR"
+              run_checked "npm run build:web" npm run build:web
+
+              cd "$DEPLOY_PATH"
+              run_checked "git reset --hard origin/main" git reset --hard origin/main
+              run_checked "git rev-parse HEAD" git rev-parse HEAD
+
+              POST_SYNC_STATUS="$(git status --porcelain=v1 -uall)"
+              if [ -n "$POST_SYNC_STATUS" ]; then
+                echo "閮ㄧ讲缁堟锛氬悓姝ヨ繙绔彁浜ゅ悗宸ヤ綔鍖烘湭淇濇寔骞插噣锛岃鍏堜汉宸ユ帓鏌ユ湇鍔″櫒鐜板満銆?"
+                printf "%s\n" "$POST_SYNC_STATUS"
+                exit 1
+              fi
+
+              run_checked "stop pm2 runtime processes for cutover" suspend_runtime_processes
+              run_checked "sync prepared release into deploy path" sync_prepared_release_into_deploy_path
+          RUNUSER_SCRIPT
+
+            clear_port_conflicts() {
+              local port="$1"
+              local listeners attempt pids
+              listeners="$(ss -lntp | grep -E "127\\.0\\.0\\.1:${port}|0\\.0\\.0\\.0:${port}|:::${port}" || true)"
+              if [ -z "$listeners" ]; then
+                echo "port ${port} is currently free."
+                return 0
+              fi
+
+              echo "found active listeners on port ${port}, preparing cleanup:"
+              printf '%s\n' "$listeners"
+
+              pids="$(printf '%s\n' "$listeners" | grep -o 'pid=[0-9]\+' | cut -d= -f2 | sort -u | tr '\n' ' ')"
+              if [ -n "$pids" ]; then
+                kill -9 $pids || true
+              fi
+
+              attempt=1
+              while ss -lnt | grep -qE "127\\.0\\.0\\.1:${port}|0\\.0\\.0\\.0:${port}|:::${port}"; do
+                if [ "$attempt" -gt 15 ]; then
+                  echo "Deploy aborted: port ${port} is still occupied after cleanup."
+                  ss -lntp | grep -E "127\\.0\\.0\\.1:${port}|0\\.0\\.0\\.0:${port}|:::${port}" || true
+                  return 1
+                fi
+                sleep 1
+                attempt=$((attempt + 1))
+              done
+            }
+
+            run_checked "clear stale web listener on 3001" clear_port_conflicts 3001
+            run_checked "clear stale server listener on 3011" clear_port_conflicts 3011
+
+            runuser -u "$APP_RUNTIME_USER" -- env DEPLOY_PATH="$DEPLOY_PATH" TIKHUB_API_KEY="$TIKHUB_API_KEY" bash <<'PM2_SCRIPT'
+              set -Eeuo pipefail
+
+              verify_pm2_runtime_secret() {
+                if [ -z "${TIKHUB_API_KEY:-}" ]; then
+                  echo "跳过 pm2 TIKHUB_API_KEY 校验：GitHub Secret 未配置。"
+                  return 0
+                fi
+                node -e 'const { execSync } = require("node:child_process"); const apps = JSON.parse(execSync("pm2 jlist", { encoding: "utf8" })); const server = apps.find((item) => item.name === "ai-omni-server"); if (!server) { console.error("部署终止：pm2 中未找到 ai-omni-server 进程。"); process.exit(1); } const token = server.pm2_env?.TIKHUB_API_KEY; console.log("pm2 ai-omni-server TIKHUB_API_KEY: " + (token ? "present" : "missing")); if (!token) { process.exit(1); }'
+              }
+
+              cd "$DEPLOY_PATH"
+              pm2 startOrReload ecosystem.config.cjs --update-env
+              verify_pm2_runtime_secret
+              pm2 save
+              pm2 status
+          PM2_SCRIPT
+
+            wait_for_http() {
+              local url="$1"
+              local max_attempts="${2:-30}"
+              local sleep_seconds="${3:-2}"
+              local attempt=1
+              while [ "$attempt" -le "$max_attempts" ]; do
+                if curl -fsS "$url" >/dev/null; then
+                  echo "健康检查通过: $url"
+                  return 0
+                fi
+                echo "等待服务就绪 ($attempt/$max_attempts): $url"
+                sleep "$sleep_seconds"
+                attempt=$((attempt + 1))
+              done
+              echo "部署终止：服务在等待窗口内未就绪 -> $url"
+              curl -iS --max-time 5 "$url" || true
+              return 1
+            }
+
+            log_step "本机监听端口"
+            LOCAL_LISTENERS="$(ss -lnt | grep -E ':(80|443|3001|3011)\b' || true)"
+            printf '%s\n' "$LOCAL_LISTENERS"
+
+            if ss -lnt | grep -qE '0\.0\.0\.0:3001|:::3001|0\.0\.0\.0:3011|:::3011'; then
+              echo "部署终止：检测到 3001/3011 仍对公网监听。"
+              exit 1
+            fi
+
+            log_step "开始探活后端健康检查"
+            wait_for_http http://127.0.0.1:3011/api/health
+            log_step "开始探活前端健康检查"
+            wait_for_http http://127.0.0.1:3001/health
+          REMOTE_SCRIPT

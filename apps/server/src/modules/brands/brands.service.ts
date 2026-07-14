@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID, scryptSync } from "node:crypto";
 import { existsSync } from "node:fs";
 import { extname, join, resolve } from "node:path";
 import { promisify } from "node:util";
@@ -212,6 +212,7 @@ export type AddBrandMemberPayload = {
 export type UpdateBrandMemberPayload = {
   role?: BrandCollaboratorRole;
   status?: "ACTIVE" | "DISABLED" | "REMOVED";
+  nextPassword?: string;
 };
 
 export type CreateBrandInvitePayload = {
@@ -1177,7 +1178,9 @@ export class BrandsService {
 
     const nextRole = payload.role ? parseCollaboratorBrandRole(payload.role) : targetMember.role;
     const nextStatus = payload.status ? parseManageableBrandStatus(payload.status) : targetMember.status;
+    const nextPassword = String(payload.nextPassword || "").trim();
     this.assertCanAssignBrandRole(manager.role, nextRole);
+    this.assertAdminResetPasswordPayload(nextPassword);
 
     await this.prismaService.$transaction(async (tx) => {
       await tx.brandMember.update({
@@ -1188,18 +1191,30 @@ export class BrandsService {
         },
       });
 
+      if (nextPassword) {
+        await tx.user.update({
+          where: { id: targetMember.user.id },
+          data: {
+            passwordHash: this.hashPassword(nextPassword),
+          },
+        });
+      }
+
       await this.logBrandRoleAudit(tx, {
         brandId: id,
         operatorUserId: currentUserId,
         targetUserId: targetMember.user.id,
         action: "MEMBER_UPDATED",
-        summary: `更新品牌成员：${normalizeBrandCollaboratorRole(targetMember.role)}/${targetMember.status} -> ${normalizeBrandCollaboratorRole(nextRole)}/${nextStatus}`,
+        summary: nextPassword
+          ? `更新品牌成员：${normalizeBrandCollaboratorRole(targetMember.role)}/${targetMember.status} -> ${normalizeBrandCollaboratorRole(nextRole)}/${nextStatus}，并重置登录密码`
+          : `更新品牌成员：${normalizeBrandCollaboratorRole(targetMember.role)}/${targetMember.status} -> ${normalizeBrandCollaboratorRole(nextRole)}/${nextStatus}`,
         detailJson: {
           memberId,
           beforeRole: targetMember.role,
           beforeStatus: targetMember.status,
           nextRole,
           nextStatus,
+          passwordReset: Boolean(nextPassword),
         },
       });
     });
@@ -3070,6 +3085,21 @@ export class BrandsService {
       return;
     }
     throw new UnauthorizedException("当前角色无权管理品牌成员");
+  }
+
+  private assertAdminResetPasswordPayload(nextPassword: string) {
+    if (!nextPassword) {
+      return;
+    }
+    if (nextPassword.length < 6) {
+      throw new BadRequestException("新密码至少 6 位");
+    }
+  }
+
+  private hashPassword(password: string) {
+    const salt = randomBytes(16).toString("hex");
+    const derived = scryptSync(password, salt, 64).toString("hex");
+    return `scrypt$${salt}$${derived}`;
   }
 
   private getBrandPermissionSettingsFromMock(id: string, currentUserId: string): BrandPermissionSettingsRecord {

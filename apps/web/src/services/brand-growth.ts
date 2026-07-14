@@ -388,6 +388,7 @@ export type AddBrandMemberPayload = {
 export type UpdateBrandMemberPayload = {
   role?: BrandCollaboratorRole;
   status?: "ACTIVE" | "DISABLED" | "REMOVED";
+  nextPassword?: string;
 };
 
 export type BrandInviteRecord = {

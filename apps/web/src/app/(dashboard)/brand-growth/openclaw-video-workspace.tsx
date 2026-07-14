@@ -65,7 +65,16 @@ export function OpenClawVideoWorkspace(props: OpenClawVideoWorkspaceProps) {
           </div>
         ) : (
           <div className="table-scroll-shell openclaw-record-table-shell">
-            <table className="soft-table openclaw-record-table">
+            <table className="soft-table openclaw-record-table openclaw-video-table">
+              <colgroup>
+                <col className="openclaw-video-table__col-title" />
+                <col className="openclaw-video-table__col-description" />
+                <col className="openclaw-video-table__col-script" />
+                <col className="openclaw-video-table__col-cover" />
+                <col className="openclaw-video-table__col-video" />
+                <col className="openclaw-video-table__col-created" />
+                <col className="openclaw-video-table__col-actions" />
+              </colgroup>
               <thead>
                 <tr>
                   <th>作品标题</th>

@@ -60,6 +60,7 @@ export default function PersonalCenterTeamPage() {
   const [pendingInviteExpiresInDays, setPendingInviteExpiresInDays] = useState("7");
   const [memberRoleDrafts, setMemberRoleDrafts] = useState<Record<string, string>>({});
   const [memberStatusDrafts, setMemberStatusDrafts] = useState<Record<string, string>>({});
+  const [memberPasswordDrafts, setMemberPasswordDrafts] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isSwitchingBrand, setIsSwitchingBrand] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -224,6 +225,9 @@ export default function PersonalCenterTeamPage() {
     setMemberStatusDrafts(
       Object.fromEntries(result.items.map((item) => [item.id, item.status])),
     );
+    setMemberPasswordDrafts(
+      Object.fromEntries(result.items.map((item) => [item.id, ""])),
+    );
   }
 
   async function handleAddMember() {
@@ -264,12 +268,15 @@ export default function PersonalCenterTeamPage() {
     setNotice("");
     setErrorMessage("");
     try {
+      const nextPassword = String(memberPasswordDrafts[memberId] || "").trim();
       const result = await updateBrandMember(currentBrandId, memberId, {
         role: memberRoleDrafts[memberId] as BrandCollaboratorRole | undefined,
         status: memberStatusDrafts[memberId] as "ACTIVE" | "DISABLED" | "REMOVED" | undefined,
+        nextPassword: nextPassword || undefined,
       });
       syncMembersState(result);
-      setNotice("成员角色或状态已更新。");
+      setMemberPasswordDrafts((current) => ({ ...current, [memberId]: "" }));
+      setNotice(nextPassword ? "成员角色、状态或密码已更新。" : "成员角色或状态已更新。");
     } catch (error) {
       if (isAuthFailure(error)) {
         await handleSessionExpired();
@@ -999,6 +1006,9 @@ export default function PersonalCenterTeamPage() {
 
       <article className="light-data-panel personal-table-panel" style={{ marginBottom: 16 }}>
         <h3>当前品牌成员</h3>
+        <p className="panel-subtext" style={{ marginBottom: 12 }}>
+          管理员现在可以直接为员工或达人重置登录密码。新密码至少 6 位，留空则表示本次不修改密码。
+        </p>
         <div className="table-scroll-shell">
           <table className="soft-table table-responsive-stack">
             <thead>
@@ -1068,6 +1078,13 @@ export default function PersonalCenterTeamPage() {
                               </option>
                             ))}
                           </select>
+                          <input
+                            type="password"
+                            value={memberPasswordDrafts[item.id] ?? ""}
+                            onChange={(event) => setMemberPasswordDrafts((current) => ({ ...current, [item.id]: event.target.value }))}
+                            placeholder="输入新密码（至少 6 位）"
+                            autoComplete="new-password"
+                          />
                           <button
                             type="button"
                             className="secondary-button"
