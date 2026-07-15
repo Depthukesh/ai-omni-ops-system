@@ -310,11 +310,17 @@ export function DouyinWorkspaceShell() {
   const [errorMessage, setErrorMessage] = useState("");
   const [brandArchive, setBrandArchive] = useState<BrandArchiveBundle>(brandArchiveSeed);
   const [brandPermissionSettings, setBrandPermissionSettings] = useState<BrandPermissionSettingsRecord | null>(null);
+  const brandPermissionSettingsRef = useRef<BrandPermissionSettingsRecord | null>(null);
   const [collectionWorkspace, setCollectionWorkspace] = useState<DouyinCollectionWorkspace>(douyinCollectionSeed);
+  const collectionWorkspaceRef = useRef<DouyinCollectionWorkspace>(douyinCollectionSeed);
   const [xhsCollectionWorkspace, setXhsCollectionWorkspace] = useState<XhsCollectionWorkspace>(xhsCollectionSeed);
+  const xhsCollectionWorkspaceRef = useRef<XhsCollectionWorkspace>(xhsCollectionSeed);
   const [growthReportWorkspace, setGrowthReportWorkspace] = useState(growthReportSeed);
+  const growthReportWorkspaceRef = useRef(growthReportSeed);
   const [annualPlanWorkspace, setAnnualPlanWorkspace] = useState(annualMarketingPlanSeed);
+  const annualPlanWorkspaceRef = useRef(annualMarketingPlanSeed);
   const [opportunityInsightWorkspace, setOpportunityInsightWorkspace] = useState(opportunityInsightSeed);
+  const opportunityInsightWorkspaceRef = useRef(opportunityInsightSeed);
   const [marketingPlanWorkspace, setMarketingPlanWorkspace] = useState<DouyinMarketingPlanWorkspace>(douyinMarketingPlanSeed);
   const [hotTopicWorkspace, setHotTopicWorkspace] = useState<DouyinHotTopicCandidatesWorkspace>(douyinHotTopicCandidatesSeed);
   const [originalCopyWorkspace, setOriginalCopyWorkspace] = useState<DouyinOriginalCopyWorkspace>(douyinOriginalCopySeed);
@@ -432,8 +438,31 @@ export function DouyinWorkspaceShell() {
     [visibleSections],
   );
   useEffect(() => {
+    brandPermissionSettingsRef.current = brandPermissionSettings;
+  }, [brandPermissionSettings]);
+  useEffect(() => {
+    collectionWorkspaceRef.current = collectionWorkspace;
+  }, [collectionWorkspace]);
+  useEffect(() => {
+    xhsCollectionWorkspaceRef.current = xhsCollectionWorkspace;
+  }, [xhsCollectionWorkspace]);
+  useEffect(() => {
+    growthReportWorkspaceRef.current = growthReportWorkspace;
+  }, [growthReportWorkspace]);
+  useEffect(() => {
+    annualPlanWorkspaceRef.current = annualPlanWorkspace;
+  }, [annualPlanWorkspace]);
+  useEffect(() => {
+    opportunityInsightWorkspaceRef.current = opportunityInsightWorkspace;
+  }, [opportunityInsightWorkspace]);
+  useEffect(() => {
     activeSectionRef.current = activeSection;
   }, [activeSection]);
+  useEffect(() => {
+    setHasLoadedSharedWorkspace(false);
+    setLoadedSections(createInitialSectionLoadState());
+    setLoadState("loading");
+  }, [activeBrandId]);
   const hasWorkspaceAccess = visibleSections.length > 0;
   const canEditMarketingPlan = brandPermissionSettings ? (permissionMap?.["douyin.plan"]?.edit ?? false) : true;
   const canEditHotTopics = brandPermissionSettings ? (permissionMap?.["brandGrowth.report.topicLibrary"]?.edit ?? false) : true;
@@ -852,12 +881,12 @@ export function DouyinWorkspaceShell() {
     const currentSectionFailedInterfaceNames: string[] = [];
 
     const [permissionResult, collectionResult, xhsCollectionResult, growthResult, annualResult, opportunityInsightResult] = await Promise.allSettled([
-      shouldLoadSharedWorkspace ? getBrandPermissionSettings(activeBrandId) : Promise.resolve(brandPermissionSettings),
-      shouldLoadSharedWorkspace ? getDouyinCollectionWorkspace(activeBrandId) : Promise.resolve(collectionWorkspace),
-      shouldLoadSharedWorkspace ? getXiaohongshuCollectionWorkspace(activeBrandId) : Promise.resolve(xhsCollectionWorkspace),
-      shouldLoadSharedWorkspace ? getGrowthReportWorkspace(activeBrandId) : Promise.resolve(growthReportWorkspace),
-      shouldLoadSharedWorkspace ? getAnnualMarketingPlanWorkspace(activeBrandId) : Promise.resolve(annualPlanWorkspace),
-      shouldLoadSharedWorkspace ? getOpportunityInsightWorkspace(activeBrandId) : Promise.resolve(opportunityInsightWorkspace),
+      shouldLoadSharedWorkspace ? getBrandPermissionSettings(activeBrandId) : Promise.resolve(brandPermissionSettingsRef.current),
+      shouldLoadSharedWorkspace ? getDouyinCollectionWorkspace(activeBrandId) : Promise.resolve(collectionWorkspaceRef.current),
+      shouldLoadSharedWorkspace ? getXiaohongshuCollectionWorkspace(activeBrandId) : Promise.resolve(xhsCollectionWorkspaceRef.current),
+      shouldLoadSharedWorkspace ? getGrowthReportWorkspace(activeBrandId) : Promise.resolve(growthReportWorkspaceRef.current),
+      shouldLoadSharedWorkspace ? getAnnualMarketingPlanWorkspace(activeBrandId) : Promise.resolve(annualPlanWorkspaceRef.current),
+      shouldLoadSharedWorkspace ? getOpportunityInsightWorkspace(activeBrandId) : Promise.resolve(opportunityInsightWorkspaceRef.current),
     ]);
     const sharedWorkspaceLoadedSuccessfully =
       !shouldLoadSharedWorkspace
@@ -874,7 +903,7 @@ export function DouyinWorkspaceShell() {
     const resolvedPermissionSettings =
       permissionResult.status === "fulfilled"
         ? permissionResult.value
-        : brandPermissionSettings;
+        : brandPermissionSettingsRef.current;
     if (shouldLoadSharedWorkspace) {
       if (permissionResult.status === "fulfilled") {
         setBrandPermissionSettings(permissionResult.value);
@@ -1433,16 +1462,10 @@ export function DouyinWorkspaceShell() {
     setIsLoading(false);
   }, [
     activeBrandId,
-    annualPlanWorkspace,
-    brandPermissionSettings,
-    collectionWorkspace,
     debugBundleMarker,
     digitalHumanCurrentSpeechTaskId,
     digitalHumanTemplateTagId,
-    growthReportWorkspace,
     hasLoadedSharedWorkspace,
-    opportunityInsightWorkspace,
-    xhsCollectionWorkspace,
   ]);
 
   const refreshPublishingWorkspace = useCallback(async () => {
@@ -1511,14 +1534,14 @@ export function DouyinWorkspaceShell() {
 
   useEffect(() => {
     void loadWorkspace(undefined, { forceShared: true });
-  }, [loadWorkspace]);
+  }, [activeBrandId]);
 
   useEffect(() => {
     if (isLoading || loadedSections[activeSection]) {
       return;
     }
     void loadWorkspace(activeSection);
-  }, [activeSection, isLoading, loadedSections, loadWorkspace]);
+  }, [activeBrandId, activeSection, isLoading, loadedSections]);
 
   useEffect(() => {
     // #region debug-point G:douyin-workspace-error-message-change
