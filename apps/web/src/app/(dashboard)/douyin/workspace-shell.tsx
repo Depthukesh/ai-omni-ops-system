@@ -880,13 +880,10 @@ export function DouyinWorkspaceShell() {
     const failedInterfaceNames: string[] = [];
     const currentSectionFailedInterfaceNames: string[] = [];
 
-    const [permissionResult, collectionResult, xhsCollectionResult, growthResult, annualResult, opportunityInsightResult] = await Promise.allSettled([
+    const [permissionResult, collectionResult, xhsCollectionResult] = await Promise.allSettled([
       shouldLoadSharedWorkspace ? getBrandPermissionSettings(activeBrandId) : Promise.resolve(brandPermissionSettingsRef.current),
       shouldLoadSharedWorkspace ? getDouyinCollectionWorkspace(activeBrandId) : Promise.resolve(collectionWorkspaceRef.current),
       shouldLoadSharedWorkspace ? getXiaohongshuCollectionWorkspace(activeBrandId) : Promise.resolve(xhsCollectionWorkspaceRef.current),
-      shouldLoadSharedWorkspace ? getGrowthReportWorkspace(activeBrandId) : Promise.resolve(growthReportWorkspaceRef.current),
-      shouldLoadSharedWorkspace ? getAnnualMarketingPlanWorkspace(activeBrandId) : Promise.resolve(annualPlanWorkspaceRef.current),
-      shouldLoadSharedWorkspace ? getOpportunityInsightWorkspace(activeBrandId) : Promise.resolve(opportunityInsightWorkspaceRef.current),
     ]);
     const sharedWorkspaceLoadedSuccessfully =
       !shouldLoadSharedWorkspace
@@ -894,9 +891,6 @@ export function DouyinWorkspaceShell() {
         permissionResult.status === "fulfilled"
         && collectionResult.status === "fulfilled"
         && xhsCollectionResult.status === "fulfilled"
-        && growthResult.status === "fulfilled"
-        && annualResult.status === "fulfilled"
-        && opportunityInsightResult.status === "fulfilled"
       );
 
     let hasFallback = false;
@@ -918,6 +912,7 @@ export function DouyinWorkspaceShell() {
       !resolvedPermissionSettings || Boolean(resolvedPermissionSettings.currentUserPermissions?.[douyinSectionPermissionMap[sectionKey]]?.view);
 
     const shouldLoadPlanWorkspace = currentSectionKey === "plan" && canViewSection("plan");
+    const shouldLoadPlanContext = currentSectionKey === "plan" && canViewSection("plan");
     const shouldLoadHotTopicWorkspace =
       (currentSectionKey === "hotTopics" || currentSectionKey === "topicLibrary" || currentSectionKey === "originalCopy")
       && (canViewSection("hotTopics") || canViewSection("topicLibrary"));
@@ -952,7 +947,10 @@ export function DouyinWorkspaceShell() {
     const shouldLoadOpenClawVideoWorkWorkspace = currentSectionKey === "openclawVideoWorks" && canViewSection("openclawVideoWorks");
     const shouldLoadAdPreAuditWorkspace = currentSectionKey === "adPreAudit" && canViewSection("adPreAudit");
 
-    const [planResult, hotTopicResult, originalCopyResult, remixCopyResult, remixShortVideoResult, videoResult, videoProvidersResult, storyboardModelsResult, directVideoResult, directVideoProvidersResult, digitalHumanResult, openClawCreativeMaterialResult, openClawDailyPlanResult, openClawLobsterDiaryResult, openClawVideoWorkResult, adPreAuditResult, adPreAuditConfigResult, adPreAuditMediaResult, digitalHumanCustomPersonsResult, digitalHumanLipSyncResult, digitalHumanTemplatesResult, digitalHumanTagGroupsResult, digitalHumanFavoritesResult, digitalHumanScriptTemplatesResult, digitalHumanVoiceLibraryResult, digitalHumanCustomVoicesResult, digitalHumanSpeechTaskResult] = await Promise.allSettled([
+    const [planContextGrowthResult, planContextAnnualResult, planContextOpportunityResult, planResult, hotTopicResult, originalCopyResult, remixCopyResult, remixShortVideoResult, videoResult, videoProvidersResult, storyboardModelsResult, directVideoResult, directVideoProvidersResult, digitalHumanResult, openClawCreativeMaterialResult, openClawDailyPlanResult, openClawLobsterDiaryResult, openClawVideoWorkResult, adPreAuditResult, adPreAuditConfigResult, adPreAuditMediaResult, digitalHumanCustomPersonsResult, digitalHumanLipSyncResult, digitalHumanTemplatesResult, digitalHumanTagGroupsResult, digitalHumanFavoritesResult, digitalHumanScriptTemplatesResult, digitalHumanVoiceLibraryResult, digitalHumanCustomVoicesResult, digitalHumanSpeechTaskResult] = await Promise.allSettled([
+      shouldLoadPlanContext ? getGrowthReportWorkspace(activeBrandId) : Promise.resolve(growthReportWorkspaceRef.current),
+      shouldLoadPlanContext ? getAnnualMarketingPlanWorkspace(activeBrandId) : Promise.resolve(annualPlanWorkspaceRef.current),
+      shouldLoadPlanContext ? getOpportunityInsightWorkspace(activeBrandId) : Promise.resolve(opportunityInsightWorkspaceRef.current),
       shouldLoadPlanWorkspace ? getDouyinMarketingPlanWorkspace(activeBrandId) : Promise.resolve(douyinMarketingPlanSeed),
       shouldLoadHotTopicWorkspace
         ? getDouyinHotTopicCandidatesWorkspace(activeBrandId)
@@ -1039,24 +1037,27 @@ export function DouyinWorkspaceShell() {
         setXhsCollectionWorkspace(xhsCollectionSeed);
       }
 
-      if (growthResult.status === "fulfilled") {
-        setGrowthReportWorkspace(growthResult.value);
+    }
+
+    if (shouldLoadPlanContext) {
+      if (planContextGrowthResult.status === "fulfilled") {
+        setGrowthReportWorkspace(planContextGrowthResult.value);
       } else {
         hasFallback = true;
         failedInterfaceNames.push("品牌增长报告");
         setGrowthReportWorkspace(growthReportSeed);
       }
 
-      if (annualResult.status === "fulfilled") {
-        setAnnualPlanWorkspace(annualResult.value);
+      if (planContextAnnualResult.status === "fulfilled") {
+        setAnnualPlanWorkspace(planContextAnnualResult.value);
       } else {
         hasFallback = true;
         failedInterfaceNames.push("年度营销计划");
         setAnnualPlanWorkspace(annualMarketingPlanSeed);
       }
 
-      if (opportunityInsightResult.status === "fulfilled") {
-        setOpportunityInsightWorkspace(opportunityInsightResult.value);
+      if (planContextOpportunityResult.status === "fulfilled") {
+        setOpportunityInsightWorkspace(planContextOpportunityResult.value);
       } else {
         hasFallback = true;
         failedInterfaceNames.push("机会洞察总报告");
@@ -1340,13 +1341,13 @@ export function DouyinWorkspaceShell() {
     }
 
     if (currentSectionKey === "plan") {
-      if (growthResult.status !== "fulfilled") {
+      if (planContextGrowthResult.status !== "fulfilled") {
         currentSectionFailedInterfaceNames.push("品牌增长报告");
       }
-      if (annualResult.status !== "fulfilled") {
+      if (planContextAnnualResult.status !== "fulfilled") {
         currentSectionFailedInterfaceNames.push("年度营销计划");
       }
-      if (opportunityInsightResult.status !== "fulfilled") {
+      if (planContextOpportunityResult.status !== "fulfilled") {
         currentSectionFailedInterfaceNames.push("机会洞察总报告");
       }
       if (planResult.status !== "fulfilled") {
