@@ -303,9 +303,11 @@ export function DouyinWorkspaceShell() {
   const [isLoading, setIsLoading] = useState(true);
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [hasLoadedSharedWorkspace, setHasLoadedSharedWorkspace] = useState(false);
+  const [hasLoadedDigitalHumanEditorResources, setHasLoadedDigitalHumanEditorResources] = useState(false);
   const [loadedSections, setLoadedSections] = useState<Record<DouyinSectionKey, boolean>>(() => createInitialSectionLoadState());
   const [activeSection, setActiveSection] = useState<DouyinSectionKey>("plan");
   const activeSectionRef = useRef<DouyinSectionKey>("plan");
+  const digitalHumanEditorResourcesPromiseRef = useRef<Promise<void> | null>(null);
   const [notice, setNotice] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [brandArchive, setBrandArchive] = useState<BrandArchiveBundle>(brandArchiveSeed);
@@ -460,8 +462,26 @@ export function DouyinWorkspaceShell() {
   }, [activeSection]);
   useEffect(() => {
     setHasLoadedSharedWorkspace(false);
+    setHasLoadedDigitalHumanEditorResources(false);
+    digitalHumanEditorResourcesPromiseRef.current = null;
     setLoadedSections(createInitialSectionLoadState());
     setLoadState("loading");
+    setDigitalHumanTemplates([]);
+    setDigitalHumanTemplateTags([]);
+    setDigitalHumanFavoriteTemplates([]);
+    setDigitalHumanScriptTemplates([]);
+    setDigitalHumanPublicVoices([]);
+    setDigitalHumanCustomVoices([]);
+    setDigitalHumanPublicVoicePageInfo(undefined);
+    setDigitalHumanCustomVoicePageInfo(undefined);
+    setDigitalHumanPublicVoiceError("");
+    setDigitalHumanCustomVoiceError("");
+    setDigitalHumanCurrentSpeechTask(null);
+    setDigitalHumanCurrentSpeechTaskId("");
+    setDigitalHumanTemplatePageInfo(undefined);
+    setDigitalHumanTemplateTagId("");
+    setDigitalHumanTemplateError("");
+    setDigitalHumanTemplateTagError("");
   }, [activeBrandId]);
   const hasWorkspaceAccess = visibleSections.length > 0;
   const canEditMarketingPlan = brandPermissionSettings ? (permissionMap?.["douyin.plan"]?.edit ?? false) : true;
@@ -690,6 +710,113 @@ export function DouyinWorkspaceShell() {
     return response.item || null;
   }, [activeBrandId, digitalHumanCurrentSpeechTaskId]);
 
+  const ensureDigitalHumanEditorResources = useCallback(async (force = false) => {
+    if (digitalHumanEditorResourcesPromiseRef.current) {
+      return digitalHumanEditorResourcesPromiseRef.current;
+    }
+    if (hasLoadedDigitalHumanEditorResources && !force) {
+      return;
+    }
+
+    const task = (async () => {
+      const [templates, tagGroups, favorites, scriptTemplates, publicVoices, customVoices, speechTask] = await Promise.allSettled([
+        getDouyinDigitalHumanTemplates(activeBrandId, {
+          page: 1,
+          size: digitalHumanTemplatePageInfo?.size || 24,
+          sort: "hottest",
+          tagIds: digitalHumanTemplateTagId ? [Number(digitalHumanTemplateTagId)] : [],
+        }),
+        getDouyinDigitalHumanTemplateTags(activeBrandId),
+        getDouyinDigitalHumanFavoriteTemplates(activeBrandId),
+        getDouyinDigitalHumanScriptTemplates(activeBrandId),
+        getDouyinVoiceLibrary(activeBrandId, {
+          page: digitalHumanPublicVoicePageInfo?.page || 1,
+          size: digitalHumanPublicVoicePageInfo?.size || 24,
+        }),
+        getDouyinCustomVoices(activeBrandId, {
+          page: digitalHumanCustomVoicePageInfo?.page || 1,
+          pageSize: digitalHumanCustomVoicePageInfo?.size || 24,
+        }),
+        digitalHumanCurrentSpeechTaskId
+          ? getDouyinSpeechTaskDetail(activeBrandId, digitalHumanCurrentSpeechTaskId)
+          : Promise.resolve({ item: digitalHumanCurrentSpeechTask || null }),
+      ]);
+
+      if (templates.status === "fulfilled") {
+        setDigitalHumanTemplates(templates.value.list || []);
+        setDigitalHumanTemplatePageInfo(templates.value.pageInfo);
+        setDigitalHumanTemplateError("");
+      } else {
+        setDigitalHumanTemplates([]);
+        setDigitalHumanTemplatePageInfo(undefined);
+        setDigitalHumanTemplateError(readRequestErrorMessage(templates.reason, "数字人模板读取失败，请检查蝉镜配置或稍后重试。"));
+      }
+
+      if (tagGroups.status === "fulfilled") {
+        setDigitalHumanTemplateTags(tagGroups.value.list || []);
+        setDigitalHumanTemplateTagError("");
+      } else {
+        setDigitalHumanTemplateTags([]);
+        setDigitalHumanTemplateTagError("");
+      }
+
+      if (favorites.status === "fulfilled") {
+        setDigitalHumanFavoriteTemplates(favorites.value.items || []);
+      } else {
+        setDigitalHumanFavoriteTemplates([]);
+      }
+
+      if (scriptTemplates.status === "fulfilled") {
+        setDigitalHumanScriptTemplates(scriptTemplates.value.items || []);
+      } else {
+        setDigitalHumanScriptTemplates([]);
+      }
+
+      if (publicVoices.status === "fulfilled") {
+        setDigitalHumanPublicVoices(publicVoices.value.list || []);
+        setDigitalHumanPublicVoicePageInfo(publicVoices.value.pageInfo);
+        setDigitalHumanPublicVoiceError("");
+      } else {
+        setDigitalHumanPublicVoices([]);
+        setDigitalHumanPublicVoicePageInfo(undefined);
+        setDigitalHumanPublicVoiceError(readRequestErrorMessage(publicVoices.reason, "公共声音读取失败，请检查蝉镜配置或稍后重试。"));
+      }
+
+      if (customVoices.status === "fulfilled") {
+        setDigitalHumanCustomVoices(customVoices.value.list || []);
+        setDigitalHumanCustomVoicePageInfo(customVoices.value.pageInfo);
+        setDigitalHumanCustomVoiceError("");
+      } else {
+        setDigitalHumanCustomVoices([]);
+        setDigitalHumanCustomVoicePageInfo(undefined);
+        setDigitalHumanCustomVoiceError(readRequestErrorMessage(customVoices.reason, "我的声音读取失败，请检查蝉镜配置或稍后重试。"));
+      }
+
+      if (speechTask.status === "fulfilled") {
+        setDigitalHumanCurrentSpeechTask(speechTask.value.item || null);
+      }
+
+      setHasLoadedDigitalHumanEditorResources(true);
+    })();
+
+    digitalHumanEditorResourcesPromiseRef.current = task.finally(() => {
+      digitalHumanEditorResourcesPromiseRef.current = null;
+    });
+
+    return digitalHumanEditorResourcesPromiseRef.current;
+  }, [
+    activeBrandId,
+    digitalHumanCurrentSpeechTask,
+    digitalHumanCurrentSpeechTaskId,
+    digitalHumanCustomVoicePageInfo?.page,
+    digitalHumanCustomVoicePageInfo?.size,
+    digitalHumanPublicVoicePageInfo?.page,
+    digitalHumanPublicVoicePageInfo?.size,
+    digitalHumanTemplatePageInfo?.size,
+    digitalHumanTemplateTagId,
+    hasLoadedDigitalHumanEditorResources,
+  ]);
+
   const loadDigitalHumanTemplates = useCallback(async (
     options?: {
       page?: number;
@@ -749,30 +876,10 @@ export function DouyinWorkspaceShell() {
   }, [activeBrandId, digitalHumanTemplatePageInfo?.size, digitalHumanTemplateTagId]);
 
   const refreshDigitalHumanWorkspace = useCallback(async () => {
-    const [items, customPersons, lipSyncWorks, templates, tagGroups, favorites, scriptTemplates, publicVoices, customVoices, speechTask] = await Promise.allSettled([
+    const [items, customPersons, lipSyncWorks] = await Promise.allSettled([
       getDouyinDigitalHumanVideoWorks(activeBrandId),
       getDouyinDigitalHumanCustomPersons(activeBrandId),
       getDouyinLipSyncWorks(activeBrandId),
-      getDouyinDigitalHumanTemplates(activeBrandId, {
-        page: 1,
-        size: digitalHumanTemplatePageInfo?.size || 24,
-        sort: "hottest",
-        tagIds: digitalHumanTemplateTagId ? [Number(digitalHumanTemplateTagId)] : [],
-      }),
-      getDouyinDigitalHumanTemplateTags(activeBrandId),
-      getDouyinDigitalHumanFavoriteTemplates(activeBrandId),
-      getDouyinDigitalHumanScriptTemplates(activeBrandId),
-      getDouyinVoiceLibrary(activeBrandId, {
-        page: digitalHumanPublicVoicePageInfo?.page || 1,
-        size: digitalHumanPublicVoicePageInfo?.size || 24,
-      }),
-      getDouyinCustomVoices(activeBrandId, {
-        page: digitalHumanCustomVoicePageInfo?.page || 1,
-        pageSize: digitalHumanCustomVoicePageInfo?.size || 24,
-      }),
-      digitalHumanCurrentSpeechTaskId
-        ? getDouyinSpeechTaskDetail(activeBrandId, digitalHumanCurrentSpeechTaskId)
-        : Promise.resolve({ item: digitalHumanCurrentSpeechTask || null }),
     ]);
     if (items.status === "fulfilled") {
       setDigitalHumanWorks(items.value.items || []);
@@ -789,82 +896,9 @@ export function DouyinWorkspaceShell() {
     } else {
       setDigitalHumanLipSyncWorks([]);
     }
-    if (templates.status === "fulfilled") {
-      setDigitalHumanTemplates(templates.value.list || []);
-      setDigitalHumanTemplatePageInfo(templates.value.pageInfo);
-      setDigitalHumanTemplateError("");
-    } else {
-      // #region debug-point E:digital-human-template-refresh-error
-      fetch("http://127.0.0.1:7777/event", {
-        method: "POST",
-        body: JSON.stringify({
-          sessionId: "digital-human-502-list",
-          runId: "pre-fix",
-          hypothesisId: "E",
-          location: "apps/web/src/app/(dashboard)/douyin/workspace-shell.tsx:refreshDigitalHumanWorkspace",
-          msg: "[DEBUG] 首屏刷新阶段数字人模板请求失败",
-          data: {
-            brandId: activeBrandId,
-            message: templates.reason instanceof Error ? templates.reason.message : String(templates.reason),
-          },
-          ts: Date.now(),
-        }),
-      }).catch(() => {});
-      // #endregion
-      setDigitalHumanTemplates([]);
-      setDigitalHumanTemplatePageInfo(undefined);
-      setDigitalHumanTemplateError(readRequestErrorMessage(templates.reason, "数字人模板读取失败，请检查蝉镜配置或稍后重试。"));
-    }
-    if (tagGroups.status === "fulfilled") {
-      setDigitalHumanTemplateTags(tagGroups.value.list || []);
-      setDigitalHumanTemplateTagError("");
-    } else {
-      setDigitalHumanTemplateTags([]);
-      setDigitalHumanTemplateTagError("");
-    }
-    if (favorites.status === "fulfilled") {
-      setDigitalHumanFavoriteTemplates(favorites.value.items || []);
-    } else {
-      setDigitalHumanFavoriteTemplates([]);
-    }
-    if (scriptTemplates.status === "fulfilled") {
-      setDigitalHumanScriptTemplates(scriptTemplates.value.items || []);
-    } else {
-      setDigitalHumanScriptTemplates([]);
-    }
-    if (publicVoices.status === "fulfilled") {
-      setDigitalHumanPublicVoices(publicVoices.value.list || []);
-      setDigitalHumanPublicVoicePageInfo(publicVoices.value.pageInfo);
-      setDigitalHumanPublicVoiceError("");
-    } else {
-      setDigitalHumanPublicVoices([]);
-      setDigitalHumanPublicVoicePageInfo(undefined);
-      setDigitalHumanPublicVoiceError(readRequestErrorMessage(publicVoices.reason, "公共声音读取失败，请检查蝉镜配置或稍后重试。"));
-    }
-    if (customVoices.status === "fulfilled") {
-      setDigitalHumanCustomVoices(customVoices.value.list || []);
-      setDigitalHumanCustomVoicePageInfo(customVoices.value.pageInfo);
-      setDigitalHumanCustomVoiceError("");
-    } else {
-      setDigitalHumanCustomVoices([]);
-      setDigitalHumanCustomVoicePageInfo(undefined);
-      setDigitalHumanCustomVoiceError(readRequestErrorMessage(customVoices.reason, "我的声音读取失败，请检查蝉镜配置或稍后重试。"));
-    }
-    if (speechTask.status === "fulfilled") {
-      setDigitalHumanCurrentSpeechTask(speechTask.value.item || null);
-    }
+    await ensureDigitalHumanEditorResources(true);
     return items.status === "fulfilled" ? (items.value.items || []) : [];
-  }, [
-    activeBrandId,
-    digitalHumanCurrentSpeechTask,
-    digitalHumanCurrentSpeechTaskId,
-    digitalHumanCustomVoicePageInfo?.page,
-    digitalHumanCustomVoicePageInfo?.size,
-    digitalHumanPublicVoicePageInfo?.page,
-    digitalHumanPublicVoicePageInfo?.size,
-    digitalHumanTemplatePageInfo?.size,
-    digitalHumanTemplateTagId,
-  ]);
+  }, [activeBrandId, ensureDigitalHumanEditorResources]);
 
   const loadWorkspace = useCallback(async (
     sectionKey?: DouyinSectionKey,
@@ -940,14 +974,14 @@ export function DouyinWorkspaceShell() {
     const shouldLoadDigitalHumanWorks =
       (currentSectionKey === "digitalHuman" && canViewSection("digitalHuman"))
       || (currentSectionKey === "runningHub" && canViewSection("digitalHuman"));
-    const shouldLoadDigitalHumanExtendedWorkspace = currentSectionKey === "digitalHuman" && canViewSection("digitalHuman");
+    const shouldLoadDigitalHumanSupportWorkspace = currentSectionKey === "digitalHuman" && canViewSection("digitalHuman");
     const shouldLoadOpenClawCreativeMaterialWorkspace = currentSectionKey === "openclawCreativeMaterials" && canViewSection("openclawCreativeMaterials");
     const shouldLoadOpenClawDailyPlanWorkspace = currentSectionKey === "openclawDailyPlan" && canViewSection("openclawDailyPlan");
     const shouldLoadOpenClawLobsterDiaryWorkspace = currentSectionKey === "openclawLobsterDiary" && canViewSection("openclawLobsterDiary");
     const shouldLoadOpenClawVideoWorkWorkspace = currentSectionKey === "openclawVideoWorks" && canViewSection("openclawVideoWorks");
     const shouldLoadAdPreAuditWorkspace = currentSectionKey === "adPreAudit" && canViewSection("adPreAudit");
 
-    const [planContextGrowthResult, planContextAnnualResult, planContextOpportunityResult, planResult, hotTopicResult, originalCopyResult, remixCopyResult, remixShortVideoResult, videoResult, videoProvidersResult, storyboardModelsResult, directVideoResult, directVideoProvidersResult, digitalHumanResult, openClawCreativeMaterialResult, openClawDailyPlanResult, openClawLobsterDiaryResult, openClawVideoWorkResult, adPreAuditResult, adPreAuditConfigResult, adPreAuditMediaResult, digitalHumanCustomPersonsResult, digitalHumanLipSyncResult, digitalHumanTemplatesResult, digitalHumanTagGroupsResult, digitalHumanFavoritesResult, digitalHumanScriptTemplatesResult, digitalHumanVoiceLibraryResult, digitalHumanCustomVoicesResult, digitalHumanSpeechTaskResult] = await Promise.allSettled([
+    const [planContextGrowthResult, planContextAnnualResult, planContextOpportunityResult, planResult, hotTopicResult, originalCopyResult, remixCopyResult, remixShortVideoResult, videoResult, videoProvidersResult, storyboardModelsResult, directVideoResult, directVideoProvidersResult, digitalHumanResult, openClawCreativeMaterialResult, openClawDailyPlanResult, openClawLobsterDiaryResult, openClawVideoWorkResult, adPreAuditResult, adPreAuditConfigResult, adPreAuditMediaResult, digitalHumanCustomPersonsResult, digitalHumanLipSyncResult] = await Promise.allSettled([
       shouldLoadPlanContext ? getGrowthReportWorkspace(activeBrandId) : Promise.resolve(growthReportWorkspaceRef.current),
       shouldLoadPlanContext ? getAnnualMarketingPlanWorkspace(activeBrandId) : Promise.resolve(annualPlanWorkspaceRef.current),
       shouldLoadPlanContext ? getOpportunityInsightWorkspace(activeBrandId) : Promise.resolve(opportunityInsightWorkspaceRef.current),
@@ -991,33 +1025,12 @@ export function DouyinWorkspaceShell() {
       shouldLoadAdPreAuditWorkspace
         ? getDouyinAdPreAuditMediaAssets(activeBrandId)
         : Promise.resolve({ items: [] }),
-      shouldLoadDigitalHumanExtendedWorkspace
+      shouldLoadDigitalHumanSupportWorkspace
         ? getDouyinDigitalHumanCustomPersons(activeBrandId)
         : Promise.resolve({ items: [] }),
-      shouldLoadDigitalHumanWorks
+      shouldLoadDigitalHumanSupportWorkspace
         ? getDouyinLipSyncWorks(activeBrandId)
         : Promise.resolve({ items: [] }),
-      shouldLoadDigitalHumanExtendedWorkspace
-        ? getDouyinDigitalHumanTemplates(activeBrandId, { page: 1, size: 24, sort: "hottest", tagIds: digitalHumanTemplateTagId ? [Number(digitalHumanTemplateTagId)] : [] })
-        : Promise.resolve({ list: [], pageInfo: undefined }),
-      shouldLoadDigitalHumanExtendedWorkspace
-        ? getDouyinDigitalHumanTemplateTags(activeBrandId)
-        : Promise.resolve({ list: [] }),
-      shouldLoadDigitalHumanExtendedWorkspace
-        ? getDouyinDigitalHumanFavoriteTemplates(activeBrandId)
-        : Promise.resolve({ items: [] }),
-      shouldLoadDigitalHumanExtendedWorkspace
-        ? getDouyinDigitalHumanScriptTemplates(activeBrandId)
-        : Promise.resolve({ items: [] }),
-      shouldLoadDigitalHumanExtendedWorkspace
-        ? getDouyinVoiceLibrary(activeBrandId, { page: 1, size: 24 })
-        : Promise.resolve({ list: [], pageInfo: undefined }),
-      shouldLoadDigitalHumanExtendedWorkspace
-        ? getDouyinCustomVoices(activeBrandId, { page: 1, pageSize: 24 })
-        : Promise.resolve({ list: [], pageInfo: undefined }),
-      shouldLoadDigitalHumanExtendedWorkspace && digitalHumanCurrentSpeechTaskId
-        ? getDouyinSpeechTaskDetail(activeBrandId, digitalHumanCurrentSpeechTaskId)
-        : Promise.resolve({ item: null }),
     ]);
 
     if (shouldLoadSharedWorkspace) {
@@ -1251,7 +1264,7 @@ export function DouyinWorkspaceShell() {
       }
     }
 
-    if (shouldLoadDigitalHumanExtendedWorkspace) {
+    if (shouldLoadDigitalHumanSupportWorkspace) {
       if (digitalHumanCustomPersonsResult.status === "fulfilled") {
         setDigitalHumanCustomPersons(digitalHumanCustomPersonsResult.value.items || []);
       } else {
@@ -1268,75 +1281,6 @@ export function DouyinWorkspaceShell() {
         hasFallback = true;
         failedInterfaceNames.push("口型驱动作品");
         setDigitalHumanLipSyncWorks([]);
-      }
-    }
-
-    if (shouldLoadDigitalHumanExtendedWorkspace) {
-      if (digitalHumanTemplatesResult.status === "fulfilled") {
-        setDigitalHumanTemplates(digitalHumanTemplatesResult.value.list || []);
-        setDigitalHumanTemplatePageInfo(digitalHumanTemplatesResult.value.pageInfo);
-        setDigitalHumanTemplateError("");
-      } else {
-        hasFallback = true;
-        failedInterfaceNames.push("公共数字人模板");
-        setDigitalHumanTemplates([]);
-        setDigitalHumanTemplatePageInfo(undefined);
-        setDigitalHumanTemplateError(readRequestErrorMessage(digitalHumanTemplatesResult.reason, "数字人模板读取失败，请检查蝉镜配置。"));
-      }
-
-      if (digitalHumanTagGroupsResult.status === "fulfilled") {
-        setDigitalHumanTemplateTags(digitalHumanTagGroupsResult.value.list || []);
-        setDigitalHumanTemplateTagError("");
-      } else {
-        setDigitalHumanTemplateTags([]);
-        setDigitalHumanTemplateTagError("");
-      }
-
-      if (digitalHumanFavoritesResult.status === "fulfilled") {
-        setDigitalHumanFavoriteTemplates(digitalHumanFavoritesResult.value.items || []);
-      } else {
-        hasFallback = true;
-        failedInterfaceNames.push("数字人收藏模板");
-        setDigitalHumanFavoriteTemplates([]);
-      }
-
-      if (digitalHumanScriptTemplatesResult.status === "fulfilled") {
-        setDigitalHumanScriptTemplates(digitalHumanScriptTemplatesResult.value.items || []);
-      } else {
-        hasFallback = true;
-        failedInterfaceNames.push("数字人脚本模板");
-        setDigitalHumanScriptTemplates([]);
-      }
-
-      if (digitalHumanVoiceLibraryResult.status === "fulfilled") {
-        setDigitalHumanPublicVoices(digitalHumanVoiceLibraryResult.value.list || []);
-        setDigitalHumanPublicVoicePageInfo(digitalHumanVoiceLibraryResult.value.pageInfo);
-        setDigitalHumanPublicVoiceError("");
-      } else {
-        hasFallback = true;
-        failedInterfaceNames.push("公共声音列表");
-        setDigitalHumanPublicVoices([]);
-        setDigitalHumanPublicVoicePageInfo(undefined);
-        setDigitalHumanPublicVoiceError(readRequestErrorMessage(digitalHumanVoiceLibraryResult.reason, "公共声音读取失败，请检查蝉镜配置或稍后重试。"));
-      }
-
-      if (digitalHumanCustomVoicesResult.status === "fulfilled") {
-        setDigitalHumanCustomVoices(digitalHumanCustomVoicesResult.value.list || []);
-        setDigitalHumanCustomVoicePageInfo(digitalHumanCustomVoicesResult.value.pageInfo);
-        setDigitalHumanCustomVoiceError("");
-      } else {
-        hasFallback = true;
-        failedInterfaceNames.push("我的声音列表");
-        setDigitalHumanCustomVoices([]);
-        setDigitalHumanCustomVoicePageInfo(undefined);
-        setDigitalHumanCustomVoiceError(readRequestErrorMessage(digitalHumanCustomVoicesResult.reason, "我的声音读取失败，请检查蝉镜配置或稍后重试。"));
-      }
-
-      if (digitalHumanSpeechTaskResult.status === "fulfilled") {
-        setDigitalHumanCurrentSpeechTask(digitalHumanSpeechTaskResult.value.item || null);
-      } else if (digitalHumanCurrentSpeechTaskId) {
-        hasFallback = true;
-        failedInterfaceNames.push("数字人试听任务");
       }
     }
 
@@ -1395,9 +1339,6 @@ export function DouyinWorkspaceShell() {
       if (digitalHumanLipSyncResult.status !== "fulfilled") {
         currentSectionFailedInterfaceNames.push("口型驱动作品");
       }
-      if (digitalHumanTemplatesResult.status !== "fulfilled") {
-        currentSectionFailedInterfaceNames.push("公共数字人模板");
-      }
     }
     if (currentSectionKey === "adPreAudit") {
       if (adPreAuditResult.status !== "fulfilled") {
@@ -1448,7 +1389,7 @@ export function DouyinWorkspaceShell() {
       remixShortVideo: current.remixShortVideo || shouldLoadRemixShortVideoWorkspace,
       video: current.video || currentSectionKey === "video",
       videoDirect: current.videoDirect || currentSectionKey === "videoDirect",
-      digitalHuman: current.digitalHuman || shouldLoadDigitalHumanExtendedWorkspace,
+      digitalHuman: current.digitalHuman || shouldLoadDigitalHumanSupportWorkspace,
       runningHub: current.runningHub || currentSectionKey === "runningHub",
       adPreAudit: current.adPreAudit || shouldLoadAdPreAuditWorkspace,
       openclawCreativeMaterials: current.openclawCreativeMaterials || shouldLoadOpenClawCreativeMaterialWorkspace,
@@ -3715,8 +3656,12 @@ export function DouyinWorkspaceShell() {
                     templateLoadError={digitalHumanTemplateError}
                     templateTagLoadError={digitalHumanTemplateTagError}
                     isTemplateLoading={isDigitalHumanTemplateLoading}
+                    hasLoadedEditorResources={hasLoadedDigitalHumanEditorResources}
                     onRefresh={async () => {
                       await refreshDigitalHumanWorkspace();
+                    }}
+                    onEnsureEditorResources={async () => {
+                      await ensureDigitalHumanEditorResources();
                     }}
                     onTemplateTagChange={handleDigitalHumanTemplateTagChange}
                     onTemplatePageChange={handleDigitalHumanTemplatePageChange}

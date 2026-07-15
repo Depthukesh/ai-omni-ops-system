@@ -273,7 +273,9 @@ export interface DouyinDigitalHumanWorkspaceProps {
   templateLoadError?: string;
   templateTagLoadError?: string;
   isTemplateLoading?: boolean;
+  hasLoadedEditorResources?: boolean;
   onRefresh: () => void | Promise<void>;
+  onEnsureEditorResources?: () => Promise<void>;
   onTemplateTagChange: (tagId: string) => Promise<void>;
   onTemplatePageChange?: (page: number) => Promise<void>;
   onToggleFavoriteTemplate: (templateId: string, nextFavorite: boolean) => Promise<boolean>;
@@ -1976,6 +1978,16 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
     props.currentSpeechTaskId,
     props.onRefreshSpeechTask,
   ]);
+
+  useEffect(() => {
+    if (!props.onEnsureEditorResources || props.hasLoadedEditorResources) {
+      return;
+    }
+    if (activeTab !== "templateLibrary" && activeTab !== "voiceLibrary" && activeTab !== "videoStudio") {
+      return;
+    }
+    void props.onEnsureEditorResources();
+  }, [activeTab, props.hasLoadedEditorResources, props.onEnsureEditorResources]);
 
   return (
     <section className="workspace-panel strategy-page-card">
