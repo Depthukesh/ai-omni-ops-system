@@ -9,8 +9,42 @@ type HeadersMap = Record<string, string | string[] | undefined>;
 export class OpenClawController {
   constructor(private readonly openClawService: OpenClawService) {}
 
+  private getOpenClawMcpLoadDebugLogPath() {
+    return join(process.cwd(), ".dbg", "trae-debug-log-openclaw-mcp-load.ndjson");
+  }
+
   private getRunningHubWrongImageDebugLogPath() {
     return join(process.cwd(), ".dbg", "trae-debug-log-runninghub-wrong-image.ndjson");
+  }
+
+  private readHeaderValue(headers: HeadersMap, key: string) {
+    const direct = headers[key] ?? headers[key.toLowerCase()] ?? headers[key.toUpperCase()];
+    if (Array.isArray(direct)) {
+      return typeof direct[0] === "string" ? direct[0] : "";
+    }
+    return typeof direct === "string" ? direct : "";
+  }
+
+  private readToolName(payload?: Record<string, unknown>) {
+    const params = payload?.params;
+    if (!params || typeof params !== "object" || Array.isArray(params)) {
+      return undefined;
+    }
+    const name = (params as Record<string, unknown>).name;
+    return typeof name === "string" && name.trim() ? name.trim() : undefined;
+  }
+
+  private async appendOpenClawMcpLoadDebugEvent(payload: Record<string, unknown>) {
+    const filePath = this.getOpenClawMcpLoadDebugLogPath();
+    await mkdir(join(process.cwd(), ".dbg"), { recursive: true });
+    await appendFile(
+      filePath,
+      `${JSON.stringify({
+        ...payload,
+        ts: typeof payload.ts === "number" ? payload.ts : Date.now(),
+      })}\n`,
+      "utf8",
+    );
   }
 
   @Post()
@@ -18,7 +52,51 @@ export class OpenClawController {
     @Headers() headers: HeadersMap,
     @Body() payload?: Record<string, unknown>,
   ) {
-    return this.openClawService.handleMcpRpcRequest(headers, payload);
+    const startedAt = Date.now();
+    const method = typeof payload?.method === "string" ? payload.method.trim() : "";
+    const toolName = this.readToolName(payload);
+    const authorization = this.readHeaderValue(headers, "authorization");
+    const brandId = this.readHeaderValue(headers, "x-brand-id");
+    const userAgent = this.readHeaderValue(headers, "user-agent");
+    const forwardedFor = this.readHeaderValue(headers, "x-forwarded-for");
+    const realIp = this.readHeaderValue(headers, "x-real-ip");
+    const authSource = authorization.startsWith("Bearer ocp_")
+      ? "install_token"
+      : authorization
+        ? "bearer"
+        : "session_or_anonymous";
+
+    try {
+      const result = await this.openClawService.handleMcpRpcRequest(headers, payload);
+      await this.appendOpenClawMcpLoadDebugEvent({
+        phase: "pre-fix",
+        method,
+        toolName,
+        authSource,
+        brandId,
+        forwardedFor,
+        realIp,
+        userAgent,
+        durationMs: Date.now() - startedAt,
+        isError: Boolean(result && typeof result === "object" && "error" in result),
+      });
+      return result;
+    } catch (error) {
+      await this.appendOpenClawMcpLoadDebugEvent({
+        phase: "pre-fix",
+        method,
+        toolName,
+        authSource,
+        brandId,
+        forwardedFor,
+        realIp,
+        userAgent,
+        durationMs: Date.now() - startedAt,
+        isError: true,
+        errorMessage: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
   }
 
   @Post("debug/runninghub-wrong-image/event")
