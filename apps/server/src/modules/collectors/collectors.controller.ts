@@ -240,6 +240,28 @@ export class DouyinCollectorsController {
     return this.collectorsService.syncDouyinWorkspace(brandId, payload ?? {});
   }
 
+  @Delete("brands/:brandId/brand-accounts/:accountId")
+  async deleteBrandAccount(
+    @Param("brandId") brandId: string,
+    @Param("accountId") accountId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(brandId, auth);
+    return this.collectorsService.deleteDouyinBrandAccount(brandId, accountId);
+  }
+
+  @Delete("brands/:brandId/competitor-accounts/:accountId")
+  async deleteCompetitorAccount(
+    @Param("brandId") brandId: string,
+    @Param("accountId") accountId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(brandId, auth);
+    return this.collectorsService.deleteDouyinCompetitorAccount(brandId, accountId);
+  }
+
   @Post("brands/:brandId/material-library")
   async addBenchmarkWorkToMaterialLibrary(
     @Param("brandId") brandId: string,

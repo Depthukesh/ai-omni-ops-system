@@ -802,6 +802,22 @@ export async function deleteDouyinCollectedWork(assetId: string, brandId?: strin
   );
 }
 
+export async function deleteDouyinBrandAccount(accountId: string, brandId?: string) {
+  return jsonRequest<{ workspace: DouyinCollectionWorkspace }>(
+    `/collectors/douyin/brands/${resolveBrandId(brandId)}/brand-accounts/${accountId}`,
+    "DELETE",
+    {},
+  );
+}
+
+export async function deleteDouyinCompetitorAccount(accountId: string, brandId?: string) {
+  return jsonRequest<{ workspace: DouyinCollectionWorkspace }>(
+    `/collectors/douyin/brands/${resolveBrandId(brandId)}/competitor-accounts/${accountId}`,
+    "DELETE",
+    {},
+  );
+}
+
 export async function extractDouyinWorkTranscript(assetId: string, brandId?: string) {
   return jsonRequest<{ item: DouyinCollectedWorkRecord; workspace: DouyinCollectionWorkspace }>(
     `/collectors/douyin/brands/${resolveBrandId(brandId)}/transcripts`,

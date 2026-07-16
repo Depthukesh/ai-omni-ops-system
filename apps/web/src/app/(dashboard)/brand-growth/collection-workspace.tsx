@@ -409,6 +409,8 @@ export interface BrandGrowthCollectionWorkspaceProps {
   onSyncAllDouyinCompetitorAccounts: AsyncAction;
   onSyncSingleDouyinBrandAccount: ValueAction<XhsAccountBindingEntry>;
   onSyncSingleDouyinCompetitorAccount: ValueAction<XhsAccountBindingEntry>;
+  onDeleteDouyinBrandAccount: ValueAction<DouyinCollectedAccountRecord>;
+  onDeleteDouyinCompetitorAccount: ValueAction<DouyinCollectedAccountRecord>;
   onSyncSingleDouyinKeywordRecommendation: ValueAction<string>;
   onLoadMoreDouyinComments: AsyncAction;
   sortedBrandAccounts: XhsCollectedAccountRecord[];
@@ -458,6 +460,7 @@ export interface BrandGrowthCollectionWorkspaceProps {
   formatDateLabel: OptionalDateFormatter;
   formatCount: OptionalNumberFormatter;
   formatMetric: OptionalNumberFormatter;
+  deletingDouyinAccountId: string;
   deletingDouyinKeywordRecommendationId: string;
   selectedHotspotDate: string;
   hotspotAvailableDates: string[];
@@ -1177,8 +1180,10 @@ function DouyinAccountBindingSubmitPanel(props: {
   entries: XhsAccountBindingEntry[];
   syncedAccounts: DouyinCollectedAccountRecord[];
   isSubmitting: boolean;
+  deletingAccountId?: string;
   onChangeEntries: ValueAction<XhsAccountBindingEntry[]>;
   onSubmitEntry: ValueAction<XhsAccountBindingEntry>;
+  onDeleteSyncedAccount: ValueAction<DouyinCollectedAccountRecord>;
 }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [draftLocator, setDraftLocator] = useState("");
@@ -1201,8 +1206,12 @@ function DouyinAccountBindingSubmitPanel(props: {
     setIsModalOpen(false);
   };
 
-  const handleDelete = (entryId: string) => {
-    props.onChangeEntries(props.entries.filter((item) => item.id !== entryId));
+  const handleDelete = async (entry: XhsAccountBindingEntry, matchedAccount?: DouyinCollectedAccountRecord) => {
+    if (matchedAccount) {
+      await props.onDeleteSyncedAccount(matchedAccount);
+      return;
+    }
+    props.onChangeEntries(props.entries.filter((item) => item.id !== entry.id));
   };
 
   return (
@@ -1248,10 +1257,10 @@ function DouyinAccountBindingSubmitPanel(props: {
                     <button
                       type="button"
                       className="note-inline-button"
-                      onClick={() => handleDelete(entry.id)}
-                      disabled={props.isSubmitting}
+                      onClick={() => void handleDelete(entry, matchedAccount)}
+                      disabled={props.isSubmitting || (matchedAccount ? props.deletingAccountId === matchedAccount.id : false)}
                     >
-                      删除
+                      {matchedAccount && props.deletingAccountId === matchedAccount.id ? "删除中..." : "删除"}
                     </button>
                   </div>
                 </div>
@@ -4267,8 +4276,10 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                 entries={props.douyinSyncForm.brandAccountEntries}
                 syncedAccounts={props.sortedDouyinBrandAccounts}
                 isSubmitting={props.isHydrating || props.isSyncingDouyinWorkspace}
+                deletingAccountId={props.deletingDouyinAccountId}
                 onChangeEntries={(entries) => props.setDouyinSyncForm((current) => ({ ...current, brandAccountEntries: entries }))}
                 onSubmitEntry={props.onSyncSingleDouyinBrandAccount}
+                onDeleteSyncedAccount={props.onDeleteDouyinBrandAccount}
               />
               <article className="light-data-panel">
                 <div className="collection-result-head">
@@ -4300,8 +4311,10 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                 entries={props.douyinSyncForm.competitorAccountEntries}
                 syncedAccounts={props.sortedDouyinCompetitorAccounts}
                 isSubmitting={props.isHydrating || props.isSyncingDouyinWorkspace}
+                deletingAccountId={props.deletingDouyinAccountId}
                 onChangeEntries={(entries) => props.setDouyinSyncForm((current) => ({ ...current, competitorAccountEntries: entries }))}
                 onSubmitEntry={props.onSyncSingleDouyinCompetitorAccount}
+                onDeleteSyncedAccount={props.onDeleteDouyinCompetitorAccount}
               />
               <article className="light-data-panel">
                 <div className="collection-result-head">

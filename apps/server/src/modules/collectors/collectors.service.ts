@@ -1301,6 +1301,19 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
+  async deleteDouyinBrandAccount(brandId: string, accountId: string): Promise<{ workspace: DouyinCollectionWorkspace }> {
+    return this.deleteDouyinCollectedAccount(brandId, accountId, "DOUYIN_BRAND_ACCOUNT", ["DOUYIN_BRAND_WORK"]);
+  }
+
+  async deleteDouyinCompetitorAccount(brandId: string, accountId: string): Promise<{ workspace: DouyinCollectionWorkspace }> {
+    return this.deleteDouyinCollectedAccount(
+      brandId,
+      accountId,
+      "DOUYIN_COMPETITOR_ACCOUNT",
+      ["DOUYIN_COMPETITOR_WORK", "DOUYIN_BENCHMARK_WORK"],
+    );
+  }
+
   async extractDouyinWorkTranscript(brandId: string, assetId: string) {
     this.ensureBrandExistsInMockOrDatabase(brandId);
     const asset = await this.getCollectorAssetById(brandId, assetId);
@@ -1519,6 +1532,49 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     }
 
     await this.deleteCollectorAssetById(brandId, assetId);
+    return {
+      workspace: await this.getDouyinWorkspace(brandId),
+    };
+  }
+
+  private async deleteDouyinCollectedAccount(
+    brandId: string,
+    accountId: string,
+    accountKind: "DOUYIN_BRAND_ACCOUNT" | "DOUYIN_COMPETITOR_ACCOUNT",
+    relatedWorkKinds: readonly DouyinWorkKind[],
+  ) {
+    this.ensureBrandExistsInMockOrDatabase(brandId);
+    const assets = await this.listCollectorAssets(brandId);
+    const target = assets.find((asset) => asset.id === accountId);
+    if (!target) {
+      throw new NotFoundException("抖音账号记录不存在");
+    }
+
+    const targetMeta = this.asMeta(target.metadataJson);
+    const targetKind = this.readMetaString(targetMeta, "kind");
+    if (targetKind !== accountKind) {
+      throw new BadRequestException("当前记录不是可删除的抖音账号");
+    }
+
+    const sourceAccountId = this.readMetaString(targetMeta, "sourceAccountId");
+    const relatedAssetIds = assets
+      .filter((asset) => {
+        if (asset.id === target.id) {
+          return true;
+        }
+        const meta = this.asMeta(asset.metadataJson);
+        const kind = this.readMetaString(meta, "kind") as DouyinWorkKind;
+        if (!relatedWorkKinds.includes(kind)) {
+          return false;
+        }
+        return this.readMetaString(meta, "sourceAccountId") === sourceAccountId;
+      })
+      .map((asset) => asset.id);
+
+    for (const assetId of relatedAssetIds) {
+      await this.deleteCollectorAssetById(brandId, assetId);
+    }
+
     return {
       workspace: await this.getDouyinWorkspace(brandId),
     };

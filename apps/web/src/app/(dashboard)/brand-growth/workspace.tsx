@@ -52,7 +52,9 @@ import {
   addWechatMpBenchmarkArticleToMaterialLibrary,
   addWechatSearchItemToMaterialLibrary,
   buildUnifiedMaterialLibraryItems,
+  deleteDouyinBrandAccount,
   deleteDouyinCollectedWork,
+  deleteDouyinCompetitorAccount,
   deleteXhsCollectedNote,
   extractDouyinWorkTranscript,
   getDouyinCollectionWorkspace,
@@ -971,6 +973,64 @@ function buildXhsSyncAccountEntries(entries: XhsAccountBindingEntry[]): XhsSyncA
     .filter((entry) => Boolean(entry.locator));
 }
 
+function buildDouyinAccountMatchTokens(locator: string) {
+  const normalized = String(locator || "").trim().toLowerCase();
+  if (!normalized) {
+    return [];
+  }
+
+  const tokens = new Set<string>();
+  const pushToken = (value?: string) => {
+    const trimmed = String(value || "").trim().toLowerCase();
+    if (trimmed) {
+      tokens.add(trimmed);
+    }
+  };
+
+  pushToken(normalized);
+  pushToken(normalized.replace(/^@/, ""));
+
+  try {
+    const parsed = new URL(normalized.startsWith("http") ? normalized : `https://${normalized.replace(/^\/+/, "")}`);
+    pushToken(parsed.pathname);
+    pushToken(parsed.pathname.replace(/^\/+/, ""));
+    pushToken(parsed.searchParams.get("sec_uid") || "");
+    pushToken(parsed.searchParams.get("sec_user_id") || "");
+    pushToken(parsed.searchParams.get("user_id") || "");
+    pushToken(parsed.searchParams.get("uid") || "");
+  } catch {
+    // Ignore non-URL locators and keep the raw normalized token.
+  }
+
+  const pathUserMatch = normalized.match(/\/user\/([^/?#]+)/i);
+  if (pathUserMatch) {
+    pushToken(pathUserMatch[1]);
+  }
+
+  return [...tokens].filter(Boolean);
+}
+
+function doesDouyinAccountMatchEntryForWorkspace(account: DouyinCollectedAccountRecord, entry: XhsAccountBindingEntry) {
+  const entryTokens = buildDouyinAccountMatchTokens(entry.locator);
+  if (!entryTokens.length) {
+    return false;
+  }
+
+  const accountTokens = new Set<string>();
+  [
+    account.sourceAccountLink,
+    account.accountLink,
+    account.externalUserId,
+    account.username,
+    account.sourceAccountId,
+    account.shortId,
+  ]
+    .flatMap((value) => buildDouyinAccountMatchTokens(String(value || "")))
+    .forEach((token) => accountTokens.add(token));
+
+  return entryTokens.some((token) => accountTokens.has(token));
+}
+
 function dedupeXhsSubComments(items: XhsSubCommentRecord[]) {
   const seen = new Set<string>();
   return items.filter((item) => {
@@ -1068,6 +1128,7 @@ export function BrandGrowthWorkspace() {
   const [uploadingProductId, setUploadingProductId] = useState("");
   const [addingMaterialAssetId, setAddingMaterialAssetId] = useState("");
   const [extractingDouyinTranscriptAssetId, setExtractingDouyinTranscriptAssetId] = useState("");
+  const [deletingDouyinAccountId, setDeletingDouyinAccountId] = useState("");
   const [deletingDouyinKeywordRecommendationId, setDeletingDouyinKeywordRecommendationId] = useState("");
   const [notice, setNotice] = useState<string>("");
   const [errorMessage, setErrorMessage] = useState<string>("");
@@ -3219,6 +3280,60 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     }
   }
 
+  async function handleDeleteDouyinBrandAccount(account: DouyinCollectedAccountRecord) {
+    if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.collection.douyinCollection"]?.edit) {
+      setErrorMessage("当前账号没有编辑抖音收集数据的权限。");
+      return;
+    }
+    if (!account.id) {
+      return;
+    }
+
+    setDeletingDouyinAccountId(account.id);
+    clearMessages();
+    try {
+      const response = await deleteDouyinBrandAccount(account.id, activeBrandId || archive.brand.id);
+      setDouyinCollectionWorkspace(response.workspace);
+      setDouyinSyncForm((current) => ({
+        ...current,
+        brandAccountEntries: current.brandAccountEntries.filter((entry) => !doesDouyinAccountMatchEntryForWorkspace(account, entry)),
+      }));
+      setNotice("已删除品牌抖音账号。");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "删除失败";
+      setErrorMessage(`删除品牌抖音账号失败：${message}`);
+    } finally {
+      setDeletingDouyinAccountId("");
+    }
+  }
+
+  async function handleDeleteDouyinCompetitorAccount(account: DouyinCollectedAccountRecord) {
+    if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.collection.douyinCollection"]?.edit) {
+      setErrorMessage("当前账号没有编辑抖音收集数据的权限。");
+      return;
+    }
+    if (!account.id) {
+      return;
+    }
+
+    setDeletingDouyinAccountId(account.id);
+    clearMessages();
+    try {
+      const response = await deleteDouyinCompetitorAccount(account.id, activeBrandId || archive.brand.id);
+      setDouyinCollectionWorkspace(response.workspace);
+      setDouyinSyncForm((current) => ({
+        ...current,
+        competitorAccountEntries: current.competitorAccountEntries.filter((entry) => !doesDouyinAccountMatchEntryForWorkspace(account, entry)),
+      }));
+      setNotice("已删除竞品抖音账号。");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "删除失败";
+      setErrorMessage(`删除竞品抖音账号失败：${message}`);
+    } finally {
+      setDeletingDouyinAccountId("");
+    }
+  }
+
   async function handleDeleteOpenClawDiary(diaryId: string) {
     if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.report.topicLibrary"]?.edit) {
       setErrorMessage("当前账号没有删除龙虾日记的权限。");
@@ -4098,6 +4213,8 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
         onSyncAllDouyinCompetitorAccounts={handleSyncAllDouyinCompetitorAccounts}
         onSyncSingleDouyinBrandAccount={handleSyncSingleDouyinBrandAccount}
         onSyncSingleDouyinCompetitorAccount={handleSyncSingleDouyinCompetitorAccount}
+        onDeleteDouyinBrandAccount={handleDeleteDouyinBrandAccount}
+        onDeleteDouyinCompetitorAccount={handleDeleteDouyinCompetitorAccount}
         onSyncSingleDouyinKeywordRecommendation={handleSyncSingleDouyinKeywordRecommendation}
         onLoadMoreDouyinComments={handleLoadMoreDouyinComments}
         sortedBrandAccounts={sortedBrandAccounts}
@@ -4147,6 +4264,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
         formatDateLabel={formatDateLabel}
         formatCount={formatCount}
         formatMetric={formatMetric}
+        deletingDouyinAccountId={deletingDouyinAccountId}
         deletingDouyinKeywordRecommendationId={deletingDouyinKeywordRecommendationId}
         selectedHotspotDate={selectedHotspotDate}
         hotspotAvailableDates={hotspotAvailableDates}
