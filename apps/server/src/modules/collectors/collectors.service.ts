@@ -996,6 +996,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     const benchmarkWorkCount =
       benchmarkWorkRows.reduce((sum, items) => sum + items.length, 0)
       + manualBenchmarkRows.length;
+    await this.cleanupDuplicateCollectorAssets(brandId);
 
     return {
       syncedCount:
@@ -1911,9 +1912,11 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     const competitorAccounts = assets
       .filter((item) => item.metadataJson?.kind === "XHS_COMPETITOR_ACCOUNT")
       .map((item) => this.mapCollectedAccount(item, "XHS_COMPETITOR_ACCOUNT"));
-    const brandNotes = assets
-      .filter((item) => item.metadataJson?.kind === "XHS_BRAND_NOTE")
-      .map((item) => this.mapCollectedNote(item));
+    const brandNotes = this.dedupeCollectorRecordsByContent(
+      assets
+        .filter((item) => item.metadataJson?.kind === "XHS_BRAND_NOTE")
+        .map((item) => this.mapCollectedNote(item)),
+    );
     const benchmarkNotes = assets
       .filter((item) => item.metadataJson?.kind === "XHS_BENCHMARK_NOTE")
       .map((item) => this.mapCollectedNote(item));
@@ -1953,12 +1956,16 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     const competitorAccounts = assets
       .filter((item) => item.metadataJson?.kind === "DOUYIN_COMPETITOR_ACCOUNT")
       .map((item) => this.mapDouyinCollectedAccount(item, "DOUYIN_COMPETITOR_ACCOUNT"));
-    const brandWorks = assets
-      .filter((item) => item.metadataJson?.kind === "DOUYIN_BRAND_WORK")
-      .map((item) => this.mapDouyinCollectedWork(item, "DOUYIN_BRAND_WORK"));
-    const competitorWorks = assets
-      .filter((item) => item.metadataJson?.kind === "DOUYIN_COMPETITOR_WORK")
-      .map((item) => this.mapDouyinCollectedWork(item, "DOUYIN_COMPETITOR_WORK"));
+    const brandWorks = this.dedupeCollectorRecordsByContent(
+      assets
+        .filter((item) => item.metadataJson?.kind === "DOUYIN_BRAND_WORK")
+        .map((item) => this.mapDouyinCollectedWork(item, "DOUYIN_BRAND_WORK")),
+    );
+    const competitorWorks = this.dedupeCollectorRecordsByContent(
+      assets
+        .filter((item) => item.metadataJson?.kind === "DOUYIN_COMPETITOR_WORK")
+        .map((item) => this.mapDouyinCollectedWork(item, "DOUYIN_COMPETITOR_WORK")),
+    );
     const benchmarkWorks = assets
       .filter((item) => item.metadataJson?.kind === "DOUYIN_BENCHMARK_WORK")
       .map((item) => this.mapDouyinCollectedWork(item, "DOUYIN_BENCHMARK_WORK"));
@@ -6016,9 +6023,9 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     }
 
     if (kind === "XHS_BRAND_NOTE") {
-      const normalizedTitle = this.normalizeCollectorTitle(asset.title);
-      if (normalizedTitle) {
-        return `${kind}:title:${normalizedTitle}`;
+      const normalizedContent = this.resolveCollectorContentDuplicateKey(asset.title, asset.description);
+      if (normalizedContent) {
+        return `${kind}:content:${normalizedContent}`;
       }
       const noteId = this.readMetaString(meta, "noteId");
       if (noteId) {
@@ -6059,7 +6066,29 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       }
     }
 
+    if (kind === "DOUYIN_BRAND_WORK" || kind === "DOUYIN_COMPETITOR_WORK") {
+      const normalizedContent = this.resolveCollectorContentDuplicateKey(asset.title, asset.description);
+      if (normalizedContent) {
+        return `${kind}:content:${normalizedContent}`;
+      }
+      const workId = this.readMetaString(meta, "workId");
+      if (workId) {
+        return `${kind}:work:${workId}`;
+      }
+    }
+
     return "";
+  }
+
+  private dedupeCollectorRecordsByContent<T extends { id: string; title: string; description?: string }>(items: T[]) {
+    const deduped = new Map<string, T>();
+    for (const item of items) {
+      const duplicateKey = this.resolveCollectorContentDuplicateKey(item.title, item.description) || item.id;
+      if (!deduped.has(duplicateKey)) {
+        deduped.set(duplicateKey, item);
+      }
+    }
+    return Array.from(deduped.values());
   }
 
   private isXhsAccountKind(kind: CollectorAssetKind) {
@@ -6069,6 +6098,14 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
   private normalizeCollectorTitle(title: string | undefined) {
     const normalized = String(title || "").trim().toLowerCase();
     return normalized || "";
+  }
+
+  private resolveCollectorContentDuplicateKey(title: string | undefined, description: string | undefined) {
+    const normalizedDescription = this.normalizeCollectorTitle(description);
+    if (normalizedDescription) {
+      return normalizedDescription;
+    }
+    return this.normalizeCollectorTitle(title);
   }
 
   private isSameXhsAccountAssetIdentity(
