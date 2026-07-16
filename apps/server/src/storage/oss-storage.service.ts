@@ -12,7 +12,8 @@ type StoredObject = {
 
 const OSS_UPLOAD_TIMEOUT_MS = 5 * 60 * 1000;
 const OSS_MULTIPART_THRESHOLD_BYTES = 8 * 1024 * 1024;
-const OSS_MULTIPART_PART_SIZE_BYTES = 4 * 1024 * 1024;
+const OSS_MULTIPART_PART_SIZE_BYTES = 8 * 1024 * 1024;
+const OSS_MULTIPART_PARALLEL = 2;
 const OSS_UPLOAD_RETRY_COUNT = 2;
 
 @Injectable()
@@ -38,7 +39,7 @@ export class OssStorageService {
         await client.multipartUpload(storageKey, buffer, {
           timeout: OSS_UPLOAD_TIMEOUT_MS,
           partSize: OSS_MULTIPART_PART_SIZE_BYTES,
-          parallel: 4,
+          parallel: OSS_MULTIPART_PARALLEL,
           headers: {
             "Content-Type": contentType,
             "Cache-Control": "public, max-age=31536000",

@@ -9,6 +9,7 @@ const expressBodyParser: {
   json: (options: { limit: string }) => unknown;
   urlencoded: (options: { extended: boolean; limit: string }) => unknown;
 } = require("express");
+const SERVER_BODY_LIMIT = String(process.env.SERVER_BODY_LIMIT || "100mb").trim() || "100mb";
 
 process.on("unhandledRejection", (reason) => {
   console.error("[bootstrap] unhandledRejection", reason);
@@ -40,9 +41,11 @@ function loadLocalEnvFiles() {
 async function bootstrap() {
   loadLocalEnvFiles();
   const appConfigService = new AppConfigService();
-  const app = await NestFactory.create(AppModule);
-  app.use(expressBodyParser.json({ limit: "30mb" }));
-  app.use(expressBodyParser.urlencoded({ extended: true, limit: "30mb" }));
+  const app = await NestFactory.create(AppModule, {
+    bodyParser: false,
+  });
+  app.use(expressBodyParser.json({ limit: SERVER_BODY_LIMIT }));
+  app.use(expressBodyParser.urlencoded({ extended: true, limit: SERVER_BODY_LIMIT }));
   app.setGlobalPrefix("api");
   app.enableCors({
     exposedHeaders: ["Content-Disposition", "Content-Length", "Content-Type"],
@@ -51,7 +54,7 @@ async function bootstrap() {
   const host = appConfigService.getServerHost();
   const port = appConfigService.getServerPort();
   await app.listen(port, host);
-  console.log(`AI全域运营系统后端已启动: http://${host}:${port}/api/health`);
+  console.log(`AI全域运营系统后端已启动: http://${host}:${port}/api/health (body limit: ${SERVER_BODY_LIMIT})`);
 }
 
 void bootstrap();
