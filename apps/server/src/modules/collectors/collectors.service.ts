@@ -694,12 +694,28 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     private readonly glmOpenService: GlmOpenService,
   ) {}
 
+  private isProductionStartupThrottleEnabled(flagName: string) {
+    const configured = String(process.env[flagName] || "").trim().toLowerCase();
+    if (configured === "true" || configured === "1" || configured === "yes" || configured === "on") {
+      return true;
+    }
+    if (configured === "false" || configured === "0" || configured === "no" || configured === "off") {
+      return false;
+    }
+    return process.env.NODE_ENV !== "production";
+  }
+
   onModuleInit() {
+    const enableDailyHotspotStartupCatchUp = this.isProductionStartupThrottleEnabled("COLLECTORS_STARTUP_DAILY_HOTSPOT_CATCHUP");
+    const enableVideoCacheCleanupStartupCatchUp = this.isProductionStartupThrottleEnabled("COLLECTORS_STARTUP_VIDEO_CACHE_CLEANUP_CATCHUP");
+    const enableResumeDouyinVideoCaches = this.isProductionStartupThrottleEnabled("COLLECTORS_STARTUP_RESUME_DOUYIN_VIDEO_CACHE");
+    const enableResumeDouyinTranscripts = this.isProductionStartupThrottleEnabled("COLLECTORS_STARTUP_RESUME_DOUYIN_TRANSCRIPTS");
+
     this.schedulerService.registerDailyJob({
       name: CollectorsService.DAILY_HOTSPOT_JOB_NAME,
       hour: 4,
       minute: 0,
-      runOnStartupIfMissed: true,
+      runOnStartupIfMissed: enableDailyHotspotStartupCatchUp,
       shouldRunOnStartup: () => this.shouldCatchUpDailyHotspotRun(),
       onTick: () => this.runDailyHotspotSyncJob(),
     });
@@ -707,11 +723,19 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       name: CollectorsService.DOUYIN_VIDEO_CACHE_CLEANUP_JOB_NAME,
       hour: 5,
       minute: 15,
-      runOnStartupIfMissed: true,
+      runOnStartupIfMissed: enableVideoCacheCleanupStartupCatchUp,
       onTick: () => this.cleanupExpiredDouyinVideoCaches(),
     });
-    void this.resumePendingDouyinVideoCaches();
-    void this.resumePendingDouyinTranscriptExtractions();
+    if (enableResumeDouyinVideoCaches) {
+      void this.resumePendingDouyinVideoCaches();
+    } else {
+      this.logger.log("Skip resuming douyin video caches on startup in current environment.");
+    }
+    if (enableResumeDouyinTranscripts) {
+      void this.resumePendingDouyinTranscriptExtractions();
+    } else {
+      this.logger.log("Skip resuming douyin transcript extractions on startup in current environment.");
+    }
   }
 
   onModuleDestroy() {
