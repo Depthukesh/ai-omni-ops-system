@@ -135,6 +135,8 @@ const DOUYIN_SEARCH_CONTENT_TYPE_OPTIONS = [
   { value: "3", label: "文章" },
 ] as const;
 
+const COLLECTION_PAGE_SIZE_OPTIONS = [10, 20, 30, 50] as const;
+
 const douyinFieldPreviewMap: Record<DouyinCollectionCardKey, DouyinFieldPreviewRow[]> = {
   brandAccount: [
     { field: "sourceAccountId", label: "账号抓取主键", source: "获取指定用户的信息", path: "data.user.sec_uid", required: "必需", patch: "否" },
@@ -849,6 +851,104 @@ function CollectionPageStatus(props: {
       {props.isHydrating ? <span className="status-text">正在加载当前页面数据...</span> : null}
       {!props.isHydrating && props.notice ? <span className="status-text success-text">{props.notice}</span> : null}
       {!props.isHydrating && props.errorMessage ? <span className="status-text error-text">{props.errorMessage}</span> : null}
+    </div>
+  );
+}
+
+function useCollectionPagination<T>(items: T[], resetKey: string, initialPageSize = 20) {
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(initialPageSize);
+  const pageCount = Math.max(1, Math.ceil(items.length / pageSize));
+  const paginatedItems = useMemo(() => {
+    const startIndex = (page - 1) * pageSize;
+    return items.slice(startIndex, startIndex + pageSize);
+  }, [items, page, pageSize]);
+
+  useEffect(() => {
+    if (page > pageCount) {
+      setPage(pageCount);
+    }
+  }, [page, pageCount]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [resetKey]);
+
+  return {
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
+    pageCount,
+    paginatedItems,
+  };
+}
+
+function CollectionPaginationBar(props: {
+  totalCount: number;
+  currentCount: number;
+  page: number;
+  setPage: Dispatch<SetStateAction<number>>;
+  pageCount: number;
+  pageSize: number;
+  setPageSize: Dispatch<SetStateAction<number>>;
+  pageKeyPrefix: string;
+}) {
+  if (!props.totalCount) {
+    return null;
+  }
+
+  return (
+    <div className="note-pagination-bar">
+      <div className="note-pagination-summary">
+        <span>共 {props.totalCount} 条</span>
+        <span>
+          第 {props.page} / {props.pageCount} 页
+        </span>
+        <span>当前显示 {props.currentCount} 条</span>
+      </div>
+      <div className="note-pagination-actions">
+        <button
+          type="button"
+          className="note-inline-button"
+          onClick={() => props.setPage((current) => Math.max(1, current - 1))}
+          disabled={props.page === 1}
+        >
+          上一页
+        </button>
+        {Array.from({ length: props.pageCount }, (_, index) => index + 1).map((page) => (
+          <button
+            key={`${props.pageKeyPrefix}-page-${page}`}
+            type="button"
+            className={`note-page-button ${page === props.page ? "is-active" : ""}`}
+            onClick={() => props.setPage(page)}
+          >
+            {page}
+          </button>
+        ))}
+        <button
+          type="button"
+          className="note-inline-button"
+          onClick={() => props.setPage((current) => Math.min(props.pageCount, current + 1))}
+          disabled={props.page === props.pageCount}
+        >
+          下一页
+        </button>
+        <label className="note-page-size-picker">
+          <span>每页</span>
+          <select
+            value={props.pageSize}
+            onChange={(event) => props.setPageSize(Number(event.target.value))}
+          >
+            {COLLECTION_PAGE_SIZE_OPTIONS.map((size) => (
+              <option key={`${props.pageKeyPrefix}-page-size-${size}`} value={size}>
+                {size}
+              </option>
+            ))}
+          </select>
+          <span>个</span>
+        </label>
+      </div>
     </div>
   );
 }
@@ -3406,6 +3506,11 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
     : props.activeXhsCollectionCard === "searchNotes"
       ? props.sortedSearchNotes
       : [];
+  const xhsPreviewPagination = useCollectionPagination(
+    currentXhsSelectableItems,
+    `${props.activePage}-${props.activeXhsCollectionCard}`,
+  );
+  const currentXhsVisibleItems = xhsPreviewPagination.paginatedItems;
   const douyinPreviewItems =
     props.activeDouyinCollectionCard === "brandAccount"
       ? props.sortedDouyinBrandAccounts
@@ -3424,7 +3529,8 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                 : props.activeDouyinCollectionCard === "highCompletionRateWorks"
                   ? props.sortedDouyinHighCompletionRateWorks
                   : props.sortedDouyinHighLikeRateWorks;
-  const currentDouyinSelectableItems = [
+  const currentDouyinWorkItems = [
+    "brandWorks",
     "competitorWorks",
     "benchmarkWorks",
     "searchWorks",
@@ -3434,9 +3540,24 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
   ].includes(props.activeDouyinCollectionCard)
     ? (douyinPreviewItems as DouyinCollectedWorkRecord[])
     : [];
-  const allXhsSelected = currentXhsSelectableItems.length > 0 && currentXhsSelectableItems.every((item) => selectedXhsNoteIds.includes(item.id));
+  const douyinPreviewPagination = useCollectionPagination(
+    currentDouyinWorkItems,
+    `${props.activePage}-${props.activeDouyinCollectionCard}`,
+  );
+  const currentDouyinVisibleItems = douyinPreviewPagination.paginatedItems;
+  const currentDouyinSelectableItems = [
+    "competitorWorks",
+    "benchmarkWorks",
+    "searchWorks",
+    "lowFanExplosiveWorks",
+    "highCompletionRateWorks",
+    "highLikeRateWorks",
+  ].includes(props.activeDouyinCollectionCard)
+    ? currentDouyinWorkItems
+    : [];
+  const allXhsSelected = currentXhsVisibleItems.length > 0 && currentXhsVisibleItems.every((item) => selectedXhsNoteIds.includes(item.id));
   const allDouyinSelected =
-    currentDouyinSelectableItems.length > 0 && currentDouyinSelectableItems.every((item) => selectedDouyinWorkIds.includes(item.id));
+    currentDouyinVisibleItems.length > 0 && currentDouyinVisibleItems.every((item) => selectedDouyinWorkIds.includes(item.id));
 
   useEffect(() => {
     const currentIds = new Set(currentXhsSelectableItems.map((item) => item.id));
@@ -4078,7 +4199,7 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                 </div>
                 {props.sortedBenchmarkNotes.length ? (
                   <XhsBenchmarkNotesTable
-                    items={props.sortedBenchmarkNotes}
+                    items={currentXhsVisibleItems}
                     addingMaterialAssetId={props.addingMaterialAssetId}
                     formatDateTime={props.formatDateTime}
                     formatCount={props.formatCount}
@@ -4088,11 +4209,24 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                     allSelected={allXhsSelected}
                     onToggleSelect={(id, checked) =>
                       setSelectedXhsNoteIds((current) => (checked ? [...current, id] : current.filter((item) => item !== id)))}
-                    onSelectAll={(checked) => setSelectedXhsNoteIds(checked ? props.sortedBenchmarkNotes.map((item) => item.id) : [])}
+                    onSelectAll={(checked) =>
+                      setSelectedXhsNoteIds((current) => checked
+                        ? Array.from(new Set([...current, ...currentXhsVisibleItems.map((item) => item.id)]))
+                        : current.filter((id) => !currentXhsVisibleItems.some((item) => item.id === id)))}
                   />
                 ) : (
                   <div className="note-empty-state">当前还没有对标作品结果，先提交作品链接或 note_id。</div>
                 )}
+                <CollectionPaginationBar
+                  totalCount={currentXhsSelectableItems.length}
+                  currentCount={currentXhsVisibleItems.length}
+                  page={xhsPreviewPagination.page}
+                  setPage={xhsPreviewPagination.setPage}
+                  pageCount={xhsPreviewPagination.pageCount}
+                  pageSize={xhsPreviewPagination.pageSize}
+                  setPageSize={xhsPreviewPagination.setPageSize}
+                  pageKeyPrefix="xhs-benchmark-notes"
+                />
               </article>
             </>
           ) : null}
@@ -4138,7 +4272,7 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                 </div>
                 {props.sortedSearchNotes.length ? (
                   <XhsBenchmarkNotesTable
-                    items={props.sortedSearchNotes}
+                    items={currentXhsVisibleItems}
                     addingMaterialAssetId={props.addingMaterialAssetId}
                     formatDateTime={props.formatDateTime}
                     formatCount={props.formatCount}
@@ -4148,11 +4282,24 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                     allSelected={allXhsSelected}
                     onToggleSelect={(id, checked) =>
                       setSelectedXhsNoteIds((current) => (checked ? [...current, id] : current.filter((item) => item !== id)))}
-                    onSelectAll={(checked) => setSelectedXhsNoteIds(checked ? props.sortedSearchNotes.map((item) => item.id) : [])}
+                    onSelectAll={(checked) =>
+                      setSelectedXhsNoteIds((current) => checked
+                        ? Array.from(new Set([...current, ...currentXhsVisibleItems.map((item) => item.id)]))
+                        : current.filter((id) => !currentXhsVisibleItems.some((item) => item.id === id)))}
                   />
                 ) : (
                   <div className="note-empty-state">当前还没有搜索笔记结果，先输入关键词并提交。</div>
                 )}
+                <CollectionPaginationBar
+                  totalCount={currentXhsSelectableItems.length}
+                  currentCount={currentXhsVisibleItems.length}
+                  page={xhsPreviewPagination.page}
+                  setPage={xhsPreviewPagination.setPage}
+                  pageCount={xhsPreviewPagination.pageCount}
+                  pageSize={xhsPreviewPagination.pageSize}
+                  setPageSize={xhsPreviewPagination.setPageSize}
+                  pageKeyPrefix="xhs-search-notes"
+                />
               </article>
             </>
           ) : null}
@@ -4409,7 +4556,7 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                 </div>
                 {douyinPreviewItems.length ? (
                   <DouyinBrandWorksTable
-                    items={douyinPreviewItems as DouyinCollectedWorkRecord[]}
+                    items={currentDouyinVisibleItems}
                     formatDateTime={props.formatDateTime}
                     formatCount={props.formatCount}
                     extractingTranscriptAssetId={props.extractingDouyinTranscriptAssetId}
@@ -4419,6 +4566,16 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                 ) : (
                   <div className="note-empty-state">当前还没有采集到品牌作品信息，请先同步品牌账号信息后再提交。</div>
                 )}
+                <CollectionPaginationBar
+                  totalCount={currentDouyinWorkItems.length}
+                  currentCount={currentDouyinVisibleItems.length}
+                  page={douyinPreviewPagination.page}
+                  setPage={douyinPreviewPagination.setPage}
+                  pageCount={douyinPreviewPagination.pageCount}
+                  pageSize={douyinPreviewPagination.pageSize}
+                  setPageSize={douyinPreviewPagination.setPageSize}
+                  pageKeyPrefix="douyin-brand-works"
+                />
               </article>
             </>
           ) : null}
@@ -4501,7 +4658,7 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                 </div>
                 {douyinPreviewItems.length ? (
                   <DouyinBrandWorksTable
-                    items={douyinPreviewItems as DouyinCollectedWorkRecord[]}
+                    items={currentDouyinVisibleItems}
                     addingMaterialAssetId={props.addingMaterialAssetId}
                     onAddToMaterialLibrary={props.onAddDouyinBenchmarkWorkToMaterial}
                     formatDateTime={props.formatDateTime}
@@ -4513,11 +4670,24 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                     allSelected={allDouyinSelected}
                     onToggleSelect={(id, checked) =>
                       setSelectedDouyinWorkIds((current) => (checked ? [...current, id] : current.filter((item) => item !== id)))}
-                    onSelectAll={(checked) => setSelectedDouyinWorkIds(checked ? currentDouyinSelectableItems.map((item) => item.id) : [])}
+                    onSelectAll={(checked) =>
+                      setSelectedDouyinWorkIds((current) => checked
+                        ? Array.from(new Set([...current, ...currentDouyinVisibleItems.map((item) => item.id)]))
+                        : current.filter((id) => !currentDouyinVisibleItems.some((item) => item.id === id)))}
                   />
                 ) : (
                   <div className="note-empty-state">当前还没有采集到竞品作品信息，请先同步竞品账号信息后再提交。</div>
                 )}
+                <CollectionPaginationBar
+                  totalCount={currentDouyinWorkItems.length}
+                  currentCount={currentDouyinVisibleItems.length}
+                  page={douyinPreviewPagination.page}
+                  setPage={douyinPreviewPagination.setPage}
+                  pageCount={douyinPreviewPagination.pageCount}
+                  pageSize={douyinPreviewPagination.pageSize}
+                  setPageSize={douyinPreviewPagination.setPageSize}
+                  pageKeyPrefix="douyin-competitor-works"
+                />
               </article>
             </>
           ) : null}
@@ -4546,7 +4716,7 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                 </div>
                 {douyinPreviewItems.length ? (
                   <DouyinMaterialReadyWorksTable
-                    items={douyinPreviewItems as DouyinCollectedWorkRecord[]}
+                    items={currentDouyinVisibleItems}
                     addingMaterialAssetId={props.addingMaterialAssetId}
                     onAddToMaterialLibrary={props.onAddDouyinBenchmarkWorkToMaterial}
                     extractingTranscriptAssetId={props.extractingDouyinTranscriptAssetId}
@@ -4561,11 +4731,24 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                     allSelected={allDouyinSelected}
                     onToggleSelect={(id, checked) =>
                       setSelectedDouyinWorkIds((current) => (checked ? [...current, id] : current.filter((item) => item !== id)))}
-                    onSelectAll={(checked) => setSelectedDouyinWorkIds(checked ? currentDouyinSelectableItems.map((item) => item.id) : [])}
+                    onSelectAll={(checked) =>
+                      setSelectedDouyinWorkIds((current) => checked
+                        ? Array.from(new Set([...current, ...currentDouyinVisibleItems.map((item) => item.id)]))
+                        : current.filter((id) => !currentDouyinVisibleItems.some((item) => item.id === id)))}
                   />
                 ) : (
                   <div className="note-empty-state">当前还没有采集到对标作品信息，请先输入作品链接并提交。</div>
                 )}
+                <CollectionPaginationBar
+                  totalCount={currentDouyinWorkItems.length}
+                  currentCount={currentDouyinVisibleItems.length}
+                  page={douyinPreviewPagination.page}
+                  setPage={douyinPreviewPagination.setPage}
+                  pageCount={douyinPreviewPagination.pageCount}
+                  pageSize={douyinPreviewPagination.pageSize}
+                  setPageSize={douyinPreviewPagination.setPageSize}
+                  pageKeyPrefix="douyin-benchmark-works"
+                />
               </article>
             </>
           ) : null}
@@ -4607,7 +4790,7 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                 </div>
                 {douyinPreviewItems.length ? (
                   <DouyinMaterialReadyWorksTable
-                    items={douyinPreviewItems as DouyinCollectedWorkRecord[]}
+                    items={currentDouyinVisibleItems}
                     addingMaterialAssetId={props.addingMaterialAssetId}
                     onAddToMaterialLibrary={props.onAddDouyinBenchmarkWorkToMaterial}
                     extractingTranscriptAssetId={props.extractingDouyinTranscriptAssetId}
@@ -4622,11 +4805,24 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                     allSelected={allDouyinSelected}
                     onToggleSelect={(id, checked) =>
                       setSelectedDouyinWorkIds((current) => (checked ? [...current, id] : current.filter((item) => item !== id)))}
-                    onSelectAll={(checked) => setSelectedDouyinWorkIds(checked ? currentDouyinSelectableItems.map((item) => item.id) : [])}
+                    onSelectAll={(checked) =>
+                      setSelectedDouyinWorkIds((current) => checked
+                        ? Array.from(new Set([...current, ...currentDouyinVisibleItems.map((item) => item.id)]))
+                        : current.filter((id) => !currentDouyinVisibleItems.some((item) => item.id === id)))}
                   />
                 ) : (
                   <div className="note-empty-state">当前还没有搜索结果，请先输入关键词并提交。</div>
                 )}
+                <CollectionPaginationBar
+                  totalCount={currentDouyinWorkItems.length}
+                  currentCount={currentDouyinVisibleItems.length}
+                  page={douyinPreviewPagination.page}
+                  setPage={douyinPreviewPagination.setPage}
+                  pageCount={douyinPreviewPagination.pageCount}
+                  pageSize={douyinPreviewPagination.pageSize}
+                  setPageSize={douyinPreviewPagination.setPageSize}
+                  pageKeyPrefix="douyin-search-works"
+                />
               </article>
             </>
           ) : null}
@@ -4725,7 +4921,7 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                 </div>
                 {douyinPreviewItems.length ? (
                   <DouyinMaterialReadyWorksTable
-                    items={douyinPreviewItems as DouyinCollectedWorkRecord[]}
+                    items={currentDouyinVisibleItems}
                     addingMaterialAssetId={props.addingMaterialAssetId}
                     onAddToMaterialLibrary={props.onAddDouyinBenchmarkWorkToMaterial}
                     extractingTranscriptAssetId={props.extractingDouyinTranscriptAssetId}
@@ -4737,11 +4933,24 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                     allSelected={allDouyinSelected}
                     onToggleSelect={(id, checked) =>
                       setSelectedDouyinWorkIds((current) => (checked ? [...current, id] : current.filter((item) => item !== id)))}
-                    onSelectAll={(checked) => setSelectedDouyinWorkIds(checked ? currentDouyinSelectableItems.map((item) => item.id) : [])}
+                    onSelectAll={(checked) =>
+                      setSelectedDouyinWorkIds((current) => checked
+                        ? Array.from(new Set([...current, ...currentDouyinVisibleItems.map((item) => item.id)]))
+                        : current.filter((id) => !currentDouyinVisibleItems.some((item) => item.id === id)))}
                   />
                 ) : (
                   <div className="note-empty-state">当前还没有采集到低粉爆款榜结果，请先选择垂类分类并提交。</div>
                 )}
+                <CollectionPaginationBar
+                  totalCount={currentDouyinWorkItems.length}
+                  currentCount={currentDouyinVisibleItems.length}
+                  page={douyinPreviewPagination.page}
+                  setPage={douyinPreviewPagination.setPage}
+                  pageCount={douyinPreviewPagination.pageCount}
+                  pageSize={douyinPreviewPagination.pageSize}
+                  setPageSize={douyinPreviewPagination.setPageSize}
+                  pageKeyPrefix="douyin-low-fan-works"
+                />
               </article>
             </>
           ) : null}
@@ -4770,7 +4979,7 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                 </div>
                 {douyinPreviewItems.length ? (
                   <DouyinMaterialReadyWorksTable
-                    items={douyinPreviewItems as DouyinCollectedWorkRecord[]}
+                    items={currentDouyinVisibleItems}
                     addingMaterialAssetId={props.addingMaterialAssetId}
                     onAddToMaterialLibrary={props.onAddDouyinBenchmarkWorkToMaterial}
                     extractingTranscriptAssetId={props.extractingDouyinTranscriptAssetId}
@@ -4782,11 +4991,24 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                     allSelected={allDouyinSelected}
                     onToggleSelect={(id, checked) =>
                       setSelectedDouyinWorkIds((current) => (checked ? [...current, id] : current.filter((item) => item !== id)))}
-                    onSelectAll={(checked) => setSelectedDouyinWorkIds(checked ? currentDouyinSelectableItems.map((item) => item.id) : [])}
+                    onSelectAll={(checked) =>
+                      setSelectedDouyinWorkIds((current) => checked
+                        ? Array.from(new Set([...current, ...currentDouyinVisibleItems.map((item) => item.id)]))
+                        : current.filter((id) => !currentDouyinVisibleItems.some((item) => item.id === id)))}
                   />
                 ) : (
                   <div className="note-empty-state">当前还没有采集到高完播率榜结果，请先选择垂类分类并提交。</div>
                 )}
+                <CollectionPaginationBar
+                  totalCount={currentDouyinWorkItems.length}
+                  currentCount={currentDouyinVisibleItems.length}
+                  page={douyinPreviewPagination.page}
+                  setPage={douyinPreviewPagination.setPage}
+                  pageCount={douyinPreviewPagination.pageCount}
+                  pageSize={douyinPreviewPagination.pageSize}
+                  setPageSize={douyinPreviewPagination.setPageSize}
+                  pageKeyPrefix="douyin-high-completion-works"
+                />
               </article>
             </>
           ) : null}
@@ -4815,7 +5037,7 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                 </div>
                 {douyinPreviewItems.length ? (
                   <DouyinMaterialReadyWorksTable
-                    items={douyinPreviewItems as DouyinCollectedWorkRecord[]}
+                    items={currentDouyinVisibleItems}
                     addingMaterialAssetId={props.addingMaterialAssetId}
                     onAddToMaterialLibrary={props.onAddDouyinBenchmarkWorkToMaterial}
                     extractingTranscriptAssetId={props.extractingDouyinTranscriptAssetId}
@@ -4827,11 +5049,24 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                     allSelected={allDouyinSelected}
                     onToggleSelect={(id, checked) =>
                       setSelectedDouyinWorkIds((current) => (checked ? [...current, id] : current.filter((item) => item !== id)))}
-                    onSelectAll={(checked) => setSelectedDouyinWorkIds(checked ? currentDouyinSelectableItems.map((item) => item.id) : [])}
+                    onSelectAll={(checked) =>
+                      setSelectedDouyinWorkIds((current) => checked
+                        ? Array.from(new Set([...current, ...currentDouyinVisibleItems.map((item) => item.id)]))
+                        : current.filter((id) => !currentDouyinVisibleItems.some((item) => item.id === id)))}
                   />
                 ) : (
                   <div className="note-empty-state">当前还没有采集到高点赞率榜结果，请先选择垂类分类并提交。</div>
                 )}
+                <CollectionPaginationBar
+                  totalCount={currentDouyinWorkItems.length}
+                  currentCount={currentDouyinVisibleItems.length}
+                  page={douyinPreviewPagination.page}
+                  setPage={douyinPreviewPagination.setPage}
+                  pageCount={douyinPreviewPagination.pageCount}
+                  pageSize={douyinPreviewPagination.pageSize}
+                  setPageSize={douyinPreviewPagination.setPageSize}
+                  pageKeyPrefix="douyin-high-like-works"
+                />
               </article>
             </>
           ) : null}
