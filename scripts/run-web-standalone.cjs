@@ -5,6 +5,27 @@ const { spawn } = require("node:child_process");
 const projectRoot = fs.realpathSync.native(path.resolve(__dirname, ".."));
 const webRoot = path.join(projectRoot, "apps", "web");
 
+function canBootStandaloneServer(serverPath) {
+  if (!fs.existsSync(serverPath)) {
+    return false;
+  }
+
+  let currentDir = path.dirname(serverPath);
+  for (let index = 0; index < 6; index += 1) {
+    const nextPackagePath = path.join(currentDir, "node_modules", "next", "package.json");
+    if (fs.existsSync(nextPackagePath)) {
+      return true;
+    }
+    const parentDir = path.dirname(currentDir);
+    if (!parentDir || parentDir === currentDir) {
+      break;
+    }
+    currentDir = parentDir;
+  }
+
+  return false;
+}
+
 function resolveStandaloneServer() {
   const candidates = [
     path.join(webRoot, ".next", "standalone", path.basename(projectRoot), "apps", "web", "server.js"),
@@ -13,7 +34,7 @@ function resolveStandaloneServer() {
   ];
 
   for (const candidate of candidates) {
-    if (fs.existsSync(candidate)) {
+    if (canBootStandaloneServer(candidate)) {
       return candidate;
     }
   }
@@ -37,7 +58,7 @@ function resolveStandaloneServer() {
         pending.push(fullPath);
         continue;
       }
-      if (entry.isFile() && entry.name === "server.js") {
+      if (entry.isFile() && entry.name === "server.js" && canBootStandaloneServer(fullPath)) {
         return fullPath;
       }
     }
