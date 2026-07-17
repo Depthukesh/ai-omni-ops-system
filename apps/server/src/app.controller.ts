@@ -2,6 +2,7 @@ import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { Body, Controller, Delete, Get, Post, Query } from "@nestjs/common";
 import { isRuntimeDebugEnabled } from "./common/runtime-debug";
+import { AppService } from "./app.service";
 
 type BrowserDebugEvent = {
   sessionId?: string;
@@ -23,13 +24,11 @@ function resolveLogFilePath(sessionId: string) {
 
 @Controller()
 export class AppController {
+  constructor(private readonly appService: AppService) {}
+
   @Get("health")
-  health() {
-    return {
-      app: "ai-omni-ops-system-server",
-      status: "ok",
-      timestamp: new Date().toISOString(),
-    };
+  async health() {
+    return this.appService.getHealth();
   }
 
   @Post("debug/browser-event")

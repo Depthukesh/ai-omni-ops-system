@@ -39,6 +39,7 @@ export type OpenClawInstallTokenRecord = {
 
 type OpenClawInstallTokenStoredRecord = OpenClawInstallTokenRecord & {
   encryptedToken: string;
+  tokenHash: string;
 };
 
 export type OpenClawInstallWorkspace = {
@@ -113,6 +114,10 @@ type FallbackInstallTokenRecord = OpenClawInstallTokenRow;
 export class OpenClawInstallationService {
   private bootstrapPromise?: Promise<void>;
   private readonly fallbackTokens: FallbackInstallTokenRecord[] = [];
+  private readonly resolvedTokenCache = new Map<string, { expiresAt: number; tokenId: string; auth: RequestAuthContext }>();
+  private readonly touchThrottleCache = new Map<string, { brandId: string; lastTouchedAt: number }>();
+  private readonly installTokenResolveCacheTtlMs = this.readPositiveIntegerEnv("OPENCLAW_INSTALL_TOKEN_CACHE_TTL_MS", 15_000);
+  private readonly installTokenTouchThrottleMs = this.readPositiveIntegerEnv("OPENCLAW_INSTALL_TOKEN_TOUCH_THROTTLE_MS", 300_000);
 
   constructor(
     private readonly prismaService: PrismaService,
@@ -254,7 +259,16 @@ export class OpenClawInstallationService {
       return undefined;
     }
 
-    const record = await this.findActiveTokenByHash(this.hashToken(token));
+    const tokenHash = this.hashToken(token);
+    const cached = this.resolvedTokenCache.get(tokenHash);
+    if (cached && cached.expiresAt > Date.now()) {
+      if (cached.auth.brandId) {
+        await this.touchTokenIfNeeded(cached.tokenId, cached.auth.brandId);
+      }
+      return cached.auth;
+    }
+
+    const record = await this.findActiveTokenByHash(tokenHash);
     if (!record) {
       throw new UnauthorizedException("OpenClaw 安装令牌无效");
     }
@@ -268,13 +282,18 @@ export class OpenClawInstallationService {
       source: "token",
     });
 
-    await this.touchToken(record.id);
-
-    return {
+    const auth: RequestAuthContext = {
       userId: record.createdByUserId,
       brandId: record.brandId,
       source: "token",
     };
+    this.resolvedTokenCache.set(tokenHash, {
+      expiresAt: Date.now() + this.installTokenResolveCacheTtlMs,
+      tokenId: record.id,
+      auth,
+    });
+    await this.touchTokenIfNeeded(record.id, record.brandId);
+    return auth;
   }
 
   private async buildWorkspace(input: {
@@ -881,6 +900,7 @@ description: AI 全域智能体网站能力总入口 Skill。先做网站功能�
         item.updatedAt = new Date().toISOString();
       }
     }
+    this.clearTokenCachesForBrand(brandId);
   }
 
   private async updateTokenStatus(tokenId: string, status: "ACTIVE" | "REVOKED") {
@@ -891,6 +911,12 @@ description: AI 全域智能体网站能力总入口 Skill。先做网站功能�
         SET "status" = ${status}, "updatedAt" = CURRENT_TIMESTAMP
         WHERE "id" = ${tokenId}
       `;
+      if (status === "REVOKED") {
+        const current = await this.findTokenById(tokenId);
+        if (current) {
+          this.clearTokenCachesForToken(current);
+        }
+      }
       return;
     }
 
@@ -898,6 +924,9 @@ description: AI 全域智能体网站能力总入口 Skill。先做网站功能�
     if (matched) {
       matched.status = status;
       matched.updatedAt = new Date().toISOString();
+      if (status === "REVOKED") {
+        this.clearTokenCachesForToken(this.normalizeTokenRow(matched));
+      }
     }
   }
 
@@ -919,6 +948,17 @@ description: AI 全域智能体网站能力总入口 Skill。先做网站功能�
     }
   }
 
+  private async touchTokenIfNeeded(tokenId: string, brandId: string) {
+    const now = Date.now();
+    const cached = this.touchThrottleCache.get(tokenId);
+    if (cached && now - cached.lastTouchedAt < this.installTokenTouchThrottleMs) {
+      return;
+    }
+    await this.touchToken(tokenId);
+    this.touchThrottleCache.set(tokenId, { brandId, lastTouchedAt: now });
+    this.cleanupTouchCacheForBrand(brandId);
+  }
+
   private normalizeTokenRow(row: OpenClawInstallTokenRow): OpenClawInstallTokenStoredRecord {
     return {
       id: row.id,
@@ -926,6 +966,7 @@ description: AI 全域智能体网站能力总入口 Skill。先做网站功能�
       createdByUserId: row.createdByUserId,
       tokenName: String(row.tokenName || "").trim() || "OpenClaw 正式安装令牌",
       encryptedToken: String(row.encryptedToken || "").trim(),
+      tokenHash: String(row.tokenHash || "").trim(),
       tokenPreview: String(row.tokenPreview || "").trim(),
       status: row.status === "REVOKED" ? "REVOKED" : "ACTIVE",
       lastUsedAt: this.normalizeOptionalDate(row.lastUsedAt),
@@ -952,6 +993,40 @@ description: AI 全域智能体网站能力总入口 Skill。先做网站功能�
   private getTimestamp(value: Date | string) {
     const timestamp = new Date(this.normalizeDate(value)).getTime();
     return Number.isFinite(timestamp) ? timestamp : 0;
+  }
+
+  private readPositiveIntegerEnv(name: string, fallback: number) {
+    const parsed = Number.parseInt(String(process.env[name] || "").trim(), 10);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      return fallback;
+    }
+    return parsed;
+  }
+
+  private clearTokenCachesForToken(record: Pick<OpenClawInstallTokenStoredRecord, "id" | "brandId" | "tokenHash">) {
+    if (record.tokenHash) {
+      this.resolvedTokenCache.delete(record.tokenHash);
+    }
+    this.touchThrottleCache.delete(record.id);
+    this.cleanupTouchCacheForBrand(record.brandId);
+  }
+
+  private clearTokenCachesForBrand(brandId: string) {
+    for (const [tokenHash, cached] of this.resolvedTokenCache.entries()) {
+      if (cached.auth.brandId === brandId) {
+        this.resolvedTokenCache.delete(tokenHash);
+      }
+    }
+    this.cleanupTouchCacheForBrand(brandId);
+  }
+
+  private cleanupTouchCacheForBrand(brandId: string) {
+    const now = Date.now();
+    for (const [tokenId, cached] of this.touchThrottleCache.entries()) {
+      if (cached.brandId === brandId || now - cached.lastTouchedAt >= this.installTokenTouchThrottleMs * 2) {
+        this.touchThrottleCache.delete(tokenId);
+      }
+    }
   }
 
   private async ensureTableReady() {
