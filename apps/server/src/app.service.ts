@@ -1,7 +1,22 @@
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "./prisma/prisma.service";
 
-const serverPackageJson: { version?: string } = require("../package.json");
+function readServerVersion() {
+  try {
+    const packageJsonPath = resolve(process.cwd(), "package.json");
+    if (!existsSync(packageJsonPath)) {
+      return "0.1.0";
+    }
+    const parsed = JSON.parse(readFileSync(packageJsonPath, "utf8")) as { version?: string };
+    return String(parsed.version || "").trim() || "0.1.0";
+  } catch {
+    return "0.1.0";
+  }
+}
+
+const serverVersion = readServerVersion();
 
 @Injectable()
 export class AppService {
@@ -27,7 +42,7 @@ export class AppService {
     return {
       app: {
         name: "ai-omni-ops-system-server",
-        version: serverPackageJson.version || "0.0.0",
+        version: serverVersion,
         node: process.version,
         pid: process.pid,
         uptimeSeconds: runtimeSeconds,
