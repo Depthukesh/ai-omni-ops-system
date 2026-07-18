@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { BadRequestException, Injectable, ServiceUnavailableException, UnauthorizedException } from "@nestjs/common";
 import { normalizeSafeText } from "../../common/prompt-injection-guard";
 import { AuthService, type RequestAuthContext } from "../auth/auth.service";
@@ -2514,6 +2515,10 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
 
 @Injectable()
 export class OpenClawService {
+  private readonly readOnlyMcpToolCacheTtlMs = this.readPositiveIntegerEnv("OPENCLAW_READONLY_TOOL_CACHE_TTL_MS", 2_000);
+  private readonly readOnlyMcpToolCacheMaxEntries = this.readPositiveIntegerEnv("OPENCLAW_READONLY_TOOL_CACHE_MAX_ENTRIES", 200);
+  private readonly readOnlyMcpToolCache = new Map<string, { expiresAt: number; scopeKey: string; value: unknown }>();
+
   constructor(
     private readonly authService: AuthService,
     private readonly tasksService: TasksService,
@@ -2534,6 +2539,150 @@ export class OpenClawService {
     private readonly openClawGeoVisibilityReportService: OpenClawGeoVisibilityReportService,
     private readonly openClawVideoWorkService: OpenClawVideoWorkService,
   ) {}
+
+  private readPositiveIntegerEnv(name: string, fallback: number) {
+    const raw = Number.parseInt(String(process.env[name] || "").trim(), 10);
+    return Number.isFinite(raw) && raw > 0 ? raw : fallback;
+  }
+
+  private readHeaderValue(headers: HeadersMap | undefined, key: string) {
+    if (!headers) {
+      return "";
+    }
+    const direct = headers[key] ?? headers[key.toLowerCase()] ?? headers[key.toUpperCase()];
+    if (Array.isArray(direct)) {
+      return typeof direct[0] === "string" ? direct[0] : "";
+    }
+    return typeof direct === "string" ? direct : "";
+  }
+
+  private hashCacheValue(value: string) {
+    return createHash("sha256").update(value).digest("hex");
+  }
+
+  private buildReadOnlyMcpToolCacheScopeKey(headers: HeadersMap) {
+    const scopeSeed = [
+      this.readHeaderValue(headers, "authorization"),
+      this.readHeaderValue(headers, "cookie"),
+      this.readHeaderValue(headers, "x-brand-id"),
+      this.readHeaderValue(headers, "x-session-id"),
+    ].join("|");
+    return this.hashCacheValue(scopeSeed || "anonymous-openclaw-scope");
+  }
+
+  private serializeMcpToolArgs(toolArgs: Record<string, unknown>) {
+    try {
+      return JSON.stringify(toolArgs);
+    } catch {
+      return "[unserializable-tool-args]";
+    }
+  }
+
+  private isReadOnlyManageAction(action: string) {
+    const normalized = action.trim().toLowerCase();
+    return normalized.startsWith("list_") || normalized.startsWith("get_") || normalized.startsWith("check_");
+  }
+
+  private resolveReadOnlyMcpToolCacheTtlMs(toolName: string, toolArgs: Record<string, unknown>) {
+    if (!this.readOnlyMcpToolCacheTtlMs) {
+      return 0;
+    }
+    if (toolName.startsWith("manage_")) {
+      const action = typeof toolArgs.action === "string" ? toolArgs.action : "";
+      return this.isReadOnlyManageAction(action) ? this.readOnlyMcpToolCacheTtlMs : 0;
+    }
+    if (
+      toolName.startsWith("get_")
+      || toolName.startsWith("list_")
+      || toolName.startsWith("check_")
+      || toolName.startsWith("route_")
+    ) {
+      return this.readOnlyMcpToolCacheTtlMs;
+    }
+    return 0;
+  }
+
+  private shouldInvalidateReadOnlyMcpToolCache(toolName: string, toolArgs: Record<string, unknown>) {
+    if (toolName.startsWith("manage_")) {
+      const action = typeof toolArgs.action === "string" ? toolArgs.action : "";
+      return !this.isReadOnlyManageAction(action);
+    }
+    return [
+      "create_",
+      "update_",
+      "delete_",
+      "sync_",
+      "generate_",
+      "publish_",
+      "cancel_",
+      "retry_",
+      "accept_",
+      "revoke_",
+      "reset_",
+      "submit_",
+      "upload_",
+      "add_",
+      "remove_",
+    ].some((prefix) => toolName.startsWith(prefix));
+  }
+
+  private buildReadOnlyMcpToolCacheKey(scopeKey: string, toolName: string, toolArgs: Record<string, unknown>) {
+    return this.hashCacheValue(`${scopeKey}:${toolName}:${this.serializeMcpToolArgs(toolArgs)}`);
+  }
+
+  private readReadOnlyMcpToolCache(cacheKey: string) {
+    const cached = this.readOnlyMcpToolCache.get(cacheKey);
+    if (!cached) {
+      return undefined;
+    }
+    if (cached.expiresAt <= Date.now()) {
+      this.readOnlyMcpToolCache.delete(cacheKey);
+      return undefined;
+    }
+    return cached.value;
+  }
+
+  private writeReadOnlyMcpToolCache(cacheKey: string, scopeKey: string, ttlMs: number, value: unknown) {
+    if (this.readOnlyMcpToolCache.size >= this.readOnlyMcpToolCacheMaxEntries) {
+      const oldestKey = this.readOnlyMcpToolCache.keys().next().value;
+      if (typeof oldestKey === "string") {
+        this.readOnlyMcpToolCache.delete(oldestKey);
+      }
+    }
+    this.readOnlyMcpToolCache.set(cacheKey, {
+      expiresAt: Date.now() + ttlMs,
+      scopeKey,
+      value,
+    });
+  }
+
+  private clearReadOnlyMcpToolCacheForScope(scopeKey: string) {
+    for (const [cacheKey, cached] of this.readOnlyMcpToolCache.entries()) {
+      if (cached.scopeKey === scopeKey || cached.expiresAt <= Date.now()) {
+        this.readOnlyMcpToolCache.delete(cacheKey);
+      }
+    }
+  }
+
+  private async handleCachedToolCall(headers: HeadersMap, toolName: string, toolArgs: Record<string, unknown>) {
+    const scopeKey = this.buildReadOnlyMcpToolCacheScopeKey(headers);
+    const ttlMs = this.resolveReadOnlyMcpToolCacheTtlMs(toolName, toolArgs);
+    if (ttlMs > 0) {
+      const cacheKey = this.buildReadOnlyMcpToolCacheKey(scopeKey, toolName, toolArgs);
+      const cached = this.readReadOnlyMcpToolCache(cacheKey);
+      if (typeof cached !== "undefined") {
+        return cached;
+      }
+      const payload = await this.executeToolCall(headers, toolName, toolArgs);
+      this.writeReadOnlyMcpToolCache(cacheKey, scopeKey, ttlMs, payload);
+      return payload;
+    }
+    const payload = await this.executeToolCall(headers, toolName, toolArgs);
+    if (this.shouldInvalidateReadOnlyMcpToolCache(toolName, toolArgs)) {
+      this.clearReadOnlyMcpToolCacheForScope(scopeKey);
+    }
+    return payload;
+  }
 
   async getCurrentBrandContext(headers: HeadersMap) {
     const auth = await this.requireAuth(headers);
@@ -7956,7 +8105,7 @@ export class OpenClawService {
         return this.buildToolErrorResult(id, "缺少工具名称");
       }
       try {
-        const payload = await this.handleToolCall(headers, toolName, toolArgs);
+        const payload = await this.handleCachedToolCall(headers, toolName, toolArgs);
         return this.buildJsonRpcResult(id, {
           content: [
             {
@@ -11075,7 +11224,7 @@ export class OpenClawService {
     return value as Record<string, unknown>;
   }
 
-  private async handleToolCall(headers: HeadersMap, toolName: string, toolArgs: Record<string, unknown>) {
+  private async executeToolCall(headers: HeadersMap, toolName: string, toolArgs: Record<string, unknown>) {
     switch (toolName) {
       case "get_website_function_catalog":
         return this.getWebsiteFunctionCatalog(headers, {

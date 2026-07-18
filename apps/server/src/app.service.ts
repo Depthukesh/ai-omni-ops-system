@@ -51,7 +51,7 @@ export class AppService {
       },
       status: databaseAvailable ? "ok" : this.prismaService.isConfigured() ? "degraded" : "mock-ready",
       database: {
-        ...(await this.prismaService.getSchemaSummary()),
+        ...(await this.prismaService.getSchemaSummary(databaseAvailable)),
         reachable: databaseAvailable,
       },
       runtime: {

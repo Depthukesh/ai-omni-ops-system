@@ -899,6 +899,61 @@ export function DouyinWorkspaceShell() {
     await ensureDigitalHumanEditorResources(true);
     return items.status === "fulfilled" ? (items.value.items || []) : [];
   }, [activeBrandId, ensureDigitalHumanEditorResources]);
+  const activeWorkspacePollers = useMemo(
+    (): Array<{ key: string; run: () => Promise<unknown> }> => {
+      const pollers: Array<{ key: string; run: () => Promise<unknown> }> = [];
+      if (isTaskActive) {
+        pollers.push({ key: "marketingPlan", run: () => refreshMarketingPlanWorkspace() });
+      }
+      if (isHotTopicTaskActive) {
+        pollers.push({ key: "hotTopic", run: () => refreshHotTopicWorkspace(selectedHotTopicDate) });
+      }
+      if (isOriginalCopyTaskActive) {
+        pollers.push({ key: "originalCopy", run: () => refreshOriginalCopyWorkspace() });
+      }
+      if (isRemixCopyTaskActive) {
+        pollers.push({ key: "remixCopy", run: () => refreshRemixCopyWorkspace() });
+      }
+      if (isRemixShortVideoTaskActive) {
+        pollers.push({ key: "remixShortVideo", run: () => refreshRemixShortVideoWorkspace() });
+      }
+      if (isVideoTaskActive) {
+        pollers.push({ key: "video", run: () => refreshVideoWorkspace() });
+      }
+      if (isDirectVideoTaskActive) {
+        pollers.push({ key: "directVideo", run: () => refreshDirectVideoWorkspace() });
+      }
+      if (isAdPreAuditTaskActive) {
+        pollers.push({ key: "adPreAudit", run: () => refreshAdPreAuditWorkspace() });
+      }
+      if (isDigitalHumanTaskActive) {
+        pollers.push({ key: "digitalHuman", run: () => refreshDigitalHumanWorkspace() });
+      }
+      return pollers;
+    },
+    [
+      isAdPreAuditTaskActive,
+      isDigitalHumanTaskActive,
+      isDirectVideoTaskActive,
+      isHotTopicTaskActive,
+      isOriginalCopyTaskActive,
+      isRemixCopyTaskActive,
+      isRemixShortVideoTaskActive,
+      isTaskActive,
+      isVideoTaskActive,
+      refreshAdPreAuditWorkspace,
+      refreshDigitalHumanWorkspace,
+      refreshDirectVideoWorkspace,
+      refreshHotTopicWorkspace,
+      refreshMarketingPlanWorkspace,
+      refreshOriginalCopyWorkspace,
+      refreshRemixCopyWorkspace,
+      refreshRemixShortVideoWorkspace,
+      refreshVideoWorkspace,
+      selectedHotTopicDate,
+    ],
+  );
+  const hasActiveWorkspacePolling = activeWorkspacePollers.length > 0;
 
   const loadWorkspace = useCallback(async (
     sectionKey?: DouyinSectionKey,
@@ -1564,100 +1619,55 @@ export function DouyinWorkspaceShell() {
   }, [selectedMaterialId, unifiedMaterialOptions]);
 
   useEffect(() => {
-    if (!isTaskActive) {
+    if (!activeWorkspacePollers.length) {
       return undefined;
     }
-    const timer = window.setInterval(() => {
-      void refreshMarketingPlanWorkspace().catch(() => undefined);
-    }, 10000);
-    return () => window.clearInterval(timer);
-  }, [isTaskActive, refreshMarketingPlanWorkspace]);
+    let cancelled = false;
+    let timer: number | undefined;
+    let polling = false;
+    const scheduleNext = () => {
+      if (cancelled) {
+        return;
+      }
+      timer = window.setTimeout(() => {
+        void runPollingCycle();
+      }, 10000);
+    };
+    const runPollingCycle = async () => {
+      if (cancelled || polling) {
+        return;
+      }
+      if (typeof document !== "undefined" && document.hidden) {
+        scheduleNext();
+        return;
+      }
+      polling = true;
+      try {
+        for (const poller of activeWorkspacePollers) {
+          if (cancelled) {
+            break;
+          }
+          await poller.run().catch(() => undefined);
+        }
+      } finally {
+        polling = false;
+        scheduleNext();
+      }
+    };
+    scheduleNext();
+    return () => {
+      cancelled = true;
+      if (timer) {
+        window.clearTimeout(timer);
+      }
+    };
+  }, [activeWorkspacePollers]);
 
   useEffect(() => {
-    if (!isHotTopicTaskActive) {
-      return undefined;
-    }
-    const timer = window.setInterval(() => {
-      void refreshHotTopicWorkspace(selectedHotTopicDate).catch(() => undefined);
-    }, 10000);
-    return () => window.clearInterval(timer);
-  }, [isHotTopicTaskActive, refreshHotTopicWorkspace, selectedHotTopicDate]);
-
-  useEffect(() => {
-    if (!isOriginalCopyTaskActive) {
-      return undefined;
-    }
-    const timer = window.setInterval(() => {
-      void refreshOriginalCopyWorkspace().catch(() => undefined);
-    }, 10000);
-    return () => window.clearInterval(timer);
-  }, [isOriginalCopyTaskActive, refreshOriginalCopyWorkspace]);
-
-  useEffect(() => {
-    if (!isRemixCopyTaskActive) {
-      return undefined;
-    }
-    const timer = window.setInterval(() => {
-      void refreshRemixCopyWorkspace().catch(() => undefined);
-    }, 10000);
-    return () => window.clearInterval(timer);
-  }, [isRemixCopyTaskActive, refreshRemixCopyWorkspace]);
-
-  useEffect(() => {
-    if (!isRemixShortVideoTaskActive) {
-      return undefined;
-    }
-    const timer = window.setInterval(() => {
-      void refreshRemixShortVideoWorkspace().catch(() => undefined);
-    }, 10000);
-    return () => window.clearInterval(timer);
-  }, [isRemixShortVideoTaskActive, refreshRemixShortVideoWorkspace]);
-
-  useEffect(() => {
-    if (!isVideoTaskActive) {
-      return undefined;
-    }
-    const timer = window.setInterval(() => {
-      void refreshVideoWorkspace().catch(() => undefined);
-    }, 10000);
-    return () => window.clearInterval(timer);
-  }, [isVideoTaskActive, refreshVideoWorkspace]);
-
-  useEffect(() => {
-    if (!isDirectVideoTaskActive) {
-      return undefined;
-    }
-    const timer = window.setInterval(() => {
-      void refreshDirectVideoWorkspace().catch(() => undefined);
-    }, 10000);
-    return () => window.clearInterval(timer);
-  }, [isDirectVideoTaskActive, refreshDirectVideoWorkspace]);
-
-  useEffect(() => {
-    if (!isAdPreAuditTaskActive) {
-      return undefined;
-    }
-    const timer = window.setInterval(() => {
-      void refreshAdPreAuditWorkspace().catch(() => undefined);
-    }, 10000);
-    return () => window.clearInterval(timer);
-  }, [isAdPreAuditTaskActive, refreshAdPreAuditWorkspace]);
-
-  useEffect(() => {
-    if (!isDigitalHumanTaskActive) {
-      return undefined;
-    }
-    const timer = window.setInterval(() => {
-      void refreshDigitalHumanWorkspace().catch(() => undefined);
-    }, 10000);
-    return () => window.clearInterval(timer);
-  }, [isDigitalHumanTaskActive, refreshDigitalHumanWorkspace]);
-
-  useEffect(() => {
-    if (!isTaskActive && !isHotTopicTaskActive && !isOriginalCopyTaskActive && !isRemixCopyTaskActive && !isRemixShortVideoTaskActive && !isVideoTaskActive && !isDirectVideoTaskActive && !isAdPreAuditTaskActive && !isDigitalHumanTaskActive && notice.includes("任务已提交")) {
+    if (!hasActiveWorkspacePolling && notice.includes("任务已提交")) {
       setNotice("");
     }
-  }, [isAdPreAuditTaskActive, isDigitalHumanTaskActive, isDirectVideoTaskActive, isHotTopicTaskActive, isOriginalCopyTaskActive, isRemixCopyTaskActive, isRemixShortVideoTaskActive, isTaskActive, isVideoTaskActive, notice]);
+  }, [hasActiveWorkspacePolling, notice]);
 
   useEffect(() => {
     setOriginalCopyWorkspace((current) => ({

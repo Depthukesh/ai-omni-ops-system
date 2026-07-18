@@ -662,10 +662,43 @@ export function DouyinRunningHubWorkspace(props: DouyinRunningHubWorkspaceProps)
     if (!hasPendingWorks) {
       return;
     }
-    const timer = window.setInterval(() => {
-      void refreshWorkspace();
-    }, 10000);
-    return () => window.clearInterval(timer);
+    let disposed = false;
+    let timer: number | undefined;
+    let polling = false;
+
+    const scheduleNext = () => {
+      if (disposed) {
+        return;
+      }
+      timer = window.setTimeout(() => {
+        void pollWorkspace();
+      }, 10000);
+    };
+
+    const pollWorkspace = async () => {
+      if (disposed || polling) {
+        return;
+      }
+      if (typeof document !== "undefined" && document.hidden) {
+        scheduleNext();
+        return;
+      }
+      polling = true;
+      try {
+        await refreshWorkspace();
+      } finally {
+        polling = false;
+        scheduleNext();
+      }
+    };
+
+    scheduleNext();
+    return () => {
+      disposed = true;
+      if (timer) {
+        window.clearTimeout(timer);
+      }
+    };
   }, [hasPendingWorks, refreshWorkspace]);
 
   const selectedApp = useMemo(() => apps.find((item) => item.key === selectedAppKey) || null, [apps, selectedAppKey]);

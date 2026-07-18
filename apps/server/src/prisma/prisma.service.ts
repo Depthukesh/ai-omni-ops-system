@@ -24,11 +24,11 @@ export class PrismaService extends PrismaClient implements OnModuleDestroy {
     }
   }
 
-  async getSchemaSummary() {
-    const dbAvailable = await this.canUseDatabase();
+  async getSchemaSummary(dbAvailable = false) {
+    const reachable = this.isConfigured() ? dbAvailable : false;
 
     return {
-      status: dbAvailable ? "database-ready" : this.isConfigured() ? "database-unreachable" : "mock-ready",
+      status: reachable ? "database-ready" : this.isConfigured() ? "database-unreachable" : "mock-ready",
       datasource: "postgresql",
       models: [
         "User",

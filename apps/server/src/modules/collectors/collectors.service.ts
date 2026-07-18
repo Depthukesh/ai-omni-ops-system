@@ -675,11 +675,36 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
   private static readonly DOUYIN_CONTENT_TAG_CACHE_ASSET_TITLE = "__douyin_content_tag_cache__";
   private static readonly DOUYIN_CITY_OPTION_CACHE_ASSET_TITLE = "__douyin_city_option_cache__";
   private static readonly DOUYIN_METADATA_CACHE_DESCRIPTION = "抖音采集元数据缓存，仅供服务端复用。";
+  private static readonly DEFAULT_SYNC_CONCURRENCY = 2;
+  private static readonly DEFAULT_SYNC_BATCH_LIMIT = 10;
+  private static readonly DEFAULT_COMMENT_PAGE_REQUEST_LIMIT = 8;
+  private static readonly DEFAULT_DAILY_HOTSPOT_PLATFORM_CONCURRENCY = 2;
+  private static readonly DEFAULT_DAILY_HOTSPOT_BRAND_CONCURRENCY = 1;
   private readonly logger = new Logger(CollectorsService.name);
   private douyinVideoCacheQueue = Promise.resolve();
   private douyinTranscriptQueue = Promise.resolve();
   private douyinContentTagCache: { expiresAt: number; items: DouyinContentTagOption[] } | null = null;
   private douyinCityOptionCache: { expiresAt: number; items: DouyinCityOption[] } | null = null;
+  private readonly collectorSyncConcurrency = this.readPositiveIntegerEnv(
+    "COLLECTORS_SYNC_CONCURRENCY",
+    CollectorsService.DEFAULT_SYNC_CONCURRENCY,
+  );
+  private readonly collectorSyncBatchLimit = this.readPositiveIntegerEnv(
+    "COLLECTORS_SYNC_BATCH_LIMIT",
+    CollectorsService.DEFAULT_SYNC_BATCH_LIMIT,
+  );
+  private readonly collectorCommentPageRequestLimit = this.readPositiveIntegerEnv(
+    "COLLECTORS_COMMENT_PAGE_REQUEST_LIMIT",
+    CollectorsService.DEFAULT_COMMENT_PAGE_REQUEST_LIMIT,
+  );
+  private readonly dailyHotspotPlatformConcurrency = this.readPositiveIntegerEnv(
+    "COLLECTORS_DAILY_HOTSPOT_PLATFORM_CONCURRENCY",
+    CollectorsService.DEFAULT_DAILY_HOTSPOT_PLATFORM_CONCURRENCY,
+  );
+  private readonly dailyHotspotBrandConcurrency = this.readPositiveIntegerEnv(
+    "COLLECTORS_DAILY_HOTSPOT_BRAND_CONCURRENCY",
+    CollectorsService.DEFAULT_DAILY_HOTSPOT_BRAND_CONCURRENCY,
+  );
 
   constructor(
     @Inject(PrismaService)
@@ -703,6 +728,61 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       return false;
     }
     return process.env.NODE_ENV !== "production";
+  }
+
+  private readPositiveIntegerEnv(name: string, fallback: number) {
+    const raw = Number.parseInt(String(process.env[name] || "").trim(), 10);
+    return Number.isFinite(raw) && raw > 0 ? raw : fallback;
+  }
+
+  private limitCollectorBatch<T>(items: T[], maxCount: number, label: string) {
+    if (items.length <= maxCount) {
+      return items;
+    }
+    this.logger.warn(`[collector-throttle] ${label} truncated from ${items.length} to ${maxCount}`);
+    return items.slice(0, maxCount);
+  }
+
+  private async mapWithConcurrency<T, R>(
+    items: T[],
+    concurrency: number,
+    mapper: (item: T, index: number) => Promise<R>,
+  ): Promise<R[]> {
+    if (!items.length) {
+      return [];
+    }
+    const workers = Math.max(1, Math.min(concurrency, items.length));
+    const results = new Array<R>(items.length);
+    let cursor = 0;
+    const runner = async () => {
+      while (cursor < items.length) {
+        const currentIndex = cursor;
+        cursor += 1;
+        results[currentIndex] = await mapper(items[currentIndex], currentIndex);
+      }
+    };
+    await Promise.all(Array.from({ length: workers }, () => runner()));
+    return results;
+  }
+
+  private async mapWithConcurrencySettled<T, R>(
+    items: T[],
+    concurrency: number,
+    mapper: (item: T, index: number) => Promise<R>,
+  ): Promise<Array<PromiseSettledResult<R>>> {
+    return this.mapWithConcurrency(items, concurrency, async (item, index) => {
+      try {
+        return {
+          status: "fulfilled",
+          value: await mapper(item, index),
+        } satisfies PromiseSettledResult<R>;
+      } catch (error) {
+        return {
+          status: "rejected",
+          reason: error,
+        } satisfies PromiseSettledResult<R>;
+      }
+    });
   }
 
   onModuleInit() {
@@ -852,9 +932,15 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
 
   async syncBrandAccounts(brandId: string, input: XhsSyncInput = {}) {
     const presetAccounts = await this.getConfiguredAccounts(brandId, "brand");
-    const accounts = this.mergeXhsManualAccounts(presetAccounts, input.accountLocators, "brand", input.accountEntries);
-    const collected = await Promise.all(
-      accounts.map((account) => this.collectAndStoreAccount(brandId, account, "XHS_BRAND_ACCOUNT")),
+    const accounts = this.limitCollectorBatch(
+      this.mergeXhsManualAccounts(presetAccounts, input.accountLocators, "brand", input.accountEntries),
+      this.collectorSyncBatchLimit,
+      "xhs brand accounts",
+    );
+    const collected = await this.mapWithConcurrency(
+      accounts,
+      this.collectorSyncConcurrency,
+      (account) => this.collectAndStoreAccount(brandId, account, "XHS_BRAND_ACCOUNT"),
     );
     return {
       syncedCount: collected.length,
@@ -865,9 +951,15 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
 
   async syncCompetitorAccounts(brandId: string, input: XhsSyncInput = {}) {
     const presetAccounts = await this.getConfiguredAccounts(brandId, "competitor");
-    const accounts = this.mergeXhsManualAccounts(presetAccounts, input.accountLocators, "competitor", input.accountEntries);
-    const collected = await Promise.all(
-      accounts.map((account) => this.collectAndStoreAccount(brandId, account, "XHS_COMPETITOR_ACCOUNT")),
+    const accounts = this.limitCollectorBatch(
+      this.mergeXhsManualAccounts(presetAccounts, input.accountLocators, "competitor", input.accountEntries),
+      this.collectorSyncBatchLimit,
+      "xhs competitor accounts",
+    );
+    const collected = await this.mapWithConcurrency(
+      accounts,
+      this.collectorSyncConcurrency,
+      (account) => this.collectAndStoreAccount(brandId, account, "XHS_COMPETITOR_ACCOUNT"),
     );
     return {
       syncedCount: collected.length,
@@ -878,8 +970,16 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
 
   async syncBrandNotes(brandId: string, input: XhsSyncInput = {}) {
     const presetAccounts = await this.getConfiguredAccounts(brandId, "brand");
-    const accounts = this.mergeXhsManualAccounts(presetAccounts, input.accountLocators, "brand", input.accountEntries);
-    const rows = await Promise.all(accounts.map((account) => this.collectAndStoreNotes(brandId, account)));
+    const accounts = this.limitCollectorBatch(
+      this.mergeXhsManualAccounts(presetAccounts, input.accountLocators, "brand", input.accountEntries),
+      this.collectorSyncBatchLimit,
+      "xhs brand notes",
+    );
+    const rows = await this.mapWithConcurrency(
+      accounts,
+      this.collectorSyncConcurrency,
+      (account) => this.collectAndStoreNotes(brandId, account),
+    );
     await this.cleanupDuplicateCollectorAssets(brandId);
     return {
       syncedCount: rows.reduce((sum, items) => sum + items.length, 0),
@@ -908,43 +1008,61 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     const shouldSyncHighLikeRateWorks = scope === "highLikeRateWorks";
     const shouldSyncCityHotspots = scope === "cityHotspots";
     const brandAccounts = shouldSyncBrandAccounts || shouldSyncBrandWorks
-      ? this.mergeDouyinManualAccounts(brandAccountPreset, input.brandAccountLinks, "brand", input.brandAccountEntries)
+      ? this.limitCollectorBatch(
+          this.mergeDouyinManualAccounts(brandAccountPreset, input.brandAccountLinks, "brand", input.brandAccountEntries),
+          this.collectorSyncBatchLimit,
+          "douyin brand accounts",
+        )
       : [];
     const competitorAccounts = shouldSyncCompetitorAccounts
-      ? this.mergeDouyinManualAccounts(competitorAccountPreset, input.competitorAccountLinks, "competitor", input.competitorAccountEntries)
+      ? this.limitCollectorBatch(
+          this.mergeDouyinManualAccounts(
+            competitorAccountPreset,
+            input.competitorAccountLinks,
+            "competitor",
+            input.competitorAccountEntries,
+          ),
+          this.collectorSyncBatchLimit,
+          "douyin competitor accounts",
+        )
       : [];
 
-    const brandAccountRows = await Promise.all(
-      shouldSyncBrandAccounts
-        ? brandAccounts.map((account) => this.collectAndStoreDouyinAccount(brandId, account, "DOUYIN_BRAND_ACCOUNT"))
-        : [],
+    const brandAccountRows = await this.mapWithConcurrency(
+      shouldSyncBrandAccounts ? brandAccounts : [],
+      this.collectorSyncConcurrency,
+      (account) => this.collectAndStoreDouyinAccount(brandId, account, "DOUYIN_BRAND_ACCOUNT"),
     );
-    const competitorAccountRows = await Promise.all(
-      shouldSyncCompetitorAccounts
-        ? competitorAccounts.map((account) => this.collectAndStoreDouyinAccount(brandId, account, "DOUYIN_COMPETITOR_ACCOUNT"))
-        : [],
+    const competitorAccountRows = await this.mapWithConcurrency(
+      shouldSyncCompetitorAccounts ? competitorAccounts : [],
+      this.collectorSyncConcurrency,
+      (account) => this.collectAndStoreDouyinAccount(brandId, account, "DOUYIN_COMPETITOR_ACCOUNT"),
     );
-    const brandWorkRows = await Promise.all(
-      shouldSyncBrandWorks
-        ? brandAccounts.map((account) => this.collectAndStoreDouyinWorks(brandId, account, "DOUYIN_BRAND_WORK"))
-        : [],
+    const brandWorkRows = await this.mapWithConcurrency(
+      shouldSyncBrandWorks ? brandAccounts : [],
+      this.collectorSyncConcurrency,
+      (account) => this.collectAndStoreDouyinWorks(brandId, account, "DOUYIN_BRAND_WORK"),
     );
-    const competitorWorkRows = await Promise.all(
-      shouldSyncCompetitorWorks
-        ? competitorAccounts.map((account) => this.collectAndStoreDouyinWorks(brandId, account, "DOUYIN_COMPETITOR_WORK"))
-        : [],
+    const competitorWorkRows = await this.mapWithConcurrency(
+      shouldSyncCompetitorWorks ? competitorAccounts : [],
+      this.collectorSyncConcurrency,
+      (account) => this.collectAndStoreDouyinWorks(brandId, account, "DOUYIN_COMPETITOR_WORK"),
     );
-    const benchmarkWorkRows = await Promise.all(
-      shouldSyncBenchmarkWorks
-        ? competitorAccounts.map((account) => this.collectAndStoreDouyinWorks(brandId, account, "DOUYIN_BENCHMARK_WORK"))
-        : [],
+    const benchmarkWorkRows = await this.mapWithConcurrency(
+      shouldSyncBenchmarkWorks ? competitorAccounts : [],
+      this.collectorSyncConcurrency,
+      (account) => this.collectAndStoreDouyinWorks(brandId, account, "DOUYIN_BENCHMARK_WORK"),
     );
     const manualBenchmarkResults = shouldSyncBenchmarkWorks
-      ? await Promise.allSettled(
-          (input.benchmarkAwemeIds ?? [])
-            .map((item) => this.normalizeDouyinAwemeId(item))
-            .filter(Boolean)
-            .map((awemeId) => this.collectAndStoreSingleDouyinBenchmarkWork(brandId, awemeId)),
+      ? await this.mapWithConcurrencySettled(
+          this.limitCollectorBatch(
+            (input.benchmarkAwemeIds ?? [])
+              .map((item) => this.normalizeDouyinAwemeId(item))
+              .filter(Boolean),
+            this.collectorSyncBatchLimit,
+            "douyin benchmark aweme ids",
+          ),
+          this.collectorSyncConcurrency,
+          (awemeId) => this.collectAndStoreSingleDouyinBenchmarkWork(brandId, awemeId),
         )
       : [];
     const manualBenchmarkRows = manualBenchmarkResults
@@ -968,8 +1086,10 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       ? this.normalizeDouyinCommentPageRequests(input)
       : [];
     const manualCommentResults = shouldSyncCommentData
-      ? await Promise.allSettled(
-          commentPageRequests.map((request) => this.collectAndStoreSingleDouyinCommentData(brandId, request)),
+      ? await this.mapWithConcurrencySettled(
+          commentPageRequests,
+          this.collectorSyncConcurrency,
+          (request) => this.collectAndStoreSingleDouyinCommentData(brandId, request),
         )
       : [];
     const commentRows = manualCommentResults
@@ -1058,7 +1178,11 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
 
   async syncBenchmarkNotes(brandId: string, sourceUrls: string[]) {
     this.ensureBrandExistsInMockOrDatabase(brandId);
-    const rows = await Promise.all(sourceUrls.filter(Boolean).map((url) => this.collectAndStoreBenchmarkNote(brandId, url)));
+    const rows = await this.mapWithConcurrency(
+      this.limitCollectorBatch(sourceUrls.filter(Boolean), this.collectorSyncBatchLimit, "xhs benchmark notes"),
+      this.collectorSyncConcurrency,
+      (url) => this.collectAndStoreBenchmarkNote(brandId, url),
+    );
     return {
       syncedCount: rows.filter((item) => item.syncStatus === "SUCCESS").length,
       items: rows,
@@ -1079,8 +1203,10 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
   async syncXhsCommentData(brandId: string, input: XhsSyncInput = {}) {
     this.ensureBrandExistsInMockOrDatabase(brandId);
     const pageRequests = this.normalizeXhsCommentPageRequests(input);
-    const manualCommentResults = await Promise.allSettled(
-      pageRequests.map((request) => this.collectAndStoreSingleXhsCommentData(brandId, request)),
+    const manualCommentResults = await this.mapWithConcurrencySettled(
+      pageRequests,
+      this.collectorSyncConcurrency,
+      (request) => this.collectAndStoreSingleXhsCommentData(brandId, request),
     );
     const rows = manualCommentResults
       .filter((item): item is PromiseFulfilledResult<XhsCommentCollectionResult> => item.status === "fulfilled")
@@ -1109,7 +1235,11 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
 
   async syncTargetUsers(brandId: string, sourceUrls: string[]) {
     this.ensureBrandExistsInMockOrDatabase(brandId);
-    const rows = await Promise.all(sourceUrls.filter(Boolean).map((url) => this.collectAndStoreTargetUser(brandId, url)));
+    const rows = await this.mapWithConcurrency(
+      this.limitCollectorBatch(sourceUrls.filter(Boolean), this.collectorSyncBatchLimit, "xhs target users"),
+      this.collectorSyncConcurrency,
+      (url) => this.collectAndStoreTargetUser(brandId, url),
+    );
     return {
       syncedCount: rows.filter((item) => item.syncStatus === "SUCCESS").length,
       items: rows,
@@ -1854,8 +1984,16 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
 
   async syncDailyHotspots(brandId: string, platformTitles: string[] = []) {
     this.ensureBrandExistsInMockOrDatabase(brandId);
-    const targets = this.resolveDailyHotspotConfigs(platformTitles);
-    const results = await Promise.all(targets.map((config) => this.collectAndStoreDailyHotspotPlatform(brandId, config)));
+    const targets = this.limitCollectorBatch(
+      this.resolveDailyHotspotConfigs(platformTitles),
+      this.collectorSyncBatchLimit,
+      "daily hotspot platforms",
+    );
+    const results = await this.mapWithConcurrency(
+      targets,
+      this.dailyHotspotPlatformConcurrency,
+      (config) => this.collectAndStoreDailyHotspotPlatform(brandId, config),
+    );
 
     return {
       syncedCount: results.filter((item) => item.syncStatus === "SUCCESS").length,
@@ -5129,20 +5267,28 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
   private normalizeDouyinCommentPageRequests(input: DouyinSyncInput) {
     const pageRequests = Array.isArray(input.commentPageRequests) ? input.commentPageRequests : [];
     if (pageRequests.length) {
-      return pageRequests
-        .map((item) => ({
-          sourceUrl: String(item?.sourceUrl || "").trim(),
-          cursor: String(item?.cursor || "0").trim() || "0",
-        }))
-        .filter((item) => Boolean(item.sourceUrl));
+      return this.limitCollectorBatch(
+        pageRequests
+          .map((item) => ({
+            sourceUrl: String(item?.sourceUrl || "").trim(),
+            cursor: String(item?.cursor || "0").trim() || "0",
+          }))
+          .filter((item) => Boolean(item.sourceUrl)),
+        this.collectorCommentPageRequestLimit,
+        "douyin comment page requests",
+      );
     }
-    return (input.commentSourceUrls ?? [])
-      .map((item) => String(item || "").trim())
-      .filter(Boolean)
-      .map((sourceUrl) => ({
-        sourceUrl,
-        cursor: "0",
-      }));
+    return this.limitCollectorBatch(
+      (input.commentSourceUrls ?? [])
+        .map((item) => String(item || "").trim())
+        .filter(Boolean)
+        .map((sourceUrl) => ({
+          sourceUrl,
+          cursor: "0",
+        })),
+      this.collectorCommentPageRequestLimit,
+      "douyin comment source urls",
+    );
   }
 
   private async resolveDouyinCommentSourceSecUserId(
@@ -5318,23 +5464,31 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
   private normalizeXhsCommentPageRequests(input: XhsSyncInput) {
     const pageRequests = Array.isArray(input.pageRequests) ? input.pageRequests : [];
     if (pageRequests.length) {
-      return pageRequests
-        .map((item) => ({
-          sourceUrl: this.normalizeXhsShareText(String(item?.sourceUrl || "").trim()),
-          cursor: String(item?.cursor || "").trim(),
-          index: Number.isFinite(item?.index) ? Number(item?.index) : 0,
-        }))
-        .filter((item) => Boolean(item.sourceUrl));
+      return this.limitCollectorBatch(
+        pageRequests
+          .map((item) => ({
+            sourceUrl: this.normalizeXhsShareText(String(item?.sourceUrl || "").trim()),
+            cursor: String(item?.cursor || "").trim(),
+            index: Number.isFinite(item?.index) ? Number(item?.index) : 0,
+          }))
+          .filter((item) => Boolean(item.sourceUrl)),
+        this.collectorCommentPageRequestLimit,
+        "xhs comment page requests",
+      );
     }
 
-    return (input.sourceUrls ?? [])
-      .map((item) => this.normalizeXhsShareText(String(item || "").trim()))
-      .filter(Boolean)
-      .map((sourceUrl) => ({
-        sourceUrl,
-        cursor: "",
-        index: 0,
-      }));
+    return this.limitCollectorBatch(
+      (input.sourceUrls ?? [])
+        .map((item) => this.normalizeXhsShareText(String(item || "").trim()))
+        .filter(Boolean)
+        .map((sourceUrl) => ({
+          sourceUrl,
+          cursor: "",
+          index: 0,
+        })),
+      this.collectorCommentPageRequestLimit,
+      "xhs comment source urls",
+    );
   }
 
   private extractXhsCommentPageState(raw: unknown, fallbackCursor: string, fallbackIndex: number) {
@@ -7949,15 +8103,18 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     }
 
     const brandIds = await this.getDailyHotspotBrandIds();
-    await Promise.all(
-      brandIds.map(async (brandId) => {
+    await this.mapWithConcurrency(
+      brandIds,
+      this.dailyHotspotBrandConcurrency,
+      async (brandId) => {
         try {
           await this.syncDailyHotspots(brandId, []);
         } catch (error) {
           const message = error instanceof Error ? error.message : "未知错误";
           console.error(`每日热点定时采集失败: ${brandId} - ${message}`);
         }
-      }),
+        return undefined;
+      },
     );
   }
 

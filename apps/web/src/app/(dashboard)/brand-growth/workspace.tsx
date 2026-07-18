@@ -1326,7 +1326,25 @@ export function BrandGrowthWorkspace() {
     }
 
     let disposed = false;
-    const timer = window.setInterval(async () => {
+    let timer: number | undefined;
+    let polling = false;
+    const scheduleNext = () => {
+      if (disposed) {
+        return;
+      }
+      timer = window.setTimeout(() => {
+        void pollWorkspace();
+      }, 5000);
+    };
+    const pollWorkspace = async () => {
+      if (disposed || polling) {
+        return;
+      }
+      if (typeof document !== "undefined" && document.hidden) {
+        scheduleNext();
+        return;
+      }
+      polling = true;
       try {
         const workspace = await getDouyinCollectionWorkspace(brandId);
         if (!disposed) {
@@ -1334,12 +1352,18 @@ export function BrandGrowthWorkspace() {
         }
       } catch {
         // Ignore transient polling failures and keep current data visible.
+      } finally {
+        polling = false;
+        scheduleNext();
       }
-    }, 5000);
+    };
+    scheduleNext();
 
     return () => {
       disposed = true;
-      window.clearInterval(timer);
+      if (timer) {
+        window.clearTimeout(timer);
+      }
     };
   }, [activeBrandId, activePage, archive.brand.id, hasPendingDouyinTranscript]);
 

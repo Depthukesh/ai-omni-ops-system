@@ -9,6 +9,17 @@ type HeadersMap = Record<string, string | string[] | undefined>;
 export class OpenClawController {
   constructor(private readonly openClawService: OpenClawService) {}
 
+  private isOpenClawMcpLoadDebugEnabled() {
+    const normalized = String(process.env.ENABLE_OPENCLAW_MCP_LOAD_DEBUG || "").trim().toLowerCase();
+    if (normalized === "true" || normalized === "1" || normalized === "yes" || normalized === "on") {
+      return true;
+    }
+    if (normalized === "false" || normalized === "0" || normalized === "no" || normalized === "off") {
+      return false;
+    }
+    return process.env.NODE_ENV !== "production";
+  }
+
   private getOpenClawMcpLoadDebugLogPath() {
     return join(process.cwd(), ".dbg", "trae-debug-log-openclaw-mcp-load.ndjson");
   }
@@ -35,6 +46,9 @@ export class OpenClawController {
   }
 
   private async appendOpenClawMcpLoadDebugEvent(payload: Record<string, unknown>) {
+    if (!this.isOpenClawMcpLoadDebugEnabled()) {
+      return;
+    }
     const filePath = this.getOpenClawMcpLoadDebugLogPath();
     await mkdir(join(process.cwd(), ".dbg"), { recursive: true });
     await appendFile(

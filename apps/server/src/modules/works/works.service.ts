@@ -80,7 +80,7 @@ const VOLCENGINE_VOD_OPENAPI_DEFAULT_SERVICE = "vod";
 const VOLCENGINE_VOD_OPENAPI_DEFAULT_HOST = "vod.volcengineapi.com";
 const VOLCENGINE_VOD_OPENAPI_VERSION = "2023-01-01";
 const VOLCENGINE_VOD_UPLOAD_OPENAPI_VERSION = "2020-08-01";
-const LIST_SNAPSHOT_BACKGROUND_REFRESH_LIMIT = 5;
+const DEFAULT_LIST_SNAPSHOT_BACKGROUND_REFRESH_LIMIT = 2;
 
 type OperationsPromptTemplateStoreRecord = OperationsPromptSeedRecord & {
   status: string;
@@ -127,6 +127,11 @@ function isGenericOperationsPromptTemplateTitle(value: string) {
 
 function isDeletedPromptTemplateStatus(value: string) {
   return String(value || "").trim().toUpperCase() === DELETED_PROMPT_TEMPLATE_STATUS;
+}
+
+function readPositiveIntegerEnv(name: string, fallback: number) {
+  const raw = Number.parseInt(String(process.env[name] || "").trim(), 10);
+  return Number.isFinite(raw) && raw > 0 ? raw : fallback;
 }
 
 const DESIGN_MODULE_TYPES: Record<DesignWorkModuleKey, string[]> = {
@@ -3005,6 +3010,10 @@ export class WorksService {
   private imagePromptBootstrapPromise?: Promise<void>;
   private imagePromptBootstrapAt = 0;
   private readonly inFlightListSnapshotRefreshes = new Set<string>();
+  private readonly listSnapshotBackgroundRefreshLimit = readPositiveIntegerEnv(
+    "WORKS_LIST_SNAPSHOT_BACKGROUND_REFRESH_LIMIT",
+    DEFAULT_LIST_SNAPSHOT_BACKGROUND_REFRESH_LIMIT,
+  );
 
   constructor(
     @Inject(AppConfigService)
@@ -3085,7 +3094,7 @@ export class WorksService {
   ) {
     workIds
       .filter((item, index, array) => Boolean(item) && array.indexOf(item) === index)
-      .slice(0, LIST_SNAPSHOT_BACKGROUND_REFRESH_LIMIT)
+      .slice(0, this.listSnapshotBackgroundRefreshLimit)
       .forEach((workId) => {
         const refreshKey = `${scope}:${brandId}:${workId}`;
         if (this.inFlightListSnapshotRefreshes.has(refreshKey)) {
