@@ -500,7 +500,7 @@
      - `WORKS_HEAVY_SUBMISSION_WORKER_ENABLED=true` 时，主 API 仅负责创建任务与作品记录，不再在请求内直接启动这两类重任务
      - worker 进程通过已有的重媒体轮询守护识别“未提交但可重建输入”的作品，再受控启动第三方提交
      - 当前仅放开已经具备完整持久化输入的两条链：`DOUYIN_DIGITAL_HUMAN_VIDEO`、`DOUYIN_RUNNINGHUB_APP`
-     - 数字人训练、完整数字人视频、脚本/分镜视频链路仍保留在主进程内启动，避免因原始上传文件或上下文未完整持久化而断链
+     - 当时尚未下沉的数字人训练、完整数字人视频、脚本/分镜视频链路，已在后续批次继续补齐
    - 默认参数：
      - 主 API：`WORKS_HEAVY_SUBMISSION_WORKER_ENABLED=true`
      - Worker：`WORKS_HEAVY_SUBMISSION_WORKER_ENABLED=true`
@@ -526,6 +526,42 @@
      - 当定制数字人已经拿到 `personId` 但仍处于 `RUNNING` 状态时，worker 也会继续轮询同步训练结果，避免服务重启后状态停在半途
    - 验证结果：`apps/server` 已通过 `npm run build`
    - 作用：进一步把定制数字人这条“上传大视频 + 长时间训练等待”的重链路从主 API 请求中移出，并补上训练中断后的恢复能力
+
+15. 完整数字人视频已补分段输入持久化并支持 worker 重建执行
+   - 涉及：`DOUYIN_DIGITAL_HUMAN_COMPLETE_VIDEO`
+   - 当前策略：
+     - 创建完整数字人视频时，会把每个 segment 的人物、脚本、背景、字幕等生成参数整体写入作品 metadata
+     - `WORKS_HEAVY_SUBMISSION_WORKER_ENABLED=true` 时，主 API 只创建任务和 HTML 作品，不再在请求链中直接串行生成各段视频并做 ffmpeg 拼接
+     - worker 轮询到 `compositeMode=SEGMENT_MERGE` 且带有持久化 `segments` 的作品后，会重建完整 payload，复用原有串行生成与拼接流程
+   - 验证结果：`apps/server` 已通过 `npm run build`
+   - 作用：把“多段生成 + 最终拼接”这条持续占用 CPU、网络和 ffmpeg 的长链路进一步从主 API 进程中移出
+
+16. 脚本/分镜视频工作流初始阶段已支持 worker 重建执行
+   - 涉及：`XHS_VIDEO_NOTE`、`DOUYIN_VIDEO_NOTE`、`DOUYIN_DIRECT_VIDEO`、`DOUYIN_REMIX_SHORT_VIDEO`
+   - 当前策略：
+     - worker 已纳入这 4 类视频作品的 `QUEUED` 初始阶段扫描；若作品尚未生成故事板、视频提示词或第三方任务，则会按 metadata 重建执行上下文
+     - 重建时优先通过 `calendarItemId / productId / materialId` 回查营销日历、产品档案与统一素材库；营销策划方案按作品类型回查小红书或抖音方案工作区
+     - 普通视频笔记与抖音 AI 生视频会复用原有脚本生成 + 分镜图生成流程；抖音直出视频会复用提示词生成流程；抖音复刻短视频会复用原有拉片分析与角色卡/分镜图生成流程
+   - 验证结果：`apps/server` 已通过 `npm run build`
+   - 作用：进一步把“脚本生成 / 分镜图生成 / 复刻分析”这类高时延、重模型调用阶段从主 API 请求链中剥离到 worker
+
+17. 视频工作流后半段提交与恢复已支持 worker 接管
+   - 涉及：`XHS_VIDEO_NOTE`、`DOUYIN_VIDEO_NOTE`、`DOUYIN_DIRECT_VIDEO`、`DOUYIN_REMIX_SHORT_VIDEO`
+   - 当前策略：
+     - 用户点击“继续生成视频”后，主 API 在 `WORKS_HEAVY_SUBMISSION_WORKER_ENABLED=true` 模式下只负责创建任务与写入 `GENERATING_VIDEO` 状态，不再在请求内直接启动第三方视频生成
+     - worker 会扫描 `GENERATING_VIDEO` 且尚未真正提交的视频作品，并复用原有 `runContinueVideoGenerationTask / runContinueRemixShortVideoGenerationTask` 执行后半段提交
+     - 对已拿到 `providerTaskId` 但视频仍未回存的视频笔记，worker 也会继续调用既有恢复逻辑查询第三方状态，减少“提交成功但主进程重启后停在半途”的情况
+   - 验证结果：`apps/server` 已通过 `npm run build`
+   - 作用：把视频工作流中最容易拉长 HTTP 请求和占用主进程线程的“提交第三方任务 / 轮询回收结果”阶段也迁移到 worker
+
+18. 复刻短视频已补 segment 级断点续跑
+   - 涉及：`DOUYIN_REMIX_SHORT_VIDEO`
+   - 当前策略：
+     - `runContinueRemixShortVideoGenerationTask` 在续跑时会优先检查每个 `remixSegment` 是否已经持久化 `videoUrl`
+     - 已完成的视频分段不会重复调用第三方视频生成，而是直接补齐或更新本站 `videoAsset` 记录后进入下一段
+     - 仅对缺少 `videoUrl` 的分段继续生成；全部分段齐备后再执行最终 ffmpeg 拼接
+   - 验证结果：`apps/server` 已通过 `npm run build`
+   - 作用：降低服务重启、worker 中断或部分分段已完成时的重复生成浪费，进一步减少复刻短视频链路的额外 CPU / 外部模型调用开销
 
 ## 验证清单
 

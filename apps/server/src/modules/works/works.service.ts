@@ -2266,6 +2266,7 @@ type DigitalHumanVideoWorkAssetMeta = {
   compositeMode?: "SEGMENT_MERGE";
   segmentCount?: number;
   segmentTitles?: string[];
+  compositeSegments?: PersistedDigitalHumanCompleteSegment[];
   createdAt: string;
   updatedAt: string;
 };
@@ -2634,6 +2635,8 @@ type NormalizedDigitalHumanCompletePayload = {
   title: string;
   segments: NormalizedDigitalHumanCreatePayload[];
 };
+
+type PersistedDigitalHumanCompleteSegment = NormalizedDigitalHumanCreatePayload;
 
 type DigitalHumanVideoSnapshot = {
   id: string;
@@ -3244,7 +3247,16 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       createdAt?: Date | string | null;
       mediaType?: string;
     };
-    const heavyRecoveryKinds = ["DOUYIN_LIP_SYNC_VIDEO", "DOUYIN_DIGITAL_HUMAN_VIDEO", "DOUYIN_RUNNINGHUB_APP", "DOUYIN_DIGITAL_HUMAN_CUSTOM"];
+    const heavyRecoveryKinds = [
+      "DOUYIN_LIP_SYNC_VIDEO",
+      "DOUYIN_DIGITAL_HUMAN_VIDEO",
+      "DOUYIN_RUNNINGHUB_APP",
+      "DOUYIN_DIGITAL_HUMAN_CUSTOM",
+      "XHS_VIDEO_NOTE",
+      "DOUYIN_VIDEO_NOTE",
+      "DOUYIN_DIRECT_VIDEO",
+      "DOUYIN_REMIX_SHORT_VIDEO",
+    ];
     const rows: HeavyRecoveryRow[] = await (async (): Promise<HeavyRecoveryRow[]> => {
       if (await this.prismaService.canUseDatabase()) {
         try {
@@ -3314,6 +3326,27 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       }
       if (this.isDigitalHumanVideoWorkMeta(row.metadataJson)) {
         const meta = this.readDigitalHumanVideoWorkMeta(row.metadataJson);
+        if (
+          this.heavySubmissionWorkerEnabled
+          && !meta.providerTaskId
+          && meta.stage === "QUEUED"
+          && meta.compositeMode === "SEGMENT_MERGE"
+          && (meta.compositeSegments || []).length > 0
+        ) {
+          candidates.push({
+            scope: "heavy-submit:digital-human-complete",
+            brandId,
+            workId: row.id,
+            refresh: () => this.startDigitalHumanCompleteSubmissionFromPersistedMeta(
+              brandId,
+              row.id,
+              String(row.taskId || meta.taskId || "").trim(),
+              String(row.storageKey || "").trim() || `${row.id}.html`,
+              meta,
+            ),
+          });
+          continue;
+        }
         if (this.heavySubmissionWorkerEnabled && !meta.providerTaskId && meta.stage === "QUEUED" && meta.compositeMode !== "SEGMENT_MERGE") {
           candidates.push({
             scope: "heavy-submit:digital-human",
@@ -3390,6 +3423,82 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
           });
         }
       }
+      if (this.isVideoWorkMeta(row.metadataJson)) {
+        const meta = this.readVideoWorkMeta(row.metadataJson);
+        if (
+          this.heavySubmissionWorkerEnabled
+          && meta.workflowStage === "QUEUED"
+          && !meta.storyboardImageUrl
+          && !meta.videoPrompt
+          && !meta.providerTaskId
+        ) {
+          candidates.push({
+            scope: `heavy-submit:${meta.kind.toLowerCase()}`,
+            brandId,
+            workId: row.id,
+            refresh: () => this.startInitialVideoWorkflowFromPersistedMeta(
+              brandId,
+              row.id,
+              String(row.taskId || meta.taskId || "").trim(),
+              String(row.storageKey || "").trim() || `${row.id}.html`,
+              meta,
+            ),
+          });
+        }
+        if (
+          this.heavySubmissionWorkerEnabled
+          && meta.workflowStage === "GENERATING_VIDEO"
+          && !meta.providerTaskId
+          && !meta.videoUrl
+          && meta.kind !== "DOUYIN_REMIX_SHORT_VIDEO"
+        ) {
+          candidates.push({
+            scope: `heavy-submit:${meta.kind.toLowerCase()}:continue-video`,
+            brandId,
+            workId: row.id,
+            refresh: () => this.startContinueVideoGenerationFromPersistedMeta(
+              brandId,
+              row.id,
+              String(row.taskId || meta.taskId || "").trim(),
+              String(row.storageKey || "").trim() || `${row.id}.html`,
+              meta,
+            ),
+          });
+        }
+        if (
+          this.heavySubmissionWorkerEnabled
+          && meta.kind === "DOUYIN_REMIX_SHORT_VIDEO"
+          && meta.workflowStage === "GENERATING_VIDEO"
+          && meta.composeStatus === "RUNNING"
+          && !meta.mergedVideoUrl
+        ) {
+          candidates.push({
+            scope: "heavy-submit:douyin_remix_short_video:continue-video",
+            brandId,
+            workId: row.id,
+            refresh: () => this.startContinueRemixShortVideoGenerationFromPersistedMeta(
+              brandId,
+              row.id,
+              String(row.taskId || meta.taskId || "").trim(),
+              String(row.storageKey || "").trim() || `${row.id}.html`,
+              meta,
+            ),
+          });
+        }
+        if (
+          meta.workflowStage === "GENERATING_VIDEO"
+          && !!meta.providerTaskId
+          && !meta.videoUrl
+          && meta.kind !== "DOUYIN_REMIX_SHORT_VIDEO"
+        ) {
+          candidates.push({
+            scope: `heavy-recovery:${meta.kind.toLowerCase()}:video`,
+            brandId,
+            workId: row.id,
+            refresh: () => this.recoverVideoGenerationFromPersistedMeta(brandId, row.id, meta),
+          });
+        }
+      }
     }
     return candidates;
   }
@@ -3404,6 +3513,22 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       return;
     }
     await this.runGenerateDigitalHumanVideoTask(brandId, workId, taskId, storageKey);
+  }
+
+  private async startDigitalHumanCompleteSubmissionFromPersistedMeta(
+    brandId: string,
+    workId: string,
+    taskId: string,
+    storageKey: string,
+    meta: DigitalHumanVideoWorkAssetMeta,
+  ) {
+    if (!taskId || meta.compositeMode !== "SEGMENT_MERGE" || !meta.compositeSegments?.length) {
+      return;
+    }
+    await this.runGenerateDigitalHumanCompleteVideoTask(brandId, workId, taskId, storageKey, {
+      title: meta.title,
+      segments: meta.compositeSegments,
+    });
   }
 
   private async startRunningHubSubmissionFromPersistedMeta(
@@ -3527,6 +3652,94 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       storageKey,
       localMetaBase: meta,
     });
+  }
+
+  private async startInitialVideoWorkflowFromPersistedMeta(
+    brandId: string,
+    workId: string,
+    taskId: string,
+    storageKey: string,
+    meta: VideoWorkAssetMeta,
+  ) {
+    if (!taskId) {
+      return;
+    }
+    if (meta.kind === "DOUYIN_REMIX_SHORT_VIDEO") {
+      const remixContext = await this.rebuildDouyinRemixShortVideoContextFromMeta(brandId, meta);
+      await this.runInitialRemixShortVideoWorkflowTask(brandId, workId, taskId, remixContext, storageKey);
+      return;
+    }
+    const context = await this.rebuildVideoComposerContextFromMeta(brandId, meta);
+    if (meta.kind === "DOUYIN_DIRECT_VIDEO") {
+      await this.runInitialDirectVideoWorkflowTask(brandId, workId, taskId, context, storageKey);
+      return;
+    }
+    await this.runInitialVideoWorkflowTask(brandId, workId, taskId, context, storageKey);
+  }
+
+  private async startContinueVideoGenerationFromPersistedMeta(
+    brandId: string,
+    workId: string,
+    taskId: string,
+    storageKey: string,
+    meta: VideoWorkAssetMeta,
+  ) {
+    if (!taskId || !meta.storyboardPrompt || !meta.storyboardImageUrl) {
+      return;
+    }
+    await this.runContinueVideoGenerationTask(
+      brandId,
+      workId,
+      taskId,
+      storageKey,
+      meta.resolvedVideoModel,
+    );
+  }
+
+  private async startContinueRemixShortVideoGenerationFromPersistedMeta(
+    brandId: string,
+    workId: string,
+    taskId: string,
+    storageKey: string,
+    meta: VideoWorkAssetMeta,
+  ) {
+    if (!taskId || meta.kind !== "DOUYIN_REMIX_SHORT_VIDEO") {
+      return;
+    }
+    await this.runContinueRemixShortVideoGenerationTask(
+      brandId,
+      workId,
+      taskId,
+      storageKey,
+      meta.resolvedVideoModel,
+    );
+  }
+
+  private async recoverVideoGenerationFromPersistedMeta(
+    brandId: string,
+    workId: string,
+    meta: VideoWorkAssetMeta,
+  ) {
+    const providerTaskId = String(meta.providerTaskId || "").trim();
+    if (!providerTaskId) {
+      return;
+    }
+    const payload = {
+      workId,
+      providerTaskId,
+      requestedVideoProvider: meta.requestedVideoProvider,
+    };
+    if (meta.kind === "XHS_VIDEO_NOTE") {
+      await this.recoverXiaohongshuVideoGeneration(brandId, payload);
+      return;
+    }
+    if (meta.kind === "DOUYIN_VIDEO_NOTE") {
+      await this.recoverDouyinVideoGeneration(brandId, payload);
+      return;
+    }
+    if (meta.kind === "DOUYIN_DIRECT_VIDEO") {
+      await this.recoverDouyinDirectVideoGeneration(brandId, payload);
+    }
   }
 
   private async listBrandHtmlMediaRowsByKinds(brandId: string, kinds: string[]) {
@@ -11151,6 +11364,7 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       compositeMode: "SEGMENT_MERGE",
       segmentCount: normalized.segments.length,
       segmentTitles: normalized.segments.map((item) => item.title),
+      compositeSegments: normalized.segments,
       createdAt: now,
       updatedAt: now,
     };
@@ -11163,7 +11377,9 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       sourceUrl: htmlFile.url,
       metadata,
     });
-    this.scheduleHeavyBackgroundTask(() => this.runGenerateDigitalHumanCompleteVideoTask(brandId, workMedia.id, task.id, htmlFile.storageKey, normalized));
+    if (!this.heavySubmissionWorkerEnabled) {
+      this.scheduleHeavyBackgroundTask(() => this.runGenerateDigitalHumanCompleteVideoTask(brandId, workMedia.id, task.id, htmlFile.storageKey, normalized));
+    }
     return {
       item: this.mapDigitalHumanVideoWorkRecord(workMedia.id, brandId, task.id, metadata, "QUEUED"),
     };
@@ -11441,15 +11657,17 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       updatedAt: new Date().toISOString(),
     };
     await this.saveVideoWorkMetadataSnapshot(brandId, workId, target.storageKey || `${workId}.html`, nextMeta);
-    setTimeout(() => {
-      void this.runContinueVideoGenerationTask(
-        brandId,
-        workId,
-        task.id,
-        target.storageKey || `${workId}.html`,
-        payload.customVideoModelName?.trim(),
-      );
-    }, 0);
+    if (!this.heavySubmissionWorkerEnabled) {
+      setTimeout(() => {
+        void this.runContinueVideoGenerationTask(
+          brandId,
+          workId,
+          task.id,
+          target.storageKey || `${workId}.html`,
+          payload.customVideoModelName?.trim(),
+        );
+      }, 0);
+    }
     return {
       item: this.mapVideoWorkRecord(workId, brandId, task.id, nextMeta, "QUEUED"),
     };
@@ -11485,15 +11703,17 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       updatedAt: new Date().toISOString(),
     };
     await this.saveVideoWorkMetadataSnapshot(brandId, workId, target.storageKey || `${workId}.html`, nextMeta);
-    setTimeout(() => {
-      void this.runContinueVideoGenerationTask(
-        brandId,
-        workId,
-        task.id,
-        target.storageKey || `${workId}.html`,
-        payload.customVideoModelName?.trim(),
-      );
-    }, 0);
+    if (!this.heavySubmissionWorkerEnabled) {
+      setTimeout(() => {
+        void this.runContinueVideoGenerationTask(
+          brandId,
+          workId,
+          task.id,
+          target.storageKey || `${workId}.html`,
+          payload.customVideoModelName?.trim(),
+        );
+      }, 0);
+    }
     return {
       item: this.mapVideoWorkRecord(workId, brandId, task.id, nextMeta, "QUEUED"),
     };
@@ -11554,15 +11774,17 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       updatedAt: new Date().toISOString(),
     };
     await this.saveVideoWorkMetadataSnapshot(brandId, workId, target.storageKey || `${workId}.html`, nextMeta);
-    setTimeout(() => {
-      void this.runContinueRemixShortVideoGenerationTask(
-        brandId,
-        workId,
-        task.id,
-        target.storageKey || `${workId}.html`,
-        payload.customVideoModelName?.trim(),
-      );
-    }, 0);
+    if (!this.heavySubmissionWorkerEnabled) {
+      setTimeout(() => {
+        void this.runContinueRemixShortVideoGenerationTask(
+          brandId,
+          workId,
+          task.id,
+          target.storageKey || `${workId}.html`,
+          payload.customVideoModelName?.trim(),
+        );
+      }, 0);
+    }
     return {
       item: this.mapVideoWorkRecord(workId, brandId, task.id, nextMeta, "QUEUED"),
     };
@@ -11598,15 +11820,17 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       updatedAt: new Date().toISOString(),
     };
     await this.saveVideoWorkMetadataSnapshot(brandId, workId, target.storageKey || `${workId}.html`, nextMeta);
-    setTimeout(() => {
-      void this.runContinueVideoGenerationTask(
-        brandId,
-        workId,
-        task.id,
-        target.storageKey || `${workId}.html`,
-        payload.customVideoModelName?.trim(),
-      );
-    }, 0);
+    if (!this.heavySubmissionWorkerEnabled) {
+      setTimeout(() => {
+        void this.runContinueVideoGenerationTask(
+          brandId,
+          workId,
+          task.id,
+          target.storageKey || `${workId}.html`,
+          payload.customVideoModelName?.trim(),
+        );
+      }, 0);
+    }
     return {
       item: this.mapVideoWorkRecord(workId, brandId, task.id, nextMeta, "QUEUED"),
     };
@@ -19463,6 +19687,25 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
         if (!segment.storyboardImageUrl) {
           throw new BadRequestException(`第 ${index + 1} 段缺少分镜图，无法继续生成视频。`);
         }
+        if (segment.videoUrl) {
+          const recoveredAsset = await this.upsertRecoveredVideoMedia({
+            userId,
+            brandId,
+            taskId,
+            workId,
+            title: `${meta.title} - ${segment.segmentLabel}`,
+            sourceUrl: segment.videoUrl,
+            provider: meta.resolvedVideoProvider || meta.requestedVideoProvider,
+            modelName: meta.resolvedVideoModel,
+            providerTaskId: segment.videoProviderTaskId,
+            videoAssetId: segment.videoAssetId,
+          });
+          nextSegments.push({
+            ...segment,
+            videoAssetId: recoveredAsset.id,
+          });
+          continue;
+        }
         await this.updateTaskOutputJson(taskId, {
           workId,
           stage: "GENERATING_SEGMENT_VIDEO",
@@ -21680,9 +21923,157 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       compositeMode: meta.compositeMode === "SEGMENT_MERGE" ? "SEGMENT_MERGE" : undefined,
       segmentCount: typeof meta.segmentCount === "number" ? Math.max(0, Math.trunc(meta.segmentCount)) : undefined,
       segmentTitles: this.normalizeStringArray(meta.segmentTitles, [], 12),
+      compositeSegments: this.normalizePersistedDigitalHumanCompleteSegments(meta.compositeSegments),
       createdAt: this.readOptionalString(meta.createdAt) || new Date().toISOString(),
       updatedAt: this.readOptionalString(meta.updatedAt) || new Date().toISOString(),
     };
+  }
+
+  private normalizePersistedDigitalHumanCompleteSegments(value: unknown): PersistedDigitalHumanCompleteSegment[] {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+    const segments: PersistedDigitalHumanCompleteSegment[] = [];
+    for (const item of value) {
+      const meta = this.asRecord(item);
+      if (!meta) {
+        continue;
+      }
+      const personId = String(meta.personId ?? "").trim();
+      const script = String(meta.script ?? "").trim();
+      if (!personId || !script) {
+        continue;
+      }
+      segments.push({
+        title: String(meta.title ?? "").trim() || `片段-${personId}`,
+        personId,
+        personName: String(meta.personName ?? "").trim() || personId,
+        personSource: this.normalizeDigitalHumanSource(this.readOptionalString(meta.personSource)),
+        figureType: this.normalizeDigitalHumanFigureType(this.readOptionalString(meta.figureType)),
+        figureCoverUrl: this.readOptionalString(meta.figureCoverUrl),
+        figurePreviewVideoUrl: this.readOptionalString(meta.figurePreviewVideoUrl),
+        figureWidth: this.readPositiveInteger(meta.figureWidth, 720),
+        figureHeight: this.readPositiveInteger(meta.figureHeight, 1280),
+        audioManId: this.readOptionalString(meta.audioManId),
+        audioName: this.readOptionalString(meta.audioName),
+        script,
+        speechRate: this.readNumberWithFallback(meta.speechRate, 1),
+        pitch: typeof meta.pitch === "number" ? meta.pitch : undefined,
+        volume: this.readNumberWithFallback(meta.volume, 1),
+        language: this.readOptionalString(meta.language) || "cn",
+        backgroundColor: this.readOptionalString(meta.backgroundColor),
+        backgroundImageUrl: this.readOptionalString(meta.backgroundImageUrl),
+        backgroundImageName: this.readOptionalString(meta.backgroundImageName),
+        subtitleEnabled: meta.subtitleEnabled !== false,
+        subtitlePositionX: typeof meta.subtitlePositionX === "number" ? Math.max(0, Math.trunc(meta.subtitlePositionX)) : undefined,
+        subtitlePositionY: typeof meta.subtitlePositionY === "number" ? Math.max(0, Math.trunc(meta.subtitlePositionY)) : undefined,
+        subtitleWidth: typeof meta.subtitleWidth === "number" ? Math.max(0, Math.trunc(meta.subtitleWidth)) : undefined,
+        subtitleHeight: typeof meta.subtitleHeight === "number" ? Math.max(0, Math.trunc(meta.subtitleHeight)) : undefined,
+        subtitleFontSize: typeof meta.subtitleFontSize === "number" ? Math.max(0, Math.trunc(meta.subtitleFontSize)) : undefined,
+        subtitleTextColor: this.readOptionalString(meta.subtitleTextColor),
+        subtitleStrokeColor: this.readOptionalString(meta.subtitleStrokeColor),
+        subtitleStrokeWidth: typeof meta.subtitleStrokeWidth === "number" ? Math.max(0, Math.trunc(meta.subtitleStrokeWidth)) : undefined,
+        subtitleFontId: this.readOptionalString(meta.subtitleFontId),
+        addComplianceWatermark: meta.addComplianceWatermark !== false,
+        screenWidth: this.readPositiveInteger(meta.screenWidth, 1080),
+        screenHeight: this.readPositiveInteger(meta.screenHeight, 1920),
+        customPersonTrainType: this.readOptionalString(meta.customPersonTrainType) as "figure" | "both" | undefined,
+        customPersonSupport4k: typeof meta.customPersonSupport4k === "boolean" ? meta.customPersonSupport4k : undefined,
+        customPersonWidth4k: typeof meta.customPersonWidth4k === "number" ? Math.max(0, Math.trunc(meta.customPersonWidth4k)) : undefined,
+        customPersonHeight4k: typeof meta.customPersonHeight4k === "number" ? Math.max(0, Math.trunc(meta.customPersonHeight4k)) : undefined,
+      });
+    }
+    return segments;
+  }
+
+  private async rebuildVideoComposerContextFromMeta(
+    brandId: string,
+    meta: VideoWorkAssetMeta,
+  ): Promise<ResolvedVideoComposerContext> {
+    const archive = await this.brandsService.getArchive(brandId);
+    const calendarWorkspace = await this.reportsService.getXiaohongshuMarketingCalendarWorkspace(brandId);
+    const selectedCalendarItem = this.findSelectedCalendarItem(calendarWorkspace.history, meta.calendarItemId);
+    const product = meta.productId
+      ? archive.products.find((item) => item.id === meta.productId)
+      : undefined;
+    const normalizedProduct = product
+      ? {
+          id: product.id,
+          productName: product.productName,
+          detailDescription: product.detailDescription || "",
+          usageScenario: product.usageScenario || "",
+          targetAudience: product.targetAudience || "",
+          differentiators: product.differentiators || "",
+          imageUrl: product.imageUrl || undefined,
+        }
+      : undefined;
+    let material: ResolvedVideoComposerContext["material"];
+    if (meta.materialId) {
+      const target = await this.collectorsService.findUnifiedMaterialLibraryItem(brandId, meta.materialId).catch(() => undefined);
+      if (target) {
+        material = {
+          id: target.id,
+          title: target.title,
+          description: target.description || undefined,
+          noteUrl: target.detailUrl || undefined,
+          sourceUrl: target.sourceUrl || target.detailUrl || undefined,
+          videoUrl: target.videoUrl || meta.materialVideoUrl || "",
+        };
+      }
+    }
+    if (!material && (meta.materialId || meta.materialTitle || meta.materialVideoUrl)) {
+      material = {
+        id: meta.materialId || `persisted-${meta.kind}-${meta.taskId}`,
+        title: meta.materialTitle || meta.materialId || "素材",
+        videoUrl: meta.materialVideoUrl || "",
+      };
+    }
+    const marketingPlanMarkdown = meta.includeMarketingPlan
+      ? await this.loadVideoMarketingPlanMarkdownForMeta(brandId, meta.kind)
+      : "";
+    return {
+      workKind: meta.kind,
+      accountRole: meta.accountRole,
+      videoKind: meta.videoKind,
+      selectedCalendarItem,
+      customTopicName: meta.customTopicName,
+      topicLabel: selectedCalendarItem?.topicName || meta.customTopicName || meta.calendarLabel || meta.title || "自定义选题",
+      product: normalizedProduct,
+      material,
+      referenceImageUrl: meta.referenceImageUrl,
+      includeMarketingPlan: meta.includeMarketingPlan,
+      marketingPlanMarkdown,
+      requestedVideoProvider: meta.requestedVideoProvider,
+      requestedDurationSec: meta.requestedDurationSec,
+      requestedAspectRatio: meta.requestedAspectRatio || "9:16",
+      requestedStoryboardImageModel: meta.requestedStoryboardImageModel,
+      copyAdditionalInstruction: meta.copyAdditionalInstruction,
+      videoAdditionalInstruction: meta.videoAdditionalInstruction,
+    };
+  }
+
+  private async rebuildDouyinRemixShortVideoContextFromMeta(
+    brandId: string,
+    meta: VideoWorkAssetMeta,
+  ): Promise<ResolvedDouyinRemixShortVideoContext> {
+    const baseContext = await this.rebuildVideoComposerContextFromMeta(brandId, meta);
+    return {
+      ...baseContext,
+      workKind: "DOUYIN_REMIX_SHORT_VIDEO",
+      sourceVideoUrl: meta.sourceVideoUrl || meta.materialVideoUrl || "",
+      sourceVideoFileName: meta.sourceVideoFileName,
+      sourceDurationSec: meta.sourceDurationSec,
+      injectBrandProfile: meta.injectBrandProfile !== false,
+    };
+  }
+
+  private async loadVideoMarketingPlanMarkdownForMeta(brandId: string, kind: VideoWorkKind) {
+    if (kind === "XHS_VIDEO_NOTE") {
+      const workspace = await this.reportsService.getXiaohongshuMarketingPlanWorkspace(brandId);
+      return workspace.latest?.reportMarkdown || "";
+    }
+    const workspace = await this.reportsService.getDouyinMarketingPlanWorkspace(brandId);
+    return workspace.latest?.reportMarkdown || "";
   }
 
   private normalizeDigitalHumanStage(value?: string): DigitalHumanVideoStage {
