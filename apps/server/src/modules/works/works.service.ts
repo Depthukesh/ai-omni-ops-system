@@ -2994,6 +2994,16 @@ type ImageGenerationRuntimeConfig = {
 
 type VideoBackendKey = string;
 
+type VideoGenerationQuerySnapshot = {
+  status: "SUCCESS" | "FAILED" | "IN_PROGRESS";
+  rawStatus: string | undefined;
+  videoUrl: string | undefined;
+  coverImageUrl: string | undefined;
+  failReason: string | undefined;
+  renderedDurationSec: number | undefined;
+  backend: VideoBackendKey;
+};
+
 type VideoProviderConfig = {
   backend: VideoBackendKey;
   providerId: string;
@@ -3060,6 +3070,12 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
   private readonly heavyRecoveryPollingIntervalMs = readPositiveIntegerEnv("WORKS_HEAVY_RECOVERY_POLLING_INTERVAL_MS", 30_000);
   private readonly heavyRecoveryPollingBatchLimit = readPositiveIntegerEnv("WORKS_HEAVY_RECOVERY_POLLING_BATCH_LIMIT", 2);
   private readonly inFlightHeavyRecoveryRefreshes = new Set<string>();
+  private readonly videoQueryDedupTtlMs = readPositiveIntegerEnv("WORKS_VIDEO_QUERY_DEDUP_TTL_MS", 2_000);
+  private readonly videoQueryErrorBackoffMs = readPositiveIntegerEnv("WORKS_VIDEO_QUERY_ERROR_BACKOFF_MS", 5_000);
+  private readonly videoQueryDedupMaxEntries = readPositiveIntegerEnv("WORKS_VIDEO_QUERY_DEDUP_MAX_ENTRIES", 300);
+  private readonly inFlightVideoQuerySnapshots = new Map<string, Promise<VideoGenerationQuerySnapshot>>();
+  private readonly videoQuerySnapshotCache = new Map<string, { expiresAt: number; value: VideoGenerationQuerySnapshot }>();
+  private readonly videoQueryErrorCache = new Map<string, { expiresAt: number; message: string }>();
   private heavyRecoveryPollingTimer?: NodeJS.Timeout;
   private heavyRecoveryPollingInProgress = false;
   private readonly listSnapshotBackgroundRefreshLimit = readPositiveIntegerEnv(
@@ -19680,6 +19696,7 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       });
       const userId = await this.getBrandOwnerUserId(brandId);
       const pendingSegments = meta.remixSegments || [];
+      const workingSegments = [...pendingSegments];
       const nextSegments: RemixShortVideoSegmentMeta[] = [];
       for (let index = 0; index < pendingSegments.length; index += 1) {
         await this.ensureTaskNotCancelled(taskId);
@@ -19700,10 +19717,26 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
             providerTaskId: segment.videoProviderTaskId,
             videoAssetId: segment.videoAssetId,
           });
-          nextSegments.push({
+          const completedSegment = {
             ...segment,
             videoAssetId: recoveredAsset.id,
+          };
+          nextSegments.push(completedSegment);
+          workingSegments[index] = completedSegment;
+          continue;
+        }
+        if (segment.videoProviderTaskId) {
+          const recoveredSegment = await this.recoverRemixSegmentVideoFromPersistedTask({
+            brandId,
+            workId,
+            taskId,
+            userId,
+            meta,
+            segment,
+            segmentIndex: index,
           });
+          nextSegments.push(recoveredSegment);
+          workingSegments[index] = recoveredSegment;
           continue;
         }
         await this.updateTaskOutputJson(taskId, {
@@ -19726,6 +19759,28 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
           requestedDurationSec: Math.max(5, Math.min(segment.endSec - segment.startSec || meta.segmentDurationSec || 15, 15)),
           requestedAspectRatio: "9:16",
           referenceImageUrl,
+          onProviderTaskCreated: async (snapshot) => {
+            const inFlightSegment: RemixShortVideoSegmentMeta = {
+              ...segment,
+              videoPrompt: promptResult.videoPrompt,
+              videoProviderTaskId: snapshot.providerTaskId,
+            };
+            workingSegments[index] = inFlightSegment;
+            meta = await this.saveVideoWorkMetadataSnapshot(brandId, workId, storageKey, {
+              ...meta,
+              taskId,
+              workflowStage: "GENERATING_VIDEO",
+              composeStatus: "RUNNING",
+              resolvedVideoProvider: snapshot.provider,
+              resolvedVideoModel: snapshot.modelName,
+              thirdPartyStatus: "QUERYING",
+              thirdPartyStatusLabel: `正在生成第 ${index + 1}/${pendingSegments.length} 段`,
+              thirdPartyStatusDetail: `${segment.segmentLabel}：已创建第三方视频任务 ${snapshot.providerTaskId}`,
+              thirdPartyStatusUpdatedAt: new Date().toISOString(),
+              remixSegments: [...workingSegments],
+              progressSteps: this.buildVideoProgressSteps("GENERATING_VIDEO", "DOUYIN_REMIX_SHORT_VIDEO"),
+            });
+          },
         });
         const videoAsset = await this.createWorkVideoMedia({
           userId,
@@ -19739,14 +19794,16 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
           providerTaskId: videoResult.providerTaskId,
           durationSec: videoResult.renderedDurationSec,
         });
-        nextSegments.push({
+        const completedSegment = {
           ...segment,
           videoPrompt: promptResult.videoPrompt,
           videoUrl: videoResult.url,
           videoCoverImageUrl: videoResult.coverImageUrl,
           videoProviderTaskId: videoResult.providerTaskId,
           videoAssetId: videoAsset.id,
-        });
+        };
+        nextSegments.push(completedSegment);
+        workingSegments[index] = completedSegment;
         meta = await this.saveVideoWorkMetadataSnapshot(brandId, workId, storageKey, {
           ...meta,
           taskId,
@@ -19758,7 +19815,7 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
           thirdPartyStatusLabel: `正在生成第 ${index + 1}/${pendingSegments.length} 段`,
           thirdPartyStatusDetail: segment.segmentLabel,
           thirdPartyStatusUpdatedAt: new Date().toISOString(),
-          remixSegments: [...nextSegments, ...pendingSegments.slice(index + 1)],
+          remixSegments: [...workingSegments],
           progressSteps: this.buildVideoProgressSteps("GENERATING_VIDEO", "DOUYIN_REMIX_SHORT_VIDEO"),
         });
       }
@@ -19831,6 +19888,77 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
         await this.markTaskFailed(taskId, errorMessage);
       }
     }
+  }
+
+  private async recoverRemixSegmentVideoFromPersistedTask(params: {
+    brandId: string;
+    workId: string;
+    taskId: string;
+    userId: string;
+    meta: VideoWorkAssetMeta;
+    segment: RemixShortVideoSegmentMeta;
+    segmentIndex: number;
+  }): Promise<RemixShortVideoSegmentMeta> {
+    const providerTaskId = String(params.segment.videoProviderTaskId || "").trim();
+    if (!providerTaskId) {
+      return params.segment;
+    }
+    const backend = this.normalizeVideoProvider(params.meta.resolvedVideoProvider || params.meta.requestedVideoProvider);
+    const config = await this.loadVideoProviderConfig(params.brandId, backend);
+    const snapshot = await this.pollVideoGenerationResult(
+      config.baseUrls[0],
+      config.apiKeys[0],
+      config.backend,
+      config.queryPath,
+      providerTaskId,
+      {
+        fallbackDurationSec: Math.max(
+          5,
+          Math.min(params.segment.endSec - params.segment.startSec || params.meta.segmentDurationSec || 15, 15),
+        ),
+        queryMethod: config.queryMethod,
+        queryBodyMode: config.queryBodyMode,
+        pollMaxAttempts: config.pollMaxAttempts,
+        pollIntervalMs: config.pollIntervalMs,
+        queryTargets: this.buildVideoRequestTargets(config),
+      },
+    );
+    if (!snapshot.videoUrl) {
+      throw new ServiceUnavailableException(`第 ${params.segmentIndex + 1} 段第三方任务已完成，但未返回视频地址。`);
+    }
+    const cachedVideoUrl = await this.cacheRemoteGeneratedVideo(
+      params.brandId,
+      `${params.taskId}-segment-video-${params.segmentIndex + 1}-${config.backend}.mp4`,
+      snapshot.videoUrl,
+    );
+    const cachedCoverImageUrl = snapshot.coverImageUrl
+      ? await this.cacheRemoteGeneratedImage(
+          params.brandId,
+          `${params.taskId}-segment-video-cover-${params.segmentIndex + 1}-${config.backend}.png`,
+          snapshot.coverImageUrl,
+          "image/png",
+        )
+      : undefined;
+    const videoAsset = await this.upsertRecoveredVideoMedia({
+      userId: params.userId,
+      brandId: params.brandId,
+      taskId: params.taskId,
+      workId: params.workId,
+      title: `${params.meta.title} - ${params.segment.segmentLabel}`,
+      sourceUrl: cachedVideoUrl,
+      provider: config.backend,
+      modelName: params.meta.resolvedVideoModel,
+      providerTaskId,
+      durationSec: snapshot.renderedDurationSec,
+      videoAssetId: params.segment.videoAssetId,
+    });
+    return {
+      ...params.segment,
+      videoUrl: cachedVideoUrl,
+      videoCoverImageUrl: cachedCoverImageUrl || params.segment.videoCoverImageUrl,
+      videoAssetId: videoAsset.id,
+      videoProviderTaskId: providerTaskId,
+    };
   }
 
   private async handleVideoWorkflowFailure(
@@ -28399,26 +28527,148 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       queryTimeoutMs?: number;
     },
   ) {
-    let lastError: unknown;
     const effectiveTargets = targets.length ? targets : [];
-    for (const target of effectiveTargets) {
-      try {
-        return await this.queryVideoGenerationSnapshot(
-          target.baseUrl,
-          target.apiKey,
-          backend,
-          queryPath,
-          taskId,
-          options,
-        );
-      } catch (error) {
-        lastError = error;
+    const cacheKey = this.buildVideoQuerySnapshotCacheKey(effectiveTargets, backend, queryPath, taskId, options);
+    const cached = this.readCachedVideoQuerySnapshot(cacheKey);
+    if (cached) {
+      return cached;
+    }
+    this.throwCachedVideoQueryError(cacheKey);
+    const inFlight = this.inFlightVideoQuerySnapshots.get(cacheKey);
+    if (inFlight) {
+      return inFlight;
+    }
+    const runner = (async () => {
+      let lastError: unknown;
+      for (const target of effectiveTargets) {
+        try {
+          const snapshot = await this.queryVideoGenerationSnapshot(
+            target.baseUrl,
+            target.apiKey,
+            backend,
+            queryPath,
+            taskId,
+            options,
+          );
+          this.writeCachedVideoQuerySnapshot(cacheKey, snapshot);
+          return snapshot;
+        } catch (error) {
+          lastError = error;
+        }
+      }
+      this.writeCachedVideoQueryError(cacheKey, lastError);
+      if (lastError instanceof Error) {
+        throw lastError;
+      }
+      throw new ServiceUnavailableException("视频任务查询失败");
+    })().finally(() => {
+      this.inFlightVideoQuerySnapshots.delete(cacheKey);
+    });
+    this.inFlightVideoQuerySnapshots.set(cacheKey, runner);
+    return runner;
+  }
+
+  private buildVideoQuerySnapshotCacheKey(
+    targets: Array<{ baseUrl: string; apiKey: string }>,
+    backend: VideoBackendKey,
+    queryPath: string,
+    taskId: string,
+    options: {
+      fallbackDurationSec?: number;
+      queryMethod?: "GET" | "POST";
+      queryBodyMode?: "taskId-json" | "task_id-json";
+      queryTimeoutMs?: number;
+    },
+  ) {
+    const targetKey = targets
+      .map((item) => `${item.baseUrl}|${item.apiKey}`)
+      .join("||");
+    return [
+      backend,
+      queryPath,
+      taskId,
+      options.queryMethod || "GET",
+      options.queryBodyMode || "",
+      String(options.fallbackDurationSec || ""),
+      targetKey,
+    ].join("::");
+  }
+
+  private readCachedVideoQuerySnapshot(cacheKey: string) {
+    const cached = this.videoQuerySnapshotCache.get(cacheKey);
+    if (!cached) {
+      return undefined;
+    }
+    if (cached.expiresAt <= Date.now()) {
+      this.videoQuerySnapshotCache.delete(cacheKey);
+      return undefined;
+    }
+    return cached.value;
+  }
+
+  private throwCachedVideoQueryError(cacheKey: string) {
+    const cached = this.videoQueryErrorCache.get(cacheKey);
+    if (!cached) {
+      return;
+    }
+    if (cached.expiresAt <= Date.now()) {
+      this.videoQueryErrorCache.delete(cacheKey);
+      return;
+    }
+    throw new ServiceUnavailableException(cached.message);
+  }
+
+  private writeCachedVideoQuerySnapshot(cacheKey: string, snapshot: VideoGenerationQuerySnapshot) {
+    if (this.videoQueryDedupTtlMs <= 0) {
+      return;
+    }
+    this.pruneVideoQuerySnapshotCache();
+    this.videoQueryErrorCache.delete(cacheKey);
+    this.videoQuerySnapshotCache.set(cacheKey, {
+      expiresAt: Date.now() + this.videoQueryDedupTtlMs,
+      value: snapshot,
+    });
+  }
+
+  private writeCachedVideoQueryError(cacheKey: string, error: unknown) {
+    if (this.videoQueryErrorBackoffMs <= 0) {
+      return;
+    }
+    const message = error instanceof Error ? error.message : "视频任务查询失败";
+    this.pruneVideoQuerySnapshotCache();
+    this.videoQuerySnapshotCache.delete(cacheKey);
+    this.videoQueryErrorCache.set(cacheKey, {
+      expiresAt: Date.now() + this.videoQueryErrorBackoffMs,
+      message,
+    });
+  }
+
+  private pruneVideoQuerySnapshotCache() {
+    const now = Date.now();
+    for (const [key, value] of this.videoQuerySnapshotCache.entries()) {
+      if (value.expiresAt <= now) {
+        this.videoQuerySnapshotCache.delete(key);
       }
     }
-    if (lastError instanceof Error) {
-      throw lastError;
+    for (const [key, value] of this.videoQueryErrorCache.entries()) {
+      if (value.expiresAt <= now) {
+        this.videoQueryErrorCache.delete(key);
+      }
     }
-    throw new ServiceUnavailableException("视频任务查询失败");
+    while (this.videoQuerySnapshotCache.size >= this.videoQueryDedupMaxEntries) {
+      const oldestKey = this.videoQuerySnapshotCache.keys().next().value;
+      if (!oldestKey) {
+        break;
+      }
+      this.videoQuerySnapshotCache.delete(oldestKey);
+    }
+    while (this.videoQueryErrorCache.size >= this.videoQueryDedupMaxEntries) {
+      const oldestKey = this.videoQueryErrorCache.keys().next().value;
+      if (!oldestKey) {
+        break;
+      }
+      this.videoQueryErrorCache.delete(oldestKey);
+    }
   }
 
   private resolveVideoQueryPath(queryPath: string, taskId: string, queryMethod: "GET" | "POST" = "GET") {

@@ -563,6 +563,36 @@
    - 验证结果：`apps/server` 已通过 `npm run build`
    - 作用：降低服务重启、worker 中断或部分分段已完成时的重复生成浪费，进一步减少复刻短视频链路的额外 CPU / 外部模型调用开销
 
+19. 复刻短视频已补单段 provider 任务持久化与恢复
+   - 涉及：`DOUYIN_REMIX_SHORT_VIDEO`
+   - 当前策略：
+     - 每个分段在创建第三方视频任务后，会立即把 `videoProviderTaskId` 持久化回 `remixSegments`
+     - 若 worker 或服务在单段视频生成过程中重启，续跑时会优先根据已保存的 `videoProviderTaskId` 查询第三方结果，而不是直接重发该段生成任务
+     - 查询成功后会补齐本站缓存视频、封面和 `videoAsset` 记录，再继续剩余分段与最终拼接
+   - 验证结果：`apps/server` 已通过 `npm run build`
+   - 作用：进一步压低复刻短视频在“第三方已接单但本地未回填”场景下的重复任务率，减少外部模型调用浪费和恢复抖动
+
+20. 视频恢复查询已补 providerTaskId 去重与短 TTL 结果复用
+   - 涉及：普通视频恢复、复刻短视频分段恢复使用的底层 `queryVideoGenerationSnapshotWithTargets`
+   - 当前策略：
+     - 同一组 `backend + providerTaskId + queryPath + queryMethod` 查询会先经过 in-flight 复用，避免同一时刻重复打到第三方查询接口
+     - 最近一次查询结果会进入短 TTL 内存缓存，默认参数：
+       - `WORKS_VIDEO_QUERY_DEDUP_TTL_MS=2000`
+       - `WORKS_VIDEO_QUERY_DEDUP_MAX_ENTRIES=300`
+     - 普通视频恢复和复刻短视频分段恢复都会共用这套查询去重层，因此 worker 同一轮扫描里遇到同一个任务时会直接复用结果
+   - 验证结果：`apps/server` 已通过 `npm run build`
+   - 作用：降低恢复轮询阶段对第三方视频平台的重复查询频率，减少 worker 恢复周期里的无效网络开销和状态抖动
+
+21. 视频恢复查询失败已补短期回退节流
+   - 涉及：同样作用于 `queryVideoGenerationSnapshotWithTargets` 的第三方状态查询失败场景
+   - 当前策略：
+     - 当同一个查询 key 刚刚因为第三方超时、网络错误或接口异常而失败时，会在短期内直接复用最近一次错误结果，而不是立刻再次请求第三方
+     - 默认参数：
+       - `WORKS_VIDEO_QUERY_ERROR_BACKOFF_MS=5000`
+     - 成功查询结果会清掉同 key 的错误回退缓存，避免成功后继续命中旧错误
+   - 验证结果：`apps/server` 已通过 `npm run build`
+   - 作用：减少第三方视频查询接口抖动期间的重复失败请求，进一步给 worker 恢复轮询降噪
+
 ## 验证清单
 
 每完成一个阶段，都至少验证以下项目：
