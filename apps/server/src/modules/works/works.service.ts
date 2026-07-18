@@ -4,7 +4,16 @@ import { createReadStream, existsSync, readFileSync } from "node:fs";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, extname, join, resolve } from "node:path";
-import { BadRequestException, Inject, Injectable, NotFoundException, ServiceUnavailableException, UnauthorizedException } from "@nestjs/common";
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  NotFoundException,
+  OnModuleDestroy,
+  OnModuleInit,
+  ServiceUnavailableException,
+  UnauthorizedException,
+} from "@nestjs/common";
 import { MediaType, Prisma, TaskStatus } from "@prisma/client";
 import ffmpegInstaller from "@ffmpeg-installer/ffmpeg";
 import { createId, database, type ApiProviderRecord } from "../../common/mock-data";
@@ -134,6 +143,17 @@ function readPositiveIntegerEnv(name: string, fallback: number) {
   return Number.isFinite(raw) && raw > 0 ? raw : fallback;
 }
 
+function readBooleanEnv(name: string, fallback: boolean) {
+  const normalized = String(process.env[name] || "").trim().toLowerCase();
+  if (["1", "true", "yes", "on"].includes(normalized)) {
+    return true;
+  }
+  if (["0", "false", "no", "off"].includes(normalized)) {
+    return false;
+  }
+  return fallback;
+}
+
 const DESIGN_MODULE_TYPES: Record<DesignWorkModuleKey, string[]> = {
   image: ["社媒轮播图", "杂志风海报", "动效首帧", "像素动画首帧", "电商主视觉", "品牌封面图", "信息图海报"],
   html: ["单页 HTML 原型", "SaaS 落地页", "数据看板", "邮件营销页", "文档展示页", "博客长页", "移动端引导页", "游戏化活动页", "品牌展示页"],
@@ -246,6 +266,13 @@ type UploadFilePayload = {
   contentType: string;
   dataBase64?: string;
   tempFilePath?: string;
+  sizeBytes?: number;
+};
+
+type PersistedUploadAssetRef = {
+  storageKey?: string;
+  url?: string;
+  contentType?: string;
   sizeBytes?: number;
 };
 
@@ -2261,8 +2288,16 @@ type DouyinLipSyncWorkAssetMeta = {
   screenWidth: number;
   screenHeight: number;
   sourceVideoFileName?: string;
+  sourceVideoStorageKey?: string;
+  sourceVideoUrl?: string;
+  sourceVideoContentType?: string;
+  sourceVideoBytes?: number;
   sourceVideoFileId?: string;
   audioFileName?: string;
+  audioFileStorageKey?: string;
+  audioFileUrl?: string;
+  audioFileContentType?: string;
+  audioFileBytes?: number;
   audioFileId?: string;
   providerTaskId?: string;
   progress: number;
@@ -2331,6 +2366,7 @@ type RunningHubWorkAssetMeta = {
   appName: string;
   appSummary: string;
   title: string;
+  instanceType?: RunningHubInstanceType;
   status: "PENDING" | "RUNNING" | "SUCCESS" | "FAILED";
   progress: number;
   providerTaskId?: string;
@@ -3002,7 +3038,7 @@ type VideoProviderExecutionCandidate = {
 type VideoProviderFailureDisposition = "hard" | "retryable";
 
 @Injectable()
-export class WorksService {
+export class WorksService implements OnModuleInit, OnModuleDestroy {
   private wechatPersistenceBootstrapPromise?: Promise<void>;
   private douyinAdPreAuditBootstrapPromise?: Promise<void>;
   private operationsPromptBootstrapPromise?: Promise<void>;
@@ -3010,6 +3046,16 @@ export class WorksService {
   private imagePromptBootstrapPromise?: Promise<void>;
   private imagePromptBootstrapAt = 0;
   private readonly inFlightListSnapshotRefreshes = new Set<string>();
+  private readonly heavyBackgroundTaskConcurrency = readPositiveIntegerEnv("WORKS_HEAVY_BACKGROUND_TASK_CONCURRENCY", 1);
+  private readonly heavySubmissionWorkerEnabled = readBooleanEnv("WORKS_HEAVY_SUBMISSION_WORKER_ENABLED", false);
+  private readonly heavyBackgroundTaskQueue: Array<() => Promise<void>> = [];
+  private inFlightHeavyBackgroundTaskCount = 0;
+  private readonly heavyRecoveryPollingEnabled = readBooleanEnv("WORKS_HEAVY_RECOVERY_POLLING_ENABLED", true);
+  private readonly heavyRecoveryPollingIntervalMs = readPositiveIntegerEnv("WORKS_HEAVY_RECOVERY_POLLING_INTERVAL_MS", 30_000);
+  private readonly heavyRecoveryPollingBatchLimit = readPositiveIntegerEnv("WORKS_HEAVY_RECOVERY_POLLING_BATCH_LIMIT", 2);
+  private readonly inFlightHeavyRecoveryRefreshes = new Set<string>();
+  private heavyRecoveryPollingTimer?: NodeJS.Timeout;
+  private heavyRecoveryPollingInProgress = false;
   private readonly listSnapshotBackgroundRefreshLimit = readPositiveIntegerEnv(
     "WORKS_LIST_SNAPSHOT_BACKGROUND_REFRESH_LIMIT",
     DEFAULT_LIST_SNAPSHOT_BACKGROUND_REFRESH_LIMIT,
@@ -3047,6 +3093,23 @@ export class WorksService {
     @Inject(WechatOfficialAccountApiService)
     private readonly wechatOfficialAccountApiService: WechatOfficialAccountApiService,
   ) {}
+
+  onModuleInit() {
+    if (!this.heavyRecoveryPollingEnabled) {
+      return;
+    }
+    void this.runHeavyRecoveryPollingCycle().catch(() => undefined);
+    this.heavyRecoveryPollingTimer = setInterval(() => {
+      void this.runHeavyRecoveryPollingCycle().catch(() => undefined);
+    }, this.heavyRecoveryPollingIntervalMs);
+  }
+
+  onModuleDestroy() {
+    if (this.heavyRecoveryPollingTimer) {
+      clearInterval(this.heavyRecoveryPollingTimer);
+      this.heavyRecoveryPollingTimer = undefined;
+    }
+  }
 
   private async resolveBrandAwareApiKeys(
     brandId: string | undefined,
@@ -3107,6 +3170,292 @@ export class WorksService {
             this.inFlightListSnapshotRefreshes.delete(refreshKey);
           });
       });
+  }
+
+  private scheduleHeavyBackgroundTask(task: () => Promise<void>) {
+    this.heavyBackgroundTaskQueue.push(task);
+    this.drainHeavyBackgroundTaskQueue();
+  }
+
+  private drainHeavyBackgroundTaskQueue() {
+    while (this.inFlightHeavyBackgroundTaskCount < this.heavyBackgroundTaskConcurrency) {
+      const nextTask = this.heavyBackgroundTaskQueue.shift();
+      if (!nextTask) {
+        return;
+      }
+      this.inFlightHeavyBackgroundTaskCount += 1;
+      void nextTask()
+        .catch(() => undefined)
+        .finally(() => {
+          this.inFlightHeavyBackgroundTaskCount = Math.max(0, this.inFlightHeavyBackgroundTaskCount - 1);
+          this.drainHeavyBackgroundTaskQueue();
+        });
+    }
+  }
+
+  private async runHeavyRecoveryPollingCycle() {
+    if (this.heavyRecoveryPollingInProgress) {
+      return;
+    }
+    this.heavyRecoveryPollingInProgress = true;
+    try {
+      const candidates = await this.listRecoverableHeavyWorkRefreshCandidates(Math.max(this.heavyRecoveryPollingBatchLimit * 5, 10));
+      let scheduledCount = 0;
+      for (const candidate of candidates) {
+        if (scheduledCount >= this.heavyRecoveryPollingBatchLimit) {
+          break;
+        }
+        const refreshKey = `${candidate.scope}:${candidate.brandId}:${candidate.workId}`;
+        if (this.inFlightHeavyRecoveryRefreshes.has(refreshKey)) {
+          continue;
+        }
+        this.inFlightHeavyRecoveryRefreshes.add(refreshKey);
+        scheduledCount += 1;
+        this.scheduleHeavyBackgroundTask(async () => {
+          try {
+            await candidate.refresh();
+          } finally {
+            this.inFlightHeavyRecoveryRefreshes.delete(refreshKey);
+          }
+        });
+      }
+    } finally {
+      this.heavyRecoveryPollingInProgress = false;
+    }
+  }
+
+  private async listRecoverableHeavyWorkRefreshCandidates(limit: number) {
+    type HeavyRecoveryCandidate = {
+      scope: string;
+      brandId: string;
+      workId: string;
+      refresh: () => Promise<unknown>;
+    };
+    type HeavyRecoveryRow = {
+      id: string;
+      brandId?: string | null;
+      taskId?: string | null;
+      storageKey?: string | null;
+      metadataJson?: unknown;
+      updatedAt?: Date | string | null;
+      createdAt?: Date | string | null;
+      mediaType?: string;
+    };
+    const heavyRecoveryKinds = ["DOUYIN_LIP_SYNC_VIDEO", "DOUYIN_DIGITAL_HUMAN_VIDEO", "DOUYIN_RUNNINGHUB_APP"];
+    const rows: HeavyRecoveryRow[] = await (async (): Promise<HeavyRecoveryRow[]> => {
+      if (await this.prismaService.canUseDatabase()) {
+        try {
+          return await this.prismaService.$queryRaw<Array<HeavyRecoveryRow>>(Prisma.sql`
+            SELECT "id", "brandId", "taskId", "storageKey", "metadataJson", "updatedAt"
+            FROM "MediaAsset"
+            WHERE "mediaType" = CAST(${MediaType.HTML} AS "MediaType")
+              AND "brandId" IS NOT NULL
+              AND COALESCE("metadataJson"->>'kind', '') IN (${Prisma.join(heavyRecoveryKinds.map((item) => Prisma.sql`${item}`))})
+            ORDER BY "updatedAt" ASC
+            LIMIT ${limit}
+          `);
+        } catch {
+          const fallbackRows = await this.prismaService.mediaAsset.findMany({
+            where: {
+              mediaType: MediaType.HTML,
+              brandId: { not: null },
+            },
+            orderBy: { updatedAt: "asc" },
+            take: limit,
+          });
+          return fallbackRows.filter((item) => {
+            const kind = String(this.asRecord(item.metadataJson)?.kind || "").trim();
+            return heavyRecoveryKinds.includes(kind);
+          });
+        }
+      }
+      return database.media
+        .filter((item) => item.mediaType === "HTML" && item.brandId)
+        .filter((item) => heavyRecoveryKinds.includes(String(this.asRecord((item as { metadataJson?: unknown }).metadataJson)?.kind || "").trim()))
+        .sort((left, right) => new Date(left.updatedAt || left.createdAt).getTime() - new Date(right.updatedAt || right.createdAt).getTime())
+        .slice(0, limit);
+    })();
+
+    const candidates: HeavyRecoveryCandidate[] = [];
+    for (const row of rows) {
+      const brandId = String(row.brandId || "").trim();
+      if (!brandId) {
+        continue;
+      }
+      if (this.isDouyinLipSyncWorkMeta(row.metadataJson)) {
+        const meta = this.readDouyinLipSyncWorkMeta(row.metadataJson);
+        if (this.heavySubmissionWorkerEnabled && !meta.providerTaskId && meta.status === "PENDING") {
+          candidates.push({
+            scope: "heavy-submit:lip-sync",
+            brandId,
+            workId: row.id,
+            refresh: () => this.startDouyinLipSyncSubmissionFromPersistedMeta(
+              brandId,
+              row.id,
+              String(row.taskId || meta.taskId || "").trim(),
+              String(row.storageKey || "").trim() || `${row.id}.html`,
+              meta,
+            ),
+          });
+          continue;
+        }
+        if (this.shouldRefreshDouyinLipSyncWorkMeta(meta)) {
+          candidates.push({
+            scope: "heavy-recovery:lip-sync",
+            brandId,
+            workId: row.id,
+            refresh: () => this.refreshDouyinLipSyncWorkSnapshot(brandId, row.id),
+          });
+        }
+        continue;
+      }
+      if (this.isDigitalHumanVideoWorkMeta(row.metadataJson)) {
+        const meta = this.readDigitalHumanVideoWorkMeta(row.metadataJson);
+        if (this.heavySubmissionWorkerEnabled && !meta.providerTaskId && meta.stage === "QUEUED" && meta.compositeMode !== "SEGMENT_MERGE") {
+          candidates.push({
+            scope: "heavy-submit:digital-human",
+            brandId,
+            workId: row.id,
+            refresh: () => this.startDigitalHumanSubmissionFromPersistedMeta(
+              brandId,
+              row.id,
+              String(row.taskId || meta.taskId || "").trim(),
+              String(row.storageKey || "").trim() || `${row.id}.html`,
+            ),
+          });
+          continue;
+        }
+        if (this.shouldRefreshDigitalHumanVideoWorkMeta(meta)) {
+          candidates.push({
+            scope: "heavy-recovery:digital-human",
+            brandId,
+            workId: row.id,
+            refresh: () => this.refreshDigitalHumanWorkSnapshot(brandId, row.id),
+          });
+        }
+        continue;
+      }
+      if (this.isRunningHubWorkMeta(row.metadataJson)) {
+        const meta = this.readRunningHubWorkMeta(row.metadataJson);
+        if (this.heavySubmissionWorkerEnabled && !meta.providerTaskId && meta.status === "PENDING") {
+          candidates.push({
+            scope: "heavy-submit:runninghub",
+            brandId,
+            workId: row.id,
+            refresh: () => this.startRunningHubSubmissionFromPersistedMeta(
+              brandId,
+              row.id,
+              String(row.taskId || meta.taskId || "").trim(),
+              String(row.storageKey || "").trim() || `${row.id}.html`,
+              meta,
+            ),
+          });
+          continue;
+        }
+        if (this.shouldRefreshRunningHubWorkMeta(meta)) {
+          candidates.push({
+            scope: "heavy-recovery:runninghub",
+            brandId,
+            workId: row.id,
+            refresh: () => this.refreshRunningHubWorkSnapshot(brandId, row.id),
+          });
+        }
+      }
+    }
+    return candidates;
+  }
+
+  private async startDigitalHumanSubmissionFromPersistedMeta(
+    brandId: string,
+    workId: string,
+    taskId: string,
+    storageKey: string,
+  ) {
+    if (!taskId) {
+      return;
+    }
+    await this.runGenerateDigitalHumanVideoTask(brandId, workId, taskId, storageKey);
+  }
+
+  private async startRunningHubSubmissionFromPersistedMeta(
+    brandId: string,
+    workId: string,
+    taskId: string,
+    storageKey: string,
+    meta: RunningHubWorkAssetMeta,
+  ) {
+    if (!taskId) {
+      return;
+    }
+    const apiKey = await this.resolveRunningHubApiKey(brandId);
+    const app = this.getDouyinRunningHubAppConfig(meta.appKey);
+    await this.markTaskRunning(taskId);
+    await this.updateTaskRunningOutput(taskId, {
+      workId,
+      provider: "RunningHub",
+      appKey: app.key,
+      appName: app.name,
+      status: "PENDING",
+      progress: meta.progress || 5,
+    }, {
+      modelName: `RunningHub + ${app.name}`,
+    });
+    await this.processDouyinRunningHubWorkCreation({
+      brandId,
+      apiKey,
+      app,
+      instanceType: this.normalizeRunningHubInstanceType(meta.instanceType),
+      taskId,
+      workMediaId: workId,
+      storageKey,
+      nodeInfoList: meta.nodeInfoList,
+      localMetaBase: meta,
+    });
+  }
+
+  private async startDouyinLipSyncSubmissionFromPersistedMeta(
+    brandId: string,
+    workId: string,
+    taskId: string,
+    storageKey: string,
+    meta: DouyinLipSyncWorkAssetMeta,
+  ) {
+    if (!taskId) {
+      return;
+    }
+    const payload: NormalizedDouyinLipSyncPayload = {
+      title: meta.title,
+      audioType: meta.audioType,
+      script: meta.script,
+      model: meta.model ?? 0,
+      backway: meta.backway ?? 1,
+      driveMode: meta.driveMode || "",
+      audioManId: meta.audioManId,
+      speechRate: meta.speechRate,
+      pitch: meta.pitch,
+      volume: meta.volume ?? 100,
+      screenWidth: meta.screenWidth,
+      screenHeight: meta.screenHeight,
+      sourceVideo: await this.rebuildPersistedUploadFile(
+        brandId,
+        meta.sourceVideoStorageKey,
+        meta.sourceVideoFileName,
+        meta.sourceVideoContentType,
+        meta.sourceVideoBytes,
+        "口型驱动源视频",
+      ),
+      audioFile: meta.audioType === "AUDIO"
+        ? await this.rebuildPersistedUploadFile(
+            brandId,
+            meta.audioFileStorageKey,
+            meta.audioFileName,
+            meta.audioFileContentType,
+            meta.audioFileBytes,
+            "口型驱动音频",
+          )
+        : undefined,
+    };
+    await this.runGenerateDouyinLipSyncTask(brandId, workId, taskId, storageKey, payload);
   }
 
   private async listBrandHtmlMediaRowsByKinds(brandId: string, kinds: string[]) {
@@ -9023,7 +9372,7 @@ export class WorksService {
       progress: localMetaBase.progress,
       stage: "CUSTOM_PERSON_UPLOADING",
     });
-    void this.processDouyinDigitalHumanCustomPersonCreation({
+    this.scheduleHeavyBackgroundTask(() => this.processDouyinDigitalHumanCustomPersonCreation({
       brandId,
       payload,
       normalizedName,
@@ -9031,7 +9380,7 @@ export class WorksService {
       workMediaId: workMedia.id,
       storageKey: workMedia.storageKey || `${workMedia.id}.html`,
       localMetaBase,
-    });
+    }));
     return {
       item: this.mapLocalCustomPersonMeta(localMetaBase, workMedia.id),
     };
@@ -9201,6 +9550,18 @@ export class WorksService {
       modelName: "chanjing-lip-sync",
     });
     const now = new Date().toISOString();
+    const persistedSourceVideo = await this.persistUploadFile(
+      brandId,
+      `${task.id}-douyin-lip-sync-source${this.resolveVideoExtensionFromMimeType(normalized.sourceVideo.contentType, normalized.sourceVideo.fileName)}`,
+      normalized.sourceVideo,
+    );
+    const persistedAudioFile = normalized.audioType === "AUDIO" && normalized.audioFile
+      ? await this.persistUploadFile(
+          brandId,
+          `${task.id}-douyin-lip-sync-audio${this.resolveAudioExtensionFromMimeType(normalized.audioFile.contentType, normalized.audioFile.fileName)}`,
+          normalized.audioFile,
+        )
+      : undefined;
     const meta: DouyinLipSyncWorkAssetMeta = {
       kind: "DOUYIN_LIP_SYNC_VIDEO",
       taskId: task.id,
@@ -9234,7 +9595,15 @@ export class WorksService {
       screenWidth: normalized.screenWidth,
       screenHeight: normalized.screenHeight,
       sourceVideoFileName: normalized.sourceVideo.fileName,
+      sourceVideoStorageKey: persistedSourceVideo.storageKey,
+      sourceVideoUrl: persistedSourceVideo.url,
+      sourceVideoContentType: normalized.sourceVideo.contentType,
+      sourceVideoBytes: normalized.sourceVideo.sizeBytes,
       audioFileName: normalized.audioFile?.fileName,
+      audioFileStorageKey: persistedAudioFile?.storageKey,
+      audioFileUrl: persistedAudioFile?.url,
+      audioFileContentType: normalized.audioFile?.contentType,
+      audioFileBytes: normalized.audioFile?.sizeBytes,
       progress: 0,
       createdAt: now,
       updatedAt: now,
@@ -9249,9 +9618,9 @@ export class WorksService {
       sourceUrl: htmlFile.url,
       metadata: meta,
     });
-    setTimeout(() => {
-      void this.runGenerateDouyinLipSyncTask(brandId, workMedia.id, task.id, htmlFile.storageKey, normalized);
-    }, 0);
+    if (!this.heavySubmissionWorkerEnabled) {
+      this.scheduleHeavyBackgroundTask(() => this.runGenerateDouyinLipSyncTask(brandId, workMedia.id, task.id, htmlFile.storageKey, normalized));
+    }
     return {
       item: this.mapDouyinLipSyncWorkRecord(workMedia.id, brandId, task.id, meta, "QUEUED"),
     };
@@ -9427,6 +9796,7 @@ export class WorksService {
       taskId: "",
       app,
       title,
+      instanceType,
       status: "PENDING",
       progress: 5,
       nodeInfoList: normalizedNodeInfoList.map(({ upload, ...item }) => item),
@@ -9456,28 +9826,30 @@ export class WorksService {
       metadata: taskMeta,
     });
     await this.saveRunningHubWorkMetadataSnapshot(brandId, workMedia.id, workMedia.storageKey || `${workMedia.id}.html`, taskMeta);
-    await this.markTaskRunning(task.id);
-    await this.updateTaskRunningOutput(task.id, {
-      workId: workMedia.id,
-      provider: "RunningHub",
-      appKey: app.key,
-      appName: app.name,
-      status: "PENDING",
-      progress: 5,
-    }, {
-      modelName: `RunningHub + ${app.name}`,
-    });
-    void this.processDouyinRunningHubWorkCreation({
-      brandId,
-      apiKey,
-      app,
-      instanceType,
-      taskId: task.id,
-      workMediaId: workMedia.id,
-      storageKey: workMedia.storageKey || `${workMedia.id}.html`,
-      nodeInfoList: normalizedNodeInfoList,
-      localMetaBase: taskMeta,
-    });
+    if (!this.heavySubmissionWorkerEnabled) {
+      await this.markTaskRunning(task.id);
+      await this.updateTaskRunningOutput(task.id, {
+        workId: workMedia.id,
+        provider: "RunningHub",
+        appKey: app.key,
+        appName: app.name,
+        status: "PENDING",
+        progress: 5,
+      }, {
+        modelName: `RunningHub + ${app.name}`,
+      });
+      this.scheduleHeavyBackgroundTask(() => this.processDouyinRunningHubWorkCreation({
+        brandId,
+        apiKey,
+        app,
+        instanceType,
+        taskId: task.id,
+        workMediaId: workMedia.id,
+        storageKey: workMedia.storageKey || `${workMedia.id}.html`,
+        nodeInfoList: normalizedNodeInfoList,
+        localMetaBase: taskMeta,
+      }));
+    }
     return {
       item: this.mapRunningHubWorkRecord(workMedia),
     };
@@ -10302,9 +10674,7 @@ export class WorksService {
       sourceUrl: htmlFile.url,
       metadata,
     });
-    setTimeout(() => {
-      void this.runInitialVideoWorkflowTask(brandId, workMedia.id, task.id, context, htmlFile.storageKey);
-    }, 0);
+    this.scheduleHeavyBackgroundTask(() => this.runInitialVideoWorkflowTask(brandId, workMedia.id, task.id, context, htmlFile.storageKey));
     return {
       item: this.mapVideoWorkRecord(workMedia.id, brandId, task.id, metadata, "QUEUED"),
     };
@@ -10381,9 +10751,7 @@ export class WorksService {
       sourceUrl: htmlFile.url,
       metadata,
     });
-    setTimeout(() => {
-      void this.runInitialVideoWorkflowTask(brandId, workMedia.id, task.id, context, htmlFile.storageKey);
-    }, 0);
+    this.scheduleHeavyBackgroundTask(() => this.runInitialVideoWorkflowTask(brandId, workMedia.id, task.id, context, htmlFile.storageKey));
     return {
       item: this.mapVideoWorkRecord(workMedia.id, brandId, task.id, metadata, "QUEUED"),
     };
@@ -10466,9 +10834,7 @@ export class WorksService {
       sourceUrl: htmlFile.url,
       metadata,
     });
-    setTimeout(() => {
-      void this.runInitialRemixShortVideoWorkflowTask(brandId, workMedia.id, task.id, context, htmlFile.storageKey);
-    }, 0);
+    this.scheduleHeavyBackgroundTask(() => this.runInitialRemixShortVideoWorkflowTask(brandId, workMedia.id, task.id, context, htmlFile.storageKey));
     return {
       item: this.mapVideoWorkRecord(workMedia.id, brandId, task.id, metadata, "QUEUED"),
     };
@@ -10545,9 +10911,7 @@ export class WorksService {
       sourceUrl: htmlFile.url,
       metadata,
     });
-    setTimeout(() => {
-      void this.runInitialDirectVideoWorkflowTask(brandId, workMedia.id, task.id, context, htmlFile.storageKey);
-    }, 0);
+    this.scheduleHeavyBackgroundTask(() => this.runInitialDirectVideoWorkflowTask(brandId, workMedia.id, task.id, context, htmlFile.storageKey));
     return {
       item: this.mapVideoWorkRecord(workMedia.id, brandId, task.id, metadata, "QUEUED"),
     };
@@ -10629,9 +10993,9 @@ export class WorksService {
       sourceUrl: htmlFile.url,
       metadata,
     });
-    setTimeout(() => {
-      void this.runGenerateDigitalHumanVideoTask(brandId, workMedia.id, task.id, htmlFile.storageKey);
-    }, 0);
+    if (!this.heavySubmissionWorkerEnabled) {
+      this.scheduleHeavyBackgroundTask(() => this.runGenerateDigitalHumanVideoTask(brandId, workMedia.id, task.id, htmlFile.storageKey));
+    }
     return {
       item: this.mapDigitalHumanVideoWorkRecord(workMedia.id, brandId, task.id, metadata, "QUEUED"),
     };
@@ -10717,9 +11081,7 @@ export class WorksService {
       sourceUrl: htmlFile.url,
       metadata,
     });
-    setTimeout(() => {
-      void this.runGenerateDigitalHumanCompleteVideoTask(brandId, workMedia.id, task.id, htmlFile.storageKey, normalized);
-    }, 0);
+    this.scheduleHeavyBackgroundTask(() => this.runGenerateDigitalHumanCompleteVideoTask(brandId, workMedia.id, task.id, htmlFile.storageKey, normalized));
     return {
       item: this.mapDigitalHumanVideoWorkRecord(workMedia.id, brandId, task.id, metadata, "QUEUED"),
     };
@@ -20469,8 +20831,16 @@ export class WorksService {
       screenWidth: this.readPositiveInteger(meta.screenWidth, 1080),
       screenHeight: this.readPositiveInteger(meta.screenHeight, 1920),
       sourceVideoFileName: this.readOptionalString(meta.sourceVideoFileName),
+      sourceVideoStorageKey: this.readOptionalString(meta.sourceVideoStorageKey),
+      sourceVideoUrl: this.readOptionalString(meta.sourceVideoUrl),
+      sourceVideoContentType: this.readOptionalString(meta.sourceVideoContentType),
+      sourceVideoBytes: typeof meta.sourceVideoBytes === "number" ? meta.sourceVideoBytes : undefined,
       sourceVideoFileId: this.readOptionalString(meta.sourceVideoFileId),
       audioFileName: this.readOptionalString(meta.audioFileName),
+      audioFileStorageKey: this.readOptionalString(meta.audioFileStorageKey),
+      audioFileUrl: this.readOptionalString(meta.audioFileUrl),
+      audioFileContentType: this.readOptionalString(meta.audioFileContentType),
+      audioFileBytes: typeof meta.audioFileBytes === "number" ? meta.audioFileBytes : undefined,
       audioFileId: this.readOptionalString(meta.audioFileId),
       providerTaskId: this.readOptionalString(meta.providerTaskId),
       progress: Math.max(0, Math.min(100, Number(meta.progress || 0))),
@@ -20907,6 +21277,30 @@ export class WorksService {
       ...upload,
       fileDetail,
       fileUrl,
+    };
+  }
+
+  private async rebuildPersistedUploadFile(
+    brandId: string,
+    storageKey: string | undefined,
+    fileName: string | undefined,
+    contentType: string | undefined,
+    sizeBytes: number | undefined,
+    label: string,
+  ): Promise<UploadFilePayload> {
+    const normalizedStorageKey = String(storageKey || "").trim();
+    if (!normalizedStorageKey) {
+      throw new ServiceUnavailableException(`${label}缺少站内持久化文件，暂无法由 worker 恢复提交。`);
+    }
+    const storedFile = await this.ossStorageService.getObject(normalizedStorageKey);
+    if (!storedFile) {
+      throw new NotFoundException(`${label}站内文件不存在，暂无法继续提交。`);
+    }
+    return {
+      fileName: String(fileName || "").trim() || this.extractFileName(normalizedStorageKey),
+      contentType: String(contentType || "").trim() || storedFile.contentType || "application/octet-stream",
+      dataBase64: storedFile.buffer.toString("base64"),
+      sizeBytes: typeof sizeBytes === "number" && Number.isFinite(sizeBytes) ? sizeBytes : storedFile.buffer.length,
     };
   }
 
@@ -21741,6 +22135,7 @@ export class WorksService {
     taskId: string;
     app: DouyinRunningHubAppCardRecord;
     title: string;
+    instanceType?: RunningHubInstanceType;
     status: RunningHubWorkAssetMeta["status"];
     progress: number;
     nodeInfoList: DouyinRunningHubAppFieldRecord[];
@@ -21762,6 +22157,7 @@ export class WorksService {
       appName: params.app.name,
       appSummary: params.app.summary,
       title: params.title,
+      instanceType: params.instanceType,
       status: params.status,
       progress: params.progress,
       providerTaskId: params.providerTaskId,
@@ -21846,6 +22242,7 @@ export class WorksService {
       appName: String(meta?.appName || "").trim(),
       appSummary: String(meta?.appSummary || "").trim(),
       title: String(meta?.title || "RunningHub 作品"),
+      instanceType: this.normalizeRunningHubInstanceType(String(meta?.instanceType || "").trim() || undefined),
       status: this.normalizeRunningHubStatus(meta?.status),
       progress: Number.isFinite(Number(meta?.progress)) ? Number(meta?.progress) : 0,
       providerTaskId: String(meta?.providerTaskId || "").trim() || undefined,

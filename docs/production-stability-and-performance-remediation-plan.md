@@ -420,7 +420,7 @@
 5. 当前状态判断
    - 已完成：S 级中的“批量采集并发限制”“评论请求限量”“健康检查去重”
    - 已完成且此前已上线：生产环境默认关闭重型启动补跑
-   - 已完成：A 级中的“前端多轮询第一轮收口”“OpenClaw MCP 第一轮降载”“重媒体列表轮询与后台刷新第一轮收口”
+   - 已完成：A 级中的“前端多轮询第一轮收口”“OpenClaw MCP 第一轮降载”“重媒体列表轮询与后台刷新第一轮收口”“重媒体 detached 后台任务并发闸门”
    - 下一步继续做：重媒体任务隔离
 
 6. 前端多轮询已完成第一轮收口
@@ -455,6 +455,67 @@
      - `WORKS_LIST_SNAPSHOT_BACKGROUND_REFRESH_LIMIT=2`
    - 验证结果：`apps/server`、`apps/web` 已通过构建
    - 作用：减少数字人、对口型、RunningHub 等长任务在“列表页长开 + 后台同步”场景下对主业务机的持续占用
+
+9. 重媒体 detached 后台任务已加第一轮并发闸门
+   - 涉及：抖音口型驱动、AI 生视频、复刻短视频、直出视频、数字人视频、数字人完整视频、RunningHub 应用、数字人训练
+   - 当前策略：
+     - 原本创建任务后通过 `setTimeout(..., 0)` 立即放出的后台重任务，改为统一进入 `WorksService` 内存队列
+     - 队列按全局并发上限逐个放行，避免短时间连续创建多个重媒体任务时一起抢占 CPU、内存、第三方配额和网络连接
+     - 任务创建接口仍可快速返回，但真正的重计算/重上传/重轮询只会按闸门受控启动
+   - 默认参数：
+     - `WORKS_HEAVY_BACKGROUND_TASK_CONCURRENCY=1`
+   - 验证结果：`apps/server` 已通过 `npm run build`
+   - 作用：进一步降低“同一时刻多条视频链同时起跑”导致主站接口抖动、任务互相拖慢和单机资源瞬时打满的风险
+
+10. 重媒体结果恢复轮询已加第一轮自愈守护
+   - 涉及：口型驱动、数字人视频、RunningHub 已提交第三方任务后的结果恢复
+   - 当前策略：
+     - `WorksService` 在模块启动后可按固定间隔轮询扫描可恢复的重媒体 HTML 作品
+     - 仅扫描带有第三方 `providerTaskId` 且尚未成功/失败的记录，不做全量无差别刷新
+     - 扫描到的恢复任务继续进入同一套重任务并发闸门，避免“恢复线程”反过来把机器打热
+     - 即使服务重启，也不必等用户重新打开作品列表才能继续刷新第三方结果
+   - 默认参数：
+     - `WORKS_HEAVY_RECOVERY_POLLING_ENABLED=true`
+     - `WORKS_HEAVY_RECOVERY_POLLING_INTERVAL_MS=30000`
+     - `WORKS_HEAVY_RECOVERY_POLLING_BATCH_LIMIT=2`
+   - 验证结果：`apps/server` 已通过 `npm run build`
+   - 作用：降低重启、发版或短时故障后“第三方任务仍在跑，但站内状态没人继续拉取”导致的僵尸任务和人工找回成本
+
+11. 已补最小可落地的重媒体 worker 独立进程模式
+   - 涉及：`apps/server/src/main.ts`、`ecosystem.config.cjs`
+   - 当前策略：
+     - `SERVER_BOOT_MODE=api` 时继续作为主 API 进程对外监听 `3011`
+     - `SERVER_BOOT_MODE=worker` 时仅启动 Nest 上下文和后台守护，不监听 HTTP 端口
+     - PM2 新增 `ai-omni-server-worker`，专门承担重媒体恢复轮询与受控后台任务
+     - 主 API 进程显式关闭 `WORKS_HEAVY_RECOVERY_POLLING_ENABLED`，避免与 worker 重复轮询
+   - 默认参数：
+     - 主 API：`SERVER_BOOT_MODE=api`、`WORKS_HEAVY_RECOVERY_POLLING_ENABLED=false`
+     - Worker：`SERVER_BOOT_MODE=worker`、`WORKS_HEAVY_RECOVERY_POLLING_ENABLED=true`
+   - 验证结果：`apps/server` 已通过 `npm run build`
+   - 作用：把“持续恢复第三方重媒体结果”的后台守护从主站 HTTP 进程中拆出去，进一步降低主 API 进程被后台轮询链路拖慢的概率
+
+12. 第一批重媒体提交链路已支持下沉到 worker
+   - 涉及：抖音数字人视频、RunningHub 应用提交
+   - 当前策略：
+     - `WORKS_HEAVY_SUBMISSION_WORKER_ENABLED=true` 时，主 API 仅负责创建任务与作品记录，不再在请求内直接启动这两类重任务
+     - worker 进程通过已有的重媒体轮询守护识别“未提交但可重建输入”的作品，再受控启动第三方提交
+     - 当前仅放开已经具备完整持久化输入的两条链：`DOUYIN_DIGITAL_HUMAN_VIDEO`、`DOUYIN_RUNNINGHUB_APP`
+     - 数字人训练、完整数字人视频、脚本/分镜视频链路仍保留在主进程内启动，避免因原始上传文件或上下文未完整持久化而断链
+   - 默认参数：
+     - 主 API：`WORKS_HEAVY_SUBMISSION_WORKER_ENABLED=true`
+     - Worker：`WORKS_HEAVY_SUBMISSION_WORKER_ENABLED=true`
+   - 验证结果：`apps/server` 已通过 `npm run build`
+   - 作用：进一步缩短主 API 在“创建重媒体任务”请求中的驻留时间，把可下沉的第三方提交动作转移到 worker 进程处理
+
+13. 口型驱动已补输入持久化并支持 worker 重建提交
+   - 涉及：`DOUYIN_LIP_SYNC_VIDEO`
+   - 当前策略：
+     - 创建口型驱动任务时，源视频与驱动音频会先持久化到站内对象存储，再把 `storageKey / url / contentType / sizeBytes` 写入作品 metadata
+     - `WORKS_HEAVY_SUBMISSION_WORKER_ENABLED=true` 时，主 API 只创建任务和 HTML 作品，不再在请求链里直接上传蝉镜文件与创建第三方任务
+     - worker 轮询到“未提交且可重建输入”的口型驱动作品后，会从站内存储读回原始文件，重建 `UploadFilePayload`，然后复用原有蝉镜提交流程
+     - 已提交且带 `providerTaskId` 的口型驱动作品，仍沿用已有恢复轮询逻辑继续查询结果
+   - 验证结果：`apps/server` 已通过 `npm run build`
+   - 作用：把口型驱动这条“文件上传 + 三方建任务”的重链路从主 API 请求中移出，同时保留服务重启后的可恢复性
 
 ## 验证清单
 

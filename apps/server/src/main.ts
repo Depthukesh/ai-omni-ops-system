@@ -10,6 +10,7 @@ const expressBodyParser: {
   urlencoded: (options: { extended: boolean; limit: string }) => unknown;
 } = require("express");
 const SERVER_BODY_LIMIT = String(process.env.SERVER_BODY_LIMIT || "100mb").trim() || "100mb";
+const SERVER_BOOT_MODE = String(process.env.SERVER_BOOT_MODE || "api").trim().toLowerCase();
 
 process.on("unhandledRejection", (reason) => {
   console.error("[bootstrap] unhandledRejection", reason);
@@ -40,6 +41,23 @@ function loadLocalEnvFiles() {
 
 async function bootstrap() {
   loadLocalEnvFiles();
+  if (SERVER_BOOT_MODE === "worker") {
+    const app = await NestFactory.createApplicationContext(AppModule);
+    const closeApp = async (signal: string) => {
+      console.log(`[bootstrap] 收到 ${signal}，准备关闭重媒体 worker...`);
+      await app.close();
+      process.exit(0);
+    };
+    process.once("SIGINT", () => {
+      void closeApp("SIGINT");
+    });
+    process.once("SIGTERM", () => {
+      void closeApp("SIGTERM");
+    });
+    console.log("AI全域运营系统重媒体 worker 已启动（HTTP 已关闭，仅运行后台守护）");
+    return;
+  }
+
   const appConfigService = new AppConfigService();
   const app = await NestFactory.create(AppModule, {
     bodyParser: false,
