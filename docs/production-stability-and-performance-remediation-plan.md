@@ -517,6 +517,16 @@
    - 验证结果：`apps/server` 已通过 `npm run build`
    - 作用：把口型驱动这条“文件上传 + 三方建任务”的重链路从主 API 请求中移出，同时保留服务重启后的可恢复性
 
+14. 数字人训练已补训练视频持久化并纳入 worker 恢复闭环
+   - 涉及：`DOUYIN_DIGITAL_HUMAN_CUSTOM`
+   - 当前策略：
+     - 创建定制数字人任务时，训练视频会先持久化到站内对象存储，再把 `storageKey / url / contentType / sizeBytes` 写入作品 metadata
+     - `WORKS_HEAVY_SUBMISSION_WORKER_ENABLED=true` 时，主 API 仅创建任务与 HTML 作品，不再在请求链中直接上传训练视频和发起蝉镜训练
+     - worker 轮询到“未提交且可重建输入”的定制数字人作品后，会回读训练视频并复用原有训练提交流程
+     - 当定制数字人已经拿到 `personId` 但仍处于 `RUNNING` 状态时，worker 也会继续轮询同步训练结果，避免服务重启后状态停在半途
+   - 验证结果：`apps/server` 已通过 `npm run build`
+   - 作用：进一步把定制数字人这条“上传大视频 + 长时间训练等待”的重链路从主 API 请求中移出，并补上训练中断后的恢复能力
+
 ## 验证清单
 
 每完成一个阶段，都至少验证以下项目：

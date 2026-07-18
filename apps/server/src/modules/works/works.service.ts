@@ -2324,6 +2324,9 @@ type DigitalHumanCustomPersonWorkAssetMeta = {
   resolutionRate?: "1080p" | "4K";
   errorSkip?: boolean;
   trainingVideoFileName?: string;
+  trainingVideoStorageKey?: string;
+  trainingVideoUrl?: string;
+  trainingVideoContentType?: string;
   trainingVideoFileId?: string;
   trainingVideoBytes?: number;
   status: "PENDING" | "RUNNING" | "SUCCESS" | "FAILED";
@@ -3241,7 +3244,7 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       createdAt?: Date | string | null;
       mediaType?: string;
     };
-    const heavyRecoveryKinds = ["DOUYIN_LIP_SYNC_VIDEO", "DOUYIN_DIGITAL_HUMAN_VIDEO", "DOUYIN_RUNNINGHUB_APP"];
+    const heavyRecoveryKinds = ["DOUYIN_LIP_SYNC_VIDEO", "DOUYIN_DIGITAL_HUMAN_VIDEO", "DOUYIN_RUNNINGHUB_APP", "DOUYIN_DIGITAL_HUMAN_CUSTOM"];
     const rows: HeavyRecoveryRow[] = await (async (): Promise<HeavyRecoveryRow[]> => {
       if (await this.prismaService.canUseDatabase()) {
         try {
@@ -3361,6 +3364,32 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
           });
         }
       }
+      if (this.isDigitalHumanCustomPersonWorkMeta(row.metadataJson)) {
+        const meta = this.readDigitalHumanCustomPersonWorkMeta(row.metadataJson);
+        if (this.heavySubmissionWorkerEnabled && !meta.personId && meta.status === "PENDING") {
+          candidates.push({
+            scope: "heavy-submit:custom-person",
+            brandId,
+            workId: row.id,
+            refresh: () => this.startDigitalHumanCustomPersonSubmissionFromPersistedMeta(
+              brandId,
+              row.id,
+              String(row.taskId || meta.taskId || "").trim(),
+              String(row.storageKey || "").trim() || `${row.id}.html`,
+              meta,
+            ),
+          });
+          continue;
+        }
+        if (meta.personId && meta.status !== "SUCCESS" && meta.status !== "FAILED") {
+          candidates.push({
+            scope: "heavy-recovery:custom-person",
+            brandId,
+            workId: row.id,
+            refresh: () => this.refreshDigitalHumanCustomPersonSnapshot(brandId, row.id),
+          });
+        }
+      }
     }
     return candidates;
   }
@@ -3456,6 +3485,48 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
         : undefined,
     };
     await this.runGenerateDouyinLipSyncTask(brandId, workId, taskId, storageKey, payload);
+  }
+
+  private async startDigitalHumanCustomPersonSubmissionFromPersistedMeta(
+    brandId: string,
+    workId: string,
+    taskId: string,
+    storageKey: string,
+    meta: DigitalHumanCustomPersonWorkAssetMeta,
+  ) {
+    if (!taskId) {
+      return;
+    }
+    await this.markTaskRunning(taskId);
+    await this.updateTaskRunningOutput(taskId, {
+      workId,
+      status: meta.status,
+      progress: meta.progress,
+      stage: "CUSTOM_PERSON_UPLOADING",
+    });
+    await this.processDouyinDigitalHumanCustomPersonCreation({
+      brandId,
+      payload: {
+        name: meta.name,
+        trainType: meta.trainType,
+        language: meta.language,
+        resolutionRate: meta.resolutionRate,
+        errorSkip: meta.errorSkip,
+        trainingVideo: await this.rebuildPersistedUploadFile(
+          brandId,
+          meta.trainingVideoStorageKey,
+          meta.trainingVideoFileName,
+          meta.trainingVideoContentType,
+          meta.trainingVideoBytes,
+          "数字人训练视频",
+        ),
+      },
+      normalizedName: meta.name,
+      taskId,
+      workMediaId: workId,
+      storageKey,
+      localMetaBase: meta,
+    });
   }
 
   private async listBrandHtmlMediaRowsByKinds(brandId: string, kinds: string[]) {
@@ -9338,6 +9409,11 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       modelName: "chanjing-custom-person",
     });
     const now = new Date().toISOString();
+    const persistedTrainingVideo = await this.persistUploadFile(
+      brandId,
+      `${task.id}-douyin-digital-human-training${this.resolveVideoExtensionFromMimeType(payload.trainingVideo.contentType, payload.trainingVideo.fileName)}`,
+      payload.trainingVideo,
+    );
     const localMetaBase = this.buildDigitalHumanCustomPersonMeta({
       taskId: task.id,
       name: normalizedName,
@@ -9348,6 +9424,10 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       status: "PENDING",
       progress: 0,
       trainingVideoFileName: payload.trainingVideo.fileName,
+      trainingVideoStorageKey: persistedTrainingVideo.storageKey,
+      trainingVideoUrl: persistedTrainingVideo.url,
+      trainingVideoContentType: payload.trainingVideo.contentType,
+      trainingVideoBytes: payload.trainingVideo.sizeBytes,
       createdAt: now,
       updatedAt: now,
     });
@@ -9365,22 +9445,24 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       ...localMetaBase,
       updatedAt: new Date().toISOString(),
     });
-    await this.markTaskRunning(task.id);
-    await this.updateTaskRunningOutput(task.id, {
-      workId: workMedia.id,
-      status: localMetaBase.status,
-      progress: localMetaBase.progress,
-      stage: "CUSTOM_PERSON_UPLOADING",
-    });
-    this.scheduleHeavyBackgroundTask(() => this.processDouyinDigitalHumanCustomPersonCreation({
-      brandId,
-      payload,
-      normalizedName,
-      taskId: task.id,
-      workMediaId: workMedia.id,
-      storageKey: workMedia.storageKey || `${workMedia.id}.html`,
-      localMetaBase,
-    }));
+    if (!this.heavySubmissionWorkerEnabled) {
+      await this.markTaskRunning(task.id);
+      await this.updateTaskRunningOutput(task.id, {
+        workId: workMedia.id,
+        status: localMetaBase.status,
+        progress: localMetaBase.progress,
+        stage: "CUSTOM_PERSON_UPLOADING",
+      });
+      this.scheduleHeavyBackgroundTask(() => this.processDouyinDigitalHumanCustomPersonCreation({
+        brandId,
+        payload,
+        normalizedName,
+        taskId: task.id,
+        workMediaId: workMedia.id,
+        storageKey: workMedia.storageKey || `${workMedia.id}.html`,
+        localMetaBase,
+      }));
+    }
     return {
       item: this.mapLocalCustomPersonMeta(localMetaBase, workMedia.id),
     };
@@ -21988,6 +22070,23 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       .filter((item) => this.isDigitalHumanCustomPersonWorkMeta((item as { metadataJson?: unknown }).metadataJson));
   }
 
+  private async getDigitalHumanCustomPersonWorkRowById(brandId: string, workId: string) {
+    if (await this.prismaService.canUseDatabase()) {
+      const row = await this.prismaService.mediaAsset.findUnique({
+        where: { id: workId },
+      });
+      if (!row || row.brandId !== brandId || !this.isDigitalHumanCustomPersonWorkMeta(row.metadataJson)) {
+        throw new NotFoundException("定制数字人记录不存在");
+      }
+      return row;
+    }
+    const row = database.media.find((item) => item.id === workId && item.brandId === brandId);
+    if (!row || !this.isDigitalHumanCustomPersonWorkMeta((row as { metadataJson?: unknown }).metadataJson)) {
+      throw new NotFoundException("定制数字人记录不存在");
+    }
+    return row;
+  }
+
   private buildDigitalHumanCustomPersonMeta(params: {
     taskId: string;
     name: string;
@@ -21999,6 +22098,9 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
     status: "PENDING" | "RUNNING" | "SUCCESS" | "FAILED";
     progress: number;
     trainingVideoFileName?: string;
+    trainingVideoStorageKey?: string;
+    trainingVideoUrl?: string;
+    trainingVideoContentType?: string;
     trainingVideoFileId?: string;
     trainingVideoBytes?: number;
     previewVideoUrl?: string;
@@ -22035,6 +22137,9 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       resolutionRate: params.resolutionRate,
       errorSkip: params.errorSkip,
       trainingVideoFileName: params.trainingVideoFileName,
+      trainingVideoStorageKey: params.trainingVideoStorageKey,
+      trainingVideoUrl: params.trainingVideoUrl,
+      trainingVideoContentType: params.trainingVideoContentType,
       trainingVideoFileId: params.trainingVideoFileId,
       trainingVideoBytes: params.trainingVideoBytes,
       status: params.status,
@@ -23267,6 +23372,63 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
     );
   }
 
+  private async refreshDigitalHumanCustomPersonSnapshot(brandId: string, workId: string) {
+    const row = await this.getDigitalHumanCustomPersonWorkRowById(brandId, workId);
+    const meta = this.readDigitalHumanCustomPersonWorkMeta(this.getMediaMetadata(row));
+    const personId = String(meta.personId || "").trim();
+    if (!personId) {
+      return meta;
+    }
+    const credential = await this.resolveChanjingCredential(brandId);
+    const detail = await this.chanjingOpenApiService.getCustomisedPersonDetail(credential, personId);
+    const record = this.mapChanjingCustomPersonRecord(detail, meta);
+    const nextMeta = await this.saveDigitalHumanCustomPersonMetadataSnapshot(
+      brandId,
+      workId,
+      row.storageKey || `${workId}.html`,
+      {
+        ...meta,
+        ...this.mergeCustomPersonMetaWithRecord(meta, record),
+        personId: record.personId || meta.personId,
+        providerStatusText: record.status,
+        providerUpdatedAt: record.updatedAt,
+        updatedAt: new Date().toISOString(),
+      },
+    );
+    const taskId = String(row.taskId || meta.taskId || "").trim();
+    if (taskId) {
+      if (record.status === "SUCCESS") {
+        await this.markTaskSuccess(taskId, {
+          workId,
+          personId,
+          status: record.status,
+          progress: record.progress,
+          stage: "CUSTOM_PERSON_READY",
+        });
+      } else if (record.status === "FAILED") {
+        await this.markTaskFailed(taskId, record.errorReason || "数字人训练失败", {
+          outputJson: {
+            workId,
+            personId,
+            status: record.status,
+            progress: record.progress,
+            stage: "CUSTOM_PERSON_FAILED",
+          },
+        });
+      } else {
+        await this.markTaskRunning(taskId);
+        await this.updateTaskRunningOutput(taskId, {
+          workId,
+          personId,
+          status: record.status,
+          progress: record.progress,
+          stage: "CUSTOM_PERSON_TRAINING",
+        });
+      }
+    }
+    return nextMeta;
+  }
+
   private shouldSyncDigitalHumanCustomPersonLocalMeta(
     meta: DigitalHumanCustomPersonWorkAssetMeta,
     record: DouyinDigitalHumanCustomPersonRecord,
@@ -23338,6 +23500,9 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       resolutionRate: this.readOptionalString(meta.resolutionRate) as "1080p" | "4K" | undefined,
       errorSkip: typeof meta.errorSkip === "boolean" ? meta.errorSkip : undefined,
       trainingVideoFileName: this.readOptionalString(meta.trainingVideoFileName),
+      trainingVideoStorageKey: this.readOptionalString(meta.trainingVideoStorageKey),
+      trainingVideoUrl: this.readOptionalString(meta.trainingVideoUrl),
+      trainingVideoContentType: this.readOptionalString(meta.trainingVideoContentType),
       trainingVideoFileId: this.readOptionalString(meta.trainingVideoFileId),
       trainingVideoBytes: typeof meta.trainingVideoBytes === "number" ? meta.trainingVideoBytes : undefined,
       status: this.normalizeCustomPersonRecordStatus(this.readOptionalString(meta.status)),
