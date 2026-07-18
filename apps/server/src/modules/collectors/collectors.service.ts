@@ -8144,13 +8144,45 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
 
   private async getDailyHotspotBrandIds() {
     if (await this.prismaService.canUseDatabase()) {
-      const brands = await this.prismaService.brand.findMany({
-        select: { id: true },
+      const assets = await this.prismaService.businessAsset.findMany({
+        where: {
+          category: AssetCategory.PLATFORM_EXPORT,
+        },
+        select: {
+          brandId: true,
+          metadataJson: true,
+        },
       });
-      return brands.map((item) => item.id);
+      const brandIds = new Set<string>();
+      for (const asset of assets) {
+        const meta = this.asMeta(asset.metadataJson);
+        if (this.readMetaString(meta, "kind") !== "DAILY_HOTSPOT_PLATFORM") {
+          continue;
+        }
+        if (!DAILY_HOTSPOT_CONFIGS.some((config) => config.platformKey === this.readMetaString(meta, "platformKey"))) {
+          continue;
+        }
+        if (asset.brandId) {
+          brandIds.add(asset.brandId);
+        }
+      }
+      return Array.from(brandIds);
     }
 
-    return database.brands.map((item) => item.id);
+    return Array.from(
+      new Set(
+        database.assets
+          .filter((asset) => asset.category === "PLATFORM_EXPORT")
+          .filter((asset) => {
+            const meta = this.asMeta(asset.metadataJson);
+            return (
+              this.readMetaString(meta, "kind") === "DAILY_HOTSPOT_PLATFORM"
+              && DAILY_HOTSPOT_CONFIGS.some((config) => config.platformKey === this.readMetaString(meta, "platformKey"))
+            );
+          })
+          .map((asset) => asset.brandId),
+      ),
+    );
   }
 
   private async getDailyHotspotSnapshotStatuses(brandId: string) {

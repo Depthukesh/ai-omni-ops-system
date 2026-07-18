@@ -593,6 +593,28 @@
    - 验证结果：`apps/server` 已通过 `npm run build`
    - 作用：减少第三方视频查询接口抖动期间的重复失败请求，进一步给 worker 恢复轮询降噪
 
+22. 蝉镜口型驱动与数字人视频查询已补共享去重层
+   - 涉及：`queryDouyinLipSyncSnapshot`、`queryDigitalHumanVideoSnapshot`
+   - 当前策略：
+     - 同一 `brandId + providerTaskId` 的蝉镜查询会先经过 in-flight 复用，避免提交后轮询与恢复轮询同时命中时重复请求第三方
+     - 最近一次成功结果会进入短 TTL 缓存，查询失败则进入短期错误回退缓存；默认参数：
+       - `WORKS_CHANJING_QUERY_DEDUP_TTL_MS=2000`
+       - `WORKS_CHANJING_QUERY_ERROR_BACKOFF_MS=5000`
+       - `WORKS_CHANJING_QUERY_DEDUP_MAX_ENTRIES=300`
+     - 口型驱动和数字人视频都共用这套去重层，因此 worker 恢复与提交后等待阶段会共享同一查询结果
+   - 验证结果：`apps/server` 已通过 `npm run build`
+   - 作用：继续压低蝉镜第三方状态查询的重复频率，减少服务重启或恢复扫描时的额外外部请求
+
+23. TikHub 每日热搜已按真实使用品牌收口
+   - 涉及：`/api/v1/douyin/app/v3/fetch_hot_search_list`
+   - 根因回溯：
+     - 每日热搜定时任务此前按 `brand` 全量扫描，只要生产环境配置了 `TIKHUB_API_KEY`，就会在 4:00 对所有品牌执行 `syncDailyHotspots()`；这会把 `fetch_hot_search_list` 调用量放大到“品牌数”级别，即使其中大量品牌根本没在用热搜看板
+     - 之前的稳定性修复主要解决了“生产启动补跑”和“前端轮询放大器”，但每日热搜这条链内部仍然保留着“全品牌定时同步”的放大逻辑，因此会表现为“之前压下去，后来又冒出来”
+   - 当前策略：
+     - 每日热搜定时任务只对“已经产生过 `DAILY_HOTSPOT_PLATFORM` 快照”的品牌运行，不再对全品牌无差别扫一遍
+   - 验证结果：`apps/server` 已通过 `npm run build`
+   - 作用：直接压低 TikHub 热搜榜的日常账单波动，避免系统把没有在用热搜能力的品牌也一起重复拉取
+
 ## 验证清单
 
 每完成一个阶段，都至少验证以下项目：
