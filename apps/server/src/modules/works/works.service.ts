@@ -3648,6 +3648,9 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
     storageKey: string,
     meta: RunningHubWorkAssetMeta,
   ) {
+    this.logger.log(
+      `[RunningHubSubmissionBootstrap] enter brandId=${brandId} workId=${workId} taskId=${taskId || "missing"} appKey=${meta.appKey} status=${meta.status} providerTaskId=${meta.providerTaskId || "none"} nodeCount=${meta.nodeInfoList.length}`,
+    );
     if (!taskId) {
       this.logger.error(
         `[RunningHubSubmissionBootstrap] Missing taskId before worker submission; brandId=${brandId} workId=${workId} appKey=${meta.appKey}`,
@@ -3668,6 +3671,9 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       }, {
         modelName: `RunningHub + ${app.name}`,
       });
+      this.logger.log(
+        `[RunningHubSubmissionBootstrap] dispatch process brandId=${brandId} workId=${workId} taskId=${taskId} appKey=${app.key} instanceType=${this.normalizeRunningHubInstanceType(meta.instanceType)} nodeCount=${meta.nodeInfoList.length}`,
+      );
       await this.processDouyinRunningHubWorkCreation({
         brandId,
         apiKey,
@@ -22980,6 +22986,9 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
     message: string;
   }) {
     const { brandId, workId, taskId, storageKey, appKey, appName, meta, message } = params;
+    this.logger.error(
+      `[RunningHubSubmissionBootstrapFailure] brandId=${brandId} workId=${workId} taskId=${taskId} appKey=${appKey} ${message}`,
+    );
     try {
       await this.saveRunningHubWorkMetadataSnapshot(brandId, workId, storageKey, {
         ...meta,
@@ -23229,7 +23238,13 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
   }) {
     const { brandId, apiKey, app, taskId, workMediaId, storageKey } = params;
     try {
+      this.logger.log(
+        `[RunningHubSubmissionProcess] start brandId=${brandId} workId=${workMediaId} taskId=${taskId} appKey=${app.key} webappId=${app.webappId} nodeCount=${params.nodeInfoList.length}`,
+      );
       const preparedNodeInfoList = await this.prepareRunningHubTaskNodeInfoList(brandId, apiKey, params.nodeInfoList);
+      this.logger.log(
+        `[RunningHubSubmissionProcess] prepared brandId=${brandId} workId=${workMediaId} taskId=${taskId} appKey=${app.key} preparedNodeCount=${preparedNodeInfoList.length}`,
+      );
       let meta = await this.saveRunningHubWorkMetadataSnapshot(brandId, workMediaId, storageKey, {
         ...params.localMetaBase,
         status: "RUNNING",
@@ -23267,6 +23282,10 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "RunningHub 任务提交失败";
+      this.logger.error(
+        `[RunningHubSubmissionProcess] failed brandId=${brandId} workId=${workMediaId} taskId=${taskId} appKey=${app.key} ${message}`,
+        error instanceof Error ? error.stack : undefined,
+      );
       await this.saveRunningHubWorkMetadataSnapshot(brandId, workMediaId, storageKey, {
         ...params.localMetaBase,
         status: "FAILED",
