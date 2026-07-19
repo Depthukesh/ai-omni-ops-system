@@ -23714,17 +23714,24 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       }),
     });
     if (!response.ok) {
-      throw new ServiceUnavailableException(`RunningHub 提交任务失败：${response.status}`);
+      const payload = await response.json().catch(() => ({}));
+      const envelope = this.unwrapRunningHubEnvelope(payload);
+      const detailedMessage = this.buildRunningHubSubmitFailureMessage(payload, envelope.message || `RunningHub 提交任务失败：${response.status}`);
+      this.logger.error(
+        `[RunningHubSubmitResponse] webappId=${webappId} httpStatus=${response.status} ${detailedMessage}; payload=${this.summarizeRunningHubPayload(payload)}`,
+      );
+      throw new ServiceUnavailableException(detailedMessage);
     }
     const payload = await response.json().catch(() => ({}));
     const envelope = this.unwrapRunningHubEnvelope(payload);
     const data = this.asRecord(envelope.data);
     const taskId = this.extractRunningHubTaskId(payload);
     if (!taskId) {
+      const detailedMessage = this.buildRunningHubSubmitFailureMessage(payload, envelope.message || "RunningHub 未返回任务 ID");
       this.logger.error(
-        `[RunningHubSubmitResponse] webappId=${webappId} missing task id; payload=${this.summarizeRunningHubPayload(payload)}`,
+        `[RunningHubSubmitResponse] webappId=${webappId} missing task id; ${detailedMessage}; payload=${this.summarizeRunningHubPayload(payload)}`,
       );
-      throw new ServiceUnavailableException(envelope.message || "RunningHub 未返回任务 ID");
+      throw new ServiceUnavailableException(detailedMessage);
     }
     this.logger.log(
       `[RunningHubSubmitResponse] webappId=${webappId} taskId=${taskId} payload=${this.summarizeRunningHubPayload(payload)}`,
@@ -24030,6 +24037,11 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
     const dataKeys = Object.keys(data).slice(0, 20);
     const samples = {
       code: root.code,
+      rootStatus: root.status,
+      rootErrorCode: root.errorCode,
+      rootErrorMessage: root.errorMessage,
+      rootFailedReason: root.failedReason,
+      rootParentTaskId: root.parentTaskId,
       message: root.msg ?? root.message,
       dataTaskId: data.taskId,
       dataTask_id: data.task_id,
@@ -24055,6 +24067,41 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       dataKeys,
       samples,
     });
+  }
+
+  private buildRunningHubSubmitFailureMessage(payload: unknown, fallbackMessage?: string) {
+    const root = this.asRecord(payload) || {};
+    const data = this.asRecord(root.data) || {};
+    const failedReasonRecord = this.asRecord(root.failedReason) || this.asRecord(data.failedReason);
+    const failedReasonText = typeof root.failedReason === "string"
+      ? root.failedReason
+      : typeof data.failedReason === "string"
+        ? data.failedReason
+        : [
+            String(failedReasonRecord?.node_name || "").trim()
+              ? `节点 ${String(failedReasonRecord?.node_name || "").trim()}`
+              : "",
+            String(failedReasonRecord?.exception_message || "").trim(),
+          ]
+            .filter(Boolean)
+            .join("：");
+    const taskUsageList = Array.isArray(root.taskUsageList)
+      ? root.taskUsageList
+      : Array.isArray(data.taskUsageList)
+        ? data.taskUsageList
+        : [];
+    const parts = [
+      String(root.status ?? data.status ?? "").trim() ? `status=${String(root.status ?? data.status ?? "").trim()}` : "",
+      String(root.errorCode ?? data.errorCode ?? "").trim() ? `errorCode=${String(root.errorCode ?? data.errorCode ?? "").trim()}` : "",
+      String(root.errorMessage ?? data.errorMessage ?? "").trim(),
+      String(fallbackMessage || "").trim(),
+      String(failedReasonText || "").trim() ? `failedReason=${String(failedReasonText || "").trim()}` : "",
+      String(root.parentTaskId ?? data.parentTaskId ?? "").trim() ? `parentTaskId=${String(root.parentTaskId ?? data.parentTaskId ?? "").trim()}` : "",
+      taskUsageList.length ? `taskUsageCount=${taskUsageList.length}` : "",
+    ]
+      .map((item) => String(item || "").trim())
+      .filter(Boolean);
+    return parts.join(" | ") || "RunningHub 未返回任务 ID";
   }
 
   private resolveRunningHubResultContentType(outputType: string) {
