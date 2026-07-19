@@ -8,6 +8,7 @@ import {
   BadRequestException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
   OnModuleDestroy,
   OnModuleInit,
@@ -3055,6 +3056,7 @@ type VideoProviderFailureDisposition = "hard" | "retryable";
 
 @Injectable()
 export class WorksService implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(WorksService.name);
   private wechatPersistenceBootstrapPromise?: Promise<void>;
   private douyinAdPreAuditBootstrapPromise?: Promise<void>;
   private operationsPromptBootstrapPromise?: Promise<void>;
@@ -3076,6 +3078,12 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
   private readonly inFlightVideoQuerySnapshots = new Map<string, Promise<VideoGenerationQuerySnapshot>>();
   private readonly videoQuerySnapshotCache = new Map<string, { expiresAt: number; value: VideoGenerationQuerySnapshot }>();
   private readonly videoQueryErrorCache = new Map<string, { expiresAt: number; message: string }>();
+  private readonly chanjingQueryDedupTtlMs = readPositiveIntegerEnv("WORKS_CHANJING_QUERY_DEDUP_TTL_MS", 2_000);
+  private readonly chanjingQueryErrorBackoffMs = readPositiveIntegerEnv("WORKS_CHANJING_QUERY_ERROR_BACKOFF_MS", 5_000);
+  private readonly chanjingQueryDedupMaxEntries = readPositiveIntegerEnv("WORKS_CHANJING_QUERY_DEDUP_MAX_ENTRIES", 300);
+  private readonly inFlightChanjingQuerySnapshots = new Map<string, Promise<unknown>>();
+  private readonly chanjingQuerySnapshotCache = new Map<string, { expiresAt: number; value: unknown }>();
+  private readonly chanjingQueryErrorCache = new Map<string, { expiresAt: number; message: string }>();
   private heavyRecoveryPollingTimer?: NodeJS.Timeout;
   private heavyRecoveryPollingInProgress = false;
   private readonly listSnapshotBackgroundRefreshLimit = readPositiveIntegerEnv(
@@ -3120,9 +3128,13 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
     if (!this.heavyRecoveryPollingEnabled) {
       return;
     }
-    void this.runHeavyRecoveryPollingCycle().catch(() => undefined);
+    void this.runHeavyRecoveryPollingCycle().catch((error) => {
+      this.logHeavyBackgroundTaskError("heavy-recovery:bootstrap", error);
+    });
     this.heavyRecoveryPollingTimer = setInterval(() => {
-      void this.runHeavyRecoveryPollingCycle().catch(() => undefined);
+      void this.runHeavyRecoveryPollingCycle().catch((error) => {
+        this.logHeavyBackgroundTaskError("heavy-recovery:interval", error);
+      });
     }, this.heavyRecoveryPollingIntervalMs);
   }
 
@@ -3194,8 +3206,15 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       });
   }
 
-  private scheduleHeavyBackgroundTask(task: () => Promise<void>) {
-    this.heavyBackgroundTaskQueue.push(task);
+  private scheduleHeavyBackgroundTask(task: () => Promise<void>, contextLabel = "generic") {
+    this.heavyBackgroundTaskQueue.push(async () => {
+      try {
+        await task();
+      } catch (error) {
+        this.logHeavyBackgroundTaskError(contextLabel, error);
+        throw error;
+      }
+    });
     this.drainHeavyBackgroundTaskQueue();
   }
 
@@ -3239,7 +3258,7 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
           } finally {
             this.inFlightHeavyRecoveryRefreshes.delete(refreshKey);
           }
-        });
+        }, `${candidate.scope}:${candidate.brandId}:${candidate.workId}`);
       }
     } finally {
       this.heavyRecoveryPollingInProgress = false;
@@ -3555,32 +3574,53 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
     meta: RunningHubWorkAssetMeta,
   ) {
     if (!taskId) {
+      this.logger.error(
+        `[RunningHubSubmissionBootstrap] Missing taskId before worker submission; brandId=${brandId} workId=${workId} appKey=${meta.appKey}`,
+      );
       return;
     }
-    const apiKey = await this.resolveRunningHubApiKey(brandId);
     const app = this.getDouyinRunningHubAppConfig(meta.appKey);
-    await this.markTaskRunning(taskId);
-    await this.updateTaskRunningOutput(taskId, {
-      workId,
-      provider: "RunningHub",
-      appKey: app.key,
-      appName: app.name,
-      status: "PENDING",
-      progress: meta.progress || 5,
-    }, {
-      modelName: `RunningHub + ${app.name}`,
-    });
-    await this.processDouyinRunningHubWorkCreation({
-      brandId,
-      apiKey,
-      app,
-      instanceType: this.normalizeRunningHubInstanceType(meta.instanceType),
-      taskId,
-      workMediaId: workId,
-      storageKey,
-      nodeInfoList: meta.nodeInfoList,
-      localMetaBase: meta,
-    });
+    try {
+      const apiKey = await this.resolveRunningHubApiKey(brandId);
+      await this.markTaskRunning(taskId);
+      await this.updateTaskRunningOutput(taskId, {
+        workId,
+        provider: "RunningHub",
+        appKey: app.key,
+        appName: app.name,
+        status: "PENDING",
+        progress: meta.progress || 5,
+      }, {
+        modelName: `RunningHub + ${app.name}`,
+      });
+      await this.processDouyinRunningHubWorkCreation({
+        brandId,
+        apiKey,
+        app,
+        instanceType: this.normalizeRunningHubInstanceType(meta.instanceType),
+        taskId,
+        workMediaId: workId,
+        storageKey,
+        nodeInfoList: meta.nodeInfoList,
+        localMetaBase: meta,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "RunningHub 任务提交前置阶段失败";
+      this.logger.error(
+        `[RunningHubSubmissionBootstrap] brandId=${brandId} workId=${workId} taskId=${taskId} appKey=${app.key} ${message}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      await this.failRunningHubSubmissionBootstrap({
+        brandId,
+        workId,
+        taskId,
+        storageKey,
+        appKey: app.key,
+        appName: app.name,
+        meta,
+        message,
+      });
+    }
   }
 
   private async startDouyinLipSyncSubmissionFromPersistedMeta(
@@ -21885,19 +21925,21 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
     if (!normalizedTaskId) {
       throw new BadRequestException("缺少蝉镜口型驱动任务 ID。");
     }
-    const credential = await this.resolveChanjingCredential(brandId);
-    const detail = await this.chanjingOpenApiService.getLipSyncVideoDetail(credential, normalizedTaskId);
-    const status = this.resolveDouyinLipSyncStatus(detail);
-    return {
-      id: detail.id || normalizedTaskId,
-      status,
-      progress: Math.max(0, Math.min(100, Number(detail.progress || 0))),
-      detail: detail.msg,
-      videoUrl: detail.videoUrl,
-      previewUrl: detail.previewUrl,
-      durationSec: this.normalizeLipSyncDurationSec(detail.duration),
-      providerStatusCode: detail.status,
-    };
+    return this.runCachedChanjingSnapshotQuery(`lip-sync:${brandId}:${normalizedTaskId}`, async () => {
+      const credential = await this.resolveChanjingCredential(brandId);
+      const detail = await this.chanjingOpenApiService.getLipSyncVideoDetail(credential, normalizedTaskId);
+      const status = this.resolveDouyinLipSyncStatus(detail);
+      return {
+        id: detail.id || normalizedTaskId,
+        status,
+        progress: Math.max(0, Math.min(100, Number(detail.progress || 0))),
+        detail: detail.msg,
+        videoUrl: detail.videoUrl,
+        previewUrl: detail.previewUrl,
+        durationSec: this.normalizeLipSyncDurationSec(detail.duration),
+        providerStatusCode: detail.status,
+      };
+    });
   }
 
   private async persistDouyinLipSyncSnapshot(
@@ -22850,6 +22892,56 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
     await this.writeGeneratedTextFile(brandId, this.extractFileName(storageKey), nextMeta.htmlContent);
     await this.updateWorkHtmlMetadata(workId, brandId, nextMeta, `RunningHub应用 - ${nextMeta.title}`);
     return nextMeta;
+  }
+
+  private async failRunningHubSubmissionBootstrap(params: {
+    brandId: string;
+    workId: string;
+    taskId: string;
+    storageKey: string;
+    appKey: string;
+    appName: string;
+    meta: RunningHubWorkAssetMeta;
+    message: string;
+  }) {
+    const { brandId, workId, taskId, storageKey, appKey, appName, meta, message } = params;
+    try {
+      await this.saveRunningHubWorkMetadataSnapshot(brandId, workId, storageKey, {
+        ...meta,
+        status: "FAILED",
+        progress: 100,
+        errorReason: message,
+      });
+    } catch (snapshotError) {
+      this.logger.error(
+        `[RunningHubSubmissionBootstrapFailurePersist] brandId=${brandId} workId=${workId} taskId=${taskId} ${message}`,
+        snapshotError instanceof Error ? snapshotError.stack : undefined,
+      );
+    }
+    try {
+      await this.markTaskFailed(taskId, message, {
+        modelName: `RunningHub + ${appName}`,
+        outputJson: {
+          workId,
+          provider: "RunningHub",
+          appKey,
+          appName,
+          status: "FAILED",
+          progress: 100,
+          errorReason: message,
+        },
+      });
+    } catch (taskError) {
+      this.logger.error(
+        `[RunningHubSubmissionBootstrapTaskFailurePersist] brandId=${brandId} workId=${workId} taskId=${taskId} ${message}`,
+        taskError instanceof Error ? taskError.stack : undefined,
+      );
+    }
+  }
+
+  private logHeavyBackgroundTaskError(contextLabel: string, error: unknown) {
+    const message = error instanceof Error ? error.message : String(error || "未知错误");
+    this.logger.error(`[HeavyBackgroundTask] ${contextLabel} failed: ${message}`, error instanceof Error ? error.stack : undefined);
   }
 
   private isRunningHubWorkMeta(metadataJson: unknown) {
@@ -24836,22 +24928,24 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
     if (!normalizedTaskId) {
       throw new BadRequestException("缺少蝉镜视频任务 ID。");
     }
-    const credential = await this.resolveChanjingCredential(brandId);
-    const detail = await this.chanjingOpenApiService.getVideoDetail(credential, normalizedTaskId);
-    const stage = this.resolveDigitalHumanSnapshotStage(detail);
-    const rawStatus = [detail.status, detail.queueStatus].filter((item) => item !== undefined && item !== null && item !== "").join("/");
-    return {
-      id: detail.id || normalizedTaskId,
-      stage,
-      status: stage,
-      statusLabel: this.getDigitalHumanStageLabel(stage),
-      rawStatus: rawStatus || undefined,
-      detail: detail.msg || detail.queueDesc || undefined,
-      videoUrl: detail.videoUrl,
-      previewUrl: detail.previewUrl,
-      durationSec: detail.duration,
-      audioUrls: detail.audioUrls || [],
-    };
+    return this.runCachedChanjingSnapshotQuery(`digital-human:${brandId}:${normalizedTaskId}`, async () => {
+      const credential = await this.resolveChanjingCredential(brandId);
+      const detail = await this.chanjingOpenApiService.getVideoDetail(credential, normalizedTaskId);
+      const stage = this.resolveDigitalHumanSnapshotStage(detail);
+      const rawStatus = [detail.status, detail.queueStatus].filter((item) => item !== undefined && item !== null && item !== "").join("/");
+      return {
+        id: detail.id || normalizedTaskId,
+        stage,
+        status: stage,
+        statusLabel: this.getDigitalHumanStageLabel(stage),
+        rawStatus: rawStatus || undefined,
+        detail: detail.msg || detail.queueDesc || undefined,
+        videoUrl: detail.videoUrl,
+        previewUrl: detail.previewUrl,
+        durationSec: detail.duration,
+        audioUrls: detail.audioUrls || [],
+      };
+    });
   }
 
   private resolveDigitalHumanSnapshotStage(detail: ChanjingVideoDetail): DigitalHumanVideoStage {
@@ -28668,6 +28762,109 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
         break;
       }
       this.videoQueryErrorCache.delete(oldestKey);
+    }
+  }
+
+  private async runCachedChanjingSnapshotQuery<T>(cacheKey: string, query: () => Promise<T>) {
+    const cached = this.readCachedChanjingSnapshot<T>(cacheKey);
+    if (typeof cached !== "undefined") {
+      return cached;
+    }
+    this.throwCachedChanjingQueryError(cacheKey);
+    const inFlight = this.inFlightChanjingQuerySnapshots.get(cacheKey);
+    if (inFlight) {
+      return inFlight as Promise<T>;
+    }
+    const runner = (async () => {
+      try {
+        const snapshot = await query();
+        this.writeCachedChanjingSnapshot(cacheKey, snapshot);
+        return snapshot;
+      } catch (error) {
+        this.writeCachedChanjingQueryError(cacheKey, error);
+        throw error;
+      } finally {
+        this.inFlightChanjingQuerySnapshots.delete(cacheKey);
+      }
+    })();
+    this.inFlightChanjingQuerySnapshots.set(cacheKey, runner);
+    return runner;
+  }
+
+  private readCachedChanjingSnapshot<T>(cacheKey: string) {
+    const cached = this.chanjingQuerySnapshotCache.get(cacheKey);
+    if (!cached) {
+      return undefined;
+    }
+    if (cached.expiresAt <= Date.now()) {
+      this.chanjingQuerySnapshotCache.delete(cacheKey);
+      return undefined;
+    }
+    return cached.value as T;
+  }
+
+  private throwCachedChanjingQueryError(cacheKey: string) {
+    const cached = this.chanjingQueryErrorCache.get(cacheKey);
+    if (!cached) {
+      return;
+    }
+    if (cached.expiresAt <= Date.now()) {
+      this.chanjingQueryErrorCache.delete(cacheKey);
+      return;
+    }
+    throw new ServiceUnavailableException(cached.message);
+  }
+
+  private writeCachedChanjingSnapshot(cacheKey: string, snapshot: unknown) {
+    if (this.chanjingQueryDedupTtlMs <= 0) {
+      return;
+    }
+    this.pruneChanjingQueryCache();
+    this.chanjingQueryErrorCache.delete(cacheKey);
+    this.chanjingQuerySnapshotCache.set(cacheKey, {
+      expiresAt: Date.now() + this.chanjingQueryDedupTtlMs,
+      value: snapshot,
+    });
+  }
+
+  private writeCachedChanjingQueryError(cacheKey: string, error: unknown) {
+    if (this.chanjingQueryErrorBackoffMs <= 0) {
+      return;
+    }
+    const message = error instanceof Error ? error.message : "蝉镜任务查询失败";
+    this.pruneChanjingQueryCache();
+    this.chanjingQuerySnapshotCache.delete(cacheKey);
+    this.chanjingQueryErrorCache.set(cacheKey, {
+      expiresAt: Date.now() + this.chanjingQueryErrorBackoffMs,
+      message,
+    });
+  }
+
+  private pruneChanjingQueryCache() {
+    const now = Date.now();
+    for (const [key, value] of this.chanjingQuerySnapshotCache.entries()) {
+      if (value.expiresAt <= now) {
+        this.chanjingQuerySnapshotCache.delete(key);
+      }
+    }
+    for (const [key, value] of this.chanjingQueryErrorCache.entries()) {
+      if (value.expiresAt <= now) {
+        this.chanjingQueryErrorCache.delete(key);
+      }
+    }
+    while (this.chanjingQuerySnapshotCache.size >= this.chanjingQueryDedupMaxEntries) {
+      const oldestKey = this.chanjingQuerySnapshotCache.keys().next().value;
+      if (!oldestKey) {
+        break;
+      }
+      this.chanjingQuerySnapshotCache.delete(oldestKey);
+    }
+    while (this.chanjingQueryErrorCache.size >= this.chanjingQueryDedupMaxEntries) {
+      const oldestKey = this.chanjingQueryErrorCache.keys().next().value;
+      if (!oldestKey) {
+        break;
+      }
+      this.chanjingQueryErrorCache.delete(oldestKey);
     }
   }
 
