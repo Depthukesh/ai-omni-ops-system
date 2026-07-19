@@ -664,15 +664,31 @@ function extractInlineLocalFilePath(value) {
   if (!normalized) {
     return "";
   }
-  const match = normalized.match(/^localFilePath\s*=\s*(.+)$/i);
-  if (!match) {
-    return "";
-  }
-  return String(match[1] || "")
+  const explicitMatch = normalized.match(/^localFilePath\s*=\s*(.+)$/i);
+  const rawCandidate = explicitMatch ? String(explicitMatch[1] || "") : normalized;
+  const candidate = rawCandidate
     .trim()
     .replace(/^[`'"]+/, "")
     .replace(/[`'"]+$/, "")
     .trim();
+  if (!candidate) {
+    return "";
+  }
+  if (/^(https?:)?\/\//i.test(candidate) || /^data:/i.test(candidate)) {
+    return "";
+  }
+  if (/^file:\/\/\/?/i.test(candidate)) {
+    return candidate.replace(/^file:\/\/\/?/i, "").trim();
+  }
+  if (
+    /^[a-z]:[\\/]/i.test(candidate)
+    || /^\\\\[^\\]/.test(candidate)
+    || /^\//.test(candidate)
+    || /^~[\\/]/.test(candidate)
+  ) {
+    return candidate;
+  }
+  return explicitMatch ? candidate : "";
 }
 
 async function normalizeRunningHubGenerateArgs(args = {}) {
