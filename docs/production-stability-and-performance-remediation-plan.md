@@ -608,12 +608,13 @@
 23. TikHub 每日热搜已按真实使用品牌收口
    - 涉及：`/api/v1/douyin/app/v3/fetch_hot_search_list`
    - 根因回溯：
-     - 每日热搜定时任务此前按 `brand` 全量扫描，只要生产环境配置了 `TIKHUB_API_KEY`，就会在 4:00 对所有品牌执行 `syncDailyHotspots()`；这会把 `fetch_hot_search_list` 调用量放大到“品牌数”级别，即使其中大量品牌根本没在用热搜看板
-     - 之前的稳定性修复主要解决了“生产启动补跑”和“前端轮询放大器”，但每日热搜这条链内部仍然保留着“全品牌定时同步”的放大逻辑，因此会表现为“之前压下去，后来又冒出来”
+     - 每日热搜此前除了手动单品牌接口外，还保留了一个全局 4:00 定时任务；只要生产环境配置了 `TIKHUB_API_KEY`，服务就会按品牌批量执行 `syncDailyHotspots()`
+     - 这意味着品牌 `A` 的热搜并不是“只因 A 自己触发而跑一次”，而是可能在全局任务里和 `B/C/D` 一起被批量带出来
    - 当前策略：
-     - 每日热搜定时任务只对“已经产生过 `DAILY_HOTSPOT_PLATFORM` 快照”的品牌运行，不再对全品牌无差别扫一遍
+     - 默认关闭全局每日热搜定时任务：`COLLECTORS_GLOBAL_DAILY_HOTSPOT_SYNC_ENABLED=false`
+     - 当前默认只保留 `syncDailyHotspots(brandId, platformTitles)` 这条单品牌同步入口，由调用方按品牌自己触发自己的每日热搜
    - 验证结果：`apps/server` 已通过 `npm run build`
-   - 作用：直接压低 TikHub 热搜榜的日常账单波动，避免系统把没有在用热搜能力的品牌也一起重复拉取
+   - 作用：确保品牌 `A` 的每日热搜只和 `A` 自己有关，不会再因为系统里还有其他品牌而被批量顺带执行
 
 ## 验证清单
 

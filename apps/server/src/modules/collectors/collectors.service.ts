@@ -705,6 +705,10 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     "COLLECTORS_DAILY_HOTSPOT_BRAND_CONCURRENCY",
     CollectorsService.DEFAULT_DAILY_HOTSPOT_BRAND_CONCURRENCY,
   );
+  private readonly globalDailyHotspotSyncEnabled = this.readBooleanEnv(
+    "COLLECTORS_GLOBAL_DAILY_HOTSPOT_SYNC_ENABLED",
+    false,
+  );
 
   constructor(
     @Inject(PrismaService)
@@ -733,6 +737,20 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
   private readPositiveIntegerEnv(name: string, fallback: number) {
     const raw = Number.parseInt(String(process.env[name] || "").trim(), 10);
     return Number.isFinite(raw) && raw > 0 ? raw : fallback;
+  }
+
+  private readBooleanEnv(name: string, fallback: boolean) {
+    const normalized = String(process.env[name] || "").trim().toLowerCase();
+    if (!normalized) {
+      return fallback;
+    }
+    if (["1", "true", "yes", "on"].includes(normalized)) {
+      return true;
+    }
+    if (["0", "false", "no", "off"].includes(normalized)) {
+      return false;
+    }
+    return fallback;
   }
 
   private limitCollectorBatch<T>(items: T[], maxCount: number, label: string) {
@@ -791,14 +809,18 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     const enableResumeDouyinVideoCaches = this.isProductionStartupThrottleEnabled("COLLECTORS_STARTUP_RESUME_DOUYIN_VIDEO_CACHE");
     const enableResumeDouyinTranscripts = this.isProductionStartupThrottleEnabled("COLLECTORS_STARTUP_RESUME_DOUYIN_TRANSCRIPTS");
 
-    this.schedulerService.registerDailyJob({
-      name: CollectorsService.DAILY_HOTSPOT_JOB_NAME,
-      hour: 4,
-      minute: 0,
-      runOnStartupIfMissed: enableDailyHotspotStartupCatchUp,
-      shouldRunOnStartup: () => this.shouldCatchUpDailyHotspotRun(),
-      onTick: () => this.runDailyHotspotSyncJob(),
-    });
+    if (this.globalDailyHotspotSyncEnabled) {
+      this.schedulerService.registerDailyJob({
+        name: CollectorsService.DAILY_HOTSPOT_JOB_NAME,
+        hour: 4,
+        minute: 0,
+        runOnStartupIfMissed: enableDailyHotspotStartupCatchUp,
+        shouldRunOnStartup: () => this.shouldCatchUpDailyHotspotRun(),
+        onTick: () => this.runDailyHotspotSyncJob(),
+      });
+    } else {
+      this.logger.log("Skip registering global daily hotspot sync job; only brand-scoped manual sync is enabled.");
+    }
     this.schedulerService.registerDailyJob({
       name: CollectorsService.DOUYIN_VIDEO_CACHE_CLEANUP_JOB_NAME,
       hour: 5,
