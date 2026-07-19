@@ -3240,7 +3240,15 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
     }
     this.heavyRecoveryPollingInProgress = true;
     try {
-      const candidates = await this.listRecoverableHeavyWorkRefreshCandidates(Math.max(this.heavyRecoveryPollingBatchLimit * 5, 10));
+      const prioritizedRunningHubCandidates = await this.listPendingRunningHubSubmissionCandidates(
+        Math.max(this.heavyRecoveryPollingBatchLimit * 5, 10),
+      );
+      const candidates = prioritizedRunningHubCandidates.length
+        ? prioritizedRunningHubCandidates
+        : await this.listRecoverableHeavyWorkRefreshCandidates(Math.max(this.heavyRecoveryPollingBatchLimit * 5, 10));
+      if (prioritizedRunningHubCandidates.length) {
+        this.logger.log(`[HeavyBackgroundTask] prioritized-runninghub-submissions=${prioritizedRunningHubCandidates.length}`);
+      }
       let scheduledCount = 0;
       for (const candidate of candidates) {
         if (scheduledCount >= this.heavyRecoveryPollingBatchLimit) {
@@ -3263,6 +3271,73 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
     } finally {
       this.heavyRecoveryPollingInProgress = false;
     }
+  }
+
+  private async listPendingRunningHubSubmissionCandidates(limit: number) {
+    type RunningHubSubmissionCandidate = {
+      scope: string;
+      brandId: string;
+      workId: string;
+      refresh: () => Promise<unknown>;
+    };
+    type RunningHubSubmissionRow = {
+      id: string;
+      brandId?: string | null;
+      taskId?: string | null;
+      storageKey?: string | null;
+      metadataJson?: unknown;
+      updatedAt?: Date | string | null;
+      createdAt?: Date | string | null;
+    };
+    const scanLimit = Math.max(limit * 5, 30);
+    const rows: RunningHubSubmissionRow[] = await (async (): Promise<RunningHubSubmissionRow[]> => {
+      if (await this.prismaService.canUseDatabase()) {
+        try {
+          return await this.prismaService.$queryRaw<Array<RunningHubSubmissionRow>>(Prisma.sql`
+            SELECT "id", "brandId", "taskId", "storageKey", "metadataJson", "updatedAt", "createdAt"
+            FROM "MediaAsset"
+            WHERE "mediaType" = CAST(${MediaType.HTML} AS "MediaType")
+              AND "brandId" IS NOT NULL
+              AND COALESCE("metadataJson"->>'kind', '') = ${"DOUYIN_RUNNINGHUB_APP"}
+            ORDER BY "createdAt" DESC, "updatedAt" DESC
+            LIMIT ${scanLimit}
+          `);
+        } catch {
+          const fallbackRows = await this.prismaService.mediaAsset.findMany({
+            where: {
+              mediaType: MediaType.HTML,
+              brandId: { not: null },
+            },
+            orderBy: [{ createdAt: "desc" }, { updatedAt: "desc" }],
+            take: scanLimit,
+          });
+          return fallbackRows.filter((item) => this.isRunningHubWorkMeta(item.metadataJson));
+        }
+      }
+      return database.media
+        .filter((item) => item.mediaType === "HTML" && item.brandId)
+        .filter((item) => this.isRunningHubWorkMeta((item as { metadataJson?: unknown }).metadataJson))
+        .sort((left, right) => new Date(right.createdAt || right.updatedAt || 0).getTime() - new Date(left.createdAt || left.updatedAt || 0).getTime())
+        .slice(0, scanLimit);
+    })();
+
+    return rows
+      .filter((row) => Boolean(row.brandId) && this.isRunningHubWorkMeta(row.metadataJson))
+      .map((row) => ({ row, brandId: String(row.brandId || "").trim(), meta: this.readRunningHubWorkMeta(row.metadataJson) }))
+      .filter(({ brandId, meta }) => Boolean(brandId) && this.heavySubmissionWorkerEnabled && !meta.providerTaskId && meta.status === "PENDING")
+      .slice(0, limit)
+      .map(({ row, brandId, meta }) => ({
+        scope: "heavy-submit:runninghub",
+        brandId,
+        workId: row.id,
+        refresh: () => this.startRunningHubSubmissionFromPersistedMeta(
+          brandId,
+          row.id,
+          String(row.taskId || meta.taskId || "").trim(),
+          String(row.storageKey || "").trim() || `${row.id}.html`,
+          meta,
+        ),
+      }));
   }
 
   private async listRecoverableHeavyWorkRefreshCandidates(limit: number) {
