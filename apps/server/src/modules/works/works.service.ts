@@ -23700,13 +23700,19 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
     const payload = await response.json().catch(() => ({}));
     const envelope = this.unwrapRunningHubEnvelope(payload);
     const data = this.asRecord(envelope.data);
-    const taskId = String(data?.taskId || "").trim();
+    const taskId = this.extractRunningHubTaskId(payload);
     if (!taskId) {
+      this.logger.error(
+        `[RunningHubSubmitResponse] webappId=${webappId} missing task id; payload=${this.summarizeRunningHubPayload(payload)}`,
+      );
       throw new ServiceUnavailableException(envelope.message || "RunningHub 未返回任务 ID");
     }
+    this.logger.log(
+      `[RunningHubSubmitResponse] webappId=${webappId} taskId=${taskId} payload=${this.summarizeRunningHubPayload(payload)}`,
+    );
     return {
       taskId,
-      status: String(data?.taskStatus || data?.status || "RUNNING"),
+      status: String(data?.taskStatus || data?.task_status || data?.status || "RUNNING"),
       promptTips: String(data?.promptTips || "").trim() || undefined,
     };
   }
@@ -23735,9 +23741,9 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       .filter(Boolean)
       .join("：");
     return {
-      taskId: String(data.taskId || providerTaskId),
-      status: String(data.status || "RUNNING"),
-      promptTips: String(data.promptTips || "").trim() || undefined,
+      taskId: this.extractRunningHubTaskId(payload) || providerTaskId,
+      status: String(data.taskStatus || data.task_status || data.status || "RUNNING"),
+      promptTips: String(data.promptTips || data.prompt_tips || "").trim() || undefined,
       errorMessage: detailedErrorMessage || String(data.errorMessage || envelope.message || "").trim() || undefined,
       results: Array.isArray(data.results)
         ? data.results.map((item) => {
@@ -23964,6 +23970,72 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       data,
       message,
     };
+  }
+
+  private extractRunningHubTaskId(payload: unknown) {
+    const root = this.asRecord(payload) || {};
+    const envelopeData = this.asRecord(root.data) || {};
+    const candidates = [
+      envelopeData?.taskId,
+      envelopeData?.task_id,
+      envelopeData?.jobId,
+      envelopeData?.job_id,
+      envelopeData?.recordId,
+      envelopeData?.record_id,
+      envelopeData?.workflowId,
+      envelopeData?.workflow_id,
+      envelopeData?.id,
+      root?.taskId,
+      root?.task_id,
+      root?.jobId,
+      root?.job_id,
+      root?.recordId,
+      root?.record_id,
+      root?.workflowId,
+      root?.workflow_id,
+      root?.id,
+    ];
+    for (const candidate of candidates) {
+      const normalized = String(candidate || "").trim();
+      if (normalized) {
+        return normalized;
+      }
+    }
+    return "";
+  }
+
+  private summarizeRunningHubPayload(payload: unknown) {
+    const root = this.asRecord(payload) || {};
+    const data = this.asRecord(root.data) || {};
+    const rootKeys = Object.keys(root).slice(0, 20);
+    const dataKeys = Object.keys(data).slice(0, 20);
+    const samples = {
+      code: root.code,
+      message: root.msg ?? root.message,
+      dataTaskId: data.taskId,
+      dataTask_id: data.task_id,
+      dataJobId: data.jobId,
+      dataJob_id: data.job_id,
+      dataRecordId: data.recordId,
+      dataRecord_id: data.record_id,
+      dataWorkflowId: data.workflowId,
+      dataWorkflow_id: data.workflow_id,
+      dataId: data.id,
+      rootTaskId: root.taskId,
+      rootTask_id: root.task_id,
+      rootJobId: root.jobId,
+      rootJob_id: root.job_id,
+      rootRecordId: root.recordId,
+      rootRecord_id: root.record_id,
+      rootWorkflowId: root.workflowId,
+      rootWorkflow_id: root.workflow_id,
+      rootId: root.id,
+    };
+    return JSON.stringify({
+      rootKeys,
+      dataKeys,
+      samples,
+    });
   }
 
   private resolveRunningHubResultContentType(outputType: string) {
