@@ -2382,7 +2382,7 @@ type RunningHubWorkAssetMeta = {
   primaryResultUrl?: string;
   previewImageUrl?: string;
   results: RunningHubWorkAssetResultEntry[];
-  nodeInfoList: DouyinRunningHubAppFieldRecord[];
+  nodeInfoList: RunningHubNodeSubmissionEntry[];
   createdAt: string;
   updatedAt: string;
 };
@@ -10231,7 +10231,7 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       instanceType,
       status: "PENDING",
       progress: 5,
-      nodeInfoList: normalizedNodeInfoList.map(({ upload, ...item }) => item),
+      nodeInfoList: normalizedNodeInfoList,
       sourceImageUrl: localSourceAssets.sourceImageUrl,
       sourceVideoUrl: localSourceAssets.sourceVideoUrl,
     });
@@ -22885,7 +22885,7 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
     instanceType?: RunningHubInstanceType;
     status: RunningHubWorkAssetMeta["status"];
     progress: number;
-    nodeInfoList: DouyinRunningHubAppFieldRecord[];
+    nodeInfoList: RunningHubNodeSubmissionEntry[];
     sourceImageUrl?: string;
     sourceVideoUrl?: string;
     providerTaskId?: string;
@@ -23067,6 +23067,12 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       nodeInfoList: Array.isArray(meta?.nodeInfoList)
         ? meta.nodeInfoList.map((item) => {
           const next = this.asRecord(item);
+          const upload = this.asRecord(next?.upload);
+          const uploadDataBase64 = String(upload?.dataBase64 || "");
+          const uploadFileName = String(upload?.fileName || "").trim()
+            || `runninghub-${String(next?.fieldName || next?.nodeId || "upload").trim() || "upload"}.bin`;
+          const uploadContentType = String(upload?.contentType || "").trim() || "application/octet-stream";
+          const uploadTempFilePath = String(upload?.tempFilePath || "").trim() || undefined;
           return {
             nodeId: String(next?.nodeId || "").trim() || undefined,
             nodeName: String(next?.nodeName || "").trim() || undefined,
@@ -23076,7 +23082,16 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
             fieldType: String(next?.fieldType || "").trim() || undefined,
             description: String(next?.description || "").trim() || undefined,
             descriptionEn: String(next?.descriptionEn || "").trim() || undefined,
-          } satisfies DouyinRunningHubAppFieldRecord;
+            upload: upload && (uploadDataBase64 || uploadTempFilePath || uploadFileName || uploadContentType)
+              ? {
+                  fileName: uploadFileName,
+                  contentType: uploadContentType,
+                  dataBase64: uploadDataBase64,
+                  sizeBytes: Number.isFinite(Number(upload?.sizeBytes)) ? Number(upload?.sizeBytes) : undefined,
+                  tempFilePath: uploadTempFilePath,
+                }
+              : undefined,
+          } satisfies RunningHubNodeSubmissionEntry;
         })
         : [],
       createdAt: String(meta?.createdAt || new Date().toISOString()),
