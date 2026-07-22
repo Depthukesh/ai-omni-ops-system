@@ -2383,6 +2383,11 @@ type RunningHubWorkAssetMeta = {
   previewImageUrl?: string;
   results: RunningHubWorkAssetResultEntry[];
   nodeInfoList: RunningHubNodeSubmissionEntry[];
+  submissionAttemptCount?: number;
+  queueRetryCount?: number;
+  lastSubmissionAttemptAt?: string;
+  nextSubmissionRetryAt?: string;
+  lastSubmissionFailureCode?: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -3068,6 +3073,7 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
   private readonly heavySubmissionWorkerEnabled = readBooleanEnv("WORKS_HEAVY_SUBMISSION_WORKER_ENABLED", false);
   private readonly heavyBackgroundTaskQueue: Array<() => Promise<void>> = [];
   private inFlightHeavyBackgroundTaskCount = 0;
+  private readonly runningHubQueueRetryMax = readPositiveIntegerEnv("WORKS_RUNNINGHUB_QUEUE_RETRY_MAX", 6);
   private readonly heavyRecoveryPollingEnabled = readBooleanEnv("WORKS_HEAVY_RECOVERY_POLLING_ENABLED", true);
   private readonly heavyRecoveryPollingIntervalMs = readPositiveIntegerEnv("WORKS_HEAVY_RECOVERY_POLLING_INTERVAL_MS", 30_000);
   private readonly heavyRecoveryPollingBatchLimit = readPositiveIntegerEnv("WORKS_HEAVY_RECOVERY_POLLING_BATCH_LIMIT", 2);
@@ -3324,7 +3330,7 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
     return rows
       .filter((row) => Boolean(row.brandId) && this.isRunningHubWorkMeta(row.metadataJson))
       .map((row) => ({ row, brandId: String(row.brandId || "").trim(), meta: this.readRunningHubWorkMeta(row.metadataJson) }))
-      .filter(({ brandId, meta }) => Boolean(brandId) && this.heavySubmissionWorkerEnabled && !meta.providerTaskId && meta.status === "PENDING")
+      .filter(({ brandId, meta }) => Boolean(brandId) && this.heavySubmissionWorkerEnabled && this.isRunningHubSubmissionReady(meta))
       .slice(0, limit)
       .map(({ row, brandId, meta }) => ({
         scope: "heavy-submit:runninghub",
@@ -3483,7 +3489,7 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       }
       if (this.isRunningHubWorkMeta(row.metadataJson)) {
         const meta = this.readRunningHubWorkMeta(row.metadataJson);
-        if (this.heavySubmissionWorkerEnabled && !meta.providerTaskId && meta.status === "PENDING") {
+        if (this.heavySubmissionWorkerEnabled && this.isRunningHubSubmissionReady(meta)) {
           candidates.push({
             scope: "heavy-submit:runninghub",
             brandId,
@@ -23072,6 +23078,11 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
           } satisfies RunningHubWorkAssetResultEntry;
         })
         : [],
+      submissionAttemptCount: Number.isFinite(Number(meta?.submissionAttemptCount)) ? Number(meta?.submissionAttemptCount) : 0,
+      queueRetryCount: Number.isFinite(Number(meta?.queueRetryCount)) ? Number(meta?.queueRetryCount) : 0,
+      lastSubmissionAttemptAt: String(meta?.lastSubmissionAttemptAt || "").trim() || undefined,
+      nextSubmissionRetryAt: String(meta?.nextSubmissionRetryAt || "").trim() || undefined,
+      lastSubmissionFailureCode: String(meta?.lastSubmissionFailureCode || "").trim() || undefined,
       nodeInfoList: Array.isArray(meta?.nodeInfoList)
         ? meta.nodeInfoList.map((item) => {
           const next = this.asRecord(item);
@@ -23109,6 +23120,101 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
 
   private shouldRefreshRunningHubWorkMeta(meta: RunningHubWorkAssetMeta) {
     return Boolean(meta.providerTaskId) && meta.status !== "SUCCESS" && meta.status !== "FAILED";
+  }
+
+  private isRunningHubSubmissionReady(meta: RunningHubWorkAssetMeta) {
+    if (meta.providerTaskId || meta.status === "SUCCESS" || meta.status === "FAILED") {
+      return false;
+    }
+    if (meta.status !== "PENDING" && meta.status !== "RUNNING") {
+      return false;
+    }
+    const retryAt = String(meta.nextSubmissionRetryAt || "").trim();
+    if (!retryAt) {
+      return true;
+    }
+    const retryAtMs = new Date(retryAt).getTime();
+    return !Number.isFinite(retryAtMs) || retryAtMs <= Date.now();
+  }
+
+  private classifyRunningHubSubmissionFailure(message?: string) {
+    const normalizedMessage = String(message || "").trim();
+    if (!normalizedMessage) {
+      return { retryable: false as const };
+    }
+    if (
+      /errorCode=421\b/i.test(normalizedMessage)
+      || /api queue limit reached/i.test(normalizedMessage)
+      || /并发数已达上线/.test(normalizedMessage)
+      || /queue limit/i.test(normalizedMessage)
+    ) {
+      return {
+        retryable: true as const,
+        code: "QUEUE_LIMIT",
+      };
+    }
+    if (
+      /timeout|timed out|ECONNRESET|ETIMEDOUT|EAI_AGAIN|fetch failed|socket hang up|network/i.test(normalizedMessage)
+      || /RunningHub 提交任务失败：5\d{2}/i.test(normalizedMessage)
+      || /RunningHub 查询任务失败：5\d{2}/i.test(normalizedMessage)
+    ) {
+      return {
+        retryable: true as const,
+        code: "TRANSIENT_NETWORK",
+      };
+    }
+    return { retryable: false as const };
+  }
+
+  private computeRunningHubSubmissionRetryDelayMs(meta: RunningHubWorkAssetMeta, failureCode: string) {
+    const queueRetryCount = Math.max(0, Number(meta.queueRetryCount || 0));
+    if (failureCode === "QUEUE_LIMIT") {
+      const baseMs = meta.appKey === "ltx23-digital-human-lip-sync" ? 10 * 60 * 1000 : 5 * 60 * 1000;
+      return Math.min(baseMs * 2 ** queueRetryCount, 60 * 60 * 1000);
+    }
+    return 3 * 60 * 1000;
+  }
+
+  private buildRunningHubSubmissionRetryMessage(message: string, retryAtIso: string, retryCount: number) {
+    const retryAtLabel = new Date(retryAtIso).toLocaleString("zh-CN", {
+      hour12: false,
+    });
+    return `${message}；系统已改为延迟重试，计划于 ${retryAtLabel} 再次提交（第 ${retryCount} 次退避）。`;
+  }
+
+  private async deferRunningHubSubmission(params: {
+    brandId: string;
+    workId: string;
+    taskId: string;
+    storageKey: string;
+    meta: RunningHubWorkAssetMeta;
+    appName: string;
+    message: string;
+    failureCode: string;
+  }) {
+    const queueRetryCount = Math.max(0, Number(params.meta.queueRetryCount || 0)) + 1;
+    const retryAtIso = new Date(Date.now() + this.computeRunningHubSubmissionRetryDelayMs(params.meta, params.failureCode)).toISOString();
+    const retryMessage = this.buildRunningHubSubmissionRetryMessage(params.message, retryAtIso, queueRetryCount);
+    const nextMeta = await this.saveRunningHubWorkMetadataSnapshot(params.brandId, params.workId, params.storageKey, {
+      ...params.meta,
+      status: "PENDING",
+      progress: 5,
+      errorReason: undefined,
+      promptTips: retryMessage,
+      queueRetryCount,
+      nextSubmissionRetryAt: retryAtIso,
+      lastSubmissionFailureCode: params.failureCode,
+    });
+    await this.updateTaskRunningOutput(params.taskId, {
+      workId: params.workId,
+      provider: "RunningHub",
+      appName: params.appName,
+      status: "PENDING",
+      progress: nextMeta.progress,
+      promptTips: retryMessage,
+    }, {
+      modelName: `RunningHub + ${params.appName}`,
+    });
   }
 
   private async listRunningHubWorkRows(brandId: string) {
@@ -23260,6 +23366,7 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
     localMetaBase: RunningHubWorkAssetMeta;
   }) {
     const { brandId, apiKey, app, taskId, workMediaId, storageKey } = params;
+    let currentMeta = params.localMetaBase;
     try {
       this.logger.log(
         `[RunningHubSubmissionProcess] start brandId=${brandId} workId=${workMediaId} taskId=${taskId} appKey=${app.key} webappId=${app.webappId} nodeCount=${params.nodeInfoList.length}`,
@@ -23268,19 +23375,25 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       this.logger.log(
         `[RunningHubSubmissionProcess] prepared brandId=${brandId} workId=${workMediaId} taskId=${taskId} appKey=${app.key} preparedNodeCount=${preparedNodeInfoList.length}`,
       );
-      let meta = await this.saveRunningHubWorkMetadataSnapshot(brandId, workMediaId, storageKey, {
+      currentMeta = await this.saveRunningHubWorkMetadataSnapshot(brandId, workMediaId, storageKey, {
         ...params.localMetaBase,
         status: "RUNNING",
         progress: 20,
+        errorReason: undefined,
         nodeInfoList: preparedNodeInfoList,
+        submissionAttemptCount: Math.max(0, Number(params.localMetaBase.submissionAttemptCount || 0)) + 1,
+        lastSubmissionAttemptAt: new Date().toISOString(),
+        nextSubmissionRetryAt: undefined,
       });
       const submit = await this.submitRunningHubTask(apiKey, app.webappId, preparedNodeInfoList, params.instanceType);
-      meta = await this.saveRunningHubWorkMetadataSnapshot(brandId, workMediaId, storageKey, {
-        ...meta,
+      currentMeta = await this.saveRunningHubWorkMetadataSnapshot(brandId, workMediaId, storageKey, {
+        ...currentMeta,
         status: this.normalizeRunningHubStatus(submit.status),
         progress: this.normalizeRunningHubStatus(submit.status) === "SUCCESS" ? 100 : 45,
         providerTaskId: submit.taskId,
         promptTips: submit.promptTips,
+        queueRetryCount: 0,
+        lastSubmissionFailureCode: undefined,
       });
       await this.updateTaskRunningOutput(taskId, {
         workId: workMediaId,
@@ -23288,12 +23401,12 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
         providerTaskId: submit.taskId,
         appKey: app.key,
         appName: app.name,
-        status: meta.status,
-        progress: meta.progress,
+        status: currentMeta.status,
+        progress: currentMeta.progress,
       }, {
         modelName: `RunningHub + ${app.name}`,
       });
-      if (meta.status === "SUCCESS" || meta.status === "FAILED") {
+      if (currentMeta.status === "SUCCESS" || currentMeta.status === "FAILED") {
         await this.refreshRunningHubWorkSnapshot(brandId, workMediaId);
       }
       // Do not keep a heavy background queue slot occupied for up to hours while polling
@@ -23301,15 +23414,55 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       // provider task id is persisted, the shared recovery polling loop will continue syncing.
     } catch (error) {
       const message = error instanceof Error ? error.message : "RunningHub 任务提交失败";
+      const failure = this.classifyRunningHubSubmissionFailure(message);
       this.logger.error(
         `[RunningHubSubmissionProcess] failed brandId=${brandId} workId=${workMediaId} taskId=${taskId} appKey=${app.key} ${message}`,
         error instanceof Error ? error.stack : undefined,
       );
+      if (failure.retryable && failure.code) {
+        const nextQueueRetryCount = Math.max(0, Number(currentMeta.queueRetryCount || 0)) + 1;
+        if (failure.code === "QUEUE_LIMIT" && nextQueueRetryCount > this.runningHubQueueRetryMax) {
+          const cappedMessage = `${message}；系统已按退避策略连续重试 ${this.runningHubQueueRetryMax} 次仍未拿到队列窗口，本次任务改判失败，请稍后人工重试。`;
+          await this.saveRunningHubWorkMetadataSnapshot(brandId, workMediaId, storageKey, {
+            ...currentMeta,
+            status: "FAILED",
+            progress: 100,
+            errorReason: cappedMessage,
+            nextSubmissionRetryAt: undefined,
+            lastSubmissionFailureCode: failure.code,
+          });
+          await this.markTaskFailed(taskId, cappedMessage, {
+            modelName: `RunningHub + ${app.name}`,
+            outputJson: {
+              workId: workMediaId,
+              appKey: app.key,
+              appName: app.name,
+              status: "FAILED",
+              progress: 100,
+              errorReason: cappedMessage,
+            },
+          });
+          return;
+        }
+        await this.deferRunningHubSubmission({
+          brandId,
+          workId: workMediaId,
+          taskId,
+          storageKey,
+          meta: currentMeta,
+          appName: app.name,
+          message,
+          failureCode: failure.code,
+        });
+        return;
+      }
       await this.saveRunningHubWorkMetadataSnapshot(brandId, workMediaId, storageKey, {
-        ...params.localMetaBase,
+        ...currentMeta,
         status: "FAILED",
         progress: 100,
         errorReason: message,
+        nextSubmissionRetryAt: undefined,
+        lastSubmissionFailureCode: failure.retryable ? failure.code : undefined,
       });
       await this.markTaskFailed(taskId, message, {
         modelName: `RunningHub + ${app.name}`,
@@ -23333,17 +23486,11 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       let fieldData = item.fieldData;
       const uploadPayload = item.upload || await this.resolveRunningHubRemoteUploadPayload(item, fieldValue);
       this.assertRunningHubImageUploadResolved(item, uploadPayload, originalFieldValue, fieldData);
-      // #region debug-point B:server-pre-upload-node
-      await (async()=>{let u=`${this.appConfigService.getPublicApiBaseUrl()}/openclaw/mcp/debug/runninghub-wrong-image/event`,s='runninghub-wrong-image';try{const e=await readFile('.dbg/runninghub-wrong-image.env','utf8');u=e.match(/DEBUG_SERVER_URL=(.+)/)?.[1]||u;s=e.match(/DEBUG_SESSION_ID=(.+)/)?.[1]||s}catch{}await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:s,runId:'pre-fix',hypothesisId:'B',location:'works.service.ts:22080',msg:'[DEBUG] runninghub server preparing node before upload',data:{nodeId:String(item.nodeId||''),nodeName:String(item.nodeName||''),fieldName:String(item.fieldName||''),fieldType:String(item.fieldType||''),originalFieldValue:String(originalFieldValue||''),fieldDataPreview:String((fieldData||'').slice(0,180)),hasUploadPayload:Boolean(uploadPayload),uploadFileName:String(uploadPayload?.fileName||''),uploadContentType:String(uploadPayload?.contentType||'')},ts:Date.now()})}).catch(()=>{})})();
-      // #endregion
       if (uploadPayload) {
         const uploadResult = await this.uploadRunningHubMedia(apiKey, item, uploadPayload);
         fieldValue = this.resolveRunningHubUploadedFieldValue(item, uploadResult) || fieldValue;
         fieldData = this.resolveRunningHubUploadedFieldData(item, uploadResult, originalFieldValue, fieldData);
       }
-      // #region debug-point C:server-post-prepare-node
-      await (async()=>{let u=`${this.appConfigService.getPublicApiBaseUrl()}/openclaw/mcp/debug/runninghub-wrong-image/event`,s='runninghub-wrong-image';try{const e=await readFile('.dbg/runninghub-wrong-image.env','utf8');u=e.match(/DEBUG_SERVER_URL=(.+)/)?.[1]||u;s=e.match(/DEBUG_SESSION_ID=(.+)/)?.[1]||s}catch{}await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:s,runId:'pre-fix',hypothesisId:'C',location:'works.service.ts:22086',msg:'[DEBUG] runninghub server prepared final node payload',data:{nodeId:String(item.nodeId||''),nodeName:String(item.nodeName||''),fieldName:String(item.fieldName||''),finalFieldValue:String(fieldValue||''),finalFieldDataPreview:String((fieldData||'').slice(0,180))},ts:Date.now()})}).catch(()=>{})})();
-      // #endregion
       prepared.push({
         nodeId: item.nodeId,
         nodeName: item.nodeName,
@@ -23394,9 +23541,6 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
     const payload = await response.json().catch(() => ({}));
     const envelope = this.unwrapRunningHubEnvelope(payload);
     const data = this.asRecord(envelope.data);
-    // #region debug-point D:runninghub-upload-response
-    await (async()=>{let u=`${this.appConfigService.getPublicApiBaseUrl()}/openclaw/mcp/debug/runninghub-wrong-image/event`,s='runninghub-wrong-image';try{const e=await readFile('.dbg/runninghub-wrong-image.env','utf8');u=e.match(/DEBUG_SERVER_URL=(.+)/)?.[1]||u;s=e.match(/DEBUG_SESSION_ID=(.+)/)?.[1]||s}catch{}await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:s,runId:'pre-fix',hypothesisId:'D',location:'works.service.ts:22132',msg:'[DEBUG] runninghub upload returned media payload',data:{nodeId:String(item.nodeId||''),nodeName:String(item.nodeName||''),fieldName:String(item.fieldName||''),uploadFileName:String(upload.fileName||''),uploadContentType:String(upload.contentType||''),resolvedFileType:this.resolveRunningHubMediaUploadType(item, upload),responseFileName:String(data?.fileName||''),responseDownloadUrl:String(data?.download_url||data?.url||'')},ts:Date.now()})}).catch(()=>{})})();
-    // #endregion
     return {
       downloadUrl: String(data?.download_url || data?.url || "").trim() || undefined,
       fileName: String(data?.fileName || "").trim() || undefined,

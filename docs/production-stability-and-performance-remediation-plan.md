@@ -695,3 +695,42 @@
   - 提交动作短驻留
   - 结果同步统一交给恢复轮询
   - 后台并发槽位只服务真正的推进动作，不服务长时间等待
+
+## 2026-07-23 RunningHub 421 / 137 结构修复
+
+### 现象
+
+- 线上再次出现 `Killed` 与 `npm error code 137`，说明 `worker` 在资源受限机器上又一次被系统强杀
+- 同一时间段内，`RunningHubSubmissionProcess / SubmitResponse` 持续出现，且集中在 `ltx23-digital-human-lip-sync`
+- 失败日志不只是普通业务失败，还包括：
+  - `errorCode=421 | api queue limit reached`
+  - `RunningHub 未返回任务 ID`
+  - `LoadImage 未收到真实上传文件`
+  - `下载 RunningHub 音频源失败：404`
+
+### 根因
+
+- `07-22` 的“提交即释放、结果由恢复轮询推进”已经解决了单条任务长轮询占槽位的问题，但并没有处理 `RunningHub` 提交阶段的拥塞失败：
+  - 当 RunningHub 返回 `421 queue limit reached` 时，任务会快速重新进入待提交链
+  - 在 `heavyRecoveryPolling` 持续扫描下，多条 `PENDING` 任务会反复争抢同一条重媒体提交通道
+  - 对 `2C4G` 主机来说，这会继续放大 `worker` 的 CPU / 内存 / 网络压力
+- 同时，输入不完整的任务虽然已经能在服务端失败，但失败发生在进入重媒体提交流程之后，仍然会占用最贵的 `RunningHub` 提交链
+
+### 本轮修复
+
+- `RunningHub` 待提交任务新增“提交就绪判断”：
+  - 只有 `nextSubmissionRetryAt` 到期后，恢复轮询才会再次放行提交
+  - 避免 `421` 后在每轮轮询中立即重提
+- `RunningHub` 提交失败新增分类处理：
+  - `421 / queue limit` 归类为可重试拥塞失败
+  - 瞬时网络错误归类为可重试瞬时失败
+  - 其余错误仍按硬失败处理
+- `ltx23-digital-human-lip-sync` 这类高压应用在 `421` 场景下使用更长的指数退避窗口，默认从 `10 分钟` 起步
+- `421` 连续退避超过上限后，任务直接判失败，不允许永久卡在 `PENDING`
+- 同步清理了 `works.service.ts` 中遗留的 `runninghub-wrong-image` 远端调试打点，避免把临时诊断逻辑继续带在线上
+
+### 结果
+
+- `RunningHub` 拥塞时不再以 `30s` 轮询节奏持续重提同一批重媒体任务
+- 重媒体 worker 会把算力优先留给真正具备提交条件的任务，而不是反复撞 `421`
+- 输入无效任务仍然会失败，但不会再和“队列拥塞重提”叠加成持续高压
