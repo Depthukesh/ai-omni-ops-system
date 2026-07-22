@@ -23285,16 +23285,12 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       }, {
         modelName: `RunningHub + ${app.name}`,
       });
-      const latestMeta = await this.refreshRunningHubWorkSnapshot(brandId, workMediaId);
-      if (latestMeta.status === "PENDING" || latestMeta.status === "RUNNING") {
-        await this.monitorRunningHubWorkUntilSettled({
-          brandId,
-          workId: workMediaId,
-          storageKey,
-          taskId,
-          appName: app.name,
-        });
+      if (meta.status === "SUCCESS" || meta.status === "FAILED") {
+        await this.refreshRunningHubWorkSnapshot(brandId, workMediaId);
       }
+      // Do not keep a heavy background queue slot occupied for up to hours while polling
+      // RunningHub. Submission and result recovery are intentionally decoupled: once the
+      // provider task id is persisted, the shared recovery polling loop will continue syncing.
     } catch (error) {
       const message = error instanceof Error ? error.message : "RunningHub 任务提交失败";
       this.logger.error(

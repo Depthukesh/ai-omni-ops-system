@@ -629,3 +629,69 @@
 7. 线上工作区在一次完整部署后是否仍保持干净，不再因为丢失 `.gitignore` 一类基础文件而误报脏状态
 8. 前端是否已优先通过 standalone 启动，且 `/health` 与首页可正常返回
 9. 部署日志里是否已经不再出现 `multer 1.4.4-lts.1` 与 `Node.js 20 actions are deprecated` 这两类已知告警
+
+## 2026-07-19 RunningHub 恢复补充
+
+### 现象回放
+
+- `OpenClaw -> RunningHub` 新建任务一度长期停在“排队中”，RunningHub 后台没有对应新任务
+- 在把 worker 提交、恢复轮询、失败回写和日志补全后，问题继续收敛为两类显式报错：
+  - `RunningHub 图片节点 LoadImage 未收到真实上传文件`
+  - `RunningHub 未返回任务 ID`
+
+### 最终根因
+
+- 真正导致 RunningHub 无法恢复的核心问题，不是 worker 没启动，也不是调度没命中，而是 worker 模式下恢复提交时把上传文件信息丢了：
+  - 创建 RunningHub 任务时，服务端会先把 `nodeInfoList` 标准化
+  - 但写入作品 metadata 时，历史实现把节点里的 `upload` 字段剥掉了，只保留普通节点字段
+  - 后续 worker 从 metadata 重建 `nodeInfoList` 并重新提交 RunningHub 时，图片节点已经拿不到真实上传内容，只剩模板占位值
+  - 因此 `LoadImage` 节点会被 RunningHub 判定为未收到真实文件
+
+### 本轮修复
+
+- `RunningHubWorkAssetMeta.nodeInfoList` 改为持久化完整的 `RunningHubNodeSubmissionEntry`，不再剥离 `upload`
+- `readRunningHubWorkMeta()` 在 worker 恢复时会把 `upload.fileName / contentType / dataBase64 / tempFilePath / sizeBytes` 一并恢复
+- 这样 worker 再次提交 RunningHub 时，上传节点能真正拿回原始文件信息，而不是退回模板占位值
+
+### 结论
+
+- 这次恢复说明：凡是“创建请求阶段带文件、worker 异步阶段还要再次提交第三方”的重媒体链路，都不能只持久化普通字段，必须连同上传负载一起保留，才能支持服务重启后的真实恢复
+
+## 2026-07-22 RunningHub 夜间拖挂修复
+
+### 现象
+
+- 线上夜间再次出现整机重启，重启前的 `worker` 日志持续出现 `prioritized-runninghub-submissions`
+- 同一时间段内，`RunningHubSubmissionBootstrap / Process / SubmitResponse` 长时间连续出现，说明后台守护一直在处理 RunningHub 提交链
+- 历史 `worker` 错误日志中还能看到 `Killed` 与 `npm error code 137`，说明这条链曾经触发过系统级强杀
+
+### 根因
+
+- 本轮排查确认，问题不只是“RunningHub 任务多”，更在于 `worker` 的处理方式本身会长期占住重媒体后台队列：
+  - `processDouyinRunningHubWorkCreation()` 在提交 RunningHub 后，会继续调用 `monitorRunningHubWorkUntilSettled()`
+  - 这个轮询最长可持续 2 小时，期间每 15 秒查询一次第三方状态
+  - 也就是说，一次 RunningHub 提交不只是“提交任务”，而是会把同一个 `worker` 槽位长时间绑定在第三方轮询上
+- 在夜间存在多条 RunningHub 任务时，后台会同时承受：
+  - RunningHub 提交前的文件准备与上传
+  - 提交后的长轮询查询
+  - 恢复扫描守护本身的周期性扫描
+- 这会把本应“短驻留”的后台提交任务，变成持续数十分钟甚至数小时的常驻重任务，放大单机资源风险
+
+### 修复
+
+- 已将 RunningHub 的“任务提交”和“结果轮询”彻底解耦：
+  - `worker` 在拿到 `providerTaskId` 并写回 metadata / task 输出后立即释放后台队列槽位
+  - 不再在同一条后台任务里调用 `monitorRunningHubWorkUntilSettled()` 挂着轮询 2 小时
+  - RunningHub 结果继续由现有的重媒体恢复轮询统一同步
+- 这样做之后：
+  - `worker` 提交动作恢复为短任务
+  - 第三方长轮询不再独占重媒体后台并发槽位
+  - 夜间多任务时不会再因为单条 RunningHub 任务长时间轮询而把后台守护拖成常驻高压
+
+### 结论
+
+- 这次问题说明：重媒体 `worker` 的核心职责应该是“提交”和“状态推进”，而不是在单个后台任务里长期等待第三方最终完成
+- 对 RunningHub 这类第三方长任务，必须坚持：
+  - 提交动作短驻留
+  - 结果同步统一交给恢复轮询
+  - 后台并发槽位只服务真正的推进动作，不服务长时间等待
