@@ -10192,7 +10192,15 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
   }
 
   async listDouyinRunningHubWorks(brandId: string) {
-    const rows = await this.listRunningHubWorkRows(brandId);
+    let rows = await this.listRunningHubWorkRows(brandId);
+    const syncRefreshWorkIds = rows
+      .filter((item) => this.shouldRefreshRunningHubWorkMeta(this.readRunningHubWorkMeta(item.metadataJson)))
+      .slice(0, 3)
+      .map((item) => item.id);
+    if (syncRefreshWorkIds.length) {
+      await Promise.allSettled(syncRefreshWorkIds.map((workId) => this.refreshRunningHubWorkSnapshot(brandId, workId)));
+      rows = await this.listRunningHubWorkRows(brandId);
+    }
     this.scheduleListSnapshotRefresh(
       "runninghub-work",
       brandId,
