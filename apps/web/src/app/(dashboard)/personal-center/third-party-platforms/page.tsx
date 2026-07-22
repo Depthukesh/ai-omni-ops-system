@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿"use client";
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿"use client";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -103,6 +103,11 @@ function isChanjingPlatform(platform?: UserThirdPartyPlatformRecord) {
   return searchable.includes("chanjing") || searchable.includes("蝉镜");
 }
 
+function isDuoyuanxPlatform(platform?: UserThirdPartyPlatformRecord) {
+  const searchable = [platform?.name, platform?.baseUrl, platform?.tutorialUrl, platform?.remark].join(" ").toLowerCase();
+  return searchable.includes("duoyuanx") || searchable.includes("多元探索");
+}
+
 function getPlatformMetricTitle(platform: UserThirdPartyPlatformRecord) {
   return isChanjingPlatform(platform) ? "模板数" : "模型数";
 }
@@ -154,6 +159,14 @@ function getChanjingStatsSummary(platform: UserThirdPartyPlatformRecord) {
     return platform.dynamicStats.message || "蝉镜统计同步失败";
   }
   return "蝉镜统计尚未同步";
+}
+
+function getDuoyuanxSummary(platform: UserThirdPartyPlatformRecord) {
+  if (!isDuoyuanxPlatform(platform)) {
+    return "";
+  }
+  const families = ["文本", "图像", "视频", "音频", "音乐"];
+  return `当前展示的是多元探索统一网关能力，已预装 ${families.join(" / ")} 模型家族；配置同一份平台 Key 后，可按供应商作用域分别启用。`;
 }
 
 export default function PersonalCenterThirdPartyPlatformsPage() {
@@ -490,6 +503,7 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
                 </div>
               </div>
               {isChanjingPlatform(platform) ? <p className="panel-subtext" style={{ marginTop: 12 }}>{getChanjingStatsSummary(platform)}</p> : null}
+              {isDuoyuanxPlatform(platform) ? <p className="panel-subtext" style={{ marginTop: 12 }}>{getDuoyuanxSummary(platform)}</p> : null}
             </button>
           ))}
           {!filteredPlatforms.length ? (
@@ -591,6 +605,12 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
                 {getChanjingStatsSummary(selectedPlatform)}
               </div>
             ) : null}
+            {isDuoyuanxPlatform(selectedPlatform) ? (
+              <div className="personal-inline-hint" style={{ marginBottom: 16 }}>
+                <strong>统一网关说明</strong>
+                {getDuoyuanxSummary(selectedPlatform)}
+              </div>
+            ) : null}
 
             <div className="personal-list">
               <label className="field">
@@ -612,6 +632,8 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
                 <small className="personal-meta">
                   {selectedPlatformIsChanjing
                     ? "蝉镜平台当前复用单字段存储，请填写 `appId::secretKey`；系统会在服务端自动换取 access_token，不需要手动填写 token。"
+                    : isDuoyuanxPlatform(selectedPlatform)
+                      ? "多元探索是统一网关型平台，当前品牌只需要维护一份平台 Key；后台的文本、图像、视频、音频、音乐供应商会共用这份品牌共享 Key。"
                     : "该字段是当前品牌共享值，同品牌下有编辑权限的管理员维护的是同一份 Key，不会影响后台平台基线。"}
                 </small>
               </label>

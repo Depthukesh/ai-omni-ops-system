@@ -36,6 +36,7 @@ const PLATFORM_NAME_BY_HOST: Record<string, string> = {
   "api.mathmind.cn": "MathMind 平台",
   "www.runninghub.cn": "RunningHub 平台",
   "apihub.agnes-ai.com": "Agnes 平台",
+  "duoyuanx.com": "多元探索平台",
 };
 
 export const THIRD_PARTY_PLATFORM_SEEDS: ThirdPartyPlatformRecord[] = buildThirdPartyPlatformSeeds();
@@ -235,6 +236,7 @@ export function resolvePlatformWebsiteUrl(baseUrl: string) {
       "www.right.codes": "https://www.right.codes",
       "agent.mathmind.cn": "https://agent.mathmind.cn",
       "api.mathmind.cn": "https://agent.mathmind.cn",
+      "duoyuanx.com": "https://duoyuanx.com",
     };
     return websiteByHost[host] || `${url.protocol}//${url.host}`;
   } catch {

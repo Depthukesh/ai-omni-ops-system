@@ -17,7 +17,7 @@
 5. `skill-package/02-品牌运营助手Skill高频任务路由手册.md`
    - 当前 Skill 应如何从自然语言路由到网站功能和工具链
 6. `品牌运营助手Skill示例SKILL.md`
-   - 当前正式 Skill 主文档结构、外部文档注入方式与高频规则
+   - 当前正式 Skill 主文档结构、外部文档注入方式、高频规则和 ZIP fallback 策略
 7. `OpenClaw第一阶段MCP工具清单.md`
    - 历史第一阶段工具说明，现主要作为背景参考
 5. `06-OpenClaw接口与权限落地规格_v1.md`
@@ -47,5 +47,6 @@
 - 以当前代码与 `docs/site-map.md` 为准
 - 如果 OpenClaw 页面、安装中心、权限模型或运行时链路发生变化，应优先更新本目录入口说明和对应主文档
 - 安装中心导出的正式 Skill ZIP 会额外打包 `docs/00-网站功能域地图.md`、`docs/01-MCP工具矩阵.md`、`docs/02-高频任务路由手册.md`，因此这些源文档应保持长期同步
+- 即使部署环境临时缺失 `docs/openclaw/skill-package/*` 源 Markdown，安装中心导出的 ZIP 也必须通过服务端内置 fallback 继续提供完整版手册，不能回退为空壳占位文档
 - 历史讨论稿可继续保留为背景参考，但不应覆盖当前安装说明与接口落地规格
 - 面向站点公开访问的 OpenClaw HTML 交付页位于 `apps/web/public/docs/openclaw/`；本目录只维护源 Markdown

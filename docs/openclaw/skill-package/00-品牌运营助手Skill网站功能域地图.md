@@ -2,9 +2,7 @@
 
 ## 1. 这份文档怎么用
 
-这份文档是给 `品牌运营助手` 主 Skill 配套使用的外部能力地图。
-
-主 Skill 不需要把所有网站功能都硬背成一大段正文，但必须知道：
+这份文档是给 `品牌运营助手` 主 Skill 配套使用的外部能力地图，用来回答 4 件事：
 
 1. 网站现在有哪些真实业务域
 2. 每个业务域对应哪个页面入口
@@ -18,8 +16,6 @@
 - `route_website_function_by_intent`
 - `get_website_function_execution_plan`
 
-一起使用本地图做判断。
-
 ## 2. 总体规则
 
 - 当前品牌是默认上下文，除非用户明确切换品牌
@@ -31,68 +27,39 @@
 
 ### 3.1 品牌增长 `/brand-growth`
 
-这是品牌员工最核心的工作台，当前主要承载：
+当前承载：
 
 - 品牌资料库
-  - 品牌背景
-  - 产品资料
-  - 品牌运营情况
-  - 企业知识库
-- 收集数据
-  - 小红书采集
-  - 抖音采集
-  - 公众号采集
-  - 每日热点
-  - 飞书绑定
+- 企业知识库
+- 小红书 / 抖音 / 公众号采集
 - 品牌增长报告
-  - 品牌增长报告
-  - 可视化报告
-  - 半年营销规划
-  - 营销日历
-  - 选题库
-  - 统一素材库
-- OpenClaw 专区
-  - 每日计划
-  - 每日复盘
-  - 创作素材
-  - 视频作品
+- 半年营销规划
+- 营销日历
+- 选题库
+- 统一素材库
+- OpenClaw 的每日计划、每日复盘、创作素材、视频作品
 
 当前优先 MCP：
 
 - `manage_brand_library`
 - `manage_growth_reports`
 - `get_unified_material_library_items`
+- `get_xiaohongshu_collection_workspace`
+- `get_douyin_collection_workspace`
 - `get_wechat_collection_workspace`
-- `sync_wechat_brand_accounts`
-- `fetch_wechat_brand_articles`
-- `sync_wechat_benchmark_articles`
-- `sync_wechat_search_articles`
-- `update_wechat_article_stats`
-- `delete_xhs_collected_note`
-- `delete_douyin_collected_work`
-- `delete_wechat_collected_article`
-- `get_openclaw_lobster_diaries`
-- `create_openclaw_lobster_diary`
-- `delete_openclaw_lobster_diary`
 - `get_openclaw_daily_plans`
-- `create_openclaw_daily_plan`
-- `delete_openclaw_daily_plan`
+- `get_openclaw_lobster_diaries`
 - `get_openclaw_creative_materials`
-- `create_openclaw_creative_material`
-- `delete_openclaw_creative_material`
 - `get_openclaw_video_works`
-- `create_openclaw_video_work`
-- `delete_openclaw_video_work`
 
 ### 3.2 小红书 `/xiaohongshu`
 
-当前主要承载：
+当前承载：
 
-- 营销策划方案
-- 原创笔记
-- 二创笔记
+- 原创图文
+- 二创图文
 - 视频笔记
-- 发布工作流
+- 草稿接力
 
 当前优先 MCP：
 
@@ -100,28 +67,21 @@
 - `create_xiaohongshu_rewrite_note`
 - `manage_xiaohongshu_video`
 - `create_xiaohongshu_mobile_draft_session`
-- `get_xiaohongshu_mobile_draft_session`
 - `create_xiaohongshu_desktop_draft_session`
-- `get_xiaohongshu_desktop_draft_session`
 
 处理原则：
 
-- 原创/二创图文优先走直连工具
+- 原创 / 二创图文优先走直连工具
 - 视频笔记优先走 `manage_xiaohongshu_video`
-- 草稿接力属于发布工作流，只有在用户明确要落到小红书草稿箱时才继续发起
+- 草稿接力只有在用户明确要落到草稿箱时才继续发起
 
 ### 3.3 抖音 `/douyin`
 
-当前主要承载：
+当前承载：
 
-- 营销策划方案
-- 热点找选题
-- 选题库
 - 原创文案
 - 二创文案
-- 复刻短视频
-- AI 生视频（故事板）
-- AI 生视频（直接视频）
+- AI 生视频
 - 数字人
 - 口型驱动
 - RunningHub
@@ -134,9 +94,7 @@
 - `create_douyin_remix_copy`
 - `manage_douyin_video_production`
 - `create_douyin_mobile_publish_session`
-- `get_douyin_mobile_publish_session`
 - `create_douyin_desktop_publish_session`
-- `get_douyin_desktop_publish_session`
 
 处理原则：
 
@@ -147,12 +105,12 @@
 
 ### 3.4 公众号 `/wechat`
 
-当前主要承载：
+当前承载：
 
 - 账号配置
-- 原创创作工作流
-- 生图
-- HTML 排版生成
+- 正文工作流
+- 配图生成
+- HTML 排版
 - 发布确认
 - 正式发布
 - 发布历史
@@ -182,7 +140,7 @@
 
 ### 3.5 设计工作台 `/more-features/design`
 
-当前主要承载：
+当前承载：
 
 - 图片设计
 - HTML 设计
@@ -203,7 +161,7 @@
 
 ### 3.6 个人中心 `/personal-center`
 
-当前主要承载：
+当前承载：
 
 - 概览
 - 任务中心
@@ -254,7 +212,7 @@
 
 ### 3.7 GEO `/geo`
 
-当前主要承载：
+当前承载：
 
 - GEO 可见度诊断 HTML 报告查看
 - 报告保存
@@ -267,16 +225,6 @@
 - `delete_openclaw_geo_visibility_report`
 
 ### 3.8 后台管理 `/admin`
-
-当前后台包含：
-
-- 用户管理
-- 接口供应商
-- 计费规则
-- 技能中心
-- 模块注册中心
-- 能力包与知识库/模块/技能绑定
-- 模型用量
 
 当前原则：
 
@@ -295,7 +243,8 @@
 - 抖音
 - 公众号
 - 设计工作台
-- 个人中心中的任务/订单/技能/第三方接口/团队协作
+- 个人中心中的任务 / 订单 / 技能 / 第三方接口 / 团队协作
+- OpenClaw 数据归档
 - GEO
 
 ### 4.2 先读后写的域

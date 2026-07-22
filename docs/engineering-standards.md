@@ -111,6 +111,11 @@
 - 文本、图像、视频链路都必须校验 `runtimeKey` 兼容性
 - 技能配置如指定首选 Provider 或模型，运行时必须先严格尝试，再 fallback
 - 报错必须说明失败阶段、尝试顺序、最终原因和是否可重试
+- 接入统一网关类新平台时，必须同时补：
+  - `api-provider-catalog.ts` 的系统 Provider 种子
+  - `third-party-platform-catalog.ts` 的平台聚合映射
+  - 前台品牌共享 Key 的说明文案
+- 如果新平台复用已有 `runtimeKey`，但暂时不希望直接抢占现有默认路由，默认先以 `DRAFT` 预装，再由后台确认后启用
 
 ### 5.6 技能与 Prompt 落库
 

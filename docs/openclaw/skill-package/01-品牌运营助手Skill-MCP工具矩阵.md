@@ -10,6 +10,12 @@
 2. 再从本矩阵里选对应工具
 3. 尽量优先统一管理工具，不要把一条完整业务链拆成一堆零散动作
 
+补充原则：
+
+- 先看有没有统一管理工具，再决定是否拆成专用工具
+- 先看有没有摘要型工具，再决定是否直接写入
+- 对密钥、邀请、发布、删除类动作，默认先读后写
+
 ## 2. 功能路由与总入口
 
 - `get_website_function_catalog`
@@ -83,6 +89,7 @@
 
 - `delete_xhs_collected_note`
 - `delete_douyin_collected_work`
+- `delete_wechat_collected_article`
 
 ## 5. 机会洞察与品牌增长
 
@@ -126,6 +133,11 @@
 ### 7.1 个人中心
 
 - `get_personal_center_overview`
+- `get_recent_tasks_summary`
+- `get_failed_tasks_summary`
+- `get_task_detail`
+- `cancel_task`
+- `retry_task`
 - `list_my_orders`
 - `list_my_third_party_platforms`
 - `check_my_third_party_platform_runtime_access`
@@ -264,6 +276,7 @@
 
 - `get_unified_material_library_items`
 - `get_douyin_material_library_items`
+- `add_xiaohongshu_note_to_material_library`
 - `add_douyin_work_to_material_library`
 - `add_wechat_article_to_material_library`
 - `remove_xiaohongshu_note_from_material_library`
@@ -324,9 +337,11 @@
 - 用户目标非常明确
 - 不需要先走复杂工作流
 - 统一工具之外有更短的专用链路
+- 用户已经给出了完整输入，不必再经过多步工作流
 
 ### 16.3 什么时候先做页面承接
 
 - 当前没有直连 MCP
 - 风险很高，且需要用户在网页里做最终人工确认
 - 结果更适合网页可视化查看，而不是对话里展开
+- 当前属于 OpenClaw 安装、账号安全或后台管理等纯页面承接场景
