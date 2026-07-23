@@ -108,6 +108,14 @@
 - 继续推进 step1 / step2 / step3
 - 生成增长报告、半年营销规划、营销策划方案
 - 读取营销日历、选题库、统一素材库相关能力
+- 直接补某一天的营销日历内容，例如把 2026-07-15 的当天主题、各平台选题和朋友圈内容补进去
+
+营销日历相关动作补充：
+
+- `get_xiaohongshu_marketing_calendar_workspace`
+- `generate_xiaohongshu_marketing_calendar`
+- `update_xiaohongshu_marketing_calendar`
+- `upsert_xiaohongshu_marketing_calendar_item`
 
 ## 6. 任务与反馈
 

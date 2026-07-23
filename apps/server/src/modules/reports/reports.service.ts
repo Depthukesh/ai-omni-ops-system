@@ -911,6 +911,11 @@ export type UpdateXiaohongshuMarketingCalendarPayload = {
   items: XiaohongshuMarketingCalendarItem[];
 };
 
+export type UpsertXiaohongshuMarketingCalendarItemPayload = {
+  title?: string;
+  item?: Partial<XiaohongshuMarketingCalendarItem>;
+};
+
 export type UpdateDouyinTopicLibraryPayload = {
   items: DouyinTopicLibraryItem[];
 };
@@ -2724,6 +2729,40 @@ export class ReportsService {
     }
 
     return this.getXiaohongshuMarketingCalendarWorkspace(brandId);
+  }
+
+  async upsertXiaohongshuMarketingCalendarItem(
+    brandId: string,
+    reportId: string,
+    calendarDate: string,
+    payload: UpsertXiaohongshuMarketingCalendarItemPayload,
+  ) {
+    const targetDate = String(payload.item?.date ?? calendarDate).trim() || String(calendarDate || "").trim();
+    if (!targetDate) {
+      throw new ServiceUnavailableException("营销日历日期不能为空");
+    }
+
+    const workspace = await this.getXiaohongshuMarketingCalendarWorkspace(brandId);
+    const reports = workspace.latest
+      ? [workspace.latest, ...workspace.history.filter((item) => item.id !== workspace.latest?.id)]
+      : workspace.history;
+    const targetReport = reports.find((item) => item.id === reportId);
+    if (!targetReport) {
+      throw new NotFoundException("营销日历不存在");
+    }
+
+    const patchId = String(payload.item?.id || "").trim();
+    const existingItem = targetReport.items.find((item) => item.id === patchId || item.date === targetDate);
+    const nextItem = this.mergeEditableMarketingCalendarItem(targetDate, payload.item, existingItem);
+    const nextItems = [
+      ...targetReport.items.filter((item) => item.id !== existingItem?.id && item.date !== targetDate),
+      nextItem,
+    ].sort((left, right) => left.date.localeCompare(right.date));
+
+    return this.updateXiaohongshuMarketingCalendar(brandId, reportId, {
+      title: payload.title?.trim() || targetReport.title,
+      items: nextItems,
+    });
   }
 
   async updateGrowthReport(brandId: string, reportId: string, payload: UpdateGrowthReportPayload) {
@@ -12732,6 +12771,146 @@ ${normalizedMarkdown}`;
       title: nextTitle?.trim() || "品牌全平台营销日历",
       summary: normalizedItems.length ? `已更新 ${normalizedItems.length} 天品牌全平台营销日历。` : "品牌全平台营销日历已更新。",
       items: normalizedItems,
+    };
+  }
+
+  private createEmptyXiaohongshuMarketingCalendarItem(date: string): XiaohongshuMarketingCalendarItem {
+    const normalizedDate = String(date || "").trim();
+    const id = normalizedDate ? `cal_manual_${normalizedDate.replace(/-/g, "")}` : `cal_manual_${Date.now()}`;
+    const emptyXhs = {
+      topic: "",
+      description: "",
+      contentType: "",
+      noteKeywords: [],
+      coverKeywords: [],
+      titleSuggestions: [],
+      expectedPerformance: "",
+    };
+    const emptyDouyin = {
+      topic: "",
+      description: "",
+      contentType: "",
+      presentationFormat: "",
+      copyKeywords: [],
+      coverKeywords: [],
+      titleSuggestions: [],
+      expectedPerformance: "",
+    };
+    const item = {
+      id,
+      date: normalizedDate,
+      festivalOrSolarTerm: undefined,
+      brandMarketing: {
+        theme: "",
+        description: "",
+      },
+      xiaohongshu: {
+        brandAccount: { ...emptyXhs },
+        employeeAccount: { ...emptyXhs },
+      },
+      douyin: {
+        brandAccount: { ...emptyDouyin },
+        ipAccount: { ...emptyDouyin },
+        employeeAccount: { ...emptyDouyin },
+      },
+      moments: {
+        topic: "",
+        description: "",
+        presentationFormat: "",
+      },
+    } satisfies XiaohongshuMarketingCalendarItem;
+    return {
+      ...item,
+      ...this.buildMarketingCalendarWorkflowSelection(item),
+    };
+  }
+
+  private mergeEditableMarketingCalendarItem(
+    date: string,
+    patch: Partial<XiaohongshuMarketingCalendarItem> | undefined,
+    existing?: XiaohongshuMarketingCalendarItem,
+  ): XiaohongshuMarketingCalendarItem {
+    const patchRecord = this.asRecord(patch) || {};
+    const base = existing || this.createEmptyXiaohongshuMarketingCalendarItem(date);
+    const fallbackTheme = String(
+      patchRecord.topicName
+      ?? this.readNestedRecord(patchRecord, ["brandMarketing"])?.theme
+      ?? base.brandMarketing.theme
+      ?? "",
+    ).trim();
+    const fallbackDescription = String(
+      patchRecord.topicContent
+      ?? this.readNestedRecord(patchRecord, ["brandMarketing"])?.description
+      ?? base.brandMarketing.description
+      ?? "",
+    ).trim();
+
+    const nextItem = {
+      id: String(patchRecord.id ?? base.id ?? "").trim() || base.id,
+      date: String(patchRecord.date ?? date).trim() || date,
+      festivalOrSolarTerm: String(patchRecord.festivalOrSolarTerm ?? base.festivalOrSolarTerm ?? "").trim() || undefined,
+      brandMarketing: this.normalizeMarketingCalendarThemeBlock(
+        { ...(base.brandMarketing as Record<string, unknown>), ...(this.asRecord(patchRecord.brandMarketing) || {}) },
+        fallbackTheme || base.brandMarketing.theme,
+        fallbackDescription || base.brandMarketing.description,
+      ),
+      xiaohongshu: {
+        brandAccount: this.normalizeMarketingCalendarXhsBlock(
+          {
+            ...(base.xiaohongshu.brandAccount as Record<string, unknown>),
+            ...(this.readNestedRecord(patchRecord, ["xiaohongshu", "brandAccount"]) || {}),
+          },
+          fallbackTheme || base.xiaohongshu.brandAccount.topic,
+          fallbackDescription || base.xiaohongshu.brandAccount.description,
+        ),
+        employeeAccount: this.normalizeMarketingCalendarXhsBlock(
+          {
+            ...(base.xiaohongshu.employeeAccount as Record<string, unknown>),
+            ...(this.readNestedRecord(patchRecord, ["xiaohongshu", "employeeAccount"]) || {}),
+          },
+          fallbackTheme || base.xiaohongshu.employeeAccount.topic,
+          fallbackDescription || base.xiaohongshu.employeeAccount.description,
+        ),
+      },
+      douyin: {
+        brandAccount: this.normalizeMarketingCalendarDouyinBlock(
+          {
+            ...(base.douyin.brandAccount as Record<string, unknown>),
+            ...(this.readNestedRecord(patchRecord, ["douyin", "brandAccount"]) || {}),
+          },
+          fallbackTheme || base.douyin.brandAccount.topic,
+          fallbackDescription || base.douyin.brandAccount.description,
+        ),
+        ipAccount: this.normalizeMarketingCalendarDouyinBlock(
+          {
+            ...(base.douyin.ipAccount as Record<string, unknown>),
+            ...(this.readNestedRecord(patchRecord, ["douyin", "ipAccount"]) || {}),
+          },
+          fallbackTheme || base.douyin.ipAccount.topic,
+          fallbackDescription || base.douyin.ipAccount.description,
+        ),
+        employeeAccount: this.normalizeMarketingCalendarDouyinBlock(
+          {
+            ...(base.douyin.employeeAccount as Record<string, unknown>),
+            ...(this.readNestedRecord(patchRecord, ["douyin", "employeeAccount"]) || {}),
+          },
+          fallbackTheme || base.douyin.employeeAccount.topic,
+          fallbackDescription || base.douyin.employeeAccount.description,
+        ),
+      },
+      moments: this.normalizeMarketingCalendarMomentsBlock(
+        {
+          ...(base.moments as Record<string, unknown>),
+          ...(this.asRecord(patchRecord.moments) || {}),
+        },
+        fallbackTheme || base.moments.topic,
+        fallbackDescription || base.moments.description,
+      ),
+    };
+
+    return {
+      ...nextItem,
+      ...this.buildMarketingCalendarWorkflowSelection(nextItem),
     };
   }
 

@@ -19,13 +19,15 @@ export interface CalendarWorkspaceProps {
   calendarInlineError: string;
   calendarAllItems: XiaohongshuMarketingCalendarItem[];
   isCalendarDetailOpen: boolean;
+  selectedCalendarDate?: string;
   selectedCalendarItem?: XiaohongshuMarketingCalendarItem;
   calendarItemDraft: XiaohongshuMarketingCalendarItem | null;
   isEditingCalendarItem: boolean;
   isSavingCalendarItem: boolean;
+  canEditCalendar: boolean;
   onRefresh: AsyncAction;
   onGenerate: AsyncAction;
-  onOpenDetail: (itemId: string) => void;
+  onOpenDetail: (date: string, itemId?: string) => void;
   onCloseDetail: () => void;
   onStartEditDetail: () => void;
   onCancelEditDetail: () => void;
@@ -50,10 +52,12 @@ export function CalendarWorkspace(props: CalendarWorkspaceProps) {
     calendarInlineError,
     calendarAllItems,
     isCalendarDetailOpen,
+    selectedCalendarDate,
     selectedCalendarItem,
     calendarItemDraft,
     isEditingCalendarItem,
     isSavingCalendarItem,
+    canEditCalendar,
     onRefresh,
     onGenerate,
     onOpenDetail,
@@ -198,26 +202,26 @@ export function CalendarWorkspace(props: CalendarWorkspaceProps) {
               .join(" ");
 
             const festivalLabels = showGregorianFestivals ? cell.gregorianFestivals.slice(0, 2) : [];
-            const hasInteractiveTopic = Boolean(cell.item);
+            const canOpenDetail = Boolean(cell.item) || canEditCalendar;
 
             return (
               <article
                 className={cellClasses}
                 key={cell.date}
                 aria-label={`${cell.date} ${cell.lunarLabel}${cell.isRestDay ? " 休" : ""}`}
-                onClick={cell.item ? () => onOpenDetail(cell.item!.id) : undefined}
+                onClick={canOpenDetail ? () => onOpenDetail(cell.date, cell.item?.id) : undefined}
                 onKeyDown={
-                  cell.item
+                  canOpenDetail
                     ? (event) => {
                         if (event.key === "Enter" || event.key === " ") {
                           event.preventDefault();
-                          onOpenDetail(cell.item!.id);
+                          onOpenDetail(cell.date, cell.item?.id);
                         }
                       }
                     : undefined
                 }
-                role={hasInteractiveTopic ? "button" : undefined}
-                tabIndex={hasInteractiveTopic ? 0 : undefined}
+                role={canOpenDetail ? "button" : undefined}
+                tabIndex={canOpenDetail ? 0 : undefined}
               >
                 <div className="calendar-month-cell__header">
                   <div className="calendar-month-cell__date">
@@ -247,7 +251,7 @@ export function CalendarWorkspace(props: CalendarWorkspaceProps) {
         </div>
       </section>
 
-      {isCalendarDetailOpen && selectedCalendarItem ? (
+      {isCalendarDetailOpen && (selectedCalendarItem || calendarItemDraft || selectedCalendarDate) ? (
         <div className="media-preview-overlay" onClick={onCloseDetail}>
           <div className="media-preview-dialog calendar-detail-dialog" onClick={(event) => event.stopPropagation()}>
             <button type="button" className="media-preview-close" onClick={onCloseDetail}>
@@ -256,8 +260,14 @@ export function CalendarWorkspace(props: CalendarWorkspaceProps) {
             <article className="entity-card personal-card calendar-detail-card calendar-detail-card--plain">
               <div className="calendar-detail-header">
                 <div>
-                  <strong>{resolveCalendarItemTitle(isEditingCalendarItem ? calendarItemDraft || selectedCalendarItem : selectedCalendarItem)}</strong>
-                  <p className="personal-meta">{formatCalendarDate(selectedCalendarItem.date)}</p>
+                  <strong>
+                    {resolveCalendarItemTitle(
+                      isEditingCalendarItem
+                        ? calendarItemDraft || selectedCalendarItem
+                        : selectedCalendarItem || calendarItemDraft || undefined,
+                    ) || "填写当天营销日历"}
+                  </strong>
+                  <p className="personal-meta">{formatCalendarDate((selectedCalendarItem?.date || calendarItemDraft?.date || selectedCalendarDate || "").trim())}</p>
                 </div>
                 <div className="calendar-detail-actions">
                   {isEditingCalendarItem ? (
@@ -266,7 +276,7 @@ export function CalendarWorkspace(props: CalendarWorkspaceProps) {
                         取消
                       </button>
                       <button type="button" className="primary-button" onClick={() => void onSaveDetail()} disabled={isSavingCalendarItem}>
-                        {isSavingCalendarItem ? "保存中..." : "保存修改"}
+                        {isSavingCalendarItem ? "保存中..." : selectedCalendarItem ? "保存修改" : "保存当天内容"}
                       </button>
                     </>
                   ) : (

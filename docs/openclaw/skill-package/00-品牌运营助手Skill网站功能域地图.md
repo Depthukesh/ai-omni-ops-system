@@ -52,6 +52,12 @@
 - `get_openclaw_creative_materials`
 - `get_openclaw_video_works`
 
+其中 `manage_growth_reports` 当前已覆盖营销日历按日期补写能力：
+
+- 先 `get_xiaohongshu_marketing_calendar_workspace` 获取最新一期营销日历与 `reportId`
+- 再 `upsert_xiaohongshu_marketing_calendar_item`
+- 通过 `calendarDate=YYYY-MM-DD` 精确更新某一天，而不是整版手工覆盖
+
 ### 3.2 小红书 `/xiaohongshu`
 
 当前承载：

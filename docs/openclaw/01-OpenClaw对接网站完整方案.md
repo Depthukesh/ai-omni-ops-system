@@ -271,6 +271,7 @@ OpenClaw 必须明确以下规则：
 - `generate_douyin_marketing_plan`
 - `get_xiaohongshu_marketing_calendar`
 - `generate_xiaohongshu_marketing_calendar`
+- `upsert_xiaohongshu_marketing_calendar_item`
 
 ### 10.6 品牌技能中心工具
 

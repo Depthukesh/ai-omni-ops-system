@@ -2282,9 +2282,10 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
     inputSchema: {
       type: "object",
       properties: {
-        action: { type: "string", description: "例如 get_growth_workspace、generate_visual_growth_report、update_douyin_topic_library、generate_xiaohongshu_marketing_calendar。" },
+        action: { type: "string", description: "例如 get_growth_workspace、generate_visual_growth_report、update_douyin_topic_library、generate_xiaohongshu_marketing_calendar、upsert_xiaohongshu_marketing_calendar_item。" },
         reportId: { type: "string" },
         selectedDate: { type: "string", description: "热点选题候选日期，格式与原接口一致。" },
+        calendarDate: { type: "string", description: "营销日历日期，格式为 YYYY-MM-DD。" },
         payload: {
           type: "object",
           description: "对应动作的请求体，结构与网站原始接口保持一致。",
@@ -9072,6 +9073,7 @@ export class OpenClawService {
       action?: string;
       reportId?: string;
       selectedDate?: string;
+      calendarDate?: string;
       payload?: Record<string, unknown>;
     },
   ) {
@@ -9401,6 +9403,37 @@ export class OpenClawService {
           url: "/xiaohongshu",
           label: "打开小红书工作区",
           resourceKind: "report",
+        });
+      }
+      case "upsert_xiaohongshu_marketing_calendar_item": {
+        await this.authService.assertBrandPermission(brandId, "xiaohongshu.calendar", "edit", auth);
+        const workspace = await this.reportsService.getXiaohongshuMarketingCalendarWorkspace(brandId);
+        const reportId = String(options?.reportId || workspace.latest?.id || "").trim();
+        const calendarDate = String(options?.calendarDate || payload.date || "").trim();
+        if (!reportId) {
+          throw new BadRequestException("请先提供 reportId，或保证当前品牌已有最新营销日历");
+        }
+        if (!calendarDate) {
+          throw new BadRequestException("请提供 calendarDate，格式为 YYYY-MM-DD");
+        }
+        const result = await this.reportsService.upsertXiaohongshuMarketingCalendarItem(
+          brandId,
+          reportId,
+          calendarDate,
+          payload as Parameters<ReportsService["upsertXiaohongshuMarketingCalendarItem"]>[3],
+        );
+        return this.buildManagedOperationResponse({
+          title: `营销日历 ${calendarDate} 已更新`,
+          action,
+          data: result,
+          url: "/brand-growth",
+          label: "打开品牌增长策略",
+          resourceKind: "report",
+          highlights: [
+            `日期：${calendarDate}`,
+            `报告：${reportId}`,
+            "可继续打开营销日历查看当天内容，或把当天选题衔接到后续内容生产工具链。",
+          ],
         });
       }
       default:
@@ -11803,6 +11836,7 @@ export class OpenClawService {
           action: typeof toolArgs.action === "string" ? toolArgs.action : undefined,
           reportId: typeof toolArgs.reportId === "string" ? toolArgs.reportId : undefined,
           selectedDate: typeof toolArgs.selectedDate === "string" ? toolArgs.selectedDate : undefined,
+          calendarDate: typeof toolArgs.calendarDate === "string" ? toolArgs.calendarDate : undefined,
           payload: toolArgs.payload && typeof toolArgs.payload === "object" && !Array.isArray(toolArgs.payload)
             ? toolArgs.payload as Record<string, unknown>
             : undefined,

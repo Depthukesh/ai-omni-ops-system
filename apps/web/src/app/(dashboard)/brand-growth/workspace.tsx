@@ -159,6 +159,7 @@ import {
   type XiaohongshuMarketingPlanWorkspace,
   type VisualGrowthReportWorkspace,
   updateXiaohongshuMarketingCalendar,
+  upsertXiaohongshuMarketingCalendarItem,
   xiaohongshuMarketingPlanSeed,
 } from "../../../services/reports";
 import {
@@ -1121,6 +1122,7 @@ export function BrandGrowthWorkspace() {
   const [isGeneratingDouyinTopicCandidates, setIsGeneratingDouyinTopicCandidates] = useState(false);
   const [isSavingDouyinTopicLibrary, setIsSavingDouyinTopicLibrary] = useState(false);
   const [selectedCalendarItemId, setSelectedCalendarItemId] = useState("");
+  const [selectedCalendarDate, setSelectedCalendarDate] = useState("");
   const [isCalendarDetailOpen, setIsCalendarDetailOpen] = useState(false);
   const [isEditingCalendarItem, setIsEditingCalendarItem] = useState(false);
   const [isSavingCalendarItem, setIsSavingCalendarItem] = useState(false);
@@ -1503,7 +1505,10 @@ export function BrandGrowthWorkspace() {
         : marketingCalendarWorkspace.history.flatMap((item) => item.items),
     [latestCalendar, marketingCalendarWorkspace.history],
   );
-  const selectedCalendarItem = calendarAllItems.find((item) => item.id === selectedCalendarItemId) || calendarAllItems[0];
+  const selectedCalendarItem = calendarAllItems.find((item) =>
+    (selectedCalendarItemId && item.id === selectedCalendarItemId)
+    || (selectedCalendarDate && item.date === selectedCalendarDate),
+  );
   const canSyncFeishuWorkspace = Boolean(feishuBinding?.wikiUrl) && Boolean(feishuAuthStatus?.connected);
   const hasCurrentPageEditPermission = Boolean(brandPermissionSettings?.currentUserPermissions?.[strategyPagePermissionMap[currentPage.key]]?.edit);
   useEffect(() => {
@@ -2502,31 +2507,41 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     }
   }
 
-  function handleOpenCalendarDetail(itemId: string) {
-    setSelectedCalendarItemId(itemId);
-    const item = calendarAllItems.find((entry) => entry.id === itemId);
-    setCalendarItemDraft(item ? cloneMarketingCalendarItem(item) : null);
-    setIsEditingCalendarItem(false);
+  function handleOpenCalendarDetail(date: string, itemId?: string) {
+    const item = itemId ? calendarAllItems.find((entry) => entry.id === itemId) : calendarAllItems.find((entry) => entry.date === date);
+    setSelectedCalendarItemId(item?.id || "");
+    setSelectedCalendarDate(item?.date || date);
+    setCalendarItemDraft(item ? cloneMarketingCalendarItem(item) : createEmptyMarketingCalendarItem(date));
+    setIsEditingCalendarItem(!item);
     setIsCalendarDetailOpen(true);
   }
 
   function handleCloseCalendarDetail() {
     setIsCalendarDetailOpen(false);
+    setSelectedCalendarItemId("");
+    setSelectedCalendarDate("");
     setIsEditingCalendarItem(false);
     setCalendarItemDraft(null);
   }
 
   function handleStartEditCalendarItem() {
-    if (!selectedCalendarItem) {
+    if (!selectedCalendarItem && !calendarItemDraft) {
       return;
     }
-    setCalendarItemDraft(cloneMarketingCalendarItem(selectedCalendarItem));
+    setCalendarItemDraft(cloneMarketingCalendarItem(selectedCalendarItem || calendarItemDraft!));
     setIsEditingCalendarItem(true);
   }
 
   function handleCancelEditCalendarItem() {
-    setCalendarItemDraft(selectedCalendarItem ? cloneMarketingCalendarItem(selectedCalendarItem) : null);
-    setIsEditingCalendarItem(false);
+    if (selectedCalendarItem) {
+      setCalendarItemDraft(cloneMarketingCalendarItem(selectedCalendarItem));
+      setIsEditingCalendarItem(false);
+      return;
+    }
+    if (selectedCalendarDate) {
+      setCalendarItemDraft(createEmptyMarketingCalendarItem(selectedCalendarDate));
+      setIsEditingCalendarItem(true);
+    }
   }
 
   function handleCalendarItemFieldChange(path: string, value: string) {
@@ -2553,31 +2568,45 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
       setErrorMessage("当前账号没有营销日历板块的编辑权限。");
       return;
     }
-    if (!latestCalendar || !selectedCalendarItem || !calendarItemDraft) {
+    if (!latestCalendar || !calendarItemDraft) {
       setErrorMessage("当前还没有可保存的营销日历选题。");
       return;
     }
-
-    const nextItems = latestCalendar.items.map((item) =>
-      item.id === selectedCalendarItem.id || item.date === selectedCalendarItem.date
-        ? normalizeEditableMarketingCalendarItem(calendarItemDraft)
-        : item,
+    const normalizedDraft = normalizeEditableMarketingCalendarItem(calendarItemDraft);
+    if (!normalizedDraft.date.trim()) {
+      setErrorMessage("请先填写日期。");
+      return;
+    }
+    const hasPrimaryTopic = Boolean(
+      normalizedDraft.brandMarketing.theme
+      || normalizedDraft.xiaohongshu.brandAccount.topic
+      || normalizedDraft.xiaohongshu.employeeAccount.topic
+      || normalizedDraft.douyin.brandAccount.topic
+      || normalizedDraft.douyin.ipAccount.topic
+      || normalizedDraft.douyin.employeeAccount.topic
+      || normalizedDraft.moments.topic,
     );
-    const hasMatchedItem = nextItems.some((item) => item.id === selectedCalendarItem.id || item.date === selectedCalendarItem.date);
-    if (!hasMatchedItem) {
-      setErrorMessage("当前只支持编辑最新一版营销日历中的选题。");
+    if (!hasPrimaryTopic) {
+      setErrorMessage("请至少填写一个当天营销主题或平台选题。");
       return;
     }
 
     setIsSavingCalendarItem(true);
     clearMessages();
     try {
-      const nextWorkspace = await updateXiaohongshuMarketingCalendar(latestCalendar.id, nextItems, latestCalendar.title, archive.brand.id);
+      const nextWorkspace = await upsertXiaohongshuMarketingCalendarItem(
+        latestCalendar.id,
+        normalizedDraft.date,
+        normalizedDraft,
+        latestCalendar.title,
+        archive.brand.id,
+      );
       setMarketingCalendarWorkspace(nextWorkspace);
       const nextSelectedItem =
-        nextWorkspace.latest?.items.find((item) => item.id === selectedCalendarItem.id || item.date === selectedCalendarItem.date)
-        || normalizeEditableMarketingCalendarItem(calendarItemDraft);
+        nextWorkspace.latest?.items.find((item) => item.id === normalizedDraft.id || item.date === normalizedDraft.date)
+        || normalizedDraft;
       setSelectedCalendarItemId(nextSelectedItem.id);
+      setSelectedCalendarDate(nextSelectedItem.date);
       setCalendarItemDraft(cloneMarketingCalendarItem(nextSelectedItem));
       setIsEditingCalendarItem(false);
       setNotice("营销日历已保存。");
@@ -4326,10 +4355,12 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
             calendarInlineError={calendarInlineError}
             calendarAllItems={calendarAllItems}
             isCalendarDetailOpen={isCalendarDetailOpen}
+            selectedCalendarDate={selectedCalendarDate}
             selectedCalendarItem={selectedCalendarItem}
             calendarItemDraft={calendarItemDraft}
             isEditingCalendarItem={isEditingCalendarItem}
             isSavingCalendarItem={isSavingCalendarItem}
+            canEditCalendar={hasCurrentPageEditPermission}
             onRefresh={() => refreshMarketingCalendarWorkspace()}
             onGenerate={() => {
               handleOpenMarketingCalendarGenerateDialog();
@@ -4858,6 +4889,77 @@ function cloneMarketingCalendarItem(item: XiaohongshuMarketingCalendarItem): Xia
       },
     },
     moments: { ...item.moments },
+  };
+}
+
+function createEmptyMarketingCalendarItem(date: string): XiaohongshuMarketingCalendarItem {
+  const normalizedDate = date.trim();
+  const id = normalizedDate ? `cal_manual_${normalizedDate.replace(/-/g, "")}` : `cal_manual_${Date.now()}`;
+  return {
+    id,
+    date: normalizedDate,
+    festivalOrSolarTerm: "",
+    brandMarketing: {
+      theme: "",
+      description: "",
+    },
+    xiaohongshu: {
+      brandAccount: {
+        topic: "",
+        description: "",
+        contentType: "",
+        noteKeywords: [],
+        coverKeywords: [],
+        titleSuggestions: [],
+        expectedPerformance: "",
+      },
+      employeeAccount: {
+        topic: "",
+        description: "",
+        contentType: "",
+        noteKeywords: [],
+        coverKeywords: [],
+        titleSuggestions: [],
+        expectedPerformance: "",
+      },
+    },
+    douyin: {
+      brandAccount: {
+        topic: "",
+        description: "",
+        contentType: "",
+        presentationFormat: "",
+        copyKeywords: [],
+        coverKeywords: [],
+        titleSuggestions: [],
+        expectedPerformance: "",
+      },
+      ipAccount: {
+        topic: "",
+        description: "",
+        contentType: "",
+        presentationFormat: "",
+        copyKeywords: [],
+        coverKeywords: [],
+        titleSuggestions: [],
+        expectedPerformance: "",
+      },
+      employeeAccount: {
+        topic: "",
+        description: "",
+        contentType: "",
+        presentationFormat: "",
+        copyKeywords: [],
+        coverKeywords: [],
+        titleSuggestions: [],
+        expectedPerformance: "",
+      },
+    },
+    moments: {
+      topic: "",
+      description: "",
+      presentationFormat: "",
+    },
   };
 }
 

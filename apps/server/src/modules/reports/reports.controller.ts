@@ -18,6 +18,7 @@ import {
   type UpdateVisualGrowthReportPayload,
   type UpdateXiaohongshuMarketingPlanPayload,
   type UpdateXiaohongshuMarketingCalendarPayload,
+  type UpsertXiaohongshuMarketingCalendarItemPayload,
 } from "./reports.service";
 
 @Controller("reports")
@@ -426,5 +427,18 @@ export class ReportsController {
     const auth = await this.authService.resolveRequestAuthContext(headers);
     await this.authService.assertBrandPermission(brandId, "xiaohongshu.calendar", "edit", auth);
     return this.reportsService.updateXiaohongshuMarketingCalendar(brandId, reportId, payload);
+  }
+
+  @Patch("brands/:brandId/xiaohongshu-marketing-calendar/:reportId/items/:date")
+  async upsertXiaohongshuMarketingCalendarItem(
+    @Param("brandId") brandId: string,
+    @Param("reportId") reportId: string,
+    @Param("date") date: string,
+    @Body() payload: UpsertXiaohongshuMarketingCalendarItemPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "xiaohongshu.calendar", "edit", auth);
+    return this.reportsService.upsertXiaohongshuMarketingCalendarItem(brandId, reportId, date, payload);
   }
 }

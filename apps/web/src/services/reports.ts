@@ -898,6 +898,25 @@ export async function updateXiaohongshuMarketingCalendar(
   });
 }
 
+export async function upsertXiaohongshuMarketingCalendarItem(
+  reportId: string,
+  date: string,
+  item: XiaohongshuMarketingCalendarItem,
+  title?: string,
+  brandId?: string,
+) {
+  const resolvedBrandId = resolveBrandId(brandId);
+  clearReportWorkspaceCacheByBrand(resolvedBrandId);
+  return jsonRequest<XiaohongshuMarketingCalendarWorkspace>(
+    `/reports/brands/${resolvedBrandId}/xiaohongshu-marketing-calendar/${reportId}/items/${encodeURIComponent(date)}`,
+    "PATCH",
+    {
+      title,
+      item,
+    },
+  );
+}
+
 function buildReportWorkspaceCacheKey(scope: string, brandId: string) {
   return `${scope}:${brandId}`;
 }
