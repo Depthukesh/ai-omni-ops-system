@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { fetch } from "undici";
 import { BadRequestException, Injectable, ServiceUnavailableException, UnauthorizedException } from "@nestjs/common";
 import { normalizeSafeText } from "../../common/prompt-injection-guard";
 import { AuthService, type RequestAuthContext } from "../auth/auth.service";
@@ -97,6 +98,21 @@ type OpenClawWebsiteFunctionCatalogItem = {
   recommendedQuestions: string[];
   mcpTools: string[];
 };
+
+async function reportRunningHubStatusStuckDebugEvent(payload: Record<string, unknown>) {
+  const baseUrl = String(process.env.PUBLIC_API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "").trim().replace(/\/$/, "");
+  if (!baseUrl) {
+    return;
+  }
+  await fetch(`${baseUrl}/openclaw/mcp/debug/runninghub-status-stuck/event`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      ...(payload || {}),
+      ts: typeof payload.ts === "number" ? payload.ts : Date.now(),
+    }),
+  }).catch(() => {});
+}
 
 const OPENCLAW_MCP_SERVER_INFO = {
   name: "ai-omni-ops-openclaw-mcp-http",
@@ -10394,6 +10410,22 @@ export class OpenClawService {
       case "runninghub:list_works": {
         await this.authService.assertBrandPermission(brandId, "douyin.runningHub", "view", auth);
         const result = await this.worksService.listDouyinRunningHubWorks(brandId);
+        // #region debug-point RHS-B:openclaw-runninghub-list-works
+        void reportRunningHubStatusStuckDebugEvent({
+          sessionId: "runninghub-status-stuck",
+          runId: "pre-fix",
+          hypothesisId: "B",
+          location: "openclaw.service.ts:runninghub:list_works",
+          msg: "[DEBUG] OpenClaw runninghub:list_works executed",
+          data: {
+            brandId,
+            itemCount: Array.isArray(result?.items) ? result.items.length : 0,
+            pendingCount: Array.isArray(result?.items)
+              ? result.items.filter((item) => item?.status === "PENDING" || item?.status === "RUNNING").length
+              : 0,
+          },
+        });
+        // #endregion debug-point RHS-B:openclaw-runninghub-list-works
         return this.buildManagedOperationResponse({
           title: "RunningHub 作品列表",
           action: `${section}:${action}`,
@@ -10419,6 +10451,22 @@ export class OpenClawService {
           runningHubPayload,
           auth,
         );
+        // #region debug-point RHS-A:openclaw-runninghub-generate
+        void reportRunningHubStatusStuckDebugEvent({
+          sessionId: "runninghub-status-stuck",
+          runId: "pre-fix",
+          hypothesisId: "A",
+          location: "openclaw.service.ts:runninghub:generate",
+          msg: "[DEBUG] OpenClaw runninghub:generate returned IN_PROGRESS",
+          data: {
+            brandId,
+            appKey,
+            workId: (result as { item?: { id?: string } })?.item?.id || "",
+            providerTaskId: (result as { item?: { providerTaskId?: string } })?.item?.providerTaskId || "",
+            resultStatus: "IN_PROGRESS",
+          },
+        });
+        // #endregion debug-point RHS-A:openclaw-runninghub-generate
         return this.buildManagedOperationResponse({
           title: "RunningHub 任务已触发",
           action: `${section}:${action}`,

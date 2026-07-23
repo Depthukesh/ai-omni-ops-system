@@ -15,6 +15,7 @@ import {
   ServiceUnavailableException,
   UnauthorizedException,
 } from "@nestjs/common";
+import { fetch } from "undici";
 import { MediaType, Prisma, TaskStatus } from "@prisma/client";
 import ffmpegInstaller from "@ffmpeg-installer/ffmpeg";
 import { createId, database, type ApiProviderRecord } from "../../common/mock-data";
@@ -78,6 +79,21 @@ const VIDEO_TASK_TOTAL_TIMEOUT_MS = 20 * 60 * 1000;
 const RUNNINGHUB_TASK_POLL_INTERVAL_MS = 15 * 1000;
 const RUNNINGHUB_TASK_TOTAL_TIMEOUT_MS = 2 * 60 * 60 * 1000;
 const WORKS_KNOWLEDGE_BINDING_LIMIT = 3;
+
+async function reportRunningHubStatusStuckDebugEvent(payload: Record<string, unknown>) {
+  const baseUrl = String(process.env.PUBLIC_API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "").trim().replace(/\/$/, "");
+  if (!baseUrl) {
+    return;
+  }
+  await fetch(`${baseUrl}/openclaw/mcp/debug/runninghub-status-stuck/event`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      ...(payload || {}),
+      ts: typeof payload.ts === "number" ? payload.ts : Date.now(),
+    }),
+  }).catch(() => {});
+}
 const WORKS_KNOWLEDGE_TOP_K = 4;
 const DOUYIN_AD_PRE_AUDIT_TASK_TYPE = "DOUYIN_AD_PRE_AUDIT";
 const OPERATIONS_PROMPT_CENTER_TASK_TYPE = "OPERATIONS_PROMPT_CENTER";
@@ -10203,6 +10219,20 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       .filter((item) => this.shouldRefreshRunningHubWorkMeta(this.readRunningHubWorkMeta(item.metadataJson)))
       .slice(0, 3)
       .map((item) => item.id);
+    // #region debug-point RHS-C:runninghub-list-enter
+    void reportRunningHubStatusStuckDebugEvent({
+      sessionId: "runninghub-status-stuck",
+      runId: "pre-fix",
+      hypothesisId: "C",
+      location: "works.service.ts:listDouyinRunningHubWorks",
+      msg: "[DEBUG] RunningHub list entered",
+      data: {
+        brandId,
+        rowCount: rows.length,
+        syncRefreshWorkIds,
+      },
+    });
+    // #endregion debug-point RHS-C:runninghub-list-enter
     if (syncRefreshWorkIds.length) {
       await Promise.allSettled(syncRefreshWorkIds.map((workId) => this.refreshRunningHubWorkSnapshot(brandId, workId)));
       rows = await this.listRunningHubWorkRows(brandId);
@@ -23951,12 +23981,44 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
   private async refreshRunningHubWorkSnapshot(brandId: string, workId: string) {
     const target = await this.getRunningHubWorkRowById(brandId, workId);
     const meta = this.readRunningHubWorkMeta(this.getMediaMetadata(target));
+    // #region debug-point RHS-D:runninghub-refresh-enter
+    void reportRunningHubStatusStuckDebugEvent({
+      sessionId: "runninghub-status-stuck",
+      runId: "pre-fix",
+      hypothesisId: "D",
+      location: "works.service.ts:refreshRunningHubWorkSnapshot:enter",
+      msg: "[DEBUG] RunningHub refresh entered",
+      data: {
+        brandId,
+        workId,
+        status: meta.status,
+        providerTaskId: meta.providerTaskId || "",
+      },
+    });
+    // #endregion debug-point RHS-D:runninghub-refresh-enter
     if (!meta.providerTaskId || meta.status === "SUCCESS" || meta.status === "FAILED") {
       return meta;
     }
     try {
       const apiKey = await this.resolveRunningHubApiKey(brandId);
       const snapshot = await this.queryRunningHubTask(apiKey, meta.providerTaskId);
+      // #region debug-point RHS-E:runninghub-refresh-query
+      void reportRunningHubStatusStuckDebugEvent({
+        sessionId: "runninghub-status-stuck",
+        runId: "pre-fix",
+        hypothesisId: "E",
+        location: "works.service.ts:refreshRunningHubWorkSnapshot:query",
+        msg: "[DEBUG] RunningHub refresh queried third-party snapshot",
+        data: {
+          brandId,
+          workId,
+          providerTaskId: meta.providerTaskId,
+          snapshotStatus: snapshot.status,
+          snapshotTaskId: snapshot.taskId,
+          resultCount: Array.isArray(snapshot.results) ? snapshot.results.length : 0,
+        },
+      });
+      // #endregion debug-point RHS-E:runninghub-refresh-query
       return await this.persistRunningHubQueryResult(
         brandId,
         workId,

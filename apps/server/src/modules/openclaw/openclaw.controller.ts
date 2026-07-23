@@ -28,6 +28,10 @@ export class OpenClawController {
     return join(process.cwd(), ".dbg", "trae-debug-log-runninghub-wrong-image.ndjson");
   }
 
+  private getRunningHubStatusStuckDebugLogPath() {
+    return join(process.cwd(), ".dbg", "trae-debug-log-runninghub-status-stuck.ndjson");
+  }
+
   private readHeaderValue(headers: HeadersMap, key: string) {
     const direct = headers[key] ?? headers[key.toLowerCase()] ?? headers[key.toUpperCase()];
     if (Array.isArray(direct)) {
@@ -55,6 +59,19 @@ export class OpenClawController {
       filePath,
       `${JSON.stringify({
         ...payload,
+        ts: typeof payload.ts === "number" ? payload.ts : Date.now(),
+      })}\n`,
+      "utf8",
+    );
+  }
+
+  private async appendRunningHubStatusStuckDebugEvent(payload: Record<string, unknown>) {
+    const filePath = this.getRunningHubStatusStuckDebugLogPath();
+    await mkdir(join(process.cwd(), ".dbg"), { recursive: true });
+    await appendFile(
+      filePath,
+      `${JSON.stringify({
+        ...(payload || {}),
         ts: typeof payload.ts === "number" ? payload.ts : Date.now(),
       })}\n`,
       "utf8",
@@ -131,6 +148,29 @@ export class OpenClawController {
   @Get("debug/runninghub-wrong-image/logs")
   async getRunningHubWrongImageDebugLogs() {
     const filePath = this.getRunningHubWrongImageDebugLogPath();
+    try {
+      const content = await readFile(filePath, "utf8");
+      return {
+        items: content
+          .split(/\r?\n/)
+          .map((line) => line.trim())
+          .filter(Boolean)
+          .map((line) => JSON.parse(line) as Record<string, unknown>),
+      };
+    } catch {
+      return { items: [] as Array<Record<string, unknown>> };
+    }
+  }
+
+  @Post("debug/runninghub-status-stuck/event")
+  async collectRunningHubStatusStuckDebugEvent(@Body() payload?: Record<string, unknown>) {
+    await this.appendRunningHubStatusStuckDebugEvent(payload || {});
+    return { success: true };
+  }
+
+  @Get("debug/runninghub-status-stuck/logs")
+  async getRunningHubStatusStuckDebugLogs() {
+    const filePath = this.getRunningHubStatusStuckDebugLogPath();
     try {
       const content = await readFile(filePath, "utf8");
       return {
