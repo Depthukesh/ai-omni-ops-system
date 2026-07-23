@@ -3093,6 +3093,7 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
   private readonly heavyRecoveryPollingIntervalMs = readPositiveIntegerEnv("WORKS_HEAVY_RECOVERY_POLLING_INTERVAL_MS", 30_000);
   private readonly heavyRecoveryPollingBatchLimit = readPositiveIntegerEnv("WORKS_HEAVY_RECOVERY_POLLING_BATCH_LIMIT", 2);
   private readonly inFlightHeavyRecoveryRefreshes = new Set<string>();
+  private readonly inFlightRunningHubSettlementMonitors = new Set<string>();
   private readonly videoQueryDedupTtlMs = readPositiveIntegerEnv("WORKS_VIDEO_QUERY_DEDUP_TTL_MS", 2_000);
   private readonly videoQueryErrorBackoffMs = readPositiveIntegerEnv("WORKS_VIDEO_QUERY_ERROR_BACKOFF_MS", 5_000);
   private readonly videoQueryDedupMaxEntries = readPositiveIntegerEnv("WORKS_VIDEO_QUERY_DEDUP_MAX_ENTRIES", 300);
@@ -10249,6 +10250,34 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
         .map((item) => this.mapRunningHubWorkRecord(item))
         .filter(Boolean) as DouyinRunningHubWorkRecord[],
     };
+  }
+
+  async getDouyinRunningHubWork(
+    brandId: string,
+    workId: string,
+    options?: { refresh?: boolean },
+  ) {
+    let target = await this.getRunningHubWorkRowById(brandId, workId);
+    let meta = this.readRunningHubWorkMeta(this.getMediaMetadata(target));
+    const shouldRefresh = options?.refresh !== false && this.shouldRefreshRunningHubWorkMeta(meta);
+    if (shouldRefresh) {
+      meta = await this.refreshRunningHubWorkSnapshot(brandId, workId);
+      target = await this.getRunningHubWorkRowById(brandId, workId);
+    }
+    if (this.shouldRefreshRunningHubWorkMeta(meta)) {
+      this.ensureRunningHubSettlementMonitor({
+        brandId,
+        workId,
+        storageKey: String(target.storageKey || "").trim() || `${workId}.html`,
+        taskId: meta.taskId || String(target.taskId || "").trim(),
+        appName: meta.appName,
+      });
+    }
+    const item = this.mapRunningHubWorkRecord(target);
+    if (!item) {
+      throw new NotFoundException("RunningHub 作品不存在");
+    }
+    return { item };
   }
 
   async createDouyinRunningHubWork(
@@ -23437,7 +23466,15 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       });
       if (currentMeta.status === "SUCCESS" || currentMeta.status === "FAILED") {
         await this.refreshRunningHubWorkSnapshot(brandId, workMediaId);
+        return;
       }
+      this.ensureRunningHubSettlementMonitor({
+        brandId,
+        workId: workMediaId,
+        storageKey,
+        taskId,
+        appName: app.name,
+      });
       // Do not keep a heavy background queue slot occupied for up to hours while polling
       // RunningHub. Submission and result recovery are intentionally decoupled: once the
       // provider task id is persisted, the shared recovery polling loop will continue syncing.
@@ -24018,7 +24055,7 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
         },
       });
       // #endregion debug-point RHS-E:runninghub-refresh-query
-      return await this.persistRunningHubQueryResult(
+      const nextMeta = await this.persistRunningHubQueryResult(
         brandId,
         workId,
         target.storageKey || `${workId}.html`,
@@ -24026,9 +24063,40 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
         meta,
         snapshot,
       );
+      if (this.shouldRefreshRunningHubWorkMeta(nextMeta)) {
+        this.ensureRunningHubSettlementMonitor({
+          brandId,
+          workId,
+          storageKey: target.storageKey || `${workId}.html`,
+          taskId: meta.taskId || String(target.taskId || "").trim(),
+          appName: meta.appName,
+        });
+      }
+      return nextMeta;
     } catch {
       return meta;
     }
+  }
+
+  private ensureRunningHubSettlementMonitor(params: {
+    brandId: string;
+    workId: string;
+    storageKey: string;
+    taskId: string;
+    appName: string;
+  }) {
+    const refreshKey = `${params.brandId}:${params.workId}`;
+    if (this.inFlightRunningHubSettlementMonitors.has(refreshKey)) {
+      return;
+    }
+    this.inFlightRunningHubSettlementMonitors.add(refreshKey);
+    void this.monitorRunningHubWorkUntilSettled(params)
+      .catch((error) => {
+        this.logHeavyBackgroundTaskError(`runninghub-monitor:${params.brandId}:${params.workId}`, error);
+      })
+      .finally(() => {
+        this.inFlightRunningHubSettlementMonitors.delete(refreshKey);
+      });
   }
 
   private async monitorRunningHubWorkUntilSettled(params: {

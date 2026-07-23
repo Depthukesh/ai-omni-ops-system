@@ -2320,7 +2320,7 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
       type: "object",
       properties: {
         section: { type: "string", description: "可选：video、direct_video、remix_short_video、digital_human、lip_sync、runninghub、ad_preaudit。" },
-        action: { type: "string", description: "例如 list_works、generate、recover、list_templates、list_voice_library、list_custom_voices、create_custom_voice、create_speech_task、get_speech_task、list_apps、get_app_detail、save_config 等。" },
+        action: { type: "string", description: "例如 list_works、get_work、generate、recover、list_templates、list_voice_library、list_custom_voices、create_custom_voice、create_speech_task、get_speech_task、list_apps、get_app_detail、save_config 等。" },
         workId: { type: "string" },
         taskId: { type: "string" },
         voiceId: { type: "string", description: "数字人语音 ID。create_speech_task 时可直接传这里，服务端会自动映射到 payload.audioManId。" },
@@ -10434,6 +10434,51 @@ export class OpenClawService {
           resourceKind: "douyin",
         });
       }
+      case "runninghub:get_work": {
+        const workId = String(options?.workId || "").trim();
+        if (!workId) {
+          throw new BadRequestException("请提供 workId");
+        }
+        await this.authService.assertBrandPermission(brandId, "douyin.runningHub", "view", auth);
+        const result = await this.worksService.getDouyinRunningHubWork(brandId, workId, { refresh: true });
+        const item = result.item;
+        const statusLabel = item.status === "SUCCESS"
+          ? "已完成"
+          : item.status === "FAILED"
+            ? "失败"
+            : item.status === "RUNNING"
+              ? "运行中"
+              : "排队中";
+        const resultStatus = item.status === "SUCCESS"
+          ? "COMPLETED"
+          : item.status === "FAILED"
+            ? "ACTION_REQUIRED"
+            : "IN_PROGRESS";
+        return this.buildSummaryResponse({
+          title: `RunningHub 任务状态：${statusLabel}`,
+          summary: item.status === "SUCCESS"
+            ? `任务 ${item.id} 已完成，站内状态已自动收敛。`
+            : item.status === "FAILED"
+              ? `任务 ${item.id} 已失败，请根据失败原因调整后重试。`
+              : `任务 ${item.id} 仍在处理中，系统会继续后台同步状态。`,
+          highlights: [
+            `作品 ID：${item.id}`,
+            item.providerTaskId ? `第三方任务 ID：${item.providerTaskId}` : "第三方任务 ID：等待提交完成后回填",
+            `当前状态：${statusLabel}`,
+            `当前进度：${item.progress}%`,
+            ...(item.errorReason ? [`失败原因：${item.errorReason}`] : []),
+          ],
+          data: result,
+          links: [{ label: "打开 RunningHub 工作台", url: "/douyin" }],
+          resultStatus,
+          resourceKind: "runninghub_work",
+          nextActions: [
+            ...(resultStatus === "IN_PROGRESS" ? [{ label: "继续查看任务状态", action: "check_status" as const, target: item.id }] : []),
+            ...(resultStatus === "ACTION_REQUIRED" ? [{ label: "根据失败原因重试", action: "retry" as const, target: item.id }] : []),
+            { label: "打开 RunningHub 工作台", action: "open_page" as const, target: "/douyin" },
+          ],
+        });
+      }
       case "runninghub:generate": {
         const appKey = String(options?.appKey || "").trim();
         if (!appKey) {
@@ -10474,6 +10519,19 @@ export class OpenClawService {
           label: "打开 RunningHub 工作台",
           resultStatus: "IN_PROGRESS",
           resourceKind: "douyin",
+          highlights: [
+            `作品 ID：${(result as { item?: { id?: string } })?.item?.id || "未返回"}`,
+            `第三方任务 ID：${(result as { item?: { providerTaskId?: string } })?.item?.providerTaskId || "等待后台提交完成后回填"}`,
+            "系统会在后台继续提交并自动同步 RunningHub 状态，不再依赖页面列表刷新才能收敛。",
+          ],
+          nextActions: [
+            {
+              label: "继续查看任务状态",
+              action: "check_status" as const,
+              target: (result as { item?: { id?: string } })?.item?.id || "",
+            },
+            { label: "打开 RunningHub 工作台", action: "open_page" as const, target: "/douyin" },
+          ].filter((item) => item.target),
         });
       }
       case "runninghub:delete": {
@@ -10640,6 +10698,7 @@ export class OpenClawService {
     resultStatus?: OpenClawResultStatus;
     resourceKind?: string;
     highlights?: string[];
+    nextActions?: OpenClawNextAction[];
   }) {
     return this.buildSummaryResponse({
       title: payload.title,
@@ -10649,6 +10708,7 @@ export class OpenClawService {
       links: [{ label: payload.label, url: payload.url }],
       resultStatus: payload.resultStatus,
       resourceKind: payload.resourceKind,
+      nextActions: payload.nextActions,
     });
   }
 

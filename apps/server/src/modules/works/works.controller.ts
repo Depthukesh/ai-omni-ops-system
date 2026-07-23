@@ -953,6 +953,20 @@ export class WorksController {
     return this.worksService.listDouyinRunningHubWorks(brandId);
   }
 
+  @Get("brands/:brandId/douyin/runninghub/works/:workId")
+  async getDouyinRunningHubWork(
+    @Param("brandId") brandId: string,
+    @Param("workId") workId: string,
+    @Query("refresh") refresh: string | undefined,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "douyin.runningHub", "view", auth);
+    return this.worksService.getDouyinRunningHubWork(brandId, workId, {
+      refresh: refresh === undefined ? true : refresh !== "false",
+    });
+  }
+
   @Post("brands/:brandId/douyin/runninghub/apps/:appKey/generate")
   createDouyinRunningHubWork(
     @Param("brandId") brandId: string,
