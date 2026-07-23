@@ -15,7 +15,6 @@ import {
   ServiceUnavailableException,
   UnauthorizedException,
 } from "@nestjs/common";
-import { fetch } from "undici";
 import { MediaType, Prisma, TaskStatus } from "@prisma/client";
 import ffmpegInstaller from "@ffmpeg-installer/ffmpeg";
 import { createId, database, type ApiProviderRecord } from "../../common/mock-data";
