@@ -143,6 +143,21 @@
 - `check_my_third_party_platform_runtime_access`
 - `update_my_third_party_platform_secret`
 
+第三方平台重点说明：
+
+- `多元探索 / duoyuanx` 当前不是单独的一组专用 MCP tools，而是复用第三方接口配置域的通用工具：
+  - `list_my_third_party_platforms`
+  - `check_my_third_party_platform_runtime_access`
+  - `update_my_third_party_platform_secret`
+- Skill 在遇到“多元探索有没有接进来”“这份 Key 能不能给文本、图像、视频、音频、音乐一起用”“现在网站哪些功能能直用多元探索”这类问题时，优先先查平台列表和运行时可用性，不要直接猜测
+- 当前多元探索统一网关已预装五类运行时：
+  - 文本
+  - 图像
+  - 视频
+  - 音频
+  - 音乐
+- 这些运行时是否被当前品牌可用，应以 `check_my_third_party_platform_runtime_access` 返回结果为准，而不是靠模型名硬猜
+
 ### 7.2 团队协作
 
 - `list_brand_members`
@@ -338,6 +353,7 @@
 - 不需要先走复杂工作流
 - 统一工具之外有更短的专用链路
 - 用户已经给出了完整输入，不必再经过多步工作流
+- 如果用户显式指定“用多元探索跑”，也不要先假设存在单独的 `duoyuanx_generate_*` 工具；应先在第三方接口配置域确认品牌共享 Key 和对应 runtime 是否可用，再路由到网站已有工作台或统一工具
 
 ### 16.3 什么时候先做页面承接
 

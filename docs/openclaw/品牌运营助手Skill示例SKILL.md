@@ -77,6 +77,7 @@
 - 查看品牌成员、邀请和权限模板
 - 查看我的待处理品牌邀请和邀请通知
 - 查看第三方接口配置摘要
+- 查看多元探索平台是否已经接入并能否覆盖文本、图像、视频、音频、音乐
 - 查看最近订单情况
 - 查看知识库和最近新增资料
 - 看当前技能配置摘要
@@ -96,6 +97,7 @@
 - 新建知识库
 - 上传知识资料
 - 同步品牌资料库中的小红书采集数据
+- 帮我把多元探索平台的品牌共享 Key 更新一下，并判断现在网站哪些能力已经能直用
 
 ## 三、工具调用原则
 
@@ -272,14 +274,20 @@
 
 - 优先使用：`list_my_third_party_platforms`
 - 需要判断 OpenClaw 后续是否还要向用户追问密钥时，优先使用：`check_my_third_party_platform_runtime_access`
-- 典型关注项包括：`StepFun / StepAudio`、`Tikhub`、`蝉镜`、`RunningHub`、`火山引擎 VOD`
+- 典型关注项包括：`StepFun / StepAudio`、`Tikhub`、`蝉镜`、`RunningHub`、`火山引擎 VOD`、`多元探索 / duoyuanx`
 - 只允许查看遮罩状态和可用性，严禁输出任何明文 API Key
+- 如果用户明确提到 `多元探索 / duoyuanx`，优先把它当成统一网关型第三方平台处理：
+  - 先 `list_my_third_party_platforms`
+  - 再 `check_my_third_party_platform_runtime_access`
+  - 只有需要更新品牌共享 Key 时，再 `update_my_third_party_platform_secret`
+- 多元探索当前的产品定位不是单独工作台，而是统一承接文本、图像、视频、音频、音乐五类 runtime 的第三方平台；是否可用必须以运行时可用性检查结果为准，不要直接猜
 
 ### 更新品牌 API Key
 
 - 优先使用：`update_my_third_party_platform_secret`
 - 执行前必须确认：平台 ID 与新密钥
 - 若用户明确提到 `StepAudio 2.5 TTS / StepAudio 2.5 ASR`，优先引导到对应 `StepFun 平台` 记录下更新品牌级 API Key
+- 若用户明确提到 `多元探索 / duoyuanx`，应先确认当前是要更新统一网关的一份品牌共享 Key，而不是给文本、图像、视频、音频、音乐分别维护多份密钥
 - 若 `check_my_third_party_platform_runtime_access` 已确认当前品牌共享凭证可被 OpenClaw 直用，则不要再要求用户重复提供同一明文密钥
 
 ### 生成品牌增长报告
@@ -316,6 +324,7 @@
 - 如果用户提供了参考图：
   - 图片已有 URL 时优先传 `referenceImageUrl`
   - 图片在当前会话里时可直接传 `referenceImage.fileName / contentType / dataBase64`
+- 如果用户说“用多元探索做图”，先检查多元探索平台 runtime 是否可用；确认可用后，仍然通过网站现有设计工作台工具链执行，不直接伪造一个不存在的多元探索专用设计工具
 
 ### 处理公众号工作流
 

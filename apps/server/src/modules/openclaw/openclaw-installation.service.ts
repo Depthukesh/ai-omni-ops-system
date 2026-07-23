@@ -814,11 +814,13 @@ description: AI 全域智能体网站能力总入口 Skill。先做网站功能�
 - 帮我看最近 30 天失败任务主要卡在哪些问题上
 - 帮我提取当前品牌档案摘要，并看一下竞品账号和行业资料
 - 帮我看第三方接口配置摘要，并告诉我现在网站里还能调用哪些功能
+- 帮我看多元探索平台是否已经接进当前品牌，并判断文本、图像、视频、音频、音乐五类 runtime 是否都可用
 - 帮我看当前品牌成员和邀请列表
 
 ### 3.2 配置与协作验收
 
 - 帮我把某个平台的品牌共享 API Key 更新一下
+- 帮我把多元探索平台的品牌共享 Key 更新一下，并判断 OpenClaw 后续是否还需要继续追问密钥
 - 帮我看当前技能配置摘要，并告诉我哪些是品牌覆盖
 - 帮我创建一个新的成员邀请链接，角色先按运营同学来
 
@@ -975,6 +977,14 @@ description: AI 全域智能体网站能力总入口 Skill。先做网站功能�
 - \`list_brand_invites\`
 - \`create_brand_invite_link\`
 
+补充说明：
+
+- 如果用户问的是“多元探索 / duoyuanx 是否接进来”“这份品牌共享 Key 能不能同时供文本、图像、视频、音频、音乐使用”，优先把它当成第三方接口配置域处理，而不是当成独立工作台
+- 多元探索当前属于统一网关型第三方平台：
+  - 一份品牌共享 Key
+  - 统一承接文本、图像、视频、音频、音乐五类 runtime
+  - 具体业务执行仍由网站现有工作台与运行时路由消费
+
 页面承接为主：
 
 - 安全设置
@@ -1088,6 +1098,15 @@ description: AI 全域智能体网站能力总入口 Skill。先做网站功能�
 - \`list_my_third_party_platforms\`
 - \`check_my_third_party_platform_runtime_access\`
 - \`update_my_third_party_platform_secret\`
+
+第三方平台重点说明：
+
+- \`多元探索 / duoyuanx\` 当前不是单独的一组专用 MCP tools，而是复用第三方接口配置域的通用工具：
+  - \`list_my_third_party_platforms\`
+  - \`check_my_third_party_platform_runtime_access\`
+  - \`update_my_third_party_platform_secret\`
+- 当前已预装文本、图像、视频、音频、音乐五类 runtime
+- Skill 遇到“多元探索有没有接进来”“这份 Key 能不能给五类能力一起用”“现在哪些工作台已经能直用多元探索”时，优先先查平台列表和 runtime 可用性，不要直接猜
 - \`get_skill_config_summary\`
 - \`get_skill_config_detail\`
 - \`update_skill_config\`
@@ -1217,6 +1236,21 @@ GEO：
 - 严禁返回明文 API Key
 - 如果某平台已被确认可直供网站运行时或 OpenClaw 使用，不要重复要求用户再发一次同样的明文密钥
 
+多元探索统一网关处理规则：
+
+- 典型问法：
+  - 帮我看多元探索接进来没有
+  - 帮我把多元探索平台的品牌共享 Key 更新一下
+  - 现在文本、图像、视频、音频、音乐是不是都能直用多元探索
+- 默认顺序：
+  1. \`list_my_third_party_platforms\`
+  2. \`check_my_third_party_platform_runtime_access\`
+  3. 只有当前品牌还没配置或需要替换密钥时，才 \`update_my_third_party_platform_secret\`
+- 输出要求：
+  - 先说明当前品牌是否已接入多元探索
+  - 再说明五类 runtime 的可用性
+  - 最后再决定是否继续路由到设计、视频、音频或 OpenClaw 相关能力
+
 看和改技能配置：
 
 - \`get_skill_config_summary\`
@@ -1279,6 +1313,10 @@ RunningHub 关键规则：
 - \`get_recent_design_works\`
 - \`create_design_work\`
 
+处理原则：
+
+- 如果用户说“用多元探索做图 / 做视频方案”，先检查多元探索平台 runtime 是否可用；确认可用后，仍然通过网站现有设计工作台工具链执行，不直接伪造一个不存在的多元探索专用设计工具
+
 OpenClaw 专区：
 
 - 每日复盘：\`get_openclaw_lobster_diaries\`、\`create_openclaw_lobster_diary\`
@@ -1292,6 +1330,7 @@ OpenClaw 专区：
 - OpenClaw 的创作素材、视频作品、GEO 报告都是归档板块，不是生成引擎本身
 - 音乐任务创建成功不代表最终完成，必须继续轮询结果
 - 当用户要求“生成后直接沉淀到素材库”时，优先把归档动作一并完成
+- 当用户明确要求“先确认多元探索平台是否已接入，再决定是否让 OpenClaw 使用”时，先走第三方接口配置域工具，不要直接跳过可用性检查
 
 GEO 可见度诊断：
 
