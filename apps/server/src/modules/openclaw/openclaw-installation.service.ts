@@ -984,6 +984,10 @@ description: AI 全域智能体网站能力总入口 Skill。先做网站功能�
   - 一份品牌共享 Key
   - 统一承接文本、图像、视频、音频、音乐五类 runtime
   - 具体业务执行仍由网站现有工作台与运行时路由消费
+- 如果用户问的是 \`Right Codes / right.codes / rightapi.ai\` 是否还能用，默认也先当成第三方平台配置域处理：
+  - 当前推荐 Base URL 是 \`https://www.rightapi.ai\`
+  - 旧域名 \`right.codes\` 在海外网络下可能仍可访问，但默认应尽快迁移到 \`rightapi.ai\`
+  - API 路径与业务逻辑不变，只需把 Base URL 里的 \`right.codes\` 替换成 \`rightapi.ai\`
 
 页面承接为主：
 

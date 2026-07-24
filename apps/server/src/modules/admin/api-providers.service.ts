@@ -507,8 +507,10 @@ export class ApiProvidersService {
     );
     const nextDefaultModel = provider.defaultModel === "gpt-5.5" ? "gpt-5.4" : provider.defaultModel;
     const nextBaseUrl = provider.baseUrl === "https://www.right.codes/draw"
-      ? "https://www.right.codes/codex"
-      : provider.baseUrl;
+      ? "https://www.rightapi.ai/codex"
+      : provider.baseUrl === "https://www.right.codes/codex"
+        ? "https://www.rightapi.ai/codex"
+        : provider.baseUrl;
     const nextTutorialUrl = provider.tutorialUrl === "https://docs.right.codes/docs/rc_extension/draw/"
       ? "https://docs.right.codes/docs/rc_extension/curl.html"
       : provider.tutorialUrl;
@@ -516,7 +518,13 @@ export class ApiProvidersService {
     const nextExtraParams = {
       ...this.normalizeObjectMap(provider.extraParams),
       baseUrls: this.getBaseUrls(provider)
-        .map((item) => item === "https://www.right.codes/draw" ? "https://www.right.codes/codex" : item),
+        .map((item) =>
+          item === "https://www.right.codes/draw"
+            ? "https://www.rightapi.ai/codex"
+            : item === "https://www.right.codes/codex"
+              ? "https://www.rightapi.ai/codex"
+              : item,
+        ),
       completionPath: this.getStringExtra(provider, "completionPath") || "/v1/chat/completions",
       runtimeTags: this.getRuntimeTags(provider).length
         ? this.getRuntimeTags(provider)

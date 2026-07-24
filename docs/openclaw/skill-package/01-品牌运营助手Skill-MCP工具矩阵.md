@@ -165,6 +165,10 @@
   - 音频
   - 音乐
 - 这些运行时是否被当前品牌可用，应以 `check_my_third_party_platform_runtime_access` 返回结果为准，而不是靠模型名硬猜
+- 如果用户提到 `Right Codes / right.codes / rightapi.ai`，也不要手写旧域名：
+  - 当前默认 Base URL 应为 `https://www.rightapi.ai`
+  - 旧域名 `right.codes` 仅作为兼容历史配置与海外网络访问口径保留
+  - 查询接入状态时，仍然优先用 `list_my_third_party_platforms` 与 `check_my_third_party_platform_runtime_access`
 
 ### 7.2 团队协作
 

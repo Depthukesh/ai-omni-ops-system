@@ -9829,6 +9829,7 @@ function resolveThirdPartyPlatformName(baseUrl: string, fallbackName: string) {
     const host = new URL(trimmed).host.toLowerCase();
     const hostNameMap: Record<string, string> = {
       "www.right.codes": "Right Codes 平台",
+      "www.rightapi.ai": "Right Codes 平台",
       "api.deepseek.com": "DeepSeek 平台",
       "ark.cn-beijing.volces.com": "火山方舟平台",
       "api.moonshot.cn": "Kimi 平台",
@@ -9862,7 +9863,8 @@ function resolveThirdPartyPlatformWebsiteUrl(baseUrl: string) {
       "open-api.chanjing.cc": "https://www.chanjing.cc",
       "www.runninghub.cn": "https://www.runninghub.cn",
       "apihub.agnes-ai.com": "https://agnes-ai.com/zh-Hans",
-      "www.right.codes": "https://www.right.codes",
+      "www.right.codes": "https://www.rightapi.ai",
+      "www.rightapi.ai": "https://www.rightapi.ai",
       "agent.mathmind.cn": "https://agent.mathmind.cn",
       "api.mathmind.cn": "https://agent.mathmind.cn",
     };

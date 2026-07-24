@@ -3328,7 +3328,7 @@ export const apiProviderSeed: ApiProviderRecord[] = [
     name: "Right Codes · 文生文（可带图）",
     providerType: "OPENAI",
     status: "ACTIVE",
-    baseUrl: "https://www.right.codes/codex",
+    baseUrl: "https://www.rightapi.ai/codex",
     tutorialUrl: "https://docs.right.codes/docs/rc_extension/curl.html",
     modelWhitelist: [
       "gpt-5.3-codex",
@@ -3349,7 +3349,7 @@ export const apiProviderSeed: ApiProviderRecord[] = [
     extraParams: {
       runtimeKey: "text-global",
       runtimeTags: ["text-global", "works-runtime", "reports-runtime"],
-      baseUrls: ["https://www.right.codes/codex"],
+      baseUrls: ["https://www.rightapi.ai/codex"],
       completionPath: "/v1/chat/completions",
       sourceFolder: "Right Codes Codex 文生文/带图问答",
     },
@@ -3390,7 +3390,7 @@ export const apiProviderSeed: ApiProviderRecord[] = [
     name: "Right Codes · 文生图/图生图",
     providerType: "OPENAI",
     status: "ACTIVE",
-    baseUrl: "https://www.right.codes/draw",
+    baseUrl: "https://www.rightapi.ai/draw",
     tutorialUrl: "https://docs.right.codes/docs/rc_extension/draw/",
     modelWhitelist: ["gpt-image-2", "gpt-image-2-vip", "nano-banana-2"],
     apiKey: "",

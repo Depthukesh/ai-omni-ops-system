@@ -627,7 +627,8 @@ export class ThirdPartyPlatformsService {
       "ark.cn-beijing.volces.com": ["ARK_API_KEY", "VOLCENGINE_ARK_API_KEY", "DOUBAO_API_KEY"],
       "open.volcengineapi.com": ["VOLCENGINE_MUSIC_OPENAPI_CREDENTIAL", "VOLCENGINE_MUSIC_API_CREDENTIAL", "VOLCENGINE_OPENAPI_AKSK"],
       "open.bigmodel.cn": ["GLM_API_KEY", "ZHIPU_API_KEY"],
-      "www.right.codes": ["RIGHT_CODES_API_KEY"],
+      "www.right.codes": ["RIGHT_CODES_API_KEY", "RIGHTAPI_API_KEY"],
+      "www.rightapi.ai": ["RIGHT_CODES_API_KEY", "RIGHTAPI_API_KEY"],
     };
 
     const directEnvValues = Array.from(
@@ -864,11 +865,13 @@ export class ThirdPartyPlatformsService {
   }
 
   private resolvePlatformGroupKey(platform: Pick<ThirdPartyPlatformRecord, "baseUrl" | "websiteUrl">) {
-    const normalizedWebsiteUrl = this.normalizeBaseUrl(platform.websiteUrl || resolvePlatformWebsiteUrl(platform.baseUrl));
+    const normalizedWebsiteUrl = this.canonicalizeRightCodesBaseUrl(
+      this.normalizeBaseUrl(platform.websiteUrl || resolvePlatformWebsiteUrl(platform.baseUrl)),
+    );
     if (normalizedWebsiteUrl) {
       return `website:${normalizedWebsiteUrl}`;
     }
-    const baseHost = this.extractHost(platform.baseUrl);
+    const baseHost = this.canonicalizeRightCodesHost(this.extractHost(platform.baseUrl));
     return baseHost ? `host:${baseHost}` : `base:${this.normalizeBaseUrl(platform.baseUrl)}`;
   }
 
@@ -899,10 +902,10 @@ export class ThirdPartyPlatformsService {
     if (normalized === "https://api.apiz.ai") {
       return 90;
     }
-    if (normalized === "https://www.right.codes/codex") {
+    if (normalized === "https://www.rightapi.ai/codex") {
       return 100;
     }
-    if (normalized === "https://www.right.codes/draw") {
+    if (normalized === "https://www.rightapi.ai/draw") {
       return 90;
     }
     return 10;
@@ -999,6 +1002,7 @@ export class ThirdPartyPlatformsService {
     }
     try {
       const target = new URL(this.ensureUrlProtocol(normalized));
+      target.host = this.canonicalizeRightCodesHost(target.host);
       const pathname = target.pathname.replace(/\/+$/, "");
       return `${target.protocol}//${target.host}${pathname}`.toLowerCase();
     } catch {
@@ -1012,11 +1016,30 @@ export class ThirdPartyPlatformsService {
       return "";
     }
     try {
-      return new URL(this.ensureUrlProtocol(normalized)).host.toLowerCase();
+      return this.canonicalizeRightCodesHost(new URL(this.ensureUrlProtocol(normalized)).host);
     } catch {
       const matched = normalized.match(/^(?:[a-z]+:\/\/)?([^/]+)/i);
-      return matched?.[1]?.toLowerCase() || "";
+      return this.canonicalizeRightCodesHost(matched?.[1] || "");
     }
+  }
+
+  private canonicalizeRightCodesHost(value: string) {
+    const normalized = String(value || "").trim().toLowerCase();
+    if (normalized === "www.right.codes" || normalized === "right.codes" || normalized === "rightapi.ai") {
+      return "www.rightapi.ai";
+    }
+    return normalized;
+  }
+
+  private canonicalizeRightCodesBaseUrl(value: string) {
+    const normalized = String(value || "").trim().toLowerCase();
+    if (!normalized) {
+      return "";
+    }
+    return normalized
+      .replace("https://www.right.codes/", "https://www.rightapi.ai/")
+      .replace("https://right.codes/", "https://www.rightapi.ai/")
+      .replace("https://rightapi.ai/", "https://www.rightapi.ai/");
   }
 
   private ensureUrlProtocol(value: string) {

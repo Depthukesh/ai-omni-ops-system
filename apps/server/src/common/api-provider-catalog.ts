@@ -26,9 +26,9 @@ export type ApiProviderSeedRecord = {
 };
 
 const CATALOG_UPDATED_AT = "2026-05-11T10:30:00.000Z";
-const RIGHT_CODES_CODEX_BASE_URL = "https://www.right.codes/codex";
+const RIGHT_CODES_CODEX_BASE_URL = "https://www.rightapi.ai/codex";
 const RIGHT_CODES_CODEX_DOC_ROOT = "https://docs.right.codes/docs/rc_extension/curl.html";
-const RIGHT_CODES_DRAW_BASE_URL = "https://www.right.codes/draw";
+const RIGHT_CODES_DRAW_BASE_URL = "https://www.rightapi.ai/draw";
 const RIGHT_CODES_DRAW_DOC_ROOT = "https://docs.right.codes/docs/rc_extension/draw/";
 export const APIZ_API_BASE_URL = "https://api.xskill.ai";
 export const APIZ_LEGACY_API_BASE_URL = "https://api.apiz.ai";

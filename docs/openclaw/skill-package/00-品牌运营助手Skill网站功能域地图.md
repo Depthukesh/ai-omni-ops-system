@@ -224,6 +224,10 @@
   1. `list_my_third_party_platforms`
   2. `check_my_third_party_platform_runtime_access`
   3. 必要时再 `update_my_third_party_platform_secret`
+- 如果用户提到 `Right Codes / right.codes / rightapi.ai`，也优先按 `第三方接口配置` 域处理：
+  - Right Codes 服务域名已迁移到 `https://www.rightapi.ai`
+  - 海外网络下旧域名 `right.codes` 仍可能可访问，但默认应以 `rightapi.ai` 为准
+  - API 路径与业务逻辑不变，只需把 Base URL 从 `right.codes` 替换成 `rightapi.ai`
 
 ### 3.7 GEO `/geo`
 

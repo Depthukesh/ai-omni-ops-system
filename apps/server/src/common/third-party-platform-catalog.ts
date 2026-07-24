@@ -23,6 +23,7 @@ export const DECOMMISSIONED_PLATFORM_HOSTS = new Set([
 
 const PLATFORM_NAME_BY_HOST: Record<string, string> = {
   "www.right.codes": "Right Codes 平台",
+  "www.rightapi.ai": "Right Codes 平台",
   "api.xskill.ai": "APIZ / NEX AI 平台",
   "api.apiz.ai": "APIZ / NEX AI 平台",
   "api.deepseek.com": "DeepSeek 平台",
@@ -233,7 +234,8 @@ export function resolvePlatformWebsiteUrl(baseUrl: string) {
       "open-api.chanjing.cc": "https://www.chanjing.cc",
       "www.runninghub.cn": "https://www.runninghub.cn",
       "apihub.agnes-ai.com": "https://agnes-ai.com/zh-Hans",
-      "www.right.codes": "https://www.right.codes",
+      "www.right.codes": "https://www.rightapi.ai",
+      "www.rightapi.ai": "https://www.rightapi.ai",
       "agent.mathmind.cn": "https://agent.mathmind.cn",
       "api.mathmind.cn": "https://agent.mathmind.cn",
       "duoyuanx.com": "https://duoyuanx.com",

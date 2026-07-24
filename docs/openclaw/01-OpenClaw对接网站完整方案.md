@@ -281,6 +281,12 @@ OpenClaw 必须明确以下规则：
 - `reset_brand_skill_to_platform_baseline`
 - `get_platform_skill_baseline`
 
+### 10.7 第三方平台域名迁移口径
+
+- `Right Codes` 当前推荐域名已迁移到 `https://www.rightapi.ai`
+- 海外网络访问旧域名 `right.codes` 可能仍然可用，但国内网络应默认使用 `rightapi.ai`
+- API 路径与业务逻辑不变，MCP / Skill 在提到 Right Codes 时，应优先输出和引用 `rightapi.ai`
+
 ## 11. OpenClaw Skill 的职责
 
 OpenClaw Skill 不存真实业务数据，而是定义：
