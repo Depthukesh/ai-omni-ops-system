@@ -89,6 +89,7 @@ export function CalendarWorkspace(props: CalendarWorkspaceProps) {
   const [visibleMonthKey, setVisibleMonthKey] = useState(initialMonthKey);
   const [showGregorianFestivals, setShowGregorianFestivals] = useState(false);
   const [showSolarTerms, setShowSolarTerms] = useState(false);
+  const readonlyDetailItem = selectedCalendarItem || calendarItemDraft || buildEmptyCalendarItem(selectedCalendarDate || "");
 
   useEffect(() => {
     setVisibleMonthKey((current) => current || initialMonthKey);
@@ -291,26 +292,26 @@ export function CalendarWorkspace(props: CalendarWorkspaceProps) {
                 <div className="calendar-detail-plain-column">
                   <DetailField
                     label="日期"
-                    value={isEditingCalendarItem ? calendarItemDraft?.date || "" : selectedCalendarItem.date}
+                    value={isEditingCalendarItem ? calendarItemDraft?.date || "" : readonlyDetailItem.date}
                     editing={isEditingCalendarItem}
                     onChange={(value) => onDetailFieldChange("date", value)}
                   />
                   <DetailField
                     label="节日/节气"
-                    value={isEditingCalendarItem ? calendarItemDraft?.festivalOrSolarTerm || "" : selectedCalendarItem.festivalOrSolarTerm || ""}
+                    value={isEditingCalendarItem ? calendarItemDraft?.festivalOrSolarTerm || "" : readonlyDetailItem.festivalOrSolarTerm || ""}
                     editing={isEditingCalendarItem}
                     onChange={(value) => onDetailFieldChange("festivalOrSolarTerm", value)}
                   />
                   <SectionLabel title="品牌营销板块" />
                   <DetailField
                     label="今日营销主题"
-                    value={isEditingCalendarItem ? calendarItemDraft?.brandMarketing.theme || "" : selectedCalendarItem.brandMarketing.theme}
+                    value={isEditingCalendarItem ? calendarItemDraft?.brandMarketing.theme || "" : readonlyDetailItem.brandMarketing.theme}
                     editing={isEditingCalendarItem}
                     onChange={(value) => onDetailFieldChange("brandMarketing.theme", value)}
                   />
                   <DetailField
                     label="营销主题说明"
-                    value={isEditingCalendarItem ? calendarItemDraft?.brandMarketing.description || "" : selectedCalendarItem.brandMarketing.description}
+                    value={isEditingCalendarItem ? calendarItemDraft?.brandMarketing.description || "" : readonlyDetailItem.brandMarketing.description}
                     editing={isEditingCalendarItem}
                     multiline
                     onChange={(value) => onDetailFieldChange("brandMarketing.description", value)}
@@ -318,7 +319,7 @@ export function CalendarWorkspace(props: CalendarWorkspaceProps) {
                   <SectionLabel title="小红书品牌号" />
                   <DetailField
                     label="今日选题"
-                    value={isEditingCalendarItem ? calendarItemDraft?.xiaohongshu.brandAccount.topic || "" : selectedCalendarItem.xiaohongshu.brandAccount.topic}
+                    value={isEditingCalendarItem ? calendarItemDraft?.xiaohongshu.brandAccount.topic || "" : readonlyDetailItem.xiaohongshu.brandAccount.topic}
                     editing={isEditingCalendarItem}
                     onChange={(value) => onDetailFieldChange("xiaohongshu.brandAccount.topic", value)}
                   />
@@ -327,7 +328,7 @@ export function CalendarWorkspace(props: CalendarWorkspaceProps) {
                     value={
                       isEditingCalendarItem
                         ? calendarItemDraft?.xiaohongshu.brandAccount.description || ""
-                        : selectedCalendarItem.xiaohongshu.brandAccount.description
+                        : readonlyDetailItem.xiaohongshu.brandAccount.description
                     }
                     editing={isEditingCalendarItem}
                     multiline
@@ -335,7 +336,7 @@ export function CalendarWorkspace(props: CalendarWorkspaceProps) {
                   />
                   <DetailField
                     label="作品类型"
-                    value={isEditingCalendarItem ? calendarItemDraft?.xiaohongshu.brandAccount.contentType || "" : selectedCalendarItem.xiaohongshu.brandAccount.contentType}
+                    value={isEditingCalendarItem ? calendarItemDraft?.xiaohongshu.brandAccount.contentType || "" : readonlyDetailItem.xiaohongshu.brandAccount.contentType}
                     editing={isEditingCalendarItem}
                     onChange={(value) => onDetailFieldChange("xiaohongshu.brandAccount.contentType", value)}
                   />
@@ -344,7 +345,7 @@ export function CalendarWorkspace(props: CalendarWorkspaceProps) {
                     value={
                       isEditingCalendarItem
                         ? (calendarItemDraft?.xiaohongshu.brandAccount.noteKeywords || []).join("\n")
-                        : formatCalendarListValue(selectedCalendarItem.xiaohongshu.brandAccount.noteKeywords)
+                        : formatCalendarListValue(readonlyDetailItem.xiaohongshu.brandAccount.noteKeywords)
                     }
                     editing={isEditingCalendarItem}
                     multiline
@@ -355,7 +356,7 @@ export function CalendarWorkspace(props: CalendarWorkspaceProps) {
                     value={
                       isEditingCalendarItem
                         ? (calendarItemDraft?.xiaohongshu.brandAccount.coverKeywords || []).join("\n")
-                        : formatCalendarListValue(selectedCalendarItem.xiaohongshu.brandAccount.coverKeywords)
+                        : formatCalendarListValue(readonlyDetailItem.xiaohongshu.brandAccount.coverKeywords)
                     }
                     editing={isEditingCalendarItem}
                     multiline
@@ -366,7 +367,7 @@ export function CalendarWorkspace(props: CalendarWorkspaceProps) {
                     value={
                       isEditingCalendarItem
                         ? (calendarItemDraft?.xiaohongshu.brandAccount.titleSuggestions || []).join("\n")
-                        : formatCalendarListValue(selectedCalendarItem.xiaohongshu.brandAccount.titleSuggestions)
+                        : formatCalendarListValue(readonlyDetailItem.xiaohongshu.brandAccount.titleSuggestions)
                     }
                     editing={isEditingCalendarItem}
                     multiline
@@ -377,7 +378,7 @@ export function CalendarWorkspace(props: CalendarWorkspaceProps) {
                     value={
                       isEditingCalendarItem
                         ? calendarItemDraft?.xiaohongshu.brandAccount.expectedPerformance || ""
-                        : selectedCalendarItem.xiaohongshu.brandAccount.expectedPerformance
+                        : readonlyDetailItem.xiaohongshu.brandAccount.expectedPerformance
                     }
                     editing={isEditingCalendarItem}
                     multiline
@@ -386,20 +387,20 @@ export function CalendarWorkspace(props: CalendarWorkspaceProps) {
                   <SectionLabel title="小红书员工号" />
                   <DetailField
                     label="今日选题"
-                    value={isEditingCalendarItem ? calendarItemDraft?.xiaohongshu.employeeAccount.topic || "" : selectedCalendarItem.xiaohongshu.employeeAccount.topic}
+                    value={isEditingCalendarItem ? calendarItemDraft?.xiaohongshu.employeeAccount.topic || "" : readonlyDetailItem.xiaohongshu.employeeAccount.topic}
                     editing={isEditingCalendarItem}
                     onChange={(value) => onDetailFieldChange("xiaohongshu.employeeAccount.topic", value)}
                   />
                   <DetailField
                     label="选题说明"
-                    value={isEditingCalendarItem ? calendarItemDraft?.xiaohongshu.employeeAccount.description || "" : selectedCalendarItem.xiaohongshu.employeeAccount.description}
+                    value={isEditingCalendarItem ? calendarItemDraft?.xiaohongshu.employeeAccount.description || "" : readonlyDetailItem.xiaohongshu.employeeAccount.description}
                     editing={isEditingCalendarItem}
                     multiline
                     onChange={(value) => onDetailFieldChange("xiaohongshu.employeeAccount.description", value)}
                   />
                   <DetailField
                     label="作品类型"
-                    value={isEditingCalendarItem ? calendarItemDraft?.xiaohongshu.employeeAccount.contentType || "" : selectedCalendarItem.xiaohongshu.employeeAccount.contentType}
+                    value={isEditingCalendarItem ? calendarItemDraft?.xiaohongshu.employeeAccount.contentType || "" : readonlyDetailItem.xiaohongshu.employeeAccount.contentType}
                     editing={isEditingCalendarItem}
                     onChange={(value) => onDetailFieldChange("xiaohongshu.employeeAccount.contentType", value)}
                   />
@@ -408,7 +409,7 @@ export function CalendarWorkspace(props: CalendarWorkspaceProps) {
                     value={
                       isEditingCalendarItem
                         ? (calendarItemDraft?.xiaohongshu.employeeAccount.noteKeywords || []).join("\n")
-                        : formatCalendarListValue(selectedCalendarItem.xiaohongshu.employeeAccount.noteKeywords)
+                        : formatCalendarListValue(readonlyDetailItem.xiaohongshu.employeeAccount.noteKeywords)
                     }
                     editing={isEditingCalendarItem}
                     multiline
@@ -419,7 +420,7 @@ export function CalendarWorkspace(props: CalendarWorkspaceProps) {
                     value={
                       isEditingCalendarItem
                         ? (calendarItemDraft?.xiaohongshu.employeeAccount.coverKeywords || []).join("\n")
-                        : formatCalendarListValue(selectedCalendarItem.xiaohongshu.employeeAccount.coverKeywords)
+                        : formatCalendarListValue(readonlyDetailItem.xiaohongshu.employeeAccount.coverKeywords)
                     }
                     editing={isEditingCalendarItem}
                     multiline
@@ -430,7 +431,7 @@ export function CalendarWorkspace(props: CalendarWorkspaceProps) {
                     value={
                       isEditingCalendarItem
                         ? (calendarItemDraft?.xiaohongshu.employeeAccount.titleSuggestions || []).join("\n")
-                        : formatCalendarListValue(selectedCalendarItem.xiaohongshu.employeeAccount.titleSuggestions)
+                        : formatCalendarListValue(readonlyDetailItem.xiaohongshu.employeeAccount.titleSuggestions)
                     }
                     editing={isEditingCalendarItem}
                     multiline
@@ -441,7 +442,7 @@ export function CalendarWorkspace(props: CalendarWorkspaceProps) {
                     value={
                       isEditingCalendarItem
                         ? calendarItemDraft?.xiaohongshu.employeeAccount.expectedPerformance || ""
-                        : selectedCalendarItem.xiaohongshu.employeeAccount.expectedPerformance
+                        : readonlyDetailItem.xiaohongshu.employeeAccount.expectedPerformance
                     }
                     editing={isEditingCalendarItem}
                     multiline
@@ -453,7 +454,7 @@ export function CalendarWorkspace(props: CalendarWorkspaceProps) {
                   <SectionLabel title="抖音品牌号" />
                   <DouyinDetailFields
                     prefix="douyin.brandAccount"
-                    block={isEditingCalendarItem ? calendarItemDraft?.douyin.brandAccount || selectedCalendarItem.douyin.brandAccount : selectedCalendarItem.douyin.brandAccount}
+                    block={isEditingCalendarItem ? calendarItemDraft?.douyin.brandAccount || readonlyDetailItem.douyin.brandAccount : readonlyDetailItem.douyin.brandAccount}
                     editing={isEditingCalendarItem}
                     onFieldChange={onDetailFieldChange}
                     onListFieldChange={onDetailListFieldChange}
@@ -462,7 +463,7 @@ export function CalendarWorkspace(props: CalendarWorkspaceProps) {
                   <SectionLabel title="抖音IP号" />
                   <DouyinDetailFields
                     prefix="douyin.ipAccount"
-                    block={isEditingCalendarItem ? calendarItemDraft?.douyin.ipAccount || selectedCalendarItem.douyin.ipAccount : selectedCalendarItem.douyin.ipAccount}
+                    block={isEditingCalendarItem ? calendarItemDraft?.douyin.ipAccount || readonlyDetailItem.douyin.ipAccount : readonlyDetailItem.douyin.ipAccount}
                     editing={isEditingCalendarItem}
                     onFieldChange={onDetailFieldChange}
                     onListFieldChange={onDetailListFieldChange}
@@ -471,7 +472,7 @@ export function CalendarWorkspace(props: CalendarWorkspaceProps) {
                   <SectionLabel title="抖音员工号" />
                   <DouyinDetailFields
                     prefix="douyin.employeeAccount"
-                    block={isEditingCalendarItem ? calendarItemDraft?.douyin.employeeAccount || selectedCalendarItem.douyin.employeeAccount : selectedCalendarItem.douyin.employeeAccount}
+                    block={isEditingCalendarItem ? calendarItemDraft?.douyin.employeeAccount || readonlyDetailItem.douyin.employeeAccount : readonlyDetailItem.douyin.employeeAccount}
                     editing={isEditingCalendarItem}
                     onFieldChange={onDetailFieldChange}
                     onListFieldChange={onDetailListFieldChange}
@@ -480,20 +481,20 @@ export function CalendarWorkspace(props: CalendarWorkspaceProps) {
                   <SectionLabel title="朋友圈" />
                   <DetailField
                     label="今日选题"
-                    value={isEditingCalendarItem ? calendarItemDraft?.moments.topic || "" : selectedCalendarItem.moments.topic}
+                    value={isEditingCalendarItem ? calendarItemDraft?.moments.topic || "" : readonlyDetailItem.moments.topic}
                     editing={isEditingCalendarItem}
                     onChange={(value) => onDetailFieldChange("moments.topic", value)}
                   />
                   <DetailField
                     label="选题说明"
-                    value={isEditingCalendarItem ? calendarItemDraft?.moments.description || "" : selectedCalendarItem.moments.description}
+                    value={isEditingCalendarItem ? calendarItemDraft?.moments.description || "" : readonlyDetailItem.moments.description}
                     editing={isEditingCalendarItem}
                     multiline
                     onChange={(value) => onDetailFieldChange("moments.description", value)}
                   />
                   <DetailField
                     label="呈现形式"
-                    value={isEditingCalendarItem ? calendarItemDraft?.moments.presentationFormat || "" : selectedCalendarItem.moments.presentationFormat}
+                    value={isEditingCalendarItem ? calendarItemDraft?.moments.presentationFormat || "" : readonlyDetailItem.moments.presentationFormat}
                     editing={isEditingCalendarItem}
                     onChange={(value) => onDetailFieldChange("moments.presentationFormat", value)}
                   />
@@ -594,4 +595,73 @@ function resolveCalendarItemTitle(item?: XiaohongshuMarketingCalendarItem | null
     || item.moments.topic
     || "未命名主题"
   );
+}
+
+function buildEmptyCalendarItem(date: string): XiaohongshuMarketingCalendarItem {
+  return {
+    id: date ? `cal_preview_${date.replace(/-/g, "")}` : "cal_preview_empty",
+    date,
+    festivalOrSolarTerm: "",
+    brandMarketing: {
+      theme: "",
+      description: "",
+    },
+    xiaohongshu: {
+      brandAccount: {
+        topic: "",
+        description: "",
+        contentType: "",
+        noteKeywords: [],
+        coverKeywords: [],
+        titleSuggestions: [],
+        expectedPerformance: "",
+      },
+      employeeAccount: {
+        topic: "",
+        description: "",
+        contentType: "",
+        noteKeywords: [],
+        coverKeywords: [],
+        titleSuggestions: [],
+        expectedPerformance: "",
+      },
+    },
+    douyin: {
+      brandAccount: {
+        topic: "",
+        description: "",
+        contentType: "",
+        presentationFormat: "",
+        copyKeywords: [],
+        coverKeywords: [],
+        titleSuggestions: [],
+        expectedPerformance: "",
+      },
+      ipAccount: {
+        topic: "",
+        description: "",
+        contentType: "",
+        presentationFormat: "",
+        copyKeywords: [],
+        coverKeywords: [],
+        titleSuggestions: [],
+        expectedPerformance: "",
+      },
+      employeeAccount: {
+        topic: "",
+        description: "",
+        contentType: "",
+        presentationFormat: "",
+        copyKeywords: [],
+        coverKeywords: [],
+        titleSuggestions: [],
+        expectedPerformance: "",
+      },
+    },
+    moments: {
+      topic: "",
+      description: "",
+      presentationFormat: "",
+    },
+  };
 }

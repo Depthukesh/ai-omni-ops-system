@@ -427,7 +427,9 @@ export class ThirdPartyPlatformsService {
               ]
                 .map((value) => String(value || "").trim().toLowerCase())
                 .filter(Boolean);
-              return candidates.some((value) => value.includes(normalizedPlatformName));
+              return candidates.some((value) =>
+                value.includes(normalizedPlatformName) || normalizedPlatformName.includes(value),
+              );
             })
           : undefined;
 
