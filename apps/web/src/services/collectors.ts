@@ -1071,11 +1071,19 @@ export async function readWechatMpArticleContent(url: string, brandId?: string) 
 
 export type WechatMpBenchmarkArticleRecord = {
   id: string;
+  sourceAccountId: string;
+  ghUsername?: string;
   title: string;
+  digest?: string;
   articleContent?: string;
   url: string;
+  cover?: string;
+  createTime?: string;
+  updateTime?: string;
+  idx?: number;
   readNum?: number;
   likeCount?: number;
+  oldLikeCount?: number;
   shareCount?: number;
   collectCount?: number;
   commentCount?: number;
@@ -1087,16 +1095,57 @@ export type WechatMpBenchmarkArticleRecord = {
   collectedAt: string;
 };
 
+export type WechatMpBenchmarkAccountRecord = {
+  id: string;
+  ghUsername: string;
+  accountName: string;
+  collectedAt: string;
+};
+
 export type WechatMpBenchmarkWorkspace = {
+  benchmarkAccounts: WechatMpBenchmarkAccountRecord[];
   benchmarkArticles: WechatMpBenchmarkArticleRecord[];
 };
 
 export const wechatMpBenchmarkSeed: WechatMpBenchmarkWorkspace = {
+  benchmarkAccounts: [],
   benchmarkArticles: [],
+};
+
+export type WechatMpBenchmarkArticleFetchResult = {
+  isEnd: boolean;
+  nextOffset?: string;
+  count: number;
+  articles: WechatMpBenchmarkArticleRecord[];
+  workspace: WechatMpBenchmarkWorkspace;
 };
 
 export async function getWechatMpBenchmarkWorkspace(brandId?: string) {
   return request<WechatMpBenchmarkWorkspace>(`/collectors/wechat-mp/brands/${resolveBrandId(brandId)}/benchmark-workspace`);
+}
+
+export async function bindWechatMpBenchmarkAccount(ghUsername: string, brandId?: string) {
+  return jsonRequest<{ item: WechatMpBenchmarkAccountRecord; workspace: WechatMpBenchmarkWorkspace }>(
+    `/collectors/wechat-mp/brands/${resolveBrandId(brandId)}/benchmark-accounts`,
+    "POST",
+    { ghUsername },
+  );
+}
+
+export async function deleteWechatMpBenchmarkAccount(accountId: string, brandId?: string) {
+  return jsonRequest<{ workspace: WechatMpBenchmarkWorkspace }>(
+    `/collectors/wechat-mp/brands/${resolveBrandId(brandId)}/benchmark-accounts/${accountId}`,
+    "DELETE",
+    {},
+  );
+}
+
+export async function fetchWechatMpBenchmarkArticles(ghUsername: string, offset?: string, brandId?: string) {
+  return jsonRequest<WechatMpBenchmarkArticleFetchResult>(
+    `/collectors/wechat-mp/brands/${resolveBrandId(brandId)}/benchmark-articles/fetch`,
+    "POST",
+    { ghUsername, offset },
+  );
 }
 
 export async function submitWechatMpBenchmarkArticle(url: string, brandId?: string) {
@@ -1110,6 +1159,14 @@ export async function submitWechatMpBenchmarkArticle(url: string, brandId?: stri
 export async function updateWechatMpBenchmarkArticleStats(url: string, brandId?: string) {
   return jsonRequest<{ item: WechatMpBenchmarkArticleRecord; workspace: WechatMpBenchmarkWorkspace }>(
     `/collectors/wechat-mp/brands/${resolveBrandId(brandId)}/benchmark-articles/stats`,
+    "POST",
+    { url },
+  );
+}
+
+export async function readWechatMpBenchmarkArticleContent(url: string, brandId?: string) {
+  return jsonRequest<{ item: WechatMpBenchmarkArticleRecord; workspace: WechatMpBenchmarkWorkspace }>(
+    `/collectors/wechat-mp/brands/${resolveBrandId(brandId)}/benchmark-articles/read`,
     "POST",
     { url },
   );

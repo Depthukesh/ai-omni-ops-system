@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from
 import type { OptionalDateFormatter, OptionalNumberFormatter } from "./shared-types";
 import type {
   WechatMpArticleRecord,
+  WechatMpBenchmarkAccountRecord,
   WechatMpBenchmarkArticleRecord,
   WechatMpBenchmarkWorkspace,
   WechatMpBrandAccountRecord,
@@ -16,22 +17,19 @@ import type {
 } from "../../../services/collectors";
 import {
   bindWechatMpBrandAccount,
+  bindWechatMpBenchmarkAccount,
   deleteWechatMpBrandAccount,
-  deleteWechatMpArticle,
+  deleteWechatMpBenchmarkAccount,
   deleteWechatMpBenchmarkArticle,
   deleteWechatSearchItem,
+  fetchWechatMpBenchmarkArticles,
   fetchWechatMpArticles,
-  getWechatMpBenchmarkWorkspace,
-  getWechatSearchWorkspace,
   readWechatMpArticleContent,
+  readWechatMpBenchmarkArticleContent,
   readWechatSearchItemContent,
   searchWechat,
-  submitWechatMpBenchmarkArticle,
   updateWechatMpBenchmarkArticleStats,
   updateWechatSearchItemStats,
-  wechatMpBenchmarkSeed,
-  wechatMpCollectionSeed,
-  wechatSearchSeed,
 } from "../../../services/collectors";
 
 type WechatMpSubCardKey = "brandAccountData" | "benchmarkWorks" | "wechatSearch";
@@ -104,9 +102,15 @@ export function WechatMpCollectionWorkspace(props: WechatMpCollectionWorkspacePr
   const [notice, setNotice] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const toastVisible = useCopyToastVisible();
 
-  // 对标作品状态
-  const [benchmarkInputUrl, setBenchmarkInputUrl] = useState("");
-  const [isSubmittingBenchmark, setIsSubmittingBenchmark] = useState(false);
+  // 竞品公众号状态
+  const [isBenchmarkModalOpen, setIsBenchmarkModalOpen] = useState(false);
+  const [draftBenchmarkGhUsername, setDraftBenchmarkGhUsername] = useState("");
+  const [isBindingBenchmark, setIsBindingBenchmark] = useState(false);
+  const [deletingBenchmarkAccountId, setDeletingBenchmarkAccountId] = useState<string | undefined>(undefined);
+  const [fetchingBenchmarkAccountIds, setFetchingBenchmarkAccountIds] = useState<string[]>([]);
+  const [benchmarkArticleOffsets, setBenchmarkArticleOffsets] = useState<Record<string, string | undefined>>({});
+  const [benchmarkHasMoreByAccount, setBenchmarkHasMoreByAccount] = useState<Record<string, boolean>>({});
+  const [readingBenchmarkArticleIds, setReadingBenchmarkArticleIds] = useState<string[]>([]);
   const [selectedBenchmarkIds, setSelectedBenchmarkIds] = useState<string[]>([]);
   const [updatingBenchmarkIds, setUpdatingBenchmarkIds] = useState<string[]>([]);
   const [isUpdatingBenchmark, setIsUpdatingBenchmark] = useState(false);
@@ -205,24 +209,68 @@ export function WechatMpCollectionWorkspace(props: WechatMpCollectionWorkspacePr
     }
   };
 
-  // 对标作品 handler
-  const handleSubmitBenchmark = async () => {
-    const trimmed = benchmarkInputUrl.trim();
+  // 竞品公众号 handler
+  const handleBindBenchmark = async () => {
+    const trimmed = draftBenchmarkGhUsername.trim();
     if (!trimmed) return;
-    if (!/^https?:\/\/mp\.weixin\.qq\.com\/s([/?].+)?$/.test(trimmed)) {
-      showNotice("error", "文章链接格式不正确，需为 mp.weixin.qq.com/s/ 开头的链接。");
+    if (!/^gh_[A-Za-z0-9_]+$/.test(trimmed)) {
+      showNotice("error", "gh_username 格式不正确，应以 gh_ 开头。");
       return;
     }
-    setIsSubmittingBenchmark(true);
+    setIsBindingBenchmark(true);
     try {
-      const result = await submitWechatMpBenchmarkArticle(trimmed, props.activeBrandId);
+      const result = await bindWechatMpBenchmarkAccount(trimmed, props.activeBrandId);
       props.setBenchmarkWorkspace(result.workspace);
-      setBenchmarkInputUrl("");
-      showNotice("success", "对标文章已读取并提交。");
+      setDraftBenchmarkGhUsername("");
+      setIsBenchmarkModalOpen(false);
+      showNotice("success", "竞品公众号账号绑定成功。");
     } catch (error) {
-      showNotice("error", error instanceof Error ? error.message : "提交失败。");
+      showNotice("error", error instanceof Error ? error.message : "绑定失败，请稍后重试。");
     } finally {
-      setIsSubmittingBenchmark(false);
+      setIsBindingBenchmark(false);
+    }
+  };
+
+  const handleDeleteBenchmarkAccount = async (accountId: string) => {
+    setDeletingBenchmarkAccountId(accountId);
+    try {
+      const result = await deleteWechatMpBenchmarkAccount(accountId, props.activeBrandId);
+      props.setBenchmarkWorkspace(result.workspace);
+      showNotice("success", "竞品公众号账号已删除。");
+    } catch (error) {
+      showNotice("error", error instanceof Error ? error.message : "删除失败。");
+    } finally {
+      setDeletingBenchmarkAccountId(undefined);
+    }
+  };
+
+  const handleFetchBenchmarkArticles = async (accountId: string, ghUsername: string) => {
+    setFetchingBenchmarkAccountIds((current) => [...current, accountId]);
+    try {
+      const offset = benchmarkArticleOffsets[accountId];
+      const result = await fetchWechatMpBenchmarkArticles(ghUsername, offset, props.activeBrandId);
+      props.setBenchmarkWorkspace(result.workspace);
+      setBenchmarkArticleOffsets((current) => ({ ...current, [accountId]: result.nextOffset }));
+      setBenchmarkHasMoreByAccount((current) => ({ ...current, [accountId]: !result.isEnd }));
+      showNotice("success", `已获取 ${result.count} 篇竞品文章。`);
+    } catch (error) {
+      showNotice("error", error instanceof Error ? error.message : "获取文章失败。");
+    } finally {
+      setFetchingBenchmarkAccountIds((current) => current.filter((id) => id !== accountId));
+    }
+  };
+
+  const handleReadBenchmarkArticle = async (article: WechatMpBenchmarkArticleRecord) => {
+    if (!article.url || readingBenchmarkArticleIds.includes(article.id)) return;
+    setReadingBenchmarkArticleIds((current) => [...current, article.id]);
+    try {
+      const result = await readWechatMpBenchmarkArticleContent(article.url, props.activeBrandId);
+      props.setBenchmarkWorkspace(result.workspace);
+      showNotice("success", "竞品文章内容已读取。");
+    } catch (error) {
+      showNotice("error", error instanceof Error ? error.message : "读取文章失败。");
+    } finally {
+      setReadingBenchmarkArticleIds((current) => current.filter((id) => id !== article.id));
     }
   };
 
@@ -479,12 +527,18 @@ export function WechatMpCollectionWorkspace(props: WechatMpCollectionWorkspacePr
 
       {activeCard === "benchmarkWorks" ? (
         <BenchmarkWorkPanel
+          benchmarkAccounts={props.benchmarkWorkspace.benchmarkAccounts}
           articles={props.benchmarkWorkspace.benchmarkArticles}
+          isHydrating={props.isHydrating}
           canEdit={props.canEdit}
-          inputUrl={benchmarkInputUrl}
-          onInputUrlChange={setBenchmarkInputUrl}
-          onSubmit={handleSubmitBenchmark}
-          isSubmitting={isSubmittingBenchmark}
+          deletingAccountId={deletingBenchmarkAccountId}
+          fetchingAccountIds={fetchingBenchmarkAccountIds}
+          hasMoreByAccount={benchmarkHasMoreByAccount}
+          readingArticleIds={readingBenchmarkArticleIds}
+          onOpenModal={() => setIsBenchmarkModalOpen(true)}
+          onFetchArticles={handleFetchBenchmarkArticles}
+          onDeleteAccount={handleDeleteBenchmarkAccount}
+          onReadArticle={handleReadBenchmarkArticle}
           selectedIds={selectedBenchmarkIds}
           allSelected={allBenchmarkSelected}
           onToggle={handleToggleBenchmark}
@@ -559,6 +613,34 @@ export function WechatMpCollectionWorkspace(props: WechatMpCollectionWorkspacePr
               <button type="button" className="secondary-button" onClick={() => setIsModalOpen(false)}>取消</button>
               <button type="button" className="primary-button" onClick={() => void handleBind()} disabled={!draftGhUsername.trim() || isBinding}>
                 {isBinding ? "提交中..." : "提交"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {isBenchmarkModalOpen ? (
+        <div className="xhs-account-modal-backdrop" role="dialog" aria-modal="true" onClick={() => setIsBenchmarkModalOpen(false)}>
+          <div className="xhs-account-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="xhs-account-modal__head">
+              <div>
+                <strong>添加竞品公众号账号</strong>
+                <p>填入竞品公众号 gh_username（以 gh_ 开头），保存后进入竞品账号列表并可抓取历史文章。</p>
+              </div>
+              <button type="button" className="xhs-account-modal__close" onClick={() => setIsBenchmarkModalOpen(false)}>关闭</button>
+            </div>
+            <label className="field">
+              <span>gh_username</span>
+              <input
+                value={draftBenchmarkGhUsername}
+                onChange={(event) => setDraftBenchmarkGhUsername(event.target.value)}
+                placeholder="请输入竞品公众号 gh_username，例如 gh_363b924965e9"
+              />
+            </label>
+            <div className="xhs-account-modal__actions">
+              <button type="button" className="secondary-button" onClick={() => setIsBenchmarkModalOpen(false)}>取消</button>
+              <button type="button" className="primary-button" onClick={() => void handleBindBenchmark()} disabled={!draftBenchmarkGhUsername.trim() || isBindingBenchmark}>
+                {isBindingBenchmark ? "提交中..." : "提交"}
               </button>
             </div>
           </div>
@@ -967,12 +1049,18 @@ function WechatMpArticleTable(props: {
 // ─── 对标作品信息及数据面板 ───
 
 type BenchmarkWorkPanelProps = {
+  benchmarkAccounts: WechatMpBenchmarkAccountRecord[];
   articles: WechatMpBenchmarkArticleRecord[];
+  isHydrating: boolean;
   canEdit: boolean;
-  inputUrl: string;
-  onInputUrlChange: (value: string) => void;
-  onSubmit: () => void;
-  isSubmitting: boolean;
+  deletingAccountId?: string;
+  fetchingAccountIds: string[];
+  hasMoreByAccount: Record<string, boolean>;
+  readingArticleIds: string[];
+  onOpenModal: () => void;
+  onFetchArticles: (accountId: string, ghUsername: string) => void;
+  onDeleteAccount: (accountId: string) => void;
+  onReadArticle: (article: WechatMpBenchmarkArticleRecord) => void;
   selectedIds: string[];
   allSelected: boolean;
   onToggle: (id: string, checked: boolean) => void;
@@ -991,51 +1079,106 @@ type BenchmarkWorkPanelProps = {
 };
 
 function BenchmarkWorkPanel(props: BenchmarkWorkPanelProps) {
+  const accountNameById = useMemo(
+    () =>
+      new Map(
+        props.benchmarkAccounts.map((account) => [
+          account.id,
+          account.accountName?.trim() || account.ghUsername,
+        ]),
+      ),
+    [props.benchmarkAccounts],
+  );
+
   return (
     <>
-      <article className="light-data-panel" style={{ marginBottom: 16 }}>
+      <article className="light-data-panel xhs-account-builder" style={{ marginBottom: 16 }}>
         <div className="collection-result-head">
           <div>
-            <h3>对标作品链接</h3>
-            <p>输入公众号文章链接，点击提交后调用 GLM 网页阅读器读取文章标题和正文。</p>
+            <h3>竞品公众号账号</h3>
+            <p>添加竞品公众号 gh_username 后，点击"提交"抓取历史文章，支持翻页。文章正文可按需读取，竞品文章仍可继续加入素材库。</p>
           </div>
           {props.canEdit ? (
-            <button type="button" className="primary-button" onClick={() => void props.onSubmit()} disabled={props.isSubmitting || !props.inputUrl.trim()}>
-              {props.isSubmitting ? "提交中..." : "提交"}
+            <button type="button" className="secondary-button" onClick={props.onOpenModal}>
+              添加账号
             </button>
           ) : null}
         </div>
-        <label className="field">
-          <textarea rows={3} value={props.inputUrl} onChange={(event) => props.onInputUrlChange(event.target.value)} placeholder="请输入公众号文章链接，例如 https://mp.weixin.qq.com/s/xxxxxx" />
-        </label>
+        {props.benchmarkAccounts.length ? (
+          <div className="xhs-account-entry-list">
+            {props.benchmarkAccounts.map((account) => {
+              const isFetching = props.fetchingAccountIds.includes(account.id);
+              const hasMore = props.hasMoreByAccount[account.id];
+              const articleCount = props.articles.filter((article) => article.sourceAccountId === account.id).length;
+              return (
+                <div key={account.id} className="xhs-account-entry-row">
+                  <div className="xhs-account-entry-row__body">
+                    <div className="xhs-account-entry-row__meta">
+                      <span className={`archive-pill ${articleCount > 0 ? "status-ready" : "status-pending"}`}>
+                        {articleCount > 0 ? `已获取 ${articleCount} 篇` : "待提交"}
+                      </span>
+                      {hasMore ? <span className="archive-pill status-pending">可翻页</span> : null}
+                    </div>
+                    <strong>{account.accountName || account.ghUsername}</strong>
+                    <strong>{account.ghUsername}</strong>
+                  </div>
+                  <div className="xhs-account-entry-row__actions">
+                    <button
+                      type="button"
+                      className="primary-button"
+                      onClick={() => props.onFetchArticles(account.id, account.ghUsername)}
+                      disabled={props.isHydrating || isFetching}
+                    >
+                      {isFetching ? "提交中..." : hasMore ? "获取下一页" : "提交"}
+                    </button>
+                    {props.canEdit ? (
+                      <button
+                        type="button"
+                        className="note-inline-button"
+                        onClick={() => props.onDeleteAccount(account.id)}
+                        disabled={props.isHydrating || props.deletingAccountId === account.id}
+                      >
+                        删除
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="xhs-account-entry-empty">当前还没有添加竞品公众号账号，请先点击右上角添加账号。</div>
+        )}
       </article>
 
       <article className="light-data-panel">
         <div className="collection-result-head">
           <div>
             <h3>对标作品信息及数据</h3>
-            <p>勾选文章后点击"更新数据"批量获取阅读量、点赞数等互动指标。点击文章内容可自动复制。</p>
+            <p>勾选文章后可批量更新数据、加入素材库或删除。点击"读取文章"可补全文，点击文章内容可自动复制。</p>
           </div>
-          {props.canEdit && props.articles.length > 0 ? (
-            <button type="button" className="primary-button" onClick={() => void props.onUpdateStats()} disabled={props.isUpdating || props.selectedIds.length === 0}>
-              {props.isUpdating ? "更新中..." : "更新数据"}
-            </button>
-          ) : null}
-          {props.canEdit && props.articles.length > 0 ? (
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={props.onAddToMaterial}
-              disabled={props.isAdding || props.isDeleting || props.selectedIds.length === 0}
-            >
-              {props.isAdding ? "加入中..." : "加入素材库"}
-            </button>
-          ) : null}
-          {props.canEdit && props.articles.length > 0 ? (
-            <button type="button" className="note-inline-button" onClick={props.onDelete} disabled={props.isDeleting || props.selectedIds.length === 0}>
-              {props.isDeleting ? "删除中..." : "删除"}
-            </button>
-          ) : null}
+          <div className="xhs-account-entry-row__actions">
+            {props.canEdit && props.articles.length > 0 ? (
+              <button type="button" className="primary-button" onClick={() => void props.onUpdateStats()} disabled={props.isUpdating || props.selectedIds.length === 0}>
+                {props.isUpdating ? "更新中..." : "更新数据"}
+              </button>
+            ) : null}
+            {props.canEdit && props.articles.length > 0 ? (
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={props.onAddToMaterial}
+                disabled={props.isAdding || props.isDeleting || props.selectedIds.length === 0}
+              >
+                {props.isAdding ? "加入中..." : "加入素材库"}
+              </button>
+            ) : null}
+            {props.canEdit && props.articles.length > 0 ? (
+              <button type="button" className="note-inline-button" onClick={props.onDelete} disabled={props.isDeleting || props.selectedIds.length === 0}>
+                {props.isDeleting ? "删除中..." : "删除"}
+              </button>
+            ) : null}
+          </div>
         </div>
         {props.articles.length ? (
           <div className="wechat-mp-article-table-shell">
@@ -1046,9 +1189,12 @@ function BenchmarkWorkPanel(props: BenchmarkWorkPanelProps) {
                     <input type="checkbox" checked={props.allSelected} onChange={(event) => props.onSelectAll(event.target.checked)} />
                   </th>
                   <th>素材库</th>
+                  <th>账号名称</th>
                   <th>标题</th>
                   <th>链接</th>
                   <th className="table-cell-wide">文章</th>
+                  <th>封面图</th>
+                  <th>发布时间</th>
                   <th>阅读量</th>
                   <th>点赞数</th>
                   <th>分享数</th>
@@ -1061,16 +1207,19 @@ function BenchmarkWorkPanel(props: BenchmarkWorkPanelProps) {
                 {props.articles.map((article) => {
                   const isChecked = props.selectedIds.includes(article.id);
                   const isUpdating = props.updatingIds.includes(article.id);
+                  const isReading = props.readingArticleIds.includes(article.id);
                   const isAdding = props.addingMaterialAssetId === article.id && props.isAdding;
                   const hasContent = Boolean(article.articleContent?.trim());
+                  const accountName = accountNameById.get(article.sourceAccountId) || article.ghUsername || "-";
                   return (
                     <tr key={article.id}>
                       <td>
                         <input type="checkbox" checked={isChecked} onChange={(event) => props.onToggle(article.id, event.target.checked)} />
                       </td>
                       <td>{article.isInMaterialLibrary ? "已加入" : isAdding ? "加入中..." : "-"}</td>
+                      <td>{accountName}</td>
                       <td className="wechat-mp-title-cell">
-                        <span className="wechat-mp-title-text" title={article.title}>{article.title || "-"}</span>
+                        <span className="wechat-mp-title-text" title={article.digest || article.title}>{article.title || "-"}</span>
                       </td>
                       <td>{article.url ? <a href={article.url} target="_blank" rel="noopener noreferrer" className="note-data-link">查看</a> : <span>-</span>}</td>
                       <td className="wechat-mp-article-cell">
@@ -1078,8 +1227,14 @@ function BenchmarkWorkPanel(props: BenchmarkWorkPanelProps) {
                           <div className="table-text-shell table-text-shell--copyable" data-rows="2" onClick={() => void props.onCopyContent(article.articleContent || "")} title="点击复制文章内容" style={{ cursor: "pointer" }}>
                             <button type="button" className="table-text-cell" data-rows={2}>{article.articleContent}</button>
                           </div>
+                        ) : article.url ? (
+                          <button type="button" className="note-inline-button" onClick={() => props.onReadArticle(article)} disabled={isReading}>
+                            {isReading ? "读取中..." : "读取文章"}
+                          </button>
                         ) : <span>-</span>}
                       </td>
+                      <td>{article.cover ? <img src={article.cover} alt={article.title} style={{ width: 48, height: 48, objectFit: "cover", borderRadius: 4 }} loading="lazy" /> : <span>-</span>}</td>
+                      <td>{props.formatDateTime(article.createTime)}</td>
                       <td>{isUpdating ? "..." : props.formatCount(article.readNum)}</td>
                       <td>{isUpdating ? "..." : props.formatCount(article.likeCount)}</td>
                       <td>{isUpdating ? "..." : props.formatCount(article.shareCount)}</td>
@@ -1093,7 +1248,7 @@ function BenchmarkWorkPanel(props: BenchmarkWorkPanelProps) {
             </table>
           </div>
         ) : (
-          <div className="note-empty-state">当前还没有采集到对标文章，请先输入文章链接并提交。</div>
+          <div className="note-empty-state">当前还没有采集到竞品公众号文章，请先添加竞品账号并提交获取文章列表。</div>
         )}
       </article>
     </>

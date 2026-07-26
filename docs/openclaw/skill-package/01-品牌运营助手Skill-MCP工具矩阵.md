@@ -80,6 +80,8 @@
 - `get_wechat_collection_workspace`
 - `sync_wechat_brand_accounts`
 - `fetch_wechat_brand_articles`
+- `sync_wechat_benchmark_accounts`
+- `fetch_wechat_benchmark_articles`
 - `sync_wechat_benchmark_articles`
 - `sync_wechat_search_articles`
 - `update_wechat_article_stats`

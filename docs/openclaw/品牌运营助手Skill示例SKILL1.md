@@ -294,6 +294,19 @@
 
 - 优先使用：`create_brand_growth_report`
 
+### 查看或填写营销日历某一天
+
+- 优先使用：`manage_growth_reports`
+- 查看当前营销日历工作区时，优先动作：`get_xiaohongshu_marketing_calendar_workspace`
+- 触发新一轮营销日历生成时，优先动作：`generate_xiaohongshu_marketing_calendar`
+- 当用户说“打开 7 月 15 日营销日历”“帮我补当天内容”“把某个日期的安排填进去”时，优先动作：`upsert_xiaohongshu_marketing_calendar_item`
+- 默认顺序：
+  - 先获取当前最新营销日历，拿到 `reportId`
+  - 再传 `calendarDate=YYYY-MM-DD`
+  - `payload.item` 中补当天日期对应的主题、平台选题、朋友圈内容
+- 如果当天原来已有内容，服务端会按日期做合并更新；如果当天原来没有条目，则自动新增当天日历项
+- 不要要求用户先去网页里手工打开弹窗；OpenClaw 可以直接按日期完成当天内容填写
+
 ### 查看知识库和最近新增资料
 
 - 优先使用：`get_recent_knowledge_files`
