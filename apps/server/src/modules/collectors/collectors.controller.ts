@@ -394,39 +394,6 @@ export class WechatMpCollectorsController {
     return this.collectorsService.getWechatMpBenchmarkWorkspace(brandId);
   }
 
-  @Post("brands/:brandId/benchmark-accounts")
-  async bindBenchmarkAccount(
-    @Param("brandId") brandId: string,
-    @Body() payload: { ghUsername: string },
-    @Headers() headers: Record<string, string | string[] | undefined>,
-  ) {
-    const auth = await this.authService.resolveRequestAuthContext(headers);
-    await this.authService.assertBrandAccess(brandId, auth);
-    return this.collectorsService.syncWechatMpBenchmarkAccount(brandId, payload.ghUsername);
-  }
-
-  @Delete("brands/:brandId/benchmark-accounts/:accountId")
-  async deleteBenchmarkAccount(
-    @Param("brandId") brandId: string,
-    @Param("accountId") accountId: string,
-    @Headers() headers: Record<string, string | string[] | undefined>,
-  ) {
-    const auth = await this.authService.resolveRequestAuthContext(headers);
-    await this.authService.assertBrandAccess(brandId, auth);
-    return this.collectorsService.deleteWechatMpBenchmarkAccount(brandId, accountId);
-  }
-
-  @Post("brands/:brandId/benchmark-articles/fetch")
-  async fetchBenchmarkArticles(
-    @Param("brandId") brandId: string,
-    @Body() payload: { ghUsername: string; offset?: string },
-    @Headers() headers: Record<string, string | string[] | undefined>,
-  ) {
-    const auth = await this.authService.resolveRequestAuthContext(headers);
-    await this.authService.assertBrandAccess(brandId, auth);
-    return this.collectorsService.fetchWechatMpBenchmarkArticles(brandId, payload.ghUsername, payload.offset);
-  }
-
   @Post("brands/:brandId/benchmark-articles/submit")
   async submitBenchmarkArticle(
     @Param("brandId") brandId: string,
@@ -447,17 +414,6 @@ export class WechatMpCollectorsController {
     const auth = await this.authService.resolveRequestAuthContext(headers);
     await this.authService.assertBrandAccess(brandId, auth);
     return this.collectorsService.updateWechatMpBenchmarkArticleStats(brandId, payload.url);
-  }
-
-  @Post("brands/:brandId/benchmark-articles/read")
-  async readBenchmarkArticleContent(
-    @Param("brandId") brandId: string,
-    @Body() payload: { url: string },
-    @Headers() headers: Record<string, string | string[] | undefined>,
-  ) {
-    const auth = await this.authService.resolveRequestAuthContext(headers);
-    await this.authService.assertBrandAccess(brandId, auth);
-    return this.collectorsService.readWechatMpBenchmarkArticleContent(brandId, payload.url);
   }
 
   @Post("brands/:brandId/benchmark-articles/material-library")

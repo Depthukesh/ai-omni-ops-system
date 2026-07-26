@@ -144,8 +144,6 @@ OpenClaw 调用任何工具时，服务端都必须基于绑定关系解析：
   - `get_wechat_collection_workspace`
   - `sync_wechat_brand_accounts`
   - `fetch_wechat_brand_articles`
-  - `sync_wechat_benchmark_accounts`
-  - `fetch_wechat_benchmark_articles`
   - `sync_wechat_benchmark_articles`
   - `sync_wechat_search_articles`
   - `update_wechat_article_stats`
@@ -153,8 +151,6 @@ OpenClaw 调用任何工具时，服务端都必须基于绑定关系解析：
   - 当前补充说明：
     - `sync_wechat_brand_accounts` 用于绑定品牌公众号 `gh_username`
     - `fetch_wechat_brand_articles` 对应页面里“品牌公众号数据”的“提交/获取下一页”动作
-    - `sync_wechat_benchmark_accounts` 用于绑定竞品公众号 `gh_username`
-    - `fetch_wechat_benchmark_articles` 对应页面里“竞品作品信息及数据”的“提交/获取下一页”动作
     - 常用顺序是：先绑定公众号，再抓历史文章，再按需更新文章统计
 - 公众号工作流：
   - `manage_wechat_workflow`

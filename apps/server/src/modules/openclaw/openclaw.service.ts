@@ -2455,33 +2455,8 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
     },
   },
   {
-    name: "sync_wechat_benchmark_accounts",
-    description: "绑定或同步品牌资料库里的竞品公众号账号，需要提供 ghUsername。",
-    inputSchema: {
-      type: "object",
-      properties: {
-        ghUsername: { type: "string", description: "竞品公众号 gh_username。" },
-      },
-      required: ["ghUsername"],
-      additionalProperties: false,
-    },
-  },
-  {
-    name: "fetch_wechat_benchmark_articles",
-    description: "抓取指定竞品公众号的历史文章列表，对应页面里的“提交”动作。",
-    inputSchema: {
-      type: "object",
-      properties: {
-        ghUsername: { type: "string", description: "竞品公众号 gh_username。" },
-        offset: { type: "string", description: "翻页游标；首次抓取可不传。" },
-      },
-      required: ["ghUsername"],
-      additionalProperties: false,
-    },
-  },
-  {
     name: "sync_wechat_benchmark_articles",
-    description: "兼容旧流程：按文章链接同步品牌资料库里公众号对标文章数据。",
+    description: "同步品牌资料库里公众号对标文章数据，需要提供文章链接。",
     inputSchema: {
       type: "object",
       properties: {
@@ -6621,18 +6596,16 @@ export class OpenClawService {
 
     return this.buildSummaryResponse({
       title: "公众号采集数据工作区",
-      summary: `当前品牌公众号采集数据已包含 ${workspace.brandAccounts?.length || 0} 个品牌公众号、${workspace.articles?.length || 0} 条品牌文章、${benchmarkWorkspace.benchmarkAccounts?.length || 0} 个竞品公众号、${benchmarkWorkspace.benchmarkArticles?.length || 0} 条竞品文章和 ${searchWorkspace.items?.length || 0} 条微信搜一搜结果。`,
+      summary: `当前品牌公众号采集数据已包含 ${workspace.brandAccounts?.length || 0} 个品牌公众号、${workspace.articles?.length || 0} 条品牌文章、${benchmarkWorkspace.benchmarkArticles?.length || 0} 条对标文章和 ${searchWorkspace.items?.length || 0} 条微信搜一搜结果。`,
       highlights: [
         `品牌公众号：${workspace.brandAccounts?.length || 0}`,
         `品牌文章：${workspace.articles?.length || 0}`,
-        `竞品公众号：${benchmarkWorkspace.benchmarkAccounts?.length || 0}`,
-        `竞品文章：${benchmarkWorkspace.benchmarkArticles?.length || 0}`,
+        `对标文章：${benchmarkWorkspace.benchmarkArticles?.length || 0}`,
         `搜一搜结果：${searchWorkspace.items?.length || 0}`,
       ],
       data: {
         brandAccounts: (workspace.brandAccounts || []).slice(0, limit),
         articles: (workspace.articles || []).slice(0, limit),
-        benchmarkAccounts: (benchmarkWorkspace.benchmarkAccounts || []).slice(0, limit),
         benchmarkArticles: (benchmarkWorkspace.benchmarkArticles || []).slice(0, limit),
         searchItems: (searchWorkspace.items || []).slice(0, limit),
       },
@@ -6693,74 +6666,6 @@ export class OpenClawService {
     return this.buildSummaryResponse({
       title: "公众号历史文章已抓取",
       summary: `已为公众号 ${ghUsername} 抓取 ${result.count} 篇历史文章${result.isEnd ? "，当前已到末页。" : "，还可继续翻页抓取。"}。`,
-      highlights: [
-        `gh_username：${ghUsername}`,
-        `本次抓取：${result.count}`,
-        result.nextOffset ? `下一页游标：${result.nextOffset}` : "下一页游标：无",
-        `是否到末页：${result.isEnd ? "是" : "否"}`,
-      ],
-      data: result,
-      links: [{ label: "打开品牌增长工作台", url: "/brand-growth" }],
-      resultStatus: "COMPLETED",
-      resourceKind: "wechat_collection",
-      nextActions: result.isEnd
-        ? [{ label: "打开品牌增长工作台", action: "open_page", target: "/brand-growth" }]
-        : [{ label: "继续抓取下一页", action: "check_status", target: result.nextOffset || "" }],
-    });
-  }
-
-  async syncWechatBenchmarkAccounts(
-    headers: HeadersMap,
-    options?: {
-      ghUsername?: string;
-    },
-  ) {
-    const auth = await this.requireAuth(headers);
-    const brandId = await this.requireCurrentBrandId(auth);
-    await this.authService.assertBrandPermission(brandId, "brandGrowth.collection.wechatMpCollection", "edit", auth);
-
-    const ghUsername = this.normalizeSafeInstruction(options?.ghUsername, "竞品公众号 gh_username");
-    if (!ghUsername) {
-      throw new BadRequestException("请提供 ghUsername");
-    }
-    const result = await this.collectorsService.syncWechatMpBenchmarkAccount(brandId, ghUsername);
-
-    return this.buildSummaryResponse({
-      title: "竞品公众号已绑定",
-      summary: `已绑定竞品公众号 ${ghUsername}，当前竞品公众号采集工作区已更新。`,
-      highlights: [
-        `gh_username：${ghUsername}`,
-        result.item?.id ? `账号 ID：${result.item.id}` : "账号 ID：未返回",
-        result.item?.accountName ? `账号名称：${result.item.accountName}` : "账号名称：未返回",
-      ],
-      data: result,
-      links: [{ label: "打开品牌增长工作台", url: "/brand-growth" }],
-      resultStatus: "COMPLETED",
-      resourceKind: "wechat_collection",
-    });
-  }
-
-  async fetchWechatBenchmarkArticles(
-    headers: HeadersMap,
-    options?: {
-      ghUsername?: string;
-      offset?: string;
-    },
-  ) {
-    const auth = await this.requireAuth(headers);
-    const brandId = await this.requireCurrentBrandId(auth);
-    await this.authService.assertBrandPermission(brandId, "brandGrowth.collection.wechatMpCollection", "edit", auth);
-
-    const ghUsername = this.normalizeSafeInstruction(options?.ghUsername, "竞品公众号 gh_username");
-    if (!ghUsername) {
-      throw new BadRequestException("请提供 ghUsername");
-    }
-    const offset = this.normalizeSafeInstruction(options?.offset, "竞品公众号文章翻页游标") || undefined;
-    const result = await this.collectorsService.fetchWechatMpBenchmarkArticles(brandId, ghUsername, offset);
-
-    return this.buildSummaryResponse({
-      title: "竞品公众号历史文章已抓取",
-      summary: `已为竞品公众号 ${ghUsername} 抓取 ${result.count} 篇历史文章${result.isEnd ? "，当前已到末页。" : "，还可继续翻页抓取。"}。`,
       highlights: [
         `gh_username：${ghUsername}`,
         `本次抓取：${result.count}`,
@@ -12322,15 +12227,6 @@ export class OpenClawService {
         });
       case "fetch_wechat_brand_articles":
         return this.fetchWechatBrandArticles(headers, {
-          ghUsername: typeof toolArgs.ghUsername === "string" ? toolArgs.ghUsername : undefined,
-          offset: typeof toolArgs.offset === "string" ? toolArgs.offset : undefined,
-        });
-      case "sync_wechat_benchmark_accounts":
-        return this.syncWechatBenchmarkAccounts(headers, {
-          ghUsername: typeof toolArgs.ghUsername === "string" ? toolArgs.ghUsername : undefined,
-        });
-      case "fetch_wechat_benchmark_articles":
-        return this.fetchWechatBenchmarkArticles(headers, {
           ghUsername: typeof toolArgs.ghUsername === "string" ? toolArgs.ghUsername : undefined,
           offset: typeof toolArgs.offset === "string" ? toolArgs.offset : undefined,
         });

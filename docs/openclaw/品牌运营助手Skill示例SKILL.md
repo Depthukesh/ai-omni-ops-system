@@ -434,8 +434,6 @@
   - `get_wechat_collection_workspace`
   - `sync_wechat_brand_accounts`
   - `fetch_wechat_brand_articles`
-  - `sync_wechat_benchmark_accounts`
-  - `fetch_wechat_benchmark_articles`
   - `sync_wechat_benchmark_articles`
   - `sync_wechat_search_articles`
   - `update_wechat_article_stats`
@@ -443,13 +441,10 @@
 - 正确顺序通常是：
   - 先用 `sync_wechat_brand_accounts` 绑定 `ghUsername`
   - 再用 `fetch_wechat_brand_articles` 抓历史文章；需要翻页时继续传 `offset`
-  - 如果是竞品公众号，则先用 `sync_wechat_benchmark_accounts` 绑定 `ghUsername`
-  - 再用 `fetch_wechat_benchmark_articles` 抓竞品公众号历史文章；需要翻页时继续传 `offset`
-  - 如果用户给的是单篇旧文章链接兼容模式，再用 `sync_wechat_benchmark_articles`
+  - 如果是对标文章，则用 `sync_wechat_benchmark_articles`
   - 如果是微信搜一搜，则用 `sync_wechat_search_articles`
   - 如果是更新阅读量、点赞量等统计，则用 `update_wechat_article_stats`
 - `fetch_wechat_brand_articles` 就是页面里“品牌公众号数据”卡片上的“提交 / 获取下一页”动作
-- `fetch_wechat_benchmark_articles` 就是页面里“竞品作品信息及数据”卡片上的“提交 / 获取下一页”动作
 
 ### 保存并管理 OpenClaw 视频作品
 
