@@ -1372,11 +1372,17 @@ export class ThirdPartyPlatformsService {
     const nextModelIds = Array.from(new Set([...(current.modelIds || []), ...(seed.modelIds || [])]));
     const nextName = current.name || seed.name || "";
     const nextProviderType = current.providerType || seed.providerType;
-    const nextStatus = current.status || seed.status;
+    const nextStatus = current.status === "DISABLED"
+      ? current.status
+      : seed.status === "ACTIVE" && current.status === "DRAFT"
+        ? "ACTIVE"
+        : current.status || seed.status;
     const nextBaseUrl = this.resolveSystemSeedBaseUrl(current.baseUrl, seed.baseUrl);
     const nextWebsiteUrl = current.websiteUrl || seed.websiteUrl || resolvePlatformWebsiteUrl(nextBaseUrl);
     const nextTutorialUrl = current.tutorialUrl || seed.tutorialUrl || "";
-    const nextDefaultModel = current.defaultModel || seed.defaultModel || "";
+    const nextDefaultModel = (current.status === "DRAFT" && nextStatus === "ACTIVE")
+      ? (seed.defaultModel || current.defaultModel || "")
+      : (current.defaultModel || seed.defaultModel || "");
     const nextRemark = current.remark || seed.remark || "";
     const currentModelIdsJson = JSON.stringify(current.modelIds || []);
     const nextModelIdsJson = JSON.stringify(nextModelIds);

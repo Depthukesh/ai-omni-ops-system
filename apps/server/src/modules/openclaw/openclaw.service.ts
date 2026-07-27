@@ -4153,16 +4153,23 @@ export class OpenClawService {
     return this.buildSummaryResponse({
       title: "第三方接口配置摘要",
       summary: items.length
-        ? `当前品牌共接入 ${items.length} 个第三方平台，可直接查看 API Key 遮罩状态、动态能力，以及 OpenClaw 是否可直接复用这些品牌共享凭证。`
+        ? `当前品牌共接入 ${items.length} 个第三方平台，可直接查看 API Key 遮罩状态、动态能力，以及 OpenClaw 是否可直接复用这些品牌共享凭证。这里的 status/defaultModel 属于平台配置聚合视图，不等于设计工作台图片模型列表。`
         : "当前品牌还没有第三方平台配置。",
       highlights: items.length
-        ? items.slice(0, 5).map((item) => {
-            const runtimeAccess = runtimeAccessMap.get(item.id);
-            return `${item.name}｜${item.effectiveApiKeyMasked || "未配置"}｜OpenClaw:${runtimeAccess?.openClawCanUse ? "可直用" : "未就绪"}`;
-          })
+        ? [
+            ...items.slice(0, 5).map((item) => {
+              const runtimeAccess = runtimeAccessMap.get(item.id);
+              return `${item.name}｜${item.effectiveApiKeyMasked || "未配置"}｜OpenClaw:${runtimeAccess?.openClawCanUse ? "可直用" : "未就绪"}`;
+            }),
+            "如需确认某个平台是否出现在作图模型里，请继续调用 get_design_workspace_options，并查看 moduleOptions.image.models",
+          ]
         : ["平台数：0"],
       data: {
         total: items.length,
+        notes: {
+          scope: "third-party-platform-config",
+          designWorkspaceImageModelsTool: "get_design_workspace_options",
+        },
         items: items.map((item) => ({
           id: item.id,
           name: item.name,
@@ -4345,6 +4352,7 @@ export class OpenClawService {
         `平台：${access.platform.name}`,
         `当前遮罩：${access.effectiveApiKeyMasked || "已配置"}`,
         `来源：${access.resolvedFrom === "brand" ? "个人中心品牌共享配置" : "本地开发环境"}`,
+        "注意：这里检查的是平台共享凭证，不等于设计工作台图片模型是否可见；作图模型请再看 get_design_workspace_options -> moduleOptions.image.models",
       ],
       data: {
         status: access.status,
@@ -4354,6 +4362,10 @@ export class OpenClawService {
         effectiveApiKeyMasked: access.effectiveApiKeyMasked,
         apiKeyVisibleToOpenClawModel: false,
         accessMode: "server-side-delegated",
+        notes: {
+          scope: "third-party-platform-runtime-access",
+          designWorkspaceImageModelsTool: "get_design_workspace_options",
+        },
       },
       links: [{ label: "打开第三方接口配置", url: "/personal-center/third-party-platforms" }],
       resourceKind: "third_party_platform",

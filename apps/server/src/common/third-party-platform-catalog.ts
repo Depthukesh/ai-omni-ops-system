@@ -108,6 +108,9 @@ function buildThirdPartyPlatformSeeds() {
     }
     if (statusWeight(item.status) > statusWeight(current.status)) {
       current.status = item.status;
+      if (item.defaultModel) {
+        current.defaultModel = item.defaultModel;
+      }
     }
     if (String(item.updatedAt || "") > current.updatedAt) {
       current.updatedAt = item.updatedAt;
