@@ -18175,7 +18175,7 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
   private resolveXiaohongshuNoteImageGenerationSize() {
     return {
       apiz: "3:4",
-      openai: "1242x1660",
+      openai: "1248x1664",
     };
   }
 
@@ -18201,12 +18201,21 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
     if (!match) {
       return "";
     }
-    const width = Number(match[1]);
-    const height = Number(match[2]);
+    const width = this.normalizeImageEdgeToMultiple(Number(match[1]), 16);
+    const height = this.normalizeImageEdgeToMultiple(Number(match[2]), 16);
     if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
       return "";
     }
     return `${Math.trunc(width)}x${Math.trunc(height)}`;
+  }
+
+  private normalizeImageEdgeToMultiple(value: number, multiple: number) {
+    if (!Number.isFinite(value) || value <= 0) {
+      return 0;
+    }
+    const normalizedMultiple = Math.max(1, Math.trunc(multiple));
+    const normalizedValue = Math.max(normalizedMultiple, Math.trunc(value));
+    return Math.ceil(normalizedValue / normalizedMultiple) * normalizedMultiple;
   }
 
   private resolveClosestImageAspectRatio(width: number, height: number) {
@@ -18331,13 +18340,13 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
   }
 
   private stripWechatImageVerticalSizeHints(prompt: string): string {
-    // 清除 brief/prompt 中的竖版、小红书、3:4、1242x1660 等尺寸描述，防止与公众号横版尺寸冲突
+    // 清除 brief/prompt 中的竖版、小红书、3:4、1242x1660 / 1248x1664 等尺寸描述，防止与公众号横版尺寸冲突
     return String(prompt || "")
-      .replace(/竖版小红书图文比例[，,]?\s*严格按\s*1242x1660[（(]宽3:高4[)）]\s*构图[^。]*。?/g, "")
-      .replace(/竖版[^，,。\n]*?(?:3\s*[:：]\s*4|1242\s*x\s*1660)[^。]*。?/gi, "")
-      .replace(/小红书[^，,。\n]*?(?:3\s*[:：]\s*4|1242\s*x\s*1660)[^。]*。?/gi, "")
+      .replace(/竖版小红书图文比例[，,]?\s*严格按\s*(?:1242x1660|1248x1664)[（(]宽3:高4[)）]\s*构图[^。]*。?/g, "")
+      .replace(/竖版[^，,。\n]*?(?:3\s*[:：]\s*4|1242\s*x\s*1660|1248\s*x\s*1664)[^。]*。?/gi, "")
+      .replace(/小红书[^，,。\n]*?(?:3\s*[:：]\s*4|1242\s*x\s*1660|1248\s*x\s*1664)[^。]*。?/gi, "")
       .replace(/(?:宽\s*)?3\s*[:：]\s*4\s*(?:高\s*)?4\b[^。]*。?/gi, "")
-      .replace(/1242\s*x\s*1660/g, "")
+      .replace(/(?:1242|1248)\s*x\s*(?:1660|1664)/g, "")
       .replace(/竖版/g, "横版")
       .replace(/\s{2,}/g, " ")
       .trim();
@@ -29774,7 +29783,7 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
         model: modelName,
         prompt,
         image: referenceImageUrls,
-        size: imageSizeOverride?.openai || "1242x1660",
+        size: imageSizeOverride?.openai || this.resolveXiaohongshuNoteImageGenerationSize().openai,
         response_format: "url",
       };
     }
@@ -30105,7 +30114,7 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
     const imageLabel = role === "COVER" ? "封面图" : `第${order + 1}张配图`;
     // 根据 imageSizeOverride 动态生成尺寸指令
     const aspectRatio = imageSizeOverride?.apiz || "3:4";
-    const pixelSize = imageSizeOverride?.openai || "1242x1660";
+    const pixelSize = imageSizeOverride?.openai || this.resolveXiaohongshuNoteImageGenerationSize().openai;
     const isLandscape = aspectRatio === "16:9" || aspectRatio === "4:3";
     const orientationText = isLandscape ? "横版" : aspectRatio === "1:1" ? "正方形" : "竖版";
     return [
@@ -30907,10 +30916,10 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
 
     try {
       const { default: sharp } = await import("sharp");
-      const normalizedSizeSpec = this.normalizeDesignImageSpec(sizeSpec || "") || "1242x1660";
+      const normalizedSizeSpec = this.normalizeDesignImageSpec(sizeSpec || "") || this.resolveXiaohongshuNoteImageGenerationSize().openai;
       const [targetWidthText, targetHeightText] = normalizedSizeSpec.split("x");
-      const targetWidth = Number(targetWidthText) || 1242;
-      const targetHeight = Number(targetHeightText) || 1660;
+      const targetWidth = Number(targetWidthText) || 1248;
+      const targetHeight = Number(targetHeightText) || 1664;
       const image = sharp(buffer, { animated: false, failOn: "none" }).rotate();
       const metadata = await image.metadata();
       if (!metadata.width || !metadata.height) {
