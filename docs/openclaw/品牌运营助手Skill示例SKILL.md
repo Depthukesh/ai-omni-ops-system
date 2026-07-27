@@ -281,6 +281,9 @@
   - 再 `check_my_third_party_platform_runtime_access`
   - 只有需要更新品牌共享 Key 时，再 `update_my_third_party_platform_secret`
 - 多元探索当前的产品定位不是单独工作台，而是统一承接文本、图像、视频、音频、音乐五类 runtime 的第三方平台；是否可用必须以运行时可用性检查结果为准，不要直接猜
+- 若用户明确指定“使用多元探索”，后续进入设计工作台或视频链路时仍需保留平台约束：
+  - 必须从模型列表中选择 `providerName` 为多元探索的 `selectionKey`
+  - 不要因为 APIZ / XSkill 也提供同家族模型，就把 APIZ 当成多元探索的等价替代
 
 ### 更新品牌 API Key
 
@@ -325,6 +328,7 @@
   - 图片已有 URL 时优先传 `referenceImageUrl`
   - 图片在当前会话里时可直接传 `referenceImage.fileName / contentType / dataBase64`
 - 如果用户说“用多元探索做图”，先检查多元探索平台 runtime 是否可用；确认可用后，仍然通过网站现有设计工作台工具链执行，不直接伪造一个不存在的多元探索专用设计工具
+- 一旦用户明确指定“就用多元探索”，必须从 `moduleOptions.image.models` 中筛选 `providerName` 属于多元探索的 `selectionKey`，不要仅按 Veo / Seedance / Kling 等模型家族猜测 provider
 
 ### 处理公众号工作流
 

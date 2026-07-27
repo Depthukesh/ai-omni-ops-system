@@ -28157,6 +28157,19 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       preferredProviderIds: overridePreference?.preferredProviderIds || preference?.preferredProviderIds || [],
     };
     const scopedConfigs = this.applyImageProviderSelectionRule(normalizedConfigs, effectivePreference);
+    if (overridePreference?.strictPreferredProvider && effectivePreference.preferredProviderIds.length) {
+      const strictConfigs = scopedConfigs.filter((item) => effectivePreference.preferredProviderIds.includes(item.providerId));
+      if (!strictConfigs.length) {
+        throw new ServiceUnavailableException(
+          `已指定文生图 Provider，但当前品牌无法命中对应执行配置。请改用 get_design_workspace_options 返回的 selectionKey，确保 providerId 来自当前可用的平台模型列表。`,
+        );
+      }
+      return this.reorderImageProvidersByPrimaryModel(
+        strictConfigs,
+        effectivePreference.preferredModelName,
+        effectivePreference.preferredProviderIds,
+      );
+    }
     return this.reorderImageProvidersByPrimaryModel(
       scopedConfigs,
       effectivePreference.preferredModelName,

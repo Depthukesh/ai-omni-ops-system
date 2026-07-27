@@ -128,6 +128,21 @@ async function reportRightCodesOpenClawDebugEvent(payload: Record<string, unknow
   }).catch(() => {});
 }
 
+async function reportDuoyuanxPlatformMatchDebugEvent(payload: Record<string, unknown>) {
+  const baseUrl = String(process.env.PUBLIC_API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "").trim().replace(/\/$/, "");
+  if (!baseUrl) {
+    return;
+  }
+  await fetch(`${baseUrl}/openclaw/mcp/debug/duoyuanx-platform-match/event`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      ...(payload || {}),
+      ts: typeof payload.ts === "number" ? payload.ts : Date.now(),
+    }),
+  }).catch(() => {});
+}
+
 const OPENCLAW_MCP_SERVER_INFO = {
   name: "ai-omni-ops-openclaw-mcp-http",
   version: "0.5.0",
@@ -1703,7 +1718,7 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
   },
   {
     name: "get_design_workspace_options",
-    description: "查看设计工作台可用模块、设计类型、产品、营销日历和模型选项，并读取可直接传给 create_design_work.modelSelection 的 selectionKey。",
+    description: "查看设计工作台可用模块、设计类型、产品、营销日历和模型选项，并读取可直接传给 create_design_work.modelSelection 的 selectionKey。若用户明确指定平台（例如多元探索），必须从 providerName 匹配该平台的模型里选择 selectionKey。",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
   },
   {
@@ -1719,7 +1734,7 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
   },
   {
     name: "create_design_work",
-    description: "在网站设计工作台中直接创建一个设计任务。支持纯文字需求，也支持补充参考图 URL 或参考图上传对象；如需指定生图模型，应先调用 get_design_workspace_options，再把返回的 selectionKey 传入 modelSelection。",
+    description: "在网站设计工作台中直接创建一个设计任务。支持纯文字需求，也支持补充参考图 URL 或参考图上传对象；如需指定生图模型，应先调用 get_design_workspace_options，再把返回的 selectionKey 传入 modelSelection。若用户明确指定多元探索、Right Codes、火山方舟等平台，不要只按模型家族猜测，必须传入对应 providerName 的 selectionKey。",
     inputSchema: {
       type: "object",
       properties: {
@@ -4186,6 +4201,22 @@ export class OpenClawService {
     const auth = await this.requireAuth(headers);
     const brandId = await this.requireCurrentBrandId(auth);
     await this.authService.assertBrandPermission(brandId, "personalCenter.thirdPartyPlatforms", "view", auth);
+    // #region debug-point A:duoyuanx-runtime-access-enter
+    await reportDuoyuanxPlatformMatchDebugEvent({
+      sessionId: "duoyuanx-platform-match",
+      runId: "pre-fix",
+      hypothesisId: "A",
+      location: "openclaw.service.ts:checkMyThirdPartyPlatformRuntimeAccess:enter",
+      msg: "[DEBUG] OpenClaw runtime access check entered",
+      data: {
+        brandId,
+        platformId: typeof options?.platformId === "string" ? options.platformId : "",
+        platformName: typeof options?.platformName === "string" ? options.platformName : "",
+        baseUrl: typeof options?.baseUrl === "string" ? options.baseUrl : "",
+      },
+    });
+    // #endregion
+
     // #region debug-point RC-A:openclaw-runtime-access-enter
     await reportRightCodesOpenClawDebugEvent({
       sessionId: "right-codes-openclaw",
@@ -4207,6 +4238,31 @@ export class OpenClawService {
       platformName: typeof options?.platformName === "string" ? options.platformName : undefined,
       baseUrls: typeof options?.baseUrl === "string" ? [options.baseUrl] : undefined,
     });
+    // #region debug-point B:duoyuanx-runtime-access-result
+    await reportDuoyuanxPlatformMatchDebugEvent({
+      sessionId: "duoyuanx-platform-match",
+      runId: "pre-fix",
+      hypothesisId: "B",
+      location: "openclaw.service.ts:checkMyThirdPartyPlatformRuntimeAccess:result",
+      msg: "[DEBUG] OpenClaw runtime access check resolved",
+      data: {
+        brandId,
+        status: access.status,
+        openClawCanUse: access.openClawCanUse,
+        resolvedFrom: "resolvedFrom" in access ? access.resolvedFrom || "" : "",
+        platform: access.platform
+          ? {
+              id: access.platform.id,
+              name: access.platform.name,
+              baseUrl: access.platform.baseUrl,
+              websiteUrl: access.platform.websiteUrl,
+              defaultModel: access.platform.defaultModel,
+            }
+          : null,
+      },
+    });
+    // #endregion
+
     // #region debug-point RC-B:openclaw-runtime-access-result
     await reportRightCodesOpenClawDebugEvent({
       sessionId: "right-codes-openclaw",
@@ -5936,7 +5992,34 @@ export class OpenClawService {
     const brandId = await this.requireCurrentBrandId(auth);
     await this.authService.assertBrandPermission(brandId, "personalCenter.works", "view", auth);
 
+    // #region debug-point C:duoyuanx-design-options-enter
+    await reportDuoyuanxPlatformMatchDebugEvent({
+      sessionId: "duoyuanx-platform-match",
+      runId: "pre-fix",
+      hypothesisId: "C",
+      location: "openclaw.service.ts:getDesignWorkspaceOptions:enter",
+      msg: "[DEBUG] OpenClaw get_design_workspace_options entered",
+      data: {
+        brandId,
+      },
+    });
+    // #endregion
+
     const workspace = await this.worksService.getDesignWorkspaceOptions(brandId);
+    // #region debug-point C:duoyuanx-design-options-result
+    await reportDuoyuanxPlatformMatchDebugEvent({
+      sessionId: "duoyuanx-platform-match",
+      runId: "pre-fix",
+      hypothesisId: "C",
+      location: "openclaw.service.ts:getDesignWorkspaceOptions:result",
+      msg: "[DEBUG] OpenClaw get_design_workspace_options resolved",
+      data: {
+        brandId,
+        imageProviderLabels: workspace.moduleOptions.image?.providerLabels || [],
+        imageModelCount: workspace.moduleOptions.image?.models?.length || 0,
+      },
+    });
+    // #endregion
     return this.buildSummaryResponse({
       title: "设计工作台可用选项",
       summary: `当前品牌支持 ${Object.keys(workspace.moduleOptions).length} 个设计模块，可直接在对话里确认模块、设计类型、产品、营销日历和模型 selectionKey 后发起任务。`,
@@ -5945,6 +6028,7 @@ export class OpenClawService {
         `产品选项：${workspace.productOptions.length}`,
         `推荐模块：${Object.entries(workspace.moduleOptions).map(([key, value]) => `${key}(${value.types.length})`).join("、")}`,
         `图片模型支持从 moduleOptions.image.models 里读取 selectionKey，并可直接传给 create_design_work.modelSelection`,
+        `如果用户明确指定多元探索等平台，必须优先筛选 providerName 对应平台的 selectionKey，不要仅按 Veo / Seedance / Kling 等模型家族猜测来源`,
       ],
       data: {
         brandId: workspace.brandId,

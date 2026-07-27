@@ -165,6 +165,10 @@
   - 音频
   - 音乐
 - 这些运行时是否被当前品牌可用，应以 `check_my_third_party_platform_runtime_access` 返回结果为准，而不是靠模型名硬猜
+- 当用户明确指定“使用多元探索”时，后续如果继续走设计工作台、视频或其他生成链路，必须继续保留这个平台约束：
+  - 先确认 `check_my_third_party_platform_runtime_access` 返回的匹配平台确实是 `多元探索平台`
+  - 再从工作台模型列表里选择 `providerName` 明确属于多元探索的 `selectionKey`
+  - 不要因为 APIZ / XSkill 也提供 Veo、Seedance、Kling 等同家族模型，就把 APIZ 当成多元探索的替代来源
 - 如果用户提到 `Right Codes / right.codes / rightapi.ai`，也不要手写旧域名：
   - 当前默认 Base URL 应为 `https://www.rightapi.ai`
   - 旧域名 `right.codes` 仅作为兼容历史配置与海外网络访问口径保留

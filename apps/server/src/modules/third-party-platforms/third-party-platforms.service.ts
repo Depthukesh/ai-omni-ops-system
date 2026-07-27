@@ -9,6 +9,36 @@ import {
 import { PrismaService } from "../../prisma/prisma.service";
 import { ChanjingOpenApiService } from "../works/chanjing-open-api.service";
 
+async function reportRightCodesOpenClawDebugEvent(payload: Record<string, unknown>) {
+  const baseUrl = String(process.env.PUBLIC_API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "").trim().replace(/\/$/, "");
+  if (!baseUrl) {
+    return;
+  }
+  await fetch(`${baseUrl}/openclaw/mcp/debug/right-codes-openclaw/event`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      ...(payload || {}),
+      ts: typeof payload.ts === "number" ? payload.ts : Date.now(),
+    }),
+  }).catch(() => {});
+}
+
+async function reportDuoyuanxPlatformMatchDebugEvent(payload: Record<string, unknown>) {
+  const baseUrl = String(process.env.PUBLIC_API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "").trim().replace(/\/$/, "");
+  if (!baseUrl) {
+    return;
+  }
+  await fetch(`${baseUrl}/openclaw/mcp/debug/duoyuanx-platform-match/event`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      ...(payload || {}),
+      ts: typeof payload.ts === "number" ? payload.ts : Date.now(),
+    }),
+  }).catch(() => {});
+}
+
 export type CreateThirdPartyPlatformPayload = {
   name: string;
   providerType: ThirdPartyPlatformRecord["providerType"];
@@ -405,8 +435,40 @@ export class ThirdPartyPlatformsService {
     const normalizedPlatformId = String(options?.platformId || "").trim();
     const normalizedPlatformName = String(options?.platformName || "").trim().toLowerCase();
     const normalizedBaseUrls = Array.from(new Set((options?.baseUrls || []).map((item) => String(item || "").trim()).filter(Boolean)));
+    // #region debug-point B:duoyuanx-inspect-runtime-enter
+    await reportDuoyuanxPlatformMatchDebugEvent({
+      sessionId: "duoyuanx-platform-match",
+      runId: "pre-fix",
+      hypothesisId: "B",
+      location: "third-party-platforms.service.ts:inspectBrandRuntimeAccess:enter",
+      msg: "[DEBUG] ThirdPartyPlatformsService inspect runtime access entered",
+      data: {
+        brandId: normalizedBrandId,
+        platformId: normalizedPlatformId,
+        platformName: normalizedPlatformName,
+        baseUrls: normalizedBaseUrls,
+      },
+    });
+    // #endregion
+
+    // #region debug-point RC-C:inspect-brand-runtime-enter
+    await reportRightCodesOpenClawDebugEvent({
+      sessionId: "right-codes-openclaw",
+      runId: "pre-fix",
+      hypothesisId: "C",
+      location: "third-party-platforms.service.ts:inspectBrandRuntimeAccess:enter",
+      msg: "[DEBUG] ThirdPartyPlatformsService inspect runtime access entered",
+      data: {
+        brandId: normalizedBrandId,
+        platformId: normalizedPlatformId,
+        platformName: normalizedPlatformName,
+        baseUrls: normalizedBaseUrls,
+      },
+    });
+    // #endregion
 
     const platformGroups = await this.listPlatformGroups();
+    const platformNameMatchTerms = this.resolvePlatformNameMatchTerms(normalizedPlatformName);
     const matchedGroup = normalizedPlatformId
       ? platformGroups.find((item) => item.aliasIds.includes(normalizedPlatformId))
       : normalizedBaseUrls.length
@@ -418,20 +480,67 @@ export class ThirdPartyPlatformsService {
           })
         : normalizedPlatformName
           ? platformGroups.find((item) => {
-              const candidates = [
-                item.platform.name,
-                item.platform.baseUrl,
-                item.platform.websiteUrl,
-                item.platform.defaultModel,
-                item.platform.remark,
-              ]
-                .map((value) => String(value || "").trim().toLowerCase())
-                .filter(Boolean);
-              return candidates.some((value) =>
-                value.includes(normalizedPlatformName) || normalizedPlatformName.includes(value),
+              const candidates = this.buildPlatformNameMatchCandidates(item.platform);
+              return platformNameMatchTerms.some((term) =>
+                candidates.some((value) => value === term || value.includes(term) || term.includes(value)),
               );
             })
           : undefined;
+
+    // #region debug-point B:duoyuanx-inspect-runtime-match
+    await reportDuoyuanxPlatformMatchDebugEvent({
+      sessionId: "duoyuanx-platform-match",
+      runId: "pre-fix",
+      hypothesisId: "B",
+      location: "third-party-platforms.service.ts:inspectBrandRuntimeAccess:match",
+      msg: "[DEBUG] ThirdPartyPlatformsService runtime access platform match resolved",
+      data: {
+        brandId: normalizedBrandId,
+        normalizedPlatformId,
+        normalizedPlatformName,
+        platformNameMatchTerms,
+        normalizedBaseUrls,
+        matched: Boolean(matchedGroup),
+        candidatePlatformNames: platformGroups.slice(0, 20).map((item) => item.platform.name),
+        matchedPlatform: matchedGroup
+          ? {
+              id: matchedGroup.platform.id,
+              name: matchedGroup.platform.name,
+              baseUrl: matchedGroup.platform.baseUrl,
+              websiteUrl: matchedGroup.platform.websiteUrl,
+              aliasIds: matchedGroup.aliasIds,
+            }
+          : null,
+      },
+    });
+    // #endregion
+
+    // #region debug-point RC-D:inspect-brand-runtime-match
+    await reportRightCodesOpenClawDebugEvent({
+      sessionId: "right-codes-openclaw",
+      runId: "pre-fix",
+      hypothesisId: "D",
+      location: "third-party-platforms.service.ts:inspectBrandRuntimeAccess:match",
+      msg: "[DEBUG] ThirdPartyPlatformsService runtime access platform match resolved",
+      data: {
+        brandId: normalizedBrandId,
+        normalizedPlatformId,
+        normalizedPlatformName,
+        platformNameMatchTerms,
+        normalizedBaseUrls,
+        matched: Boolean(matchedGroup),
+        matchedPlatform: matchedGroup
+          ? {
+              id: matchedGroup.platform.id,
+              name: matchedGroup.platform.name,
+              baseUrl: matchedGroup.platform.baseUrl,
+              websiteUrl: matchedGroup.platform.websiteUrl,
+              aliasIds: matchedGroup.aliasIds,
+            }
+          : null,
+      },
+    });
+    // #endregion
 
     if (!matchedGroup) {
       return {
@@ -543,6 +652,23 @@ export class ThirdPartyPlatformsService {
   ): Promise<BrandRuntimeAccessSummary> {
     const secret = await this.findBrandPlatformSecretByPlatforms(brandId, aliasIds);
     const apiKey = String(secret?.apiKey || "").trim();
+    // #region debug-point RC-E:resolve-runtime-secret
+    await reportRightCodesOpenClawDebugEvent({
+      sessionId: "right-codes-openclaw",
+      runId: "pre-fix",
+      hypothesisId: "E",
+      location: "third-party-platforms.service.ts:resolveRuntimeAccessForPlatformGroup:secret",
+      msg: "[DEBUG] ThirdPartyPlatformsService runtime secret resolution checked",
+      data: {
+        brandId,
+        platformId: platform.id,
+        platformName: platform.name,
+        baseUrl: platform.baseUrl,
+        aliasIds,
+        hasBrandSecret: Boolean(apiKey),
+      },
+    });
+    // #endregion
     if (apiKey) {
       return {
         status: "resolved",
@@ -560,6 +686,23 @@ export class ThirdPartyPlatformsService {
     }
 
     const envApiKeys = this.resolveLocalEnvApiKeysForPlatform(platform);
+    // #region debug-point RC-F:resolve-runtime-env
+    await reportRightCodesOpenClawDebugEvent({
+      sessionId: "right-codes-openclaw",
+      runId: "pre-fix",
+      hypothesisId: "F",
+      location: "third-party-platforms.service.ts:resolveRuntimeAccessForPlatformGroup:env",
+      msg: "[DEBUG] ThirdPartyPlatformsService runtime env resolution checked",
+      data: {
+        brandId,
+        platformId: platform.id,
+        platformName: platform.name,
+        baseUrl: platform.baseUrl,
+        envKeyCount: envApiKeys.length,
+        nodeEnv: String(process.env.NODE_ENV || ""),
+      },
+    });
+    // #endregion
     if (envApiKeys.length) {
       return {
         status: "resolved",
@@ -965,6 +1108,33 @@ export class ThirdPartyPlatformsService {
       remark: String(input.remark || "").trim(),
       updatedAt: this.normalizeDate(input.updatedAt),
     };
+  }
+
+  private resolvePlatformNameMatchTerms(value: string) {
+    const normalized = String(value || "").trim().toLowerCase();
+    if (!normalized) {
+      return [];
+    }
+    const terms = new Set([normalized]);
+    if (normalized.includes("多元探索") || normalized.includes("duoyuanx")) {
+      ["多元探索", "多元探索平台", "duoyuanx", "duoyuanx.com"].forEach((item) => terms.add(item.toLowerCase()));
+    }
+    if (normalized.includes("apiz") || normalized.includes("xskill") || normalized.includes("nex ai")) {
+      ["apiz", "apiz / nex ai 平台", "xskill", "api.xskill.ai", "api.apiz.ai"].forEach((item) => terms.add(item.toLowerCase()));
+    }
+    return Array.from(terms);
+  }
+
+  private buildPlatformNameMatchCandidates(platform: Pick<ThirdPartyPlatformRecord, "name" | "baseUrl" | "websiteUrl">) {
+    return Array.from(new Set(
+      [
+        String(platform.name || "").trim().toLowerCase(),
+        this.normalizeBaseUrl(platform.baseUrl),
+        this.normalizeBaseUrl(platform.websiteUrl),
+        this.extractHost(platform.baseUrl),
+        this.extractHost(platform.websiteUrl),
+      ].filter(Boolean),
+    ));
   }
 
   private normalizePlatformRow(row: ThirdPartyPlatformRow | ThirdPartyPlatformRecord): ThirdPartyPlatformRecord {
