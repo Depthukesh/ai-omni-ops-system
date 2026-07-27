@@ -35,6 +35,7 @@
 - 公众号工作台：配置、原创创作、HTML 草稿、一键发布
 - 设计工作台：图片、HTML、PPT、视频等设计任务
 - 个人中心：概览、任务、订单、作品、技能、第三方接口、OpenClaw、安全、团队、邀请
+- `local-single-user` 安装态个人中心已开始承接“版本与升级”，默认通过 GitHub Releases 检查新包，并由后端受控触发独立 updater 执行本地替换
 - 后台：用户管理、接口供应商、知识库、技能中心、能力包、模块注册中心、模型用量、计费规则
 
 ### 3.3 当前技术选择
@@ -79,7 +80,30 @@
 - 发布页面必须提供下载入口、安装说明和失败排查提示
 - 当前已存在的扩展包括 `xhs-draft-publisher`、`omni-publisher`、`douyin-publisher`、`wechat-channel-publisher`
 
+### 4.6 local-single-user 启动链
+
+- `scripts/local-single-user-launcher.cjs` 是本地单机模式的标准入口
+- launcher 构建 Web 时，如果存在 standalone 产物，必须优先以 standalone `server.js` 拉起，而不是继续固定使用 `next start`
+- standalone 运行前必须同步 `.next/static` 与 `public/`，否则会出现 HTML 可访问但客户端 chunk / CSS 缺失
+- launcher 拉起 Web 时，不能让运行中的站点继续直接吃源码目录 `apps/web/.next/standalone`；必须先把 standalone 产物整体分发到 `LOCAL_APP_DATA_ROOT/runtime` 下的独立运行包，再在该运行包内同步 `.next/static` 与 `public/`
+- 当主 `local-single-user` runtime 仍在服务用户时，不允许再对同一份 live `.next` 目录直接做 fresh `next build` 作为日常验证手段；要么先停站重建，要么使用隔离的构建/预览路径
+- 面向用户交付 `local-single-user` 时，默认不能要求用户机器预装 Node；发布物至少要提供随包 `node.exe`、可双击启动的 `.cmd` 入口，以及与 launcher 相匹配的 `app/` 运行目录
+- 面向用户分发 `local-single-user` 时，不能只停留在裸 `.release/local-single-user-win-x64` 目录；至少还要提供安装入口和可校验的压缩包产物，例如 `install-local-single-user.cmd`、`.zip` 与配套 `.sha256`
+- `local-single-user` 的“检查更新 / 立即升级”入口默认放在个人中心，由后端统一检查 GitHub Releases；前端只负责展示版本状态和触发动作，不在浏览器里直接替换安装目录
+- 自动升级必须通过独立 updater 在安装目录外执行；升级前必须先校验 `.zip` 对应的 `.sha256`，升级时只替换程序目录，不动 `LOCAL_APP_DATA_ROOT` 下的 `data/`、`storage/`、`logs/`、`cache/`、`backup/`、`updates/`
+- Windows 下构建 `local-single-user` 发布物时，大目录复制优先走 `robocopy` 这类系统级工具，不要继续直接依赖 Node `fs.cpSync()` 去整包复制 `node_modules`、standalone 等大目录；否则既可能把进程直接打崩，也没有足够的进度日志可用于排障
+- 如果 launcher 在安装态仍会调用 `npm-cli.js`、并且仍可能依据源码指纹决定是否重跑 `server build` / `web build`，那么发布物就不能只带 `node.exe + dist/standalone`；还必须随包带上 launcher 真正依赖的 npm 运行时和对应源码输入，至少覆盖 `bin/node_modules/npm`、`apps/server/src` 这类安装态首启会命中的输入
+- launcher 中 `Prisma db push`、`server build`、`web build` 这类长耗时步骤不能只打印开始和结束；至少要有周期性报活日志，避免把正常慢构建误判为卡死
+- launcher 重启时，像 `Web build` 这种重步骤不能默认每次都全量重跑；如果源码与依赖输入未变化，必须优先复用已有产物并显式打印 `skip`，把本地启动时间从重复构建转成复用启动
+- `apps/web` 的 SWC / wasm 口径默认走“兼容优先”：真实本地机器不要一刀切强制 `useWasmBinary`；但在已知原生 SWC DLL 异常的沙箱环境里，可以自动强制 wasm，避免先尝试 native 再失败回退带来的额外耗时
+- Windows 下如果 launcher 依赖 `next build`，且现场已知存在 `@next/swc-win32-x64-msvc` 这类原生 SWC 包，启动前应优先做一次最小原生加载探测；若直接 `require()` 已失败，则应只对当前 launcher 运行受控注入 `NEXT_FORCE_WASM_BINARY=1`，避免每次都重复踩“先 native 失败再 fallback”的慢路径
+- 这类原生预检本身不能成为新的阻塞点；像 SWC `.node` 探测这类启动前探测必须带超时，并在超时后按“探测失败 -> 走兼容兜底”处理，不能让 launcher 卡死在探测阶段
+- 对原生 SWC 的环境判断要先排除低级干扰项再下结论：至少区分“中文路径/仓库路径问题”“VC runtime 缺失”“当前环境全面禁止 native addon”与“Next SWC 二进制专项兼容问题”；如果像 `sharp` 这类其它 `.node` 模块可正常加载，就不要再把问题笼统归因为“沙箱不支持所有原生模块”
+- 本地单机验证默认至少覆盖：`/brand-growth`、`/xiaohongshu`、`/douyin`、`/wechat`、`/more-features/design`、`/personal-center`
+- 前端排障埋点如果需要浏览器上报，统一走 `apps/web/src/lib/runtime-debug.ts` 这类受控 helper，默认关闭
+- 不允许继续在页面、工作区或 service 中硬编码 `http://127.0.0.1:*` 的调试上报地址，避免把开发期调试端口带进本地正式链路
 ## 5. 后端规范
+
 
 ### 5.1 Controller 与 Service 分层
 

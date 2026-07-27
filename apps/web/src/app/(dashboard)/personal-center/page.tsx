@@ -244,6 +244,12 @@ export default function PersonalCenterPage() {
         description: "去维护平台连接、模型 ID 和品牌共享 API Key。",
       },
       {
+        href: "/personal-center/version",
+        label: "版本与升级",
+        value: "local-single-user",
+        description: "去检查 GitHub Release，并在安装态下一键升级当前本地工作台。",
+      },
+      {
         href: "/personal-center/team",
         label: "团队协作",
         value: `${brands.length || 0} 个品牌`,

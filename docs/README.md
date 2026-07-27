@@ -114,6 +114,34 @@
 
 ## 最近应优先关注的文档
 
+- `docs/changes/2026-07-28-personal-center-version-update.md`
+  - 个人中心新增“版本与升级”页：后端通过 `system/update/*` 检查 GitHub Releases、预下载并校验 `AiOmniOps-local-single-user-win-x64.zip`，安装态再通过独立 updater 执行本地替换与重启
+- `docs/changes/2026-07-27-readme-install-guide-and-repo-slimming.md`
+  - 把根 `README.md` 重写为安装和使用教程，明确说明当前仓库为什么没有 `.exe`，并清理根目录调试笔记、`.dbg/` 旧排障文件与误生成命令输出文件
+- `docs/changes/2026-07-27-system-quote-workbook-script.md`
+  - 把残留的报价清单生成脚本收口为可复用的仓库内辅助脚本：默认输出改到 `.runtime/generated/quote-workbooks/`，支持 `--output` 自定义路径，并在缺少 `openpyxl` 时给出明确安装提示
+- `docs/changes/2026-07-27-deploy-secret-preflight-skip.md`
+  - 新仓库首次接入自动部署时，若仓库级 ECS SSH Secrets 还未迁移完成，workflow 现在会先给出缺失项提示并跳过 deploy，而不是把环境未配置直接报成代码失败
+- `docs/changes/2026-07-27-local-single-user-git-hygiene.md`
+  - `local-single-user` 交付链进入真实打包与安装验证后，补齐 `.release/`、`*.tsbuildinfo`、`.dbg/trae-debug-log-*.ndjson` 与临时调试笔记的 Git 边界，避免无关产物继续混入同步提交
+- `docs/changes/2026-07-27-local-single-user-release-installer-and-zip-package.md`
+  - `local-single-user` 方案 A 交付链继续前推：在 release bundle 基础上补 `install-local-single-user` 安装入口、`local:release:package` 压缩打包脚本，以及 `.zip + .sha256` 分发制品
+- `docs/changes/2026-07-27-local-single-user-release-bundle.md`
+  - `local-single-user` 方案 A 交付链继续前推：新增发布物打包脚本、随包 `node.exe`、双击启动入口与 autostart 辅助入口，形成 `.release/local-single-user-win-x64` 目录
+- `docs/changes/2026-07-27-local-single-user-web-runtime-isolation.md`
+  - `local-single-user` 交付级启动链收口：将 live Web 进程切到 runtime 隔离运行包，避免源码目录 fresh `next build` 继续扰动正在服务用户的主站
+- `docs/changes/2026-07-26-wechat-workflow-initialization-validation.md`
+  - `local-single-user` 公众号工作台验证补点：确认 fallback 偏好不等于真实初始化，并继续把同一条 workflow 推进到生图、HTML、发布确认和页面级回显，当前正式发布只剩公众号官方配置阻塞
+- `docs/changes/2026-07-26-local-single-user-launcher-prisma-db-push-reuse.md`
+  - `local-single-user` launcher 启动链继续收口：为 `Local Prisma db push` 补上 runtime 绑定的受控复用，并修正主流程里一度出现的重复执行问题
+- `docs/changes/2026-07-26-local-single-user-launcher-server-build-reuse.md`
+  - `local-single-user` launcher 启动链收口：确认长步骤周期性报活仍保留，并补上 `server build` 的输入指纹复用与 `skip` 日志
+- `docs/changes/2026-07-26-report-provider-fallback-brand-key-fix.md`
+  - 报告类 Provider fallback 在缺品牌共享 Key 时被提前打断的修复记录；本轮已补到 `机会洞察总报告` 与 `品牌增长报告` 的真实成功验证
+- `docs/changes/2026-07-23-local-single-user-phase-1-foundation.md`
+  - `local-single-user` 第一阶段兼容改造：本地目录、SQLite、默认用户/品牌、认证旁路、launcher standalone Web 闭环与重复启动防抖、沙箱内自动跳过浏览器拉起、主导航路由验证、控制台噪音归因，以及 OpenClaw、知识库、品牌知识桥接、用户技能、第三方平台配置等 SQLite 冷路径兼容修复
+- `docs/local-single-user-availability-status.md`
+  - 当前 live runtime 的功能可用性快照：launcher、核心工作台、OpenClaw、RunningHub、direct-video、brand-growth 等板块的可用/部分可用状态表
 - `docs/changes/2026-06-30-wechat-infrastructure-refactor-phase-5.md`
   - 公众号 Step 5 发布前收口下沉与 `WechatWorkflowPublishService`
 - `docs/changes/2026-07-14-production-stability-remediation-phase-1.md`

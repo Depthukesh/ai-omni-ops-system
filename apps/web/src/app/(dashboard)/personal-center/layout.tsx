@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿"use client";
+﻿﻿﻿﻿﻿"use client";
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -13,6 +13,7 @@ const routeItems = [
   { href: "/personal-center/works", label: "作品中心", description: "集中查看作品资产，并回到对应工作台继续处理" },
   { href: "/personal-center/skills", label: "技能中心", description: "查看平台技能基线，并逐步支持账号级与品牌级覆盖配置" },
   { href: "/personal-center/third-party-platforms", label: "第三方接口配置", description: "按平台查看接口地址、模型 ID、说明文档与品牌共享 API Key" },
+  { href: "/personal-center/version", label: "版本与升级", description: "查看当前安装版本、检查 GitHub Release，并在 local-single-user 模式下执行一键升级" },
   { href: "/personal-center/openclaw", label: "OpenClaw 安装", description: "为当前品牌生成 MCP 正式安装令牌，并查看 Skill 使用说明" },
   { href: "/personal-center/security", label: "安全设置", description: "查看当前登录态、品牌上下文与退出入口，后续扩展密码和会话管理" },
   { href: "/personal-center/team", label: "团队协作", description: "查看品牌成员、协作角色与团队管理入口" },
@@ -180,4 +181,3 @@ export default function PersonalCenterLayout({ children }: { children: ReactNode
     </div>
   );
 }
-

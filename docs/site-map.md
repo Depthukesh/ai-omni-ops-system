@@ -18,7 +18,7 @@
 - `apps/web`
   - 官网首页、认证页、前台工作台、个人中心、后台管理台、帮助页、发布页
 - `apps/server`
-  - 认证、品牌、采集、报告、作品、任务、发布、OpenClaw、后台治理等 API 模块
+  - 认证、品牌、采集、报告、作品、任务、发布、系统升级、OpenClaw、后台治理等 API 模块
 - `packages/config`
   - 配置相关共享包
 - `packages/prompt-runtime`
@@ -207,12 +207,22 @@
   - 第三方接口配置
 - `/personal-center/openclaw`
   - OpenClaw 安装中心
+- `/personal-center/version`
+  - 版本与升级
 - `/personal-center/security`
   - 安全设置
 - `/personal-center/team`
   - 团队协作
 - `/personal-center/invites`
   - 邀请通知
+
+当前补充说明：
+
+- 个人中心已新增独立“版本与升级”页，不再要求用户每次手工去 GitHub 下载后再判断如何覆盖安装
+- 后端通过 `system/update/*` 统一检查 GitHub Releases 最新发布、识别 `AiOmniOps-local-single-user-win-x64.zip` 与 `.sha256`
+- 当前源码运行态允许查看最新发布信息，但会明确提示“不是安装态发布包，暂不支持一键升级”
+- 当前安装态会把升级包先落到 `LOCAL_APP_DATA_ROOT/updates`，完成 SHA256 校验后再由独立 updater 停机、替换安装目录并重启本地工作台
+- 参考变更：`docs/changes/2026-07-28-personal-center-version-update.md`
 
 ### 4.7 后台管理台 `/admin`
 
@@ -266,6 +276,8 @@
 - `publishing`
 - `media`
 - `orders`
+- `system-update`
+  - GitHub Releases 检查、本地升级包下载校验、独立 updater 启动入口
 - `third-party-platforms`
 - `user-skills`
 - `openclaw`

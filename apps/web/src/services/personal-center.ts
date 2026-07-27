@@ -156,6 +156,69 @@ export type UpdateUserSkillPayload = {
   }>;
 };
 
+export type SystemUpdatePhase =
+  | "IDLE"
+  | "AVAILABLE"
+  | "DOWNLOADING"
+  | "READY_TO_APPLY"
+  | "APPLYING"
+  | "SUCCEEDED"
+  | "FAILED"
+  | "UNSUPPORTED";
+
+export type SystemUpdateCurrentBuild = {
+  version: string;
+  runtimeMode: "standard" | "local-single-user";
+  generatedAt: string | null;
+  buildName: string | null;
+  installRoot: string | null;
+  projectRoot: string;
+  canApplyUpdate: boolean;
+  applyBlockedReason: string | null;
+};
+
+export type SystemUpdateAsset = {
+  name: string;
+  size: number;
+  downloadUrl: string;
+};
+
+export type SystemUpdateLatestRelease = {
+  tagName: string;
+  name: string;
+  htmlUrl: string;
+  publishedAt: string;
+  body: string;
+  zipAsset: SystemUpdateAsset | null;
+  checksumAsset: SystemUpdateAsset | null;
+  checksumValue: string | null;
+};
+
+export type SystemUpdateStatus = {
+  supported: boolean;
+  current: SystemUpdateCurrentBuild;
+  latest: SystemUpdateLatestRelease | null;
+  phase: SystemUpdatePhase;
+  updateAvailable: boolean;
+  message: string;
+  checkedAt: string | null;
+  downloadedReleaseTag: string | null;
+  downloadedAt: string | null;
+  appliedAt: string | null;
+  failedAt: string | null;
+  githubRepo: {
+    owner: string;
+    repo: string;
+  };
+};
+
+export type ApplySystemUpdateResult = {
+  accepted: boolean;
+  phase: SystemUpdatePhase;
+  message: string;
+  updaterRunPath: string;
+};
+
 export const profileSeed: UserProfile = {
   id: "usr_demo_001",
   mobile: "13800000000",
@@ -436,6 +499,22 @@ export async function getMyThirdPartyPlatforms() {
 
 export async function updateMyThirdPartyPlatformSecret(platformId: string, payload: { apiKey?: string }) {
   return jsonRequest<UserThirdPartyPlatformRecord>(`/third-party-platforms/${platformId}/secret`, "PATCH", payload);
+}
+
+export async function getSystemUpdateStatus() {
+  return request<SystemUpdateStatus>("/system/update/status");
+}
+
+export async function checkSystemUpdate() {
+  return jsonRequest<SystemUpdateStatus>("/system/update/check", "POST", {});
+}
+
+export async function downloadSystemUpdate() {
+  return jsonRequest<SystemUpdateStatus>("/system/update/download", "POST", {});
+}
+
+export async function applySystemUpdate() {
+  return jsonRequest<ApplySystemUpdateResult>("/system/update/apply", "POST", {});
 }
 
 export async function createMedia(payload: {
