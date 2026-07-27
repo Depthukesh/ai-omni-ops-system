@@ -1,14 +1,46 @@
-import { networkInterfaces } from "node:os";
+import { homedir, networkInterfaces } from "node:os";
+import { join, resolve } from "node:path";
 import { Injectable } from "@nestjs/common";
+
+export type AppRuntimeMode = "standard" | "local-single-user";
 
 @Injectable()
 export class AppConfigService {
+  getRuntimeMode(): AppRuntimeMode {
+    const value = this.readFirst("APP_RUNTIME_MODE").toLowerCase();
+    return value === "local-single-user" ? "local-single-user" : "standard";
+  }
+
   getServerHost() {
     return this.readFirst("SERVER_HOST", "HOST") || "127.0.0.1";
   }
 
   getServerPort() {
     return this.readNumber("PORT", 3011);
+  }
+
+  getLocalAppRoot() {
+    const explicit = this.readFirst("LOCAL_APP_DATA_ROOT", "AI_OMNI_LOCAL_ROOT");
+    if (explicit) {
+      return resolve(explicit);
+    }
+
+    if (process.platform === "win32") {
+      const appData = this.readFirst("APPDATA");
+      if (appData) {
+        return resolve(appData, "AiOmniOps");
+      }
+    }
+
+    if (process.platform === "darwin") {
+      return resolve(homedir(), "Library", "Application Support", "AiOmniOps");
+    }
+
+    return resolve(homedir(), ".local", "share", "ai-omni-ops");
+  }
+
+  getLocalUpdatesRoot() {
+    return join(this.getLocalAppRoot(), "updates");
   }
 
   getWebPublicBaseUrl() {
