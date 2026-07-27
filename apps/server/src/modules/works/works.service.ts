@@ -93,6 +93,46 @@ async function reportRunningHubStatusStuckDebugEvent(payload: Record<string, unk
     }),
   }).catch(() => {});
 }
+
+async function reportDuoyuanxPlatformMatchDebugEvent(payload: Record<string, unknown>) {
+  const baseUrl = String(process.env.PUBLIC_API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "").trim().replace(/\/$/, "");
+  if (!baseUrl) {
+    return;
+  }
+  await fetch(`${baseUrl}/openclaw/mcp/debug/duoyuanx-platform-match/event`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      ...(payload || {}),
+      ts: typeof payload.ts === "number" ? payload.ts : Date.now(),
+    }),
+  }).catch(() => {});
+}
+
+async function reportRunningHubMissingTaskIdDebugEvent(payload: Record<string, unknown>) {
+  let targetUrl = "http://127.0.0.1:7777/event";
+  let sessionId = "runninghub-missing-taskid";
+  try {
+    const envContent = readFileSync(join(process.cwd(), ".dbg", "runninghub-missing-taskid.env"), "utf8");
+    const resolvedUrl = envContent.match(/^DEBUG_SERVER_URL=(.+)$/m)?.[1]?.trim();
+    const resolvedSessionId = envContent.match(/^DEBUG_SESSION_ID=(.+)$/m)?.[1]?.trim();
+    if (resolvedUrl) {
+      targetUrl = resolvedUrl;
+    }
+    if (resolvedSessionId) {
+      sessionId = resolvedSessionId;
+    }
+  } catch {}
+  await fetch(targetUrl, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      sessionId,
+      ...(payload || {}),
+      ts: typeof payload.ts === "number" ? payload.ts : Date.now(),
+    }),
+  }).catch(() => {});
+}
 const WORKS_KNOWLEDGE_TOP_K = 4;
 const DOUYIN_AD_PRE_AUDIT_TASK_TYPE = "DOUYIN_AD_PRE_AUDIT";
 const OPERATIONS_PROMPT_CENTER_TASK_TYPE = "OPERATIONS_PROMPT_CENTER";
@@ -6694,6 +6734,38 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async listDesignImageModelOptions(brandId: string): Promise<DesignModelOptionRecord[]> {
+    // #region debug-point D:duoyuanx-image-provider-status
+    const allProviders = await this.apiProvidersService.listProviders();
+    const allImageProviders = allProviders.filter((item) => this.apiProvidersService.getRuntimeKey(item) === "image-generation");
+    const activeImageProviders = allImageProviders.filter((item) => item.status === "ACTIVE");
+    const duoyuanxProviders = allImageProviders
+      .filter((item) =>
+        String(item.name || "").includes("多元探索")
+        || String(item.baseUrl || "").toLowerCase().includes("duoyuanx.com"),
+      )
+      .map((item) => ({
+        id: item.id,
+        name: item.name,
+        status: item.status,
+        baseUrl: item.baseUrl,
+        defaultModel: item.defaultModel,
+      }));
+    await reportDuoyuanxPlatformMatchDebugEvent({
+      sessionId: "duoyuanx-platform-match",
+      runId: "pre-fix",
+      hypothesisId: "D",
+      location: "works.service.ts:listDesignImageModelOptions",
+      msg: "[DEBUG] Design image providers inspected",
+      data: {
+        brandId,
+        imageProviderCount: allImageProviders.length,
+        activeImageProviderCount: activeImageProviders.length,
+        activeImageProviderNames: activeImageProviders.slice(0, 20).map((item) => item.name),
+        duoyuanxProviders,
+      },
+    });
+    // #endregion
+
     const providers = await this.loadImageGenerationProviders(brandId, undefined, { usage: "general" });
     return providers.flatMap((provider, providerIndex) =>
       provider.models.map((modelName, modelIndex) => ({
@@ -23930,6 +24002,21 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
     nodeInfoList: DouyinRunningHubAppFieldRecord[],
     instanceType: RunningHubInstanceType,
   ) {
+    // #region debug-point A:runninghub-submit-enter
+    await reportRunningHubMissingTaskIdDebugEvent({
+      runId: "pre-fix",
+      hypothesisId: "A",
+      location: "works.service.ts:submitRunningHubTask:enter",
+      msg: "[DEBUG] RunningHub submit task entered",
+      data: {
+        webappId,
+        instanceType,
+        nodeCount: nodeInfoList.length,
+        nodeIds: nodeInfoList.slice(0, 10).map((item) => item.nodeId || ""),
+        fieldNames: nodeInfoList.slice(0, 10).map((item) => item.fieldName || ""),
+      },
+    });
+    // #endregion
     const response = await fetch(`https://www.runninghub.cn/openapi/v2/run/ai-app/${encodeURIComponent(webappId)}`, {
       method: "POST",
       headers: {
@@ -23944,6 +24031,19 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
     });
     if (!response.ok) {
       const payload = await response.json().catch(() => ({}));
+      // #region debug-point C:runninghub-submit-http-failure
+      await reportRunningHubMissingTaskIdDebugEvent({
+        runId: "pre-fix",
+        hypothesisId: "C",
+        location: "works.service.ts:submitRunningHubTask:http-failure",
+        msg: "[DEBUG] RunningHub submit returned non-OK response",
+        data: {
+          webappId,
+          httpStatus: response.status,
+          payloadSummary: this.summarizeRunningHubPayload(payload),
+        },
+      });
+      // #endregion
       const envelope = this.unwrapRunningHubEnvelope(payload);
       const detailedMessage = this.buildRunningHubSubmitFailureMessage(payload, envelope.message || `RunningHub 提交任务失败：${response.status}`);
       this.logger.error(
@@ -23952,16 +24052,55 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       throw new ServiceUnavailableException(detailedMessage);
     }
     const payload = await response.json().catch(() => ({}));
+    // #region debug-point B:runninghub-submit-response
+    await reportRunningHubMissingTaskIdDebugEvent({
+      runId: "pre-fix",
+      hypothesisId: "B",
+      location: "works.service.ts:submitRunningHubTask:response",
+      msg: "[DEBUG] RunningHub submit returned payload",
+      data: {
+        webappId,
+        httpStatus: response.status,
+        payloadSummary: this.summarizeRunningHubPayload(payload),
+      },
+    });
+    // #endregion
     const envelope = this.unwrapRunningHubEnvelope(payload);
     const data = this.asRecord(envelope.data);
     const taskId = this.extractRunningHubTaskId(payload);
     if (!taskId) {
+      // #region debug-point B:runninghub-submit-missing-taskid
+      await reportRunningHubMissingTaskIdDebugEvent({
+        runId: "pre-fix",
+        hypothesisId: "B",
+        location: "works.service.ts:submitRunningHubTask:missing-taskid",
+        msg: "[DEBUG] RunningHub submit payload missing task id after extraction",
+        data: {
+          webappId,
+          envelopeMessage: envelope.message || "",
+          payloadSummary: this.summarizeRunningHubPayload(payload),
+        },
+      });
+      // #endregion
       const detailedMessage = this.buildRunningHubSubmitFailureMessage(payload, envelope.message || "RunningHub 未返回任务 ID");
       this.logger.error(
         `[RunningHubSubmitResponse] webappId=${webappId} missing task id; ${detailedMessage}; payload=${this.summarizeRunningHubPayload(payload)}`,
       );
       throw new ServiceUnavailableException(detailedMessage);
     }
+    // #region debug-point A:runninghub-submit-taskid-resolved
+    await reportRunningHubMissingTaskIdDebugEvent({
+      runId: "pre-fix",
+      hypothesisId: "A",
+      location: "works.service.ts:submitRunningHubTask:taskid-resolved",
+      msg: "[DEBUG] RunningHub submit task id resolved",
+      data: {
+        webappId,
+        taskId,
+        status: String(data?.taskStatus || data?.task_status || data?.status || "RUNNING"),
+      },
+    });
+    // #endregion
     this.logger.log(
       `[RunningHubSubmitResponse] webappId=${webappId} taskId=${taskId} payload=${this.summarizeRunningHubPayload(payload)}`,
     );
@@ -27892,7 +28031,7 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
     const providers = await this.apiProvidersService.listActiveProvidersByRuntimeKey("image-generation");
     if (!providers.length) {
       throw new ServiceUnavailableException(
-        "未找到已激活的文生图 Provider，请先在后台接口配置中启用「Right Codes · 文生图/图生图」或其他 image-generation Provider。",
+        "未找到已激活的文生图 Provider，请先在后台接口配置中启用「Right Codes · 文生图/图生图」「多元探索 · 文生图/图生图」或其他 image-generation Provider。",
       );
     }
     const preferredModels = preference?.configuredModels?.length
