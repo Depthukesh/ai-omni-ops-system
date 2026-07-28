@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { createReadStream, createWriteStream, existsSync, readFileSync } from "node:fs";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { spawn } from "node:child_process";
 import { Readable } from "node:stream";
@@ -68,6 +68,19 @@ type LatestReleaseResult = {
   checkedAt: string;
 };
 
+type GitHubReleaseApiResponse = {
+  tag_name?: string;
+  name?: string;
+  html_url?: string;
+  published_at?: string;
+  body?: string;
+  assets?: Array<{
+    name?: string;
+    size?: number;
+    browser_download_url?: string;
+  }>;
+};
+
 type ApplyUpdateResult = {
   accepted: boolean;
   phase: PersistedUpdatePhase;
@@ -85,6 +98,11 @@ type DownloadReleaseResult = {
 const LATEST_RELEASE_CACHE_TTL_MS = 30_000;
 const LOCAL_SINGLE_USER_ZIP_NAME = "AiOmniOps-local-single-user-win-x64.zip";
 const LOCAL_SINGLE_USER_CHECKSUM_NAME = `${LOCAL_SINGLE_USER_ZIP_NAME}.sha256`;
+
+async function writeUtf8BomFile(filePath: string, content: string) {
+  const normalizedContent = content.startsWith("\uFEFF") ? content.slice(1) : content;
+  await writeFile(filePath, Buffer.from(`\uFEFF${normalizedContent}`, "utf8"));
+}
 
 function safeReadJson<T>(filePath: string): T | null {
   try {
@@ -256,8 +274,8 @@ export class SystemUpdateService {
     const updaterRunPath = join(runRoot, "local-single-user-updater.ps1");
     const updaterConfigPath = join(runRoot, "local-single-user-updater.config.json");
     const updaterScriptContent = await readFile(updaterScriptSourcePath, "utf8");
-    await writeFile(updaterRunPath, updaterScriptContent, "utf8");
-    await writeFile(
+    await writeUtf8BomFile(updaterRunPath, updaterScriptContent);
+    await writeUtf8BomFile(
       updaterConfigPath,
       `${JSON.stringify(
         {
@@ -270,11 +288,11 @@ export class SystemUpdateService {
           expectedSha256: persistedState.expectedSha256,
           statusFilePath: this.getPersistedStatePath(),
           restartCommandPath: current.installRoot ? join(current.installRoot, "start-local-single-user.cmd") : null,
+          fallbackStopPids: [process.pid],
         },
         null,
         2,
       )}\n`,
-      "utf8",
     );
 
     await this.writePersistedState({
@@ -288,9 +306,11 @@ export class SystemUpdateService {
     });
 
     const powershellExe = this.resolvePowerShellExe();
+    const cmdExe = this.resolveCmdExe();
+    const startCommand = `start "" /b "${escapeWindowsCmdArgument(powershellExe)}" -NoProfile -ExecutionPolicy Bypass -File "${escapeWindowsCmdArgument(updaterRunPath)}" -ConfigPath "${escapeWindowsCmdArgument(updaterConfigPath)}"`;
     const child = spawn(
-      powershellExe,
-      ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", updaterRunPath, "-ConfigPath", updaterConfigPath],
+      cmdExe,
+      ["/d", "/c", startCommand],
       {
         cwd: runRoot,
         detached: true,
@@ -355,24 +375,14 @@ export class SystemUpdateService {
     const checkedAt = new Date().toISOString();
     try {
       const { owner, repo } = this.getReleaseRepository();
-      const response = await this.fetchJson<{
-        tag_name?: string;
-        name?: string;
-        html_url?: string;
-        published_at?: string;
-        body?: string;
-        assets?: Array<{
-          name?: string;
-          size?: number;
-          browser_download_url?: string;
-        }>;
-      }>(`https://api.github.com/repos/${owner}/${repo}/releases/latest`);
+      const response = await this.fetchLatestReleasePayload(owner, repo);
 
       const assets = Array.isArray(response.assets) ? response.assets : [];
       const zipAsset = this.normalizeAsset(assets.find((item) => item?.name === LOCAL_SINGLE_USER_ZIP_NAME));
       const checksumAsset = this.normalizeAsset(assets.find((item) => item?.name === LOCAL_SINGLE_USER_CHECKSUM_NAME));
-      let checksumValue: string | null = null;
-      if (checksumAsset?.downloadUrl) {
+      const releaseBody = String(response.body || "");
+      let checksumValue: string | null = parseChecksumValue(releaseBody);
+      if (!checksumValue && checksumAsset?.downloadUrl) {
         const checksumText = await this.fetchText(checksumAsset.downloadUrl);
         checksumValue = parseChecksumValue(checksumText);
       }
@@ -385,7 +395,7 @@ export class SystemUpdateService {
           name: String(response.name || response.tag_name || "").trim(),
           htmlUrl: String(response.html_url || "").trim(),
           publishedAt: normalizeIsoDate(response.published_at) || checkedAt,
-          body: String(response.body || ""),
+          body: releaseBody,
           zipAsset,
           checksumAsset,
           checksumValue,
@@ -411,6 +421,21 @@ export class SystemUpdateService {
     }
   }
 
+  private async fetchLatestReleasePayload(owner: string, repo: string): Promise<GitHubReleaseApiResponse> {
+    const latestUrl = `https://api.github.com/repos/${owner}/${repo}/releases/latest`;
+    try {
+      return await this.fetchJson<GitHubReleaseApiResponse>(latestUrl);
+    } catch (latestError) {
+      const fallbackUrl = `https://api.github.com/repos/${owner}/${repo}/releases?per_page=1`;
+      const releases = await this.fetchJson<GitHubReleaseApiResponse[]>(fallbackUrl);
+      const fallbackRelease = Array.isArray(releases) ? releases[0] : null;
+      if (fallbackRelease) {
+        return fallbackRelease;
+      }
+      throw latestError;
+    }
+  }
+
   private async downloadRelease(release: RemoteReleaseInfo): Promise<DownloadReleaseResult> {
     if (!release.zipAsset?.downloadUrl || !release.checksumValue) {
       throw new BadGatewayException("最新发布缺少安装包或校验值");
@@ -422,7 +447,7 @@ export class SystemUpdateService {
 
     const zipPath = join(releaseRoot, LOCAL_SINGLE_USER_ZIP_NAME);
     const checksumPath = join(releaseRoot, LOCAL_SINGLE_USER_CHECKSUM_NAME);
-    await this.downloadFile(release.zipAsset.downloadUrl, zipPath);
+    await this.downloadFile(release.zipAsset.downloadUrl, zipPath, release.zipAsset.size);
     await writeFile(checksumPath, `${release.checksumValue}  ${LOCAL_SINGLE_USER_ZIP_NAME}\n`, "utf8");
 
     const actualHash = await this.hashFileSha256(zipPath);
@@ -569,45 +594,142 @@ export class SystemUpdateService {
   }
 
   private async fetch(url: string, init?: RequestInit, options?: { timeoutMs?: number }) {
-    const controller = new AbortController();
-    const timeoutMs = options?.timeoutMs ?? 15_000;
-    const timeout = timeoutMs > 0 ? setTimeout(() => controller.abort(), timeoutMs) : null;
-    try {
-      const token = String(process.env.GITHUB_TOKEN || process.env.GH_TOKEN || "").trim();
-      const headers = new Headers(init?.headers);
-      headers.set("User-Agent", "ai-omni-ops-system-updater");
-      if (token && !headers.has("Authorization")) {
-        headers.set("Authorization", `Bearer ${token}`);
+    const maxAttempts = 3;
+    let lastError: unknown;
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      const controller = new AbortController();
+      const timeoutMs = options?.timeoutMs ?? 60_000;
+      const timeout = timeoutMs > 0 ? setTimeout(() => controller.abort(), timeoutMs) : null;
+      try {
+        const token = String(process.env.GITHUB_TOKEN || process.env.GH_TOKEN || "").trim();
+        const headers = new Headers(init?.headers);
+        headers.set("User-Agent", "ai-omni-ops-system-updater");
+        if (token && !headers.has("Authorization")) {
+          headers.set("Authorization", `Bearer ${token}`);
+        }
+
+        const response = await fetch(url, {
+          ...init,
+          headers,
+          signal: controller.signal,
+        });
+        if (!response.ok) {
+          throw new Error(`${response.status} ${response.statusText}`);
+        }
+        return response;
+      } catch (error) {
+        lastError = error;
+        if (attempt >= maxAttempts || !this.shouldRetryFetchError(error)) {
+          throw error;
+        }
+      } finally {
+        if (timeout) {
+          clearTimeout(timeout);
+        }
+      }
+    }
+    throw lastError instanceof Error ? lastError : new Error(String(lastError || "fetch failed"));
+  }
+
+  private shouldRetryFetchError(error: unknown) {
+    if (!(error instanceof Error)) {
+      return false;
+    }
+    const causeCode =
+      typeof (error as Error & { cause?: { code?: unknown } }).cause?.code === "string"
+        ? (error as Error & { cause?: { code?: string } }).cause?.code
+        : null;
+    const statusCodeMatch = error.message.match(/^(\d{3})\b/);
+    const statusCode = statusCodeMatch ? Number(statusCodeMatch[1]) : null;
+    return error.name === "AbortError"
+      || error.message === "fetch failed"
+      || causeCode === "ECONNRESET"
+      || statusCode === 408
+      || statusCode === 429
+      || (statusCode !== null && statusCode >= 500);
+  }
+
+  private async downloadFile(url: string, filePath: string, expectedSize?: number) {
+    const maxAttempts = 20;
+    let lastError: unknown;
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      const existingSize = await this.readExistingDownloadSize(filePath, expectedSize);
+      if (expectedSize && existingSize === expectedSize) {
+        return;
       }
 
-      const response = await fetch(url, {
-        ...init,
-        headers,
-        signal: controller.signal,
-      });
-      if (!response.ok) {
-        throw new Error(`${response.status} ${response.statusText}`);
+      try {
+        const response = await this.fetch(
+          url,
+          existingSize > 0
+            ? {
+                headers: {
+                  Range: `bytes=${existingSize}-`,
+                },
+              }
+            : undefined,
+          {
+          timeoutMs: 30 * 60_000,
+          },
+        );
+        if (!response.body) {
+          throw new Error(`下载响应为空：${url}`);
+        }
+        const appendMode = existingSize > 0 && response.status === 206;
+        await mkdir(dirname(filePath), { recursive: true });
+        if (!appendMode) {
+          await rm(filePath, { force: true }).catch(() => undefined);
+        }
+        await pipeline(
+          Readable.fromWeb(response.body as any),
+          createWriteStream(filePath, appendMode ? { flags: "a" } : undefined),
+        );
+        await this.assertDownloadedFileSize(filePath, expectedSize);
+        return;
+      } catch (error) {
+        lastError = error;
+        if (attempt >= maxAttempts || !this.shouldRetryDownloadError(error)) {
+          throw error;
+        }
       }
-      return response;
-    } finally {
-      if (timeout) {
-        clearTimeout(timeout);
-      }
+    }
+    throw lastError instanceof Error ? lastError : new Error(String(lastError || "download failed"));
+  }
+
+  private async readExistingDownloadSize(filePath: string, expectedSize?: number) {
+    const fileStat = await stat(filePath).catch(() => null);
+    if (!fileStat) {
+      return 0;
+    }
+    if (expectedSize && fileStat.size > expectedSize) {
+      await rm(filePath, { force: true }).catch(() => undefined);
+      return 0;
+    }
+    return fileStat.size;
+  }
+
+  private async assertDownloadedFileSize(filePath: string, expectedSize?: number) {
+    if (!expectedSize || expectedSize <= 0) {
+      return;
+    }
+    const fileStat = await stat(filePath);
+    if (fileStat.size !== expectedSize) {
+      throw new Error(`downloaded file size mismatch: expected ${expectedSize}, got ${fileStat.size}`);
     }
   }
 
-  private async downloadFile(url: string, filePath: string) {
-    const response = await this.fetch(url, undefined, {
-      timeoutMs: 30 * 60_000,
-    });
-    if (!response.body) {
-      throw new Error(`下载响应为空：${url}`);
+  private shouldRetryDownloadError(error: unknown) {
+    if (!(error instanceof Error)) {
+      return false;
     }
-    await mkdir(dirname(filePath), { recursive: true });
-    await pipeline(
-      Readable.fromWeb(response.body as any),
-      createWriteStream(filePath),
-    );
+    const causeCode =
+      typeof (error as Error & { cause?: { code?: unknown } }).cause?.code === "string"
+        ? (error as Error & { cause?: { code?: string } }).cause?.code
+        : null;
+    return error.message === "terminated"
+      || error.message.startsWith("downloaded file size mismatch:")
+      || causeCode === "ECONNRESET"
+      || this.shouldRetryFetchError(error);
   }
 
   private async hashFileSha256(filePath: string) {
@@ -627,6 +749,14 @@ export class SystemUpdateService {
     const systemRoot = String(process.env.SystemRoot || "C:\\Windows").trim() || "C:\\Windows";
     return resolve(systemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
   }
+
+  private resolveCmdExe() {
+    if (process.platform !== "win32") {
+      return "cmd";
+    }
+    const systemRoot = String(process.env.SystemRoot || "C:\\Windows").trim() || "C:\\Windows";
+    return resolve(systemRoot, "System32", "cmd.exe");
+  }
 }
 
 function sanitizeFileName(value: string) {
@@ -636,4 +766,8 @@ function sanitizeFileName(value: string) {
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "")
     || "latest";
+}
+
+function escapeWindowsCmdArgument(value: string) {
+  return String(value || "").replace(/"/g, "\"\"");
 }

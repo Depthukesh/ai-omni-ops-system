@@ -11,6 +11,14 @@ export class AppConfigService {
     return value === "local-single-user" ? "local-single-user" : "standard";
   }
 
+  isLocalSingleUserMode() {
+    return this.getRuntimeMode() === "local-single-user";
+  }
+
+  isWorkerBootMode() {
+    return this.readFirst("SERVER_BOOT_MODE").toLowerCase() === "worker";
+  }
+
   getServerHost() {
     return this.readFirst("SERVER_HOST", "HOST") || "127.0.0.1";
   }
@@ -37,6 +45,34 @@ export class AppConfigService {
     }
 
     return resolve(homedir(), ".local", "share", "ai-omni-ops");
+  }
+
+  getLocalDataRoot() {
+    return join(this.getLocalAppRoot(), "data");
+  }
+
+  getLocalDatabasePath() {
+    return join(this.getLocalAppRoot(), "db", "local-single-user.sqlite");
+  }
+
+  getLocalLogsRoot() {
+    return join(this.getLocalAppRoot(), "logs");
+  }
+
+  getLocalRuntimeRoot() {
+    return join(this.getLocalAppRoot(), "runtime");
+  }
+
+  getLocalStorageRoot() {
+    return join(this.getLocalAppRoot(), "storage");
+  }
+
+  getLocalCacheRoot() {
+    return join(this.getLocalAppRoot(), "cache");
+  }
+
+  getLocalBackupRoot() {
+    return join(this.getLocalAppRoot(), "backup");
   }
 
   getLocalUpdatesRoot() {

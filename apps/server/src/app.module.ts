@@ -27,6 +27,7 @@ import { SystemUpdateModule } from "./modules/system-update/system-update.module
 import { ThirdPartyPlatformsModule } from "./modules/third-party-platforms/third-party-platforms.module";
 import { UserSkillsModule } from "./modules/user-skills/user-skills.module";
 import { WorksModule } from "./modules/works/works.module";
+import { LocalSingleUserBootstrapService } from "./local-single-user/local-single-user-bootstrap.service";
 import { PrismaModule } from "./prisma/prisma.module";
 
 @Module({
@@ -60,6 +61,6 @@ import { PrismaModule } from "./prisma/prisma.module";
     WorksModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, LocalSingleUserBootstrapService],
 })
 export class AppModule {}

@@ -124,7 +124,44 @@ jobs:
 
           ls -lh "$RELEASE_ARCHIVE"
 
+      - name: Check deploy secrets
+        id: deploy_secrets
+        env:
+          ALIYUN_HOST: ${{ secrets.ALIYUN_HOST }}
+          ALIYUN_USER: ${{ secrets.ALIYUN_USER }}
+          ALIYUN_PORT: ${{ secrets.ALIYUN_PORT }}
+          ALIYUN_SSH_KEY: ${{ secrets.ALIYUN_SSH_KEY }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          set -Eeuo pipefail
+
+          missing=()
+          for name in ALIYUN_HOST ALIYUN_USER ALIYUN_PORT ALIYUN_SSH_KEY DEPLOY_PATH; do
+            if [ -z "${!name:-}" ]; then
+              missing+=("$name")
+            fi
+          done
+
+          if [ "${#missing[@]}" -gt 0 ]; then
+            missing_csv="$(IFS=,; echo "${missing[*]}")"
+            echo "deploy_ready=false" >> "$GITHUB_OUTPUT"
+            echo "missing_secrets=$missing_csv" >> "$GITHUB_OUTPUT"
+            echo "仓库级部署 Secret 未配置完整，跳过 Deploy via SSH：$missing_csv"
+            {
+              echo "## Deploy skipped"
+              echo
+              echo "缺少仓库级 GitHub Secrets：\`$missing_csv\`"
+              echo
+              echo "当前 run 已完成 release bundle 构建，但不会继续上传到 ECS。"
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          echo "deploy_ready=true" >> "$GITHUB_OUTPUT"
+          echo "missing_secrets=" >> "$GITHUB_OUTPUT"
+
       - name: Deploy via SSH
+        if: steps.deploy_secrets.outputs.deploy_ready == 'true'
         env:
           ALIYUN_HOST: ${{ secrets.ALIYUN_HOST }}
           ALIYUN_USER: ${{ secrets.ALIYUN_USER }}
@@ -612,3 +649,8 @@ jobs:
             log_step "开始探活前端健康检查"
             wait_for_http http://127.0.0.1:3001/health
           REMOTE_SCRIPT
+
+      - name: Skip deploy summary
+        if: steps.deploy_secrets.outputs.deploy_ready != 'true'
+        run: |
+          echo "Deploy skipped because required repository secrets are missing: ${{ steps.deploy_secrets.outputs.missing_secrets }}"

@@ -3,6 +3,7 @@ const os = require("node:os");
 const path = require("node:path");
 const crypto = require("node:crypto");
 const { spawnSync } = require("node:child_process");
+const { generateLocalSchema } = require("./generate-local-prisma-schema.cjs");
 
 const projectRoot = fs.realpathSync.native(path.resolve(__dirname, ".."));
 const releaseRoot = path.join(projectRoot, ".release", "local-single-user-win-x64");
@@ -39,6 +40,10 @@ function copyPath(sourcePath, destinationPath) {
   fs.mkdirSync(path.dirname(destinationPath), { recursive: true });
   if (stats.isDirectory()) {
     copyDirectory(sourcePath, destinationPath);
+    return;
+  }
+  if (/\.ps1$/i.test(sourcePath)) {
+    writeUtf8BomFile(destinationPath, fs.readFileSync(sourcePath, "utf8"));
     return;
   }
   fs.copyFileSync(sourcePath, destinationPath);
@@ -84,6 +89,90 @@ function hashFile(filePath) {
 function writeTextFile(filePath, content) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, content, "utf8");
+}
+
+function writeUtf8BomFile(filePath, content) {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  const normalizedContent = content.startsWith("\uFEFF") ? content.slice(1) : content;
+  fs.writeFileSync(filePath, `\uFEFF${normalizedContent}`, "utf8");
+}
+
+function writeJsonFile(filePath, value) {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+}
+
+function updateHashWithPathEntry(hash, rootBase, targetPath) {
+  if (!fs.existsSync(targetPath)) {
+    hash.update(`missing:${targetPath}\n`);
+    return;
+  }
+  const stats = fs.statSync(targetPath);
+  const relativePath = path.relative(rootBase, targetPath).replace(/\\/g, "/");
+  if (stats.isDirectory()) {
+    hash.update(`dir:${relativePath}\n`);
+    const entries = fs.readdirSync(targetPath, { withFileTypes: true }).sort((left, right) => left.name.localeCompare(right.name));
+    for (const entry of entries) {
+      updateHashWithPathEntry(hash, rootBase, path.join(targetPath, entry.name));
+    }
+    return;
+  }
+  hash.update(`file:${relativePath}:${stats.size}:${Math.trunc(stats.mtimeMs)}\n`);
+}
+
+function getServerBuildFingerprint(rootBase) {
+  const hash = crypto.createHash("sha1");
+  const serverRoot = path.join(rootBase, "apps", "server");
+  const fingerprintTargets = [
+    path.join(rootBase, "package.json"),
+    path.join(rootBase, "package-lock.json"),
+    path.join(rootBase, "tsconfig.base.json"),
+    path.join(serverRoot, "package.json"),
+    path.join(serverRoot, "tsconfig.json"),
+    path.join(serverRoot, "src"),
+    path.join(rootBase, "packages"),
+  ];
+  for (const target of fingerprintTargets) {
+    updateHashWithPathEntry(hash, rootBase, target);
+  }
+  return hash.digest("hex");
+}
+
+function getWebBuildFingerprint(rootBase) {
+  const hash = crypto.createHash("sha1");
+  const webRoot = path.join(rootBase, "apps", "web");
+  const fingerprintTargets = [
+    path.join(rootBase, "package.json"),
+    path.join(rootBase, "package-lock.json"),
+    path.join(webRoot, "package.json"),
+    path.join(webRoot, "tsconfig.json"),
+    path.join(webRoot, "next.config.ts"),
+    path.join(webRoot, "src"),
+    path.join(webRoot, "public"),
+    path.join(rootBase, "packages"),
+  ];
+  for (const target of fingerprintTargets) {
+    updateHashWithPathEntry(hash, rootBase, target);
+  }
+  return hash.digest("hex");
+}
+
+function writeLauncherBuildState(rootBase) {
+  const builtAt = new Date().toISOString();
+  writeJsonFile(
+    path.join(rootBase, "apps", "server", "dist", "local-launcher-server-build-state.json"),
+    {
+      fingerprint: getServerBuildFingerprint(rootBase),
+      builtAt,
+    },
+  );
+  writeJsonFile(
+    path.join(rootBase, "apps", "web", ".next", "local-launcher-web-build-state.json"),
+    {
+      fingerprint: getWebBuildFingerprint(rootBase),
+      builtAt,
+    },
+  );
 }
 
 function resolveBundledNpmRoot(nodeExecutablePath) {
@@ -284,6 +373,8 @@ function buildReadme(releaseManifest) {
 }
 
 function main() {
+  generateLocalSchema();
+
   const requiredRelativePaths = [
     "package.json",
     "package-lock.json",
@@ -372,6 +463,8 @@ function main() {
   const bundledReleaseNpmRoot = path.join(releaseBinRoot, "node_modules", "npm");
   console.log("[step] copy bundled npm");
   copyPath(bundledNpmRoot, bundledReleaseNpmRoot);
+  console.log("[step] write launcher build state");
+  writeLauncherBuildState(releaseAppRoot);
 
   const releaseManifest = {
     name: "local-single-user-win-x64",
@@ -399,7 +492,7 @@ function main() {
   };
 
   writeTextFile(path.join(releaseRoot, "start-local-single-user.cmd"), buildLauncherCmd());
-  writeTextFile(path.join(releaseRoot, "install-local-single-user.ps1"), buildInstallPowerShellScript());
+  writeUtf8BomFile(path.join(releaseRoot, "install-local-single-user.ps1"), buildInstallPowerShellScript());
   writeTextFile(path.join(releaseRoot, "install-local-single-user.cmd"), buildInstallCmd());
   writeTextFile(path.join(releaseRoot, "install-autostart.cmd"), buildAutostartInstallCmd());
   writeTextFile(path.join(releaseRoot, "remove-autostart.cmd"), buildAutostartRemoveCmd());

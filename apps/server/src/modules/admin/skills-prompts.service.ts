@@ -848,6 +848,70 @@ export class SkillsPromptsService implements OnModuleInit {
     private readonly prismaService: PrismaService,
   ) {}
 
+  private isSqliteDatabase() {
+    const databaseUrl = String(process.env.DATABASE_URL || "").trim().toLowerCase();
+    return databaseUrl.startsWith("file:");
+  }
+
+  private toPrismaNullableJsonValue(value: unknown): Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput {
+    const normalized = this.normalizeSkillInputSchemaValue(value);
+    return normalized === null ? Prisma.DbNull : (normalized as Prisma.InputJsonValue);
+  }
+
+  private skillRecordToRow(record: {
+    id: string;
+    name: string;
+    slug: string;
+    category: string;
+    status: string;
+    provider: string;
+    defaultModel: string;
+    pointsCost: number;
+    description: string;
+    inputSchemaJson: Prisma.JsonValue | null;
+    updatedAt: Date | string;
+  }): SkillConfigRow {
+    return {
+      id: record.id,
+      name: record.name,
+      slug: record.slug,
+      category: record.category,
+      status: record.status as SkillConfigRecord["status"],
+      provider: record.provider,
+      defaultModel: record.defaultModel,
+      pointsCost: record.pointsCost,
+      description: record.description,
+      inputSchemaJson: record.inputSchemaJson,
+      updatedAt: record.updatedAt,
+    };
+  }
+
+  private promptRecordToRow(record: {
+    id: string;
+    name: string;
+    scene: string;
+    version: string;
+    status: string;
+    modelName: string;
+    temperature: number;
+    maxTokens: number;
+    content: string;
+    updatedAt: Date | string;
+  }): PromptTemplateRow {
+    return {
+      id: record.id,
+      name: record.name,
+      scene: record.scene,
+      version: record.version,
+      status: record.status as PromptTemplateRecord["status"],
+      modelName: record.modelName,
+      temperature: record.temperature,
+      maxTokens: record.maxTokens,
+      content: record.content,
+      updatedAt: record.updatedAt,
+    };
+  }
+
   async listSkills() {
     return this.listSkillRows();
   }
@@ -892,6 +956,24 @@ export class SkillsPromptsService implements OnModuleInit {
       if (duplicated) {
         throw new BadRequestException("技能标识已存在");
       }
+      if (this.isSqliteDatabase()) {
+        const created = await this.prismaService.skillConfig.create({
+          data: {
+            id: nextSkill.id,
+            name: nextSkill.name,
+            slug: nextSkill.slug,
+            category: nextSkill.category,
+            status: nextSkill.status,
+            provider: nextSkill.provider,
+            defaultModel: nextSkill.defaultModel,
+            pointsCost: nextSkill.pointsCost,
+            description: nextSkill.description,
+            inputSchemaJson: this.toPrismaNullableJsonValue(nextSkill.inputSchemaJson),
+            updatedAt: new Date(),
+          },
+        });
+        return this.normalizeSkillConfigRow(this.skillRecordToRow(created));
+      }
       const createdRows = await this.prismaService.$queryRaw<SkillConfigRow[]>`
         INSERT INTO "SkillConfig" (
           "id",
@@ -921,7 +1003,10 @@ export class SkillsPromptsService implements OnModuleInit {
         )
         RETURNING *
       `;
-      return this.normalizeSkillConfigRow(createdRows[0] ?? nextSkill);
+      return this.normalizeSkillConfigRow(
+        createdRows[0]
+        ?? ({ ...nextSkill } as SkillConfigRow),
+      );
     }
 
     const duplicated = database.skillConfigs.find((item) => item.slug === slug);
@@ -938,6 +1023,24 @@ export class SkillsPromptsService implements OnModuleInit {
       const current = await this.findSkillByIdFromDatabase(id);
       if (!current) {
         throw new NotFoundException("技能配置不存在");
+      }
+      if (this.isSqliteDatabase()) {
+        const updated = await this.prismaService.skillConfig.update({
+          where: { id },
+          data: {
+            status: payload.status ?? current.status,
+            provider: payload.provider ?? current.provider,
+            defaultModel: payload.defaultModel ?? current.defaultModel,
+            pointsCost: payload.pointsCost ?? current.pointsCost,
+            description: payload.description ?? current.description,
+            inputSchemaJson:
+              payload.inputSchemaJson !== undefined
+                ? this.toPrismaNullableJsonValue(payload.inputSchemaJson)
+                : this.toPrismaNullableJsonValue(current.inputSchemaJson),
+            updatedAt: new Date(),
+          },
+        });
+        return this.normalizeSkillConfigRow(this.skillRecordToRow(updated));
       }
       const updatedRows = await this.prismaService.$queryRaw<SkillConfigRow[]>`
         UPDATE "SkillConfig"
@@ -1001,6 +1104,19 @@ export class SkillsPromptsService implements OnModuleInit {
       return current;
     }
 
+    if (this.isSqliteDatabase()) {
+      await this.prismaService.skillConfig.update({
+        where: { id },
+        data: {
+          inputSchemaJson: this.toPrismaNullableJsonValue(nextInputSchema),
+          updatedAt: new Date(),
+        },
+      });
+
+      const refreshed = await this.findSkillByIdFromDatabase(id);
+      return refreshed ? this.normalizeSkillConfigRow(refreshed) : current;
+    }
+
     await this.prismaService.$executeRaw`
       UPDATE "SkillConfig"
       SET
@@ -1054,6 +1170,23 @@ export class SkillsPromptsService implements OnModuleInit {
       if (duplicated) {
         throw new BadRequestException("提示词场景已存在");
       }
+      if (this.isSqliteDatabase()) {
+        const created = await this.prismaService.promptTemplate.create({
+          data: {
+            id: nextPrompt.id,
+            name: nextPrompt.name,
+            scene: nextPrompt.scene,
+            version: nextPrompt.version,
+            status: nextPrompt.status,
+            modelName: nextPrompt.modelName,
+            temperature: nextPrompt.temperature,
+            maxTokens: nextPrompt.maxTokens,
+            content: nextPrompt.content,
+            updatedAt: new Date(),
+          },
+        });
+        return this.hydratePromptTemplateRecord(this.normalizePromptTemplateRow(this.promptRecordToRow(created)));
+      }
       const createdRows = await this.prismaService.$queryRaw<PromptTemplateRow[]>`
         INSERT INTO "PromptTemplate" (
           "id",
@@ -1081,7 +1214,7 @@ export class SkillsPromptsService implements OnModuleInit {
         )
         RETURNING *
       `;
-      return this.hydratePromptTemplateRecord(this.normalizePromptTemplateRow(createdRows[0] ?? nextPrompt));
+      return this.hydratePromptTemplateRecord(this.normalizePromptTemplateRow(createdRows[0] ?? this.promptRecordToRow(nextPrompt)));
     }
 
     const duplicated = database.promptTemplates.find((item) => item.scene === scene);
@@ -1105,6 +1238,20 @@ export class SkillsPromptsService implements OnModuleInit {
 
       const currentContent = current.content || "";
       const nextContent = normalizedSubmittedContent ?? currentContent;
+      if (this.isSqliteDatabase()) {
+        const updated = await this.prismaService.promptTemplate.update({
+          where: { id },
+          data: {
+            status: payload.status ?? current.status,
+            modelName: payload.modelName ?? current.modelName,
+            temperature: payload.temperature ?? current.temperature,
+            maxTokens: payload.maxTokens ?? current.maxTokens,
+            content: nextContent,
+            updatedAt: new Date(),
+          },
+        });
+        return this.hydratePromptTemplateRecord(this.normalizePromptTemplateRow(this.promptRecordToRow(updated)));
+      }
       const updatedRows = await this.prismaService.$queryRaw<PromptTemplateRow[]>`
         UPDATE "PromptTemplate"
         SET
@@ -1118,7 +1265,7 @@ export class SkillsPromptsService implements OnModuleInit {
         RETURNING *
       `;
       return this.hydratePromptTemplateRecord(
-        this.normalizePromptTemplateRow(updatedRows[0] ?? { ...current, content: nextContent }),
+        this.normalizePromptTemplateRow(updatedRows[0] ?? { ...current, content: nextContent } as PromptTemplateRow),
       );
     }
 
@@ -1352,6 +1499,22 @@ export class SkillsPromptsService implements OnModuleInit {
       if (scenes.some((scene) => SOURCE_PINNED_PROMPT_SCENES.has(scene))) {
         await this.syncOpportunityInsightPromptContents();
       }
+      if (this.isSqliteDatabase()) {
+        const row = await this.prismaService.promptTemplate.findFirst({
+          where: {
+            scene: { in: scenes },
+            status: "ACTIVE",
+          },
+          orderBy: {
+            updatedAt: "desc",
+          },
+        });
+        if (row) {
+          return this.hydratePromptTemplateRecord(
+            this.hydrateSourcePinnedPrompt(this.normalizePromptTemplateRow(this.promptRecordToRow(row))),
+          );
+        }
+      }
       const rows = await this.prismaService.$queryRaw<PromptTemplateRow[]>`
         SELECT *
         FROM "PromptTemplate"
@@ -1425,6 +1588,14 @@ export class SkillsPromptsService implements OnModuleInit {
   private async listSkillRows() {
     if (await this.prismaService.canUseDatabase()) {
       await this.ensureRegistryTablesReady();
+      if (this.isSqliteDatabase()) {
+        const rows = await this.prismaService.skillConfig.findMany({
+          orderBy: {
+            updatedAt: "desc",
+          },
+        });
+        return rows.map((item) => this.normalizeSkillConfigRow(this.skillRecordToRow(item)));
+      }
       const rows = await this.prismaService.$queryRaw<SkillConfigRow[]>`
         SELECT *
         FROM "SkillConfig"
@@ -1439,6 +1610,16 @@ export class SkillsPromptsService implements OnModuleInit {
     if (await this.prismaService.canUseDatabase()) {
       await this.ensureRegistryTablesReady();
       await this.syncOpportunityInsightPromptContents();
+      if (this.isSqliteDatabase()) {
+        const rows = await this.prismaService.promptTemplate.findMany({
+          orderBy: {
+            updatedAt: "desc",
+          },
+        });
+        return rows.map((item) =>
+          this.hydrateSourcePinnedPrompt(this.normalizePromptTemplateRow(this.promptRecordToRow(item))),
+        );
+      }
       const rows = await this.prismaService.$queryRaw<PromptTemplateRow[]>`
         SELECT *
         FROM "PromptTemplate"
@@ -1473,6 +1654,10 @@ export class SkillsPromptsService implements OnModuleInit {
   private async bootstrapRegistryTables() {
     if (!(await this.prismaService.canUseDatabase())) {
       return false;
+    }
+
+    if (this.isSqliteDatabase()) {
+      return this.bootstrapRegistryTablesForSqlite();
     }
 
     await this.prismaService.$executeRawUnsafe(`
@@ -1623,6 +1808,88 @@ export class SkillsPromptsService implements OnModuleInit {
     return true;
   }
 
+  private async bootstrapRegistryTablesForSqlite() {
+    for (const skill of database.skillConfigs) {
+      await this.prismaService.skillConfig.upsert({
+        where: { id: skill.id },
+        update: {
+          name: skill.name,
+          slug: skill.slug,
+          category: skill.category,
+          status: skill.status,
+          provider: skill.provider,
+          defaultModel: skill.defaultModel,
+          pointsCost: skill.pointsCost,
+          description: skill.description,
+          inputSchemaJson: this.toPrismaNullableJsonValue(skill.inputSchemaJson),
+          updatedAt: new Date(skill.updatedAt),
+        },
+        create: {
+          id: skill.id,
+          name: skill.name,
+          slug: skill.slug,
+          category: skill.category,
+          status: skill.status,
+          provider: skill.provider,
+          defaultModel: skill.defaultModel,
+          pointsCost: skill.pointsCost,
+          description: skill.description,
+          inputSchemaJson: this.toPrismaNullableJsonValue(skill.inputSchemaJson),
+          updatedAt: new Date(skill.updatedAt),
+        },
+      });
+    }
+
+    for (const prompt of database.promptTemplates) {
+      const seedPrompt = {
+        ...prompt,
+        content: this.readPromptContent(prompt.id, prompt.content),
+      };
+      await this.prismaService.promptTemplate.upsert({
+        where: { id: seedPrompt.id },
+        update: {
+          name: seedPrompt.name,
+          scene: seedPrompt.scene,
+          version: seedPrompt.version,
+          status: seedPrompt.status,
+          modelName: seedPrompt.modelName,
+          temperature: seedPrompt.temperature,
+          maxTokens: seedPrompt.maxTokens,
+          content: seedPrompt.content,
+          updatedAt: new Date(seedPrompt.updatedAt),
+        },
+        create: {
+          id: seedPrompt.id,
+          name: seedPrompt.name,
+          scene: seedPrompt.scene,
+          version: seedPrompt.version,
+          status: seedPrompt.status,
+          modelName: seedPrompt.modelName,
+          temperature: seedPrompt.temperature,
+          maxTokens: seedPrompt.maxTokens,
+          content: seedPrompt.content,
+          updatedAt: new Date(seedPrompt.updatedAt),
+        },
+      });
+    }
+
+    await this.removeRetiredOpenDesignArtifacts();
+    await this.removeRetiredWechatHtmlArtifacts();
+    await this.backfillDouyinOriginalCopyPromptContents();
+    await this.backfillXhsOriginalCopyPromptContents();
+    await this.backfillWechatHtmlStylePromptContents();
+    await this.backfillImageGenerationSkillDefaults();
+    await this.backfillLegacyVideoNoteDefaults();
+    await this.backfillLegacySkillInputSchemas();
+    await this.backfillBuiltInSkillInputSchemas();
+    await this.syncGlobalGpt54Defaults();
+    await this.syncOpportunityInsightSkillMetadata();
+    await this.syncOpportunityInsightPromptContents();
+    await this.backfillLegacySkillPromptBindings();
+    await this.refreshSkillPromptBindingCache();
+    return true;
+  }
+
   private async removeRetiredOpenDesignArtifacts() {
     await this.prismaService.$executeRaw(
       Prisma.sql`
@@ -1696,6 +1963,28 @@ export class SkillsPromptsService implements OnModuleInit {
   }
 
   private async backfillLegacySkillInputSchemas() {
+    if (this.isSqliteDatabase()) {
+      const rows = await this.prismaService.skillConfig.findMany();
+
+      for (const row of rows) {
+        if (row.inputSchemaJson || !String(row.description || "").trim()) {
+          continue;
+        }
+        const nextInputSchema = this.deriveLegacySkillInputSchemaFromDescription(row.description);
+        if (!nextInputSchema) {
+          continue;
+        }
+        await this.prismaService.skillConfig.update({
+          where: { id: row.id },
+          data: {
+            inputSchemaJson: this.toPrismaNullableJsonValue(nextInputSchema),
+            updatedAt: new Date(),
+          },
+        });
+      }
+      return;
+    }
+
     const rows = await this.prismaService.$queryRaw<SkillConfigRow[]>`
       SELECT *
       FROM "SkillConfig"
@@ -1720,6 +2009,28 @@ export class SkillsPromptsService implements OnModuleInit {
   }
 
   private async backfillBuiltInSkillInputSchemas() {
+    if (this.isSqliteDatabase()) {
+      const rows = await this.prismaService.skillConfig.findMany();
+
+      for (const row of rows) {
+        if (row.inputSchemaJson) {
+          continue;
+        }
+        const nextInputSchema = this.getBuiltInSkillInputSchemaSeed(row.slug);
+        if (!nextInputSchema) {
+          continue;
+        }
+        await this.prismaService.skillConfig.update({
+          where: { id: row.id },
+          data: {
+            inputSchemaJson: this.toPrismaNullableJsonValue(nextInputSchema),
+            updatedAt: new Date(),
+          },
+        });
+      }
+      return;
+    }
+
     const rows = await this.prismaService.$queryRaw<SkillConfigRow[]>`
       SELECT *
       FROM "SkillConfig"
@@ -1743,6 +2054,37 @@ export class SkillsPromptsService implements OnModuleInit {
   }
 
   private async syncGlobalGpt54Defaults() {
+    if (this.isSqliteDatabase()) {
+      const skillRows = await this.prismaService.skillConfig.findMany();
+      for (const row of skillRows) {
+        if (!row.defaultModel.includes("gpt-5.5")) {
+          continue;
+        }
+        await this.prismaService.skillConfig.update({
+          where: { id: row.id },
+          data: {
+            defaultModel: row.defaultModel.replaceAll("gpt-5.5", "gpt-5.4"),
+            updatedAt: new Date(),
+          },
+        });
+      }
+
+      const promptRows = await this.prismaService.promptTemplate.findMany();
+      for (const row of promptRows) {
+        if (!row.modelName.includes("gpt-5.5")) {
+          continue;
+        }
+        await this.prismaService.promptTemplate.update({
+          where: { id: row.id },
+          data: {
+            modelName: row.modelName.replaceAll("gpt-5.5", "gpt-5.4"),
+            updatedAt: new Date(),
+          },
+        });
+      }
+      return;
+    }
+
     await this.prismaService.$executeRawUnsafe(`
       UPDATE "SkillConfig"
       SET
@@ -1790,6 +2132,43 @@ export class SkillsPromptsService implements OnModuleInit {
   private async syncOpportunityInsightPromptContents() {
     const seeds = database.promptTemplates.filter((item) => SOURCE_PINNED_PROMPT_IDS.has(item.id));
 
+    if (this.isSqliteDatabase()) {
+      for (const prompt of seeds) {
+        const nextContent = this.readPromptContent(prompt.id, prompt.content);
+        const current = await this.prismaService.promptTemplate.findUnique({
+          where: { id: prompt.id },
+        });
+        if (
+          current
+          && current.name === prompt.name
+          && current.scene === prompt.scene
+          && current.version === prompt.version
+          && current.status === prompt.status
+          && current.modelName === prompt.modelName
+          && current.temperature === prompt.temperature
+          && current.maxTokens === prompt.maxTokens
+          && current.content === nextContent
+        ) {
+          continue;
+        }
+        await this.prismaService.promptTemplate.update({
+          where: { id: prompt.id },
+          data: {
+            name: prompt.name,
+            scene: prompt.scene,
+            version: prompt.version,
+            status: prompt.status,
+            modelName: prompt.modelName,
+            temperature: prompt.temperature,
+            maxTokens: prompt.maxTokens,
+            content: nextContent,
+            updatedAt: new Date(),
+          },
+        });
+      }
+      return;
+    }
+
     for (const prompt of seeds) {
       const nextContent = this.readPromptContent(prompt.id, prompt.content);
       await this.prismaService.$executeRaw`
@@ -1829,6 +2208,23 @@ export class SkillsPromptsService implements OnModuleInit {
       if (!seedContent || seedContent.trim() === legacyFallback.trim()) {
         continue;
       }
+      if (this.isSqliteDatabase()) {
+        const current = await this.prismaService.promptTemplate.findUnique({
+          where: { id: prompt.id },
+        });
+        const currentContent = String(current?.content || "").trim();
+        if (currentContent && currentContent !== legacyFallback.trim()) {
+          continue;
+        }
+        await this.prismaService.promptTemplate.update({
+          where: { id: prompt.id },
+          data: {
+            content: seedContent,
+            updatedAt: new Date(),
+          },
+        });
+        continue;
+      }
       await this.prismaService.$executeRaw`
         UPDATE "PromptTemplate"
         SET
@@ -1851,6 +2247,23 @@ export class SkillsPromptsService implements OnModuleInit {
       }
       const seedContent = this.readPromptContent(prompt.id, prompt.content);
       if (!seedContent || seedContent.trim() === legacyFallback.trim()) {
+        continue;
+      }
+      if (this.isSqliteDatabase()) {
+        const current = await this.prismaService.promptTemplate.findUnique({
+          where: { id: prompt.id },
+        });
+        const currentContent = String(current?.content || "").trim();
+        if (currentContent && currentContent !== legacyFallback.trim()) {
+          continue;
+        }
+        await this.prismaService.promptTemplate.update({
+          where: { id: prompt.id },
+          data: {
+            content: seedContent,
+            updatedAt: new Date(),
+          },
+        });
         continue;
       }
       await this.prismaService.$executeRaw`
@@ -1878,6 +2291,26 @@ export class SkillsPromptsService implements OnModuleInit {
       const seed = database.promptTemplates.find((item) => item.id === promptId);
       if (!seed) continue;
       const seedContent = this.readPromptContent(seed.id, seed.content);
+      if (this.isSqliteDatabase()) {
+        try {
+          const current = await this.prismaService.promptTemplate.findUnique({
+            where: { id: seed.id },
+          });
+          if (current && current.content === seedContent) {
+            continue;
+          }
+          await this.prismaService.promptTemplate.update({
+            where: { id: seed.id },
+            data: {
+              content: seedContent,
+              updatedAt: new Date(),
+            },
+          });
+        } catch {
+          // 忽略回填错误
+        }
+        continue;
+      }
       try {
         await this.prismaService.$executeRaw`
           UPDATE "PromptTemplate"
@@ -1972,6 +2405,12 @@ export class SkillsPromptsService implements OnModuleInit {
   }
 
   private async findSkillByIdFromDatabase(id: string) {
+    if (this.isSqliteDatabase()) {
+      const row = await this.prismaService.skillConfig.findUnique({
+        where: { id },
+      });
+      return row ? this.skillRecordToRow(row) : undefined;
+    }
     const rows = await this.prismaService.$queryRaw<SkillConfigRow[]>`
       SELECT *
       FROM "SkillConfig"
@@ -1982,6 +2421,12 @@ export class SkillsPromptsService implements OnModuleInit {
   }
 
   private async findSkillBySlugFromDatabase(slug: string) {
+    if (this.isSqliteDatabase()) {
+      const row = await this.prismaService.skillConfig.findUnique({
+        where: { slug },
+      });
+      return row ? this.skillRecordToRow(row) : undefined;
+    }
     const rows = await this.prismaService.$queryRaw<SkillConfigRow[]>`
       SELECT *
       FROM "SkillConfig"
@@ -1992,6 +2437,12 @@ export class SkillsPromptsService implements OnModuleInit {
   }
 
   private async findPromptByIdFromDatabase(id: string) {
+    if (this.isSqliteDatabase()) {
+      const row = await this.prismaService.promptTemplate.findUnique({
+        where: { id },
+      });
+      return row ? this.promptRecordToRow(row) : undefined;
+    }
     const rows = await this.prismaService.$queryRaw<PromptTemplateRow[]>`
       SELECT *
       FROM "PromptTemplate"
@@ -2002,6 +2453,15 @@ export class SkillsPromptsService implements OnModuleInit {
   }
 
   private async findPromptBySceneFromDatabase(scene: string) {
+    if (this.isSqliteDatabase()) {
+      const row = await this.prismaService.promptTemplate.findFirst({
+        where: { scene },
+        orderBy: {
+          updatedAt: "desc",
+        },
+      });
+      return row ? this.promptRecordToRow(row) : undefined;
+    }
     const rows = await this.prismaService.$queryRaw<PromptTemplateRow[]>`
       SELECT *
       FROM "PromptTemplate"

@@ -1,4 +1,4 @@
-param(
+﻿param(
   [Parameter(Mandatory = $true)]
   [string]$ConfigPath
 )
@@ -45,25 +45,32 @@ function Write-Status {
 }
 
 function Stop-RuntimeFromMetadata {
-  $runtimeMetadataPath = Join-Path $script:Config.localAppRoot "runtime\local-single-user-runtime.json"
-  if (-not (Test-Path -LiteralPath $runtimeMetadataPath)) {
-    return
-  }
-
-  try {
-    $metadata = Get-Content -LiteralPath $runtimeMetadataPath -Raw | ConvertFrom-Json
-  } catch {
-    return
-  }
-
   $processes = @()
-  if ($metadata.processes) {
-    $processes += $metadata.processes.launcherPid
-    $processes += $metadata.processes.serverPid
-    $processes += $metadata.processes.workerPid
-    $processes += $metadata.processes.webPid
+  $runtimeMetadataPath = Join-Path $script:Config.localAppRoot "runtime\local-single-user-runtime.json"
+  if (Test-Path -LiteralPath $runtimeMetadataPath) {
+    try {
+      $metadata = Get-Content -LiteralPath $runtimeMetadataPath -Raw | ConvertFrom-Json
+    } catch {
+      $metadata = $null
+    }
+
+    if ($metadata -and $metadata.processes) {
+      $processes += $metadata.processes.launcherPid
+      $processes += $metadata.processes.serverPid
+      $processes += $metadata.processes.workerPid
+      $processes += $metadata.processes.webPid
+    }
   }
 
+  if ($script:Config.fallbackStopPids) {
+    $processes += @($script:Config.fallbackStopPids)
+  }
+
+  if (-not ($processes | Where-Object { $_ })) {
+    return
+  }
+
+  $targetPids = @()
   foreach ($pidValue in ($processes | Where-Object { $_ })) {
     $pidNumber = 0
     if (-not [int]::TryParse([string]$pidValue, [ref]$pidNumber)) {
@@ -72,14 +79,23 @@ function Stop-RuntimeFromMetadata {
     if ($pidNumber -le 0 -or $pidNumber -eq $PID) {
       continue
     }
+    $targetPids += $pidNumber
     try {
       Stop-Process -Id $pidNumber -Force -ErrorAction Stop
     } catch {
       try {
-        & taskkill /PID $pidNumber /T /F | Out-Null
+        & taskkill /PID $pidNumber /T /F 2>$null | Out-Null
       } catch {
       }
     }
+  }
+
+  foreach ($attempt in 1..20) {
+    $remainingPids = @($targetPids | Where-Object { Get-Process -Id $_ -ErrorAction SilentlyContinue })
+    if (-not $remainingPids.Count) {
+      return
+    }
+    Start-Sleep -Milliseconds 500
   }
 
   Start-Sleep -Seconds 2
@@ -104,7 +120,21 @@ function Start-RestartCommand {
   if (-not (Test-Path -LiteralPath $script:Config.restartCommandPath)) {
     return
   }
-  Start-Process -FilePath $script:Config.restartCommandPath -WorkingDirectory (Split-Path -Parent $script:Config.restartCommandPath)
+  $workingDirectory = Split-Path -Parent $script:Config.restartCommandPath
+  $cmdExe = Join-Path $env:SystemRoot "System32\cmd.exe"
+  if (-not (Test-Path -LiteralPath $cmdExe)) {
+    $cmdExe = "cmd.exe"
+  }
+  $localAppRoot = [string]$script:Config.localAppRoot
+  $runtimeMode = if ($script:Config.appRuntimeMode) { [string]$script:Config.appRuntimeMode } else { "local-single-user" }
+  $command = @(
+    "set ""APP_RUNTIME_MODE=$runtimeMode""",
+    "set ""LOCAL_APP_DATA_ROOT=$localAppRoot""",
+    "set ""AI_OMNI_LOCAL_ROOT=$localAppRoot""",
+    "set ""LOCAL_SINGLE_USER_AUTO_OPEN_BROWSER=false""",
+    "call ""$($script:Config.restartCommandPath)"""
+  ) -join " && "
+  Start-Process -FilePath $cmdExe -ArgumentList "/d", "/c", $command -WorkingDirectory $workingDirectory -WindowStyle Hidden
 }
 
 try {

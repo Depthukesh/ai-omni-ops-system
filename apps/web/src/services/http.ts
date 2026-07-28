@@ -1,3 +1,4 @@
+import { getRuntimeMode } from "../lib/runtime-mode";
 import { postRuntimeDebugEvent } from "../lib/runtime-debug";
 import { clearStoredAuthSession, getStoredAuthSession, setStoredAuthSession, type AuthUser } from "./auth-session";
 
@@ -251,6 +252,10 @@ async function readErrorMessage(response: Response) {
 }
 
 function resolveApiBaseUrl() {
+  if (typeof window !== "undefined" && getRuntimeMode() === "local-single-user") {
+    return `${window.location.origin}/api`;
+  }
+
   const configured = String(process.env.NEXT_PUBLIC_API_BASE_URL || "").trim();
   if (configured) {
     return configured.replace(/\/$/, "");
