@@ -657,6 +657,42 @@
   - 用户本次贴出的 CI `build:server` 阻塞点，已在本地源码层全部清掉
   - 这次修复没有去改数据库 schema、升级协议或业务主流程，只把漏提交源码、类型漂移和 service 接口缺口补齐
 
+## CI 修复补充（2026-07-30 04:55）
+
+### 1. 补回 `apps/web/src/lib/runtime-mode.ts`，修复 web build 缺失模块
+
+- 在 `build:server` 通过后，GitHub Actions 继续跑到：
+  - `npm run build:web`
+- 新暴露的真实阻塞点是：
+  - `apps/web/src/services/http.ts`
+  - `Module not found: Can't resolve '../lib/runtime-mode'`
+- 继续核对后确认：
+  - `http.ts` 仍在引用 `getRuntimeMode()`
+  - 但 `apps/web/src/lib/` 目录下只剩 `runtime-debug.ts`
+  - `runtime-mode.ts` 本身没有进入仓库
+- 这次已补回一个最小实现：
+  - 统一读取 `NEXT_PUBLIC_APP_RUNTIME_MODE`
+  - 仅返回：
+    - `standard`
+    - `local-single-user`
+- 这样前端 HTTP 基础层在浏览器侧判断：
+  - `local-single-user` 走 `window.location.origin + /api`
+  - 其他模式继续走现有 `NEXT_PUBLIC_API_BASE_URL` / 默认 API 口径
+
+### 2. 本轮影响范围
+
+- `apps/web/src/lib/runtime-mode.ts`
+- `docs/changes/2026-07-28-personal-center-version-update.md`
+
+### 3. 本轮验证结果
+
+- `npm run build:web`
+  - 通过
+- 当前结论：
+  - 这次 GitHub Actions 的新失败并不是 Next 构建配置损坏
+  - 而是一个前端 runtime helper 漏进仓库
+  - 补回 helper 后，web 生产构建已重新恢复
+
 ## 继续验证补充（2026-07-28 17:50）
 
 ### 1. GitHub `releases/latest` 在当前网络下存在额外抖动，已补回退链
