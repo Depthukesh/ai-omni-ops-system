@@ -318,6 +318,263 @@
 
 - 最新这轮 `POST /api/system/update/download` 仍在持续运行
 - 当前状态文件保持：
+
+## 继续验证补充（2026-07-29 18:10）
+
+### 1. Windows 安装态把 GitHub Release 元数据读取改成 `curl` 优先、`fetch` 兜底
+
+- 继续验证 `hotfix-2` 真实远端升级时，安装态一度出现：
+  - `检查 GitHub Release 失败：fetch failed`
+  - 随后又出现：
+  - `curl fetch failed: Failed to connect to github.com:443`
+- 这说明当前网络环境下，不是单纯某一条 HTTP 栈稳定，而是：
+  - Node `fetch` 有时会超时
+  - `curl.exe` 直连 GitHub 元数据接口也会偶发失败
+- 因此这轮把 `system-update.service` 的 Windows 元数据读取策略调整为：
+  - 先尝试 `curl.exe`
+  - 若 `curl` 拉取 release JSON 或 `.sha256` 文本失败，再回退到原有 `fetch` 重试链
+- 同时保留 Windows 下 `resolveDirectAssetDownloadUrl()` 直接返回原始 release asset URL，避免再额外依赖一条容易抖动的 `HEAD` 跳转解析。
+
+### 2. 下载链已进入 `curl --range` 分块模式，并确认首块会真实增长
+
+- 这轮继续把下载链压到真实安装态 `.release/local-single-user-win-x64` 运行根验证。
+- 已确认当前安装态 `POST /api/system/update/check` 可以稳定返回：
+  - `local-single-user-win-x64-2026-07-29-hotfix-2`
+  - `AiOmniOps-local-single-user-win-x64.zip`
+  - 对应 SHA256
+- 在下载侧，已经抓到安装态真实拉起：
+  - `curl.exe --range ... --output ...part-0000.bin`
+- 为了避免多连接在当前弱网环境下同时僵死，这轮又把分块下载并发从 `4` 收窄成 `1`，改为：
+  - 顺序 chunk 下载
+  - 单 chunk 失败自动重试
+- 最新现场采样已经确认：
+  - `part-0000.bin` 会从 `0` 增长到 `274432`
+  - 一次低速停滞后，curl 子进程重启
+  - 随后首块继续增长到 `405504`
+- 这说明当前链路已经不是“完全无字节卡死”，而是：
+  - 元数据可获取
+  - 首块 range 下载可真实起量
+  - 低速卡住后可自动重试并继续前进
+
+### 3. 当前仍未闭环的真实阻塞点
+
+- 截至本次记录，升级链仍未推进到：
+  - `READY_TO_APPLY`
+  - `APPLYING`
+  - `SUCCEEDED`
+- 当前最新阻塞点已经进一步压缩为：
+  - GitHub Release 大文件在当前 Windows 网络环境下吞吐极低
+  - `curl --range` 首块虽然可增长，但速度仍然偏慢，需要继续观察是否能稳定完成单块并串行跑完整包
+- 因此本轮的结论不是“升级闭环已完成”，而是：
+  - `check` 阶段的 Windows 元数据不稳定问题已被压下去
+  - `download` 阶段已经收口到“真实弱网吞吐”这一单一主瓶颈
+
+## 继续验证补充（2026-07-29 18:30）
+
+### 1. 补上 `curl` 分块下载的“无增量 watchdog”
+
+- 继续盯安装态 `curl --range` 下载时确认：
+  - `curl.exe` 进程有时会继续存活
+  - 但 `part-0000.bin` 可以连续 60 秒完全不增长
+  - 同时又不会自行退出，导致状态长期停在 `DOWNLOADING`
+- 为了把这类“假活跃”收口成可重试失败，这轮在 `runWindowsCurlCommand()` 增加了文件增量 watchdog：
+  - 如果进度文件 `45s` 内没有任何字节增长
+  - 就主动 `kill` 当前 `curl` 子进程
+  - 让现有 chunk 级重试机制接管
+- 这次保护已经同步到：
+  - 源码 `apps/server/src/modules/system-update/system-update.service.ts`
+  - workspace dist
+  - release dist
+
+### 2. `download/apply` 不再强制二次刷新 GitHub 元数据
+
+- 继续复盘现场后发现，安装态最常见的一种无谓失败是：
+  1. `POST /api/system/update/check` 已经刚拿到最新 release
+  2. `POST /api/system/update/download` 又强制重新请求一次 GitHub Release 元数据
+  3. 第二次请求刚好网络抖动，直接报：
+     - `检查 GitHub Release 失败：fetch failed`
+- 这轮把：
+  - `downloadLatestUpdate()`
+  - `applyLatestUpdate()`
+ 里的 `getLatestRelease({ force: true })`
+ 统一改成：
+  - 优先复用刚刚 `check` 写进内存缓存的最新 release
+  - 只有缓存没有命中时，才走远端拉取
+- 这样用户从“检查更新”紧接着点“立即下载/立即升级”时，不会因为一次多余的 GitHub 元数据刷新把刚拿到的结果又打断。
+
+### 3. 最新现场进展
+
+- 加上缓存复用后，这轮 `download` 不再立刻返回 GitHub 元数据 `502`
+- 安装态已经重新拉起新的顺序 chunk 下载进程，并确认：
+  - 新 `curl` PID 重新出现
+  - `part-0000.bin` 从 `0` 开始恢复增长
+  - 最新采样已从：
+    - `1,683,456`
+    - `1,765,376`
+    - `1,896,448`
+    - `1,994,752`
+    - `2,093,056`
+    - `2,224,128`
+    - `2,387,968`
+    - `2,519,040`
+    持续向前推进
+- 这说明当前链路已经进一步收口为：
+  - 元数据缓存复用可用
+  - watchdog 可避免长时间无增量挂住
+  - 顺序 chunk 下载在当前弱网环境下至少还能持续前进
+
+### 4. 截至本次记录仍未完成的部分
+
+- 仍未推进到：
+  - `READY_TO_APPLY`
+  - `APPLYING`
+  - `SUCCEEDED`
+- 当前仍需继续观察：
+  - `part-0000.bin` 能否顺利跑满 `16 MiB`
+  - 是否能自动切到下一块 `part-0001.bin`
+  - 整包最终能否收口到 SHA256 校验通过
+
+## 继续验证补充（2026-07-29 19:11）
+
+### 1. 顺序 chunk 继续推进后，再把单块从 `16 MiB` 收窄到 `4 MiB`
+
+- 继续观察顺序 `curl --range` 下载后确认：
+  - `16 MiB` 单块在弱网环境下虽然能持续增长
+  - 但跑满首块所需时间仍然过长
+  - 一旦中途重试，单次损失窗口也偏大
+- 因此这轮继续把：
+  - `chunkSize`
+  从：
+  - `16 * 1024 * 1024`
+  调整为：
+  - `4 * 1024 * 1024`
+- 目标不是追求并发，而是让安装态更快完成一个完整 chunk，并更早验证：
+  - `part-0000.bin` 完成
+  - 自动切换到 `part-0001.bin`
+
+### 2. 现场确认 `taskkill /PID /T /F` 可以真实切掉卡死的 `curl`
+
+- 这轮为了验证 watchdog 的“硬杀”是否真的可用，现场直接对卡住的 `curl` PID 执行：
+  - `taskkill /PID <pid> /T /F`
+- 实际结果确认：
+  - 目标 `curl.exe` 被成功终止
+  - 其子进程也一起被回收
+  - 安装态下载链随后自动拉起新的 `curl` PID 并继续重试
+- 这说明：
+  - Windows 下依赖 `taskkill` 做进程树硬终止是可行的
+  - 下载链在当前实现下具备“被切断后继续重试”的恢复能力
+
+### 3. 最新 `4 MiB` 分块现场进展
+
+- 切到 `4 MiB` 之后，安装态已经真实拉起：
+  - `curl.exe --range 0-4194303 --output ...part-0000.bin`
+- 一次 `0 byte` 起步卡住后，现场手动 `taskkill` 验证通过；随后下载链自动拉起新的 `curl` PID，`part-0000.bin` 重新恢复增长。
+- 当前最新采样已经确认：
+  - `65,536`
+  - `180,224`
+  - `294,912`
+  - `344,064`
+  - `442,368`
+  - `524,288`
+  - `614,400`
+  - `679,936`
+  - `696,320`
+  - `761,856`
+  - `892,928`
+  - `942,080`
+  持续向前增长
+- 这说明当前 `4 MiB` 首块并没有再次陷入“完全无字节”的死锁，而是已经重新进入有效下载。
+
+### 4. 当前结论
+
+- 截至本次记录，升级链仍未进入：
+  - `READY_TO_APPLY`
+  - `APPLYING`
+  - `SUCCEEDED`
+- 但当前安装态升级下载已经被收口到更具体的状态：
+  - 元数据复用缓存，避免 `check -> download` 之间再次强刷 GitHub Release
+  - 分块下载使用顺序 `curl --range`
+  - Windows 可通过 `taskkill` 硬切卡死 `curl`
+  - 首块在 `4 MiB` 口径下已重新恢复增长
+
+## 继续验证补充（2026-07-29 19:38）
+
+### 1. 下载前先解析一次最终直链，避免每个 chunk 反复命中 `github.com/releases/download`
+
+- 继续排查后确认，之前 chunk 失败的高频错误是：
+  - `curl chunk download failed: curl: (28) Failed to connect to github.com:443`
+- 根因不是分块本身，而是：
+  - 每个 `curl --range` chunk 都还在使用 `github.com/.../releases/download/...`
+  - 每次 chunk 启动都要重新走一次 GitHub 跳转
+- 这轮将 Windows 下的 `resolveDirectAssetDownloadUrl()` 改为：
+  - 下载开始前只用 `curl` 解析一次最终资产直链
+  - 后续所有 chunk 都直接打最终资产域名
+- 当前安装态现场已经确认：
+  - `curl.exe --range 0-4194303 ... https://release-assets.githubusercontent.com/...`
+  - 不再是 `https://github.com/.../releases/download/...`
+
+### 2. 最新现场验证结果
+
+- 新链路生效后，`part-0000.bin` 的最新实测采样为：
+  - `61,440`
+  - `356,352`
+  - `434,176`
+  - `499,712`
+  - `548,864`
+  - `630,784`
+  - `720,896`
+  - `831,488`
+  - `897,024`
+  - `978,944`
+  - `1,028,096`
+  - `1,093,632`
+  - `1,175,552`
+  - `1,241,088`
+- 整个 80 秒采样期间：
+  - `curl` PID 在首次切换后稳定保持为同一进程
+  - 文件字节数持续增长
+  - 没有再次出现“反复打 github.com 但连不上”的旧错误
+
+### 3. 当前结论
+
+- 到目前为止，升级链仍未推进到：
+  - `READY_TO_APPLY`
+  - `APPLYING`
+  - `SUCCEEDED`
+- 但新的主瓶颈已经进一步收口为：
+  - 通过 `release-assets.githubusercontent.com` 直链下载时，吞吐仍然偏慢
+  - 不再是每个 chunk 都会被 `github.com` 连接失败打断
+
+## 继续修正补充（2026-07-29 19:50）
+
+### 1. 个人中心“版本与升级”入口只在安装态显示
+
+- 继续联调时发现，前端把 `/personal-center/version` 直接挂进了个人中心固定二级导航，导致：
+  - 网站版个人中心也会出现“版本与升级” tab
+  - 用户即使不在安装态，也能直接进入版本页，再看到“当前环境不支持”
+- 这次前端已改为：
+  - 个人中心 layout 在加载账号信息时，同时读取 `GET /system/update/status`
+  - 只有当后端返回：
+    - `supported=true`
+    - `current.canApplyUpdate=true`
+    时，才显示“版本与升级”入口
+- 同时，`/personal-center/version` 页面本身也加了一层前端保护：
+  - 如果当前不是 `local-single-user` 安装态
+  - 页面会直接回到 `/personal-center`
+  - 不再让网站版或源码运行态继续停留在升级页
+
+### 2. 本次影响范围
+
+- `apps/web/src/app/(dashboard)/personal-center/layout.tsx`
+- `apps/web/src/app/(dashboard)/personal-center/version/page.tsx`
+- `apps/web/src/app/(dashboard)/personal-center/route-helpers.ts`
+- `docs/engineering-standards.md`
+- `docs/site-map.md`
+
+### 3. 当前结论
+
+- “版本与升级”仍然属于 `local-single-user` 个人中心的一部分
+- 但它现在已经从网站版个人中心默认入口里收回，不再作为通用网站版功能暴露
   - `phase: DOWNLOADING`
   - `message: 正在下载最新安装包并校验完整性。`
 - 当前 zip 文件继续增长样本：
@@ -579,3 +836,293 @@
   - `health` 对 sqlite / postgresql 的运行态判定不再误报
 - 当前真正还没完成的只剩一件事：
   - **把这份新 zip 发布成新的 GitHub Release，再从安装态跑一轮真实远端 `check/download/apply` 闭环**
+
+## 继续验证补充（2026-07-29 07:20）
+
+### 1. 真实远端 release 链已重新打通
+
+- 本轮已把最新本地单机包发布到正确仓库：
+  - `allentry/local-ai-omni-ops-system`
+- 新 release：
+  - `local-single-user-win-x64-2026-07-29`
+- `smoke-4` 安装态已再次确认：
+  - `GET /api/system/update/status`
+    - `latest.tagName = local-single-user-win-x64-2026-07-29`
+    - `phase = AVAILABLE`
+    - `updateAvailable = true`
+  - `POST /api/system/update/download`
+    - 已真实落到 `READY_TO_APPLY`
+
+### 2. `apply` 仍卡在初始 `APPLYING` 的剩余根因进一步压缩
+
+- 纯 API `POST /api/system/update/apply` 已返回：
+  - `accepted = true`
+  - `phase = APPLYING`
+- 但本轮继续抓现场后确认：
+  - `system-update-status.json` 一直停留在最初的：
+    - `升级进程已启动，正在准备替换到 ...`
+  - `3002 / 3012` 没有掉
+  - updater config 已正确生成
+  - 运行中的安装根 `system-update.service.js` 也已包含 `cmd.exe /c start ...` 路径
+- 新证据表明：
+  - API 进程确实拉起了外层 `cmd.exe`
+  - 但没有看到对应的 updater PowerShell 子进程继续执行
+- 因此当前问题已从“接口没启动后台升级”压缩到：
+  - **`cmd /c start` 在 API 的无控制台后台场景下没有把 updater PowerShell 真正接起来**
+
+### 3. 本轮已补的新修正
+
+- `apps/server/src/modules/system-update/system-update.service.ts`
+- `apps/server/dist/apps/server/src/modules/system-update/system-update.service.js`
+- 当前验证安装根对应 dist
+
+- 已把 updater 拉起命令从：
+  - `start "" /b powershell.exe ...`
+- 调整为：
+  - `start "" powershell.exe -WindowStyle Hidden ...`
+
+- 这次调整的目的很单纯：
+  - 避开 `/b` 在无控制台后台场景下的挂起风险
+  - 让 updater 改走真正独立的新进程窗口上下文，同时仍保持隐藏启动
+
+## 继续验证补充（2026-07-29 08:00）
+
+### 1. `apply` 假启动的真实根因已继续拆开
+
+- 先用隔离 marker 验证了多种 Windows 后台拉起方式：
+  - `Node -> detached powershell.exe`
+    - 在当前安装态环境里不会真正落地执行
+  - `Node -> detached cmd.exe -> .cmd wrapper -> powershell.exe`
+    - 可以真实拉起 PowerShell
+- 因此 `system-update.service` 已改为：
+  - 不再直接 `spawn(powershell.exe, ...)`
+  - 改为为每次 apply 生成：
+    - `run-local-single-user-updater.cmd`
+  - 再由 API 进程用：
+    - `cmd.exe /d /c run-local-single-user-updater.cmd`
+    - 去后台拉起 updater
+
+### 2. wrapper 链又继续暴露出两个真实 Windows 兼容问题
+
+- 第一层问题：
+  - wrapper 初版把带中文工作区路径的绝对路径直接写进 `.cmd`
+  - `updater-launcher.stderr.log` 抓到：
+    - `系统找不到指定的路径`
+- 已改为：
+  - wrapper 统一使用 `%~dp0local-single-user-updater.ps1`
+  - `%~dp0local-single-user-updater.config.json`
+  - `%~dp0...stdout.log / stderr.log`
+  - 避开 `cmd` 解析中文绝对路径时的编码问题
+
+- 第二层问题：
+  - 手工直接执行最新 wrapper 后，`local-single-user-updater.stderr.log` 抓到：
+    - `﻿param : The term '﻿param' is not recognized ...`
+  - 说明 apply 目录里动态生成的 `local-single-user-updater.ps1` 被写成了带 BOM 的 UTF-8
+  - PowerShell 在当前执行路径下把 BOM 当成了字面字符，脚本从第一行就没真正开始
+- 已改为：
+  - updater `.ps1` 不再用 BOM 写入
+  - 改成普通 `utf8` 写入
+
+### 3. 真实远端 `apply` 主链已推进到安装完成
+
+- 在以上两层修正后，再次从 `smoke-4` 安装态执行：
+  - `POST /api/system/update/download`
+  - `POST /api/system/update/apply`
+- 本轮终于确认不再停留在最初的“准备替换”假状态，而是进入了真实 updater 主流程：
+  - 状态先推进到：
+    - `正在解压升级包。`
+  - 期间：
+    - `3002 / 3012` 已真实掉线
+    - `cmd.exe -> powershell.exe` 后台升级进程持续存在并消耗 CPU
+    - `updates/extract-*` 解压目录内容持续增长
+- 随后状态进一步推进到：
+  - `phase = SUCCEEDED`
+  - `message = 升级安装完成，正在重新启动本地工作台。`
+  - `appliedAt` 已写入时间戳
+
+### 4. 当前剩余唯一未闭环点
+
+- 到这一步，真实远端 upgrade 闭环里以下部分已经被验证通过：
+  - `check`
+  - `download`
+  - `apply` 真实启动
+  - 停机
+  - 校验包
+  - 解压
+  - 覆盖安装
+  - 状态推进到 `SUCCEEDED`
+- 当前仍未完全闭环的只剩最后一段：
+  - **自动重启命令已执行，但 `3002 / 3012` 还没有恢复对外提供服务**
+- 现场证据：
+  - `system-update-status.json`
+    - 已稳定写成 `SUCCEEDED`
+  - `runtime/local-single-user-runtime.json`
+    - 已写入新的 launcher / server / worker / web pid
+  - 但之后再次探测：
+    - `http://127.0.0.1:3012/api/health`
+    - `http://127.0.0.1:3002`
+    - 仍无法连接
+- 因此当前最后一个剩余问题已压缩为：
+  - **“升级成功后的自动重启已触发，但新拉起进程没有真正恢复到可访问监听态”**
+
+## 继续验证补充（2026-07-29 12:10）
+
+### 1. 自动重启后未恢复监听的真实根因已定位
+
+- 继续追自动重启后的 launcher 现场，最终抓到：
+  - 重启命令本身已经执行
+  - 但 launcher 误判为需要重新编译源码
+  - 随后在 `Server build` 阶段因为当前安装态源码并不满足完整 TypeScript 构建条件而退出
+- 关键证据来自重启任务输出：
+  - `[step] Server build...`
+  - `Server build失败，退出码=2`
+  - 并伴随：
+    - `Cannot find module './local-single-user/local-single-user-bootstrap.service'`
+    - 多处现有 TS 类型漂移报错
+
+### 2. 为什么会误触发重编
+
+- 继续核对安装根与解压目录后确认：
+  - `local-launcher-server-build-state.json`
+  - `local-launcher-web-build-state.json`
+  - 两份文件其实都在 release 包里，也成功进入了解压目录与安装根
+- 但进一步对比发现：
+  - launcher 当前计算出来的 build fingerprint
+  - 与打包时写入 state 文件中的 fingerprint
+  - 完全不一致
+- 继续追到根因后确认：
+  - 旧 fingerprint 算法把文件 `mtime` 也算进了指纹
+  - 而升级安装 / 解压 / 覆盖会天然改写大量文件时间戳
+  - 所以即使文件内容完全没变，安装后 launcher 也会误判成“源码已变化，需要重编”
+
+### 3. 本轮已补的新修正
+
+- `scripts/local-single-user-launcher.cjs`
+- `scripts/build-local-single-user-release.cjs`
+- 当前验证安装根：
+  - `.release/AiOmniOps-rebuilt-20260729-1958/app/scripts/local-single-user-launcher.cjs`
+
+- 已把 build fingerprint 从：
+  - `relativePath + size + mtime`
+- 改为：
+  - `relativePath + size + file content sha1`
+
+- 这样可以保证：
+  - 解压 / 覆盖安装改变时间戳时不会误触发重编
+  - 真正的源码内容变化仍然会让 launcher 感知到
+
+### 4. 当前安装根已验证恢复正常重启
+
+- 在给当前安装根重写新算法 fingerprint 后，再次执行与 updater 相同的重启命令，已确认：
+  - `skip Server build`
+  - `skip Web build`
+  - 运行时重新拉起成功
+  - 新 runtime metadata 已刷新到：
+    - `apiPort = 3011`
+    - `webPort = 3001`
+- 实测：
+  - `GET http://127.0.0.1:3011/api/health`
+    - 已恢复 `200`
+  - `3001 / 3011`
+    - 已恢复监听
+
+### 5. 当前剩余事项
+
+- 到这一步，本地代码层面的真实根因已经全部压实：
+  - updater 假启动
+  - wrapper 中文路径
+  - updater ps1 BOM
+  - 自动重启后误触发重编
+- 当前剩余工作已缩小为：
+  - **把这组修正重新打进新的 remote release，再从安装态跑一轮最终真实远端升级闭环**
+
+## 继续验证补充（2026-07-29 16:00）
+
+### 1. 当前真实阻塞点已从“下载器实现”收缩为“发布包体积过大”
+
+- 继续在真实安装态跟远端 `download` 链时，确认当前活跃更新目录已经不是工作区 `.runtime/.../updates`，而是：
+  - `C:\Users\Administrator\AppData\Roaming\AiOmniOps\updates`
+- 继续盯住这条真实签名直链后，发现问题已经不只是 Node / PowerShell 某一种实现不稳定：
+  - 独立对 `release-assets.githubusercontent.com` 直链做 `curl --range` 取样
+  - 仅下载 `1 MB` 片段也耗时约 `135940 ms`
+- 这说明当前剩余主阻塞已经进一步压缩为：
+  - **GitHub 远端升级包体积过大，在当前真实链路上吞吐过低**
+  - 继续单纯微调单连接下载器，收益已经明显低于先把升级包瘦下来
+
+### 2. 发布物已切到“预构建运行时模式”
+
+- 本轮继续收口：
+  - `scripts/local-single-user-launcher.cjs`
+  - `scripts/build-local-single-user-release.cjs`
+- 新口径改为：
+  - 发布物启动时默认注入 `LOCAL_SINGLE_USER_PREBUILT_ONLY=true`
+  - launcher 在该模式下不再尝试源码兜底 `server build` / `web build`
+  - 若预构建 `apps/server/dist` 或 `apps/web/.next/standalone` 缺失，则直接明确失败，而不是重新走构建链
+- 同时 release builder 不再继续把以下源码兜底输入打进发布包：
+  - `package-lock.json`
+  - `tsconfig.base.json`
+  - `apps/server/src`
+  - `apps/web/src`
+  - `packages`
+  - `apps/server/package.json`
+  - `apps/server/tsconfig.json`
+  - `apps/web/package.json`
+  - `apps/web/tsconfig.json`
+  - `apps/web/next.config.ts`
+
+### 3. 发布物瘦身结果
+
+- release builder 继续保留：
+  - `apps/server/dist`
+  - `apps/web/public`
+  - `apps/web/.next/standalone`
+  - `apps/web/.next/static`
+  - Prisma schema
+  - launcher / runtime / updater / autostart scripts
+  - 必要的运行时 `node_modules`
+- 但会主动裁掉一批仅服务前端源码构建或开发检查的大体积依赖，例如：
+  - `node_modules/next`
+  - `node_modules/@next`
+  - `node_modules/@img`
+  - `node_modules/react`
+  - `node_modules/react-dom`
+  - `node_modules/lucide-react`
+  - `node_modules/typescript`
+  - `node_modules/@types`
+  - `node_modules/.cache`
+- 本轮实测结果：
+  - 新 release app 目录中 `node_modules` 已从约 `968.67 MB` 降到约 `509.30 MB`
+  - 新 zip 产物：
+    - `.release/artifacts/AiOmniOps-local-single-user-win-x64.zip`
+  - 体积已从此前约 `392657679` bytes 降到：
+    - `252669050` bytes
+  - 减少约 `35.7%`
+
+### 4. 新 release root 已完成启动验证
+
+- 继续直接以新的：
+  - `.release/local-single-user-win-x64/start-local-single-user.cmd`
+  启动安装态口径 runtime
+- 已确认 AppData 运行元数据中的：
+  - `webRuntime.sourceStandaloneServer`
+  已切到：
+  - `.release/local-single-user-win-x64/app/apps/web/.next/standalone/apps/web/server.js`
+- 同时进程命令行也已确认：
+  - launcher / server / worker 都来自新的 `.release/local-single-user-win-x64`
+- 实测：
+  - `GET http://127.0.0.1:3011/api/health`
+    - 返回 `200`
+- 这说明：
+  - **预构建运行时模式没有破坏现有安装态启动闭环**
+
+### 5. 当前下一步
+
+- 到这一步，当前最高收益的后续动作已经收敛为：
+  1. 把新的瘦身 zip 发成新的 remote release
+  2. 再从安装态重跑真实：
+     - `check`
+     - `download`
+     - `apply`
+     - 自动重启恢复监听
+- 当前尚未完成的是：
+  - **基于这份更小的新发布资产，重新验证最终真实远端升级闭环**

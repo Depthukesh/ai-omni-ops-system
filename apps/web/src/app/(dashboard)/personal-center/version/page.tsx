@@ -12,7 +12,7 @@ import {
   type ApplySystemUpdateResult,
   type SystemUpdateStatus,
 } from "../../../../services/personal-center";
-import { buildPersonalCenterLoginPath, formatDateTime, isAuthFailure } from "../route-helpers";
+import { buildPersonalCenterLoginPath, formatDateTime, isAuthFailure, shouldShowVersionWorkspace } from "../route-helpers";
 
 export default function PersonalCenterVersionPage() {
   const router = useRouter();
@@ -50,6 +50,10 @@ export default function PersonalCenterVersionPage() {
     }
 
     if (statusResult.status === "fulfilled") {
+      if (!shouldShowVersionWorkspace(statusResult.value)) {
+        router.replace("/personal-center");
+        return;
+      }
       setStatus(statusResult.value);
     } else {
       setStatus(null);

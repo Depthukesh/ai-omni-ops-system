@@ -219,6 +219,7 @@
 当前补充说明：
 
 - 个人中心已新增独立“版本与升级”页，不再要求用户每次手工去 GitHub 下载后再判断如何覆盖安装
+- “版本与升级”入口默认只在 `local-single-user` 安装态个人中心显示；网站版和源码运行态不显示该入口，也不建议直接暴露升级页
 - 后端通过 `system/update/*` 统一检查 GitHub Releases 最新发布、识别 `AiOmniOps-local-single-user-win-x64.zip` 与 `.sha256`
 - 当前源码运行态允许查看最新发布信息，但会明确提示“不是安装态发布包，暂不支持一键升级”
 - 当前安装态会把升级包先落到 `LOCAL_APP_DATA_ROOT/updates`，完成 SHA256 校验后再由独立 updater 停机、替换安装目录并重启本地工作台

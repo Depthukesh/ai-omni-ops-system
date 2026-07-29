@@ -1,10 +1,11 @@
-﻿﻿﻿﻿﻿"use client";
+﻿﻿﻿﻿﻿﻿﻿﻿﻿"use client";
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { getMe, logout as logoutSession, readAuthSession, switchBrand, type MeResponse } from "../../../services/auth";
-import { buildPersonalCenterLoginPath, formatCollaboratorRoleLabel, getBrandDisplayName, isAuthFailure } from "./route-helpers";
+import { getSystemUpdateStatus } from "../../../services/personal-center";
+import { buildPersonalCenterLoginPath, formatCollaboratorRoleLabel, getBrandDisplayName, isAuthFailure, shouldShowVersionWorkspace } from "./route-helpers";
 
 const routeItems = [
   { href: "/personal-center", label: "概览", description: "查看个人信息、订单、点数与作品摘要" },
@@ -31,6 +32,7 @@ export default function PersonalCenterLayout({ children }: { children: ReactNode
   const [notice, setNotice] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [dataSource, setDataSource] = useState<"api" | "session">("session");
+  const [showVersionWorkspace, setShowVersionWorkspace] = useState(false);
 
   useEffect(() => {
     const session = readAuthSession();
@@ -48,12 +50,12 @@ export default function PersonalCenterLayout({ children }: { children: ReactNode
     setErrorMessage("");
 
     const session = readAuthSession();
-    const meResult = await Promise.resolve(getMe()).then(
-      (value) => ({ status: "fulfilled" as const, value }),
-      (reason) => ({ status: "rejected" as const, reason }),
-    );
+    const [meResult, updateStatusResult] = await Promise.allSettled([getMe(), getSystemUpdateStatus()]);
 
-    if (meResult.status === "rejected" && isAuthFailure(meResult.reason)) {
+    if (
+      (meResult.status === "rejected" && isAuthFailure(meResult.reason))
+      || (updateStatusResult.status === "rejected" && isAuthFailure(updateStatusResult.reason))
+    ) {
       await logoutSession();
       router.replace(buildPersonalCenterLoginPath(pathname || "/personal-center"));
       return;
@@ -69,6 +71,10 @@ export default function PersonalCenterLayout({ children }: { children: ReactNode
       setDataSource("session");
       setErrorMessage("账号信息暂时未能从接口刷新，当前展示的是浏览器里已保存的登录态。");
     }
+
+    setShowVersionWorkspace(
+      updateStatusResult.status === "fulfilled" ? shouldShowVersionWorkspace(updateStatusResult.value) : false,
+    );
 
     setIsLoading(false);
   }
@@ -120,6 +126,10 @@ export default function PersonalCenterLayout({ children }: { children: ReactNode
     () => brands.find((item) => item.id === currentBrandId) ?? brands[0],
     [brands, currentBrandId],
   );
+  const visibleRouteItems = useMemo(
+    () => routeItems.filter((item) => item.href !== "/personal-center/version" || showVersionWorkspace),
+    [showVersionWorkspace],
+  );
 
   return (
     <div className="dashboard-shell">
@@ -167,7 +177,7 @@ export default function PersonalCenterLayout({ children }: { children: ReactNode
           </div>
         </div>
         <div className="tab-switcher" aria-label="个人中心二级导航">
-          {routeItems.map((item) => {
+          {visibleRouteItems.map((item) => {
             const isActive = item.href === "/personal-center" ? pathname === item.href : pathname.startsWith(item.href);
             return (
               <Link key={item.href} href={item.href} className={`tab-button ${isActive ? "is-active" : ""}`}>
