@@ -9,6 +9,7 @@ import {
   getMedia,
   getOrders,
   getPointLedgers,
+  getSystemUpdateStatus,
   getTasks,
   mediaSeed,
   orderSeed,
@@ -28,6 +29,7 @@ import {
   isAuthFailure,
   personalOrderStatusClassMap,
   personalTaskStatusClassMap,
+  shouldShowVersionWorkspace,
 } from "./route-helpers";
 
 type PendingInvite = BrandInviteRecord & {
@@ -46,6 +48,7 @@ export default function PersonalCenterPage() {
   const [myPendingInvites, setMyPendingInvites] = useState<PendingInvite[]>([]);
   const [currentBrandId, setCurrentBrandId] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [showVersionWorkspace, setShowVersionWorkspace] = useState(false);
 
   useEffect(() => {
     const session = readAuthSession();
@@ -60,16 +63,20 @@ export default function PersonalCenterPage() {
   async function loadOverviewData() {
     setIsLoading(true);
 
-    const [meResult, pointLedgersResult, ordersResult, tasksResult, mediaResult, myInvitesResult] = await Promise.allSettled([
+    const [meResult, pointLedgersResult, ordersResult, tasksResult, mediaResult, myInvitesResult, updateStatusResult] = await Promise.allSettled([
       getMe(),
       getPointLedgers(),
       getOrders(),
       getTasks(),
       getMedia(),
       getMyBrandInvites(),
+      getSystemUpdateStatus(),
     ]);
 
-    if (meResult.status === "rejected" && isAuthFailure(meResult.reason)) {
+    if (
+      (meResult.status === "rejected" && isAuthFailure(meResult.reason))
+      || (updateStatusResult.status === "rejected" && isAuthFailure(updateStatusResult.reason))
+    ) {
       router.replace(buildPersonalCenterLoginPath("/personal-center"));
       return;
     }
@@ -89,6 +96,9 @@ export default function PersonalCenterPage() {
     setTasks(tasksResult.status === "fulfilled" ? tasksResult.value : taskSeed);
     setMedia(mediaResult.status === "fulfilled" ? mediaResult.value : mediaSeed);
     setMyPendingInvites(myInvitesResult.status === "fulfilled" ? myInvitesResult.value.items : []);
+    setShowVersionWorkspace(
+      updateStatusResult.status === "fulfilled" ? shouldShowVersionWorkspace(updateStatusResult.value) : false,
+    );
 
     setIsLoading(false);
   }
@@ -261,8 +271,8 @@ export default function PersonalCenterPage() {
         value: "登录态",
         description: "去维护账号资料、密码和当前登录状态。",
       },
-    ],
-    [brands.length, summary.membershipOrderCount, summary.rechargeOrderCount, summary.runningTasks, summary.workCount],
+    ].filter((item) => item.href !== "/personal-center/version" || showVersionWorkspace),
+    [brands.length, showVersionWorkspace, summary.membershipOrderCount, summary.rechargeOrderCount, summary.runningTasks, summary.workCount],
   );
 
   return (

@@ -54,6 +54,12 @@
 - `page.tsx` 和 `layout.tsx` 只做入口装配、权限门卫和页面布局
 - 工作区聚合逻辑下沉到 `workspace-shell.tsx`、hooks 或 service
 - 单页面同时承载“工作区 + 弹窗 + 发布 + 轮询 + 列表详情”时，优先拆分
+- 凡是只属于 `local-single-user` 安装态的能力，默认不得直接暴露到网站版或源码运行态；至少同时检查并门禁：
+  - 二级导航 / tab
+  - 概览卡片、workspaceLinks、快捷入口
+  - 直接输入 URL 的页面路由
+  - 页面里任何“检查更新 / 一键升级 / 本地安装目录”类说明文案
+- 如果后端已经通过 `supported`、`canApplyUpdate` 之类运行时状态区分安装态与网页态，前端所有入口必须复用同一份判断，不能各页面各写一套，也不能只拦一个入口而放过其他入口
 
 ### 4.2 品牌上下文必须真实
 
@@ -90,6 +96,7 @@
 - 面向用户交付 `local-single-user` 时，默认不能要求用户机器预装 Node；发布物至少要提供随包 `node.exe`、可双击启动的 `.cmd` 入口，以及与 launcher 相匹配的 `app/` 运行目录
 - 面向用户分发 `local-single-user` 时，不能只停留在裸 `.release/local-single-user-win-x64` 目录；至少还要提供安装入口和可校验的压缩包产物，例如 `install-local-single-user.cmd`、`.zip` 与配套 `.sha256`
 - `local-single-user` 的“检查更新 / 立即升级”入口默认放在个人中心，由后端统一检查 GitHub Releases；前端只负责展示版本状态和触发动作，不在浏览器里直接替换安装目录
+- “版本与升级”这类安装态专属入口，不允许再串回网站版个人中心；后续新增相关入口时，必须同步覆盖概览页、导航和直达路由的三层门禁
 - 自动升级必须通过独立 updater 在安装目录外执行；升级前必须先校验 `.zip` 对应的 `.sha256`，升级时只替换程序目录，不动 `LOCAL_APP_DATA_ROOT` 下的 `data/`、`storage/`、`logs/`、`cache/`、`backup/`、`updates/`
 - 凡是 `local-single-user` 交付链里会被 Windows PowerShell 5 直接执行的 `.ps1`，包括独立 updater 和安装脚本，都必须以 `UTF-8 BOM` 写入；Node 侧生成或复制脚本时不能只落无 BOM 的 `utf8` 文本
 - Windows 下构建 `local-single-user` 发布物时，大目录复制优先走 `robocopy` 这类系统级工具，不要继续直接依赖 Node `fs.cpSync()` 去整包复制 `node_modules`、standalone 等大目录；否则既可能把进程直接打崩，也没有足够的进度日志可用于排障

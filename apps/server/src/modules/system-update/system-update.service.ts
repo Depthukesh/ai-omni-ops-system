@@ -463,7 +463,9 @@ export class SystemUpdateService {
     const zipPath = join(releaseRoot, LOCAL_SINGLE_USER_ZIP_NAME);
     const checksumPath = join(releaseRoot, LOCAL_SINGLE_USER_CHECKSUM_NAME);
     const resolvedZipDownloadUrl = await this.resolveDirectAssetDownloadUrl(release.zipAsset.downloadUrl);
-    await this.downloadFile(resolvedZipDownloadUrl, zipPath, release.zipAsset.size);
+    await this.downloadFile(resolvedZipDownloadUrl, zipPath, release.zipAsset.size, {
+      sourceUrl: release.zipAsset.downloadUrl,
+    });
     await writeFile(checksumPath, `${release.checksumValue}  ${LOCAL_SINGLE_USER_ZIP_NAME}\n`, "utf8");
 
     const actualHash = await this.hashFileSha256(zipPath);
@@ -811,9 +813,9 @@ export class SystemUpdateService {
       || (statusCode !== null && statusCode >= 500);
   }
 
-  private async downloadFile(url: string, filePath: string, expectedSize?: number) {
+  private async downloadFile(url: string, filePath: string, expectedSize?: number, options?: { sourceUrl?: string }) {
     if (process.platform === "win32") {
-      await this.downloadFileWithWindowsPowerShell(url, filePath, expectedSize);
+      await this.downloadFileWithWindowsPowerShell(url, filePath, expectedSize, options);
       return;
     }
 
@@ -863,7 +865,12 @@ export class SystemUpdateService {
     throw lastError instanceof Error ? lastError : new Error(String(lastError || "download failed"));
   }
 
-  private async downloadFileWithWindowsPowerShell(url: string, filePath: string, expectedSize?: number) {
+  private async downloadFileWithWindowsPowerShell(
+    url: string,
+    filePath: string,
+    expectedSize?: number,
+    options?: { sourceUrl?: string },
+  ) {
     const maxAttempts = 5;
     let lastError: unknown;
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
@@ -875,7 +882,14 @@ export class SystemUpdateService {
         const curlExe = this.resolveCurlExe();
         if (existsSync(curlExe)) {
           if (expectedSize && expectedSize > 0) {
-            await this.runWindowsParallelCurlDownload(curlExe, url, filePath, expectedSize, 45 * 60_000);
+            await this.runWindowsParallelCurlDownload(
+              curlExe,
+              url,
+              filePath,
+              expectedSize,
+              45 * 60_000,
+              options?.sourceUrl || url,
+            );
           } else {
             await this.runWindowsCurlDownload(curlExe, url, filePath, 45 * 60_000);
           }
@@ -932,6 +946,7 @@ export class SystemUpdateService {
     filePath: string,
     expectedSize: number,
     timeoutMs: number,
+    sourceUrl: string,
   ) {
     await mkdir(dirname(filePath), { recursive: true });
     const partsRoot = `${filePath}.parts`;
@@ -940,7 +955,6 @@ export class SystemUpdateService {
     await mkdir(partsRoot, { recursive: true });
 
     const chunkSize = 4 * 1024 * 1024;
-    const concurrency = 1;
     const chunkCount = Math.ceil(expectedSize / chunkSize);
     const chunks = Array.from({ length: chunkCount }, (_, index) => {
       const start = index * chunkSize;
@@ -953,26 +967,24 @@ export class SystemUpdateService {
         partPath: join(partsRoot, `part-${String(index).padStart(4, "0")}.bin`),
       };
     });
-    let cursor = 0;
-    const workerCount = Math.min(concurrency, chunks.length);
+    let currentChunkUrl = url;
 
     try {
-      await Promise.all(
-        Array.from({ length: workerCount }, async () => {
-          while (true) {
-            const chunk = chunks[cursor];
-            cursor += 1;
-            if (!chunk) {
-              return;
-            }
-            await this.downloadWindowsCurlChunk(curlExe, url, chunk.partPath, chunk.start, chunk.end, timeoutMs);
-            const partStat = await stat(chunk.partPath);
-            if (partStat.size !== chunk.expectedBytes) {
-              throw new Error(`curl chunk size mismatch: expected ${chunk.expectedBytes}, got ${partStat.size}`);
-            }
-          }
-        }),
-      );
+      for (const chunk of chunks) {
+        currentChunkUrl = await this.downloadWindowsCurlChunk(
+          curlExe,
+          currentChunkUrl,
+          sourceUrl,
+          chunk.partPath,
+          chunk.start,
+          chunk.end,
+          timeoutMs,
+        );
+        const partStat = await stat(chunk.partPath);
+        if (partStat.size !== chunk.expectedBytes) {
+          throw new Error(`curl chunk size mismatch: expected ${chunk.expectedBytes}, got ${partStat.size}`);
+        }
+      }
 
       for (const chunk of chunks) {
         const chunkBuffer = await readFile(chunk.partPath);
@@ -986,6 +998,7 @@ export class SystemUpdateService {
   private async downloadWindowsCurlChunk(
     curlExe: string,
     url: string,
+    sourceUrl: string,
     partPath: string,
     start: number,
     end: number,
@@ -995,6 +1008,7 @@ export class SystemUpdateService {
     const maxTimeSeconds = Math.max(120, Math.ceil(timeoutMs / 1000));
     const maxAttempts = 6;
     let lastError: unknown;
+    let chunkUrl = url;
 
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       await rm(partPath, { force: true }).catch(() => undefined);
@@ -1021,13 +1035,23 @@ export class SystemUpdateService {
       if (githubToken) {
         args.push("--header", `Authorization: Bearer ${githubToken}`);
       }
-      args.push(url);
+      args.push(chunkUrl);
 
       try {
-    await this.runWindowsCurlCommand(curlExe, args, timeoutMs + 5_000, "curl chunk download failed", partPath);
-        return;
+        await this.runWindowsCurlCommand(curlExe, args, timeoutMs + 5_000, "curl chunk download failed", partPath);
+        return chunkUrl;
       } catch (error) {
         lastError = error;
+        if (sourceUrl && this.shouldRefreshDirectAssetUrl(error)) {
+          try {
+            const refreshedUrl = await this.resolveDirectAssetDownloadUrl(sourceUrl);
+            if (refreshedUrl && refreshedUrl !== chunkUrl) {
+              chunkUrl = refreshedUrl;
+            }
+          } catch {
+            // Keep the previous URL and let the normal retry path continue.
+          }
+        }
         if (attempt >= maxAttempts || !this.shouldRetryDownloadError(error)) {
           throw error;
         }
@@ -1387,6 +1411,13 @@ export class SystemUpdateService {
       || error.message.startsWith("PowerShell download failed:")
       || causeCode === "ECONNRESET"
       || this.shouldRetryFetchError(error);
+  }
+
+  private shouldRefreshDirectAssetUrl(error: unknown) {
+    if (!(error instanceof Error)) {
+      return false;
+    }
+    return /returned error:\s*(401|403)\b/i.test(error.message) || /\b(401|403)\b/.test(error.message);
   }
 
   private async hashFileSha256(filePath: string) {

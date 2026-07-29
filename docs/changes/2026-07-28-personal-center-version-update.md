@@ -693,6 +693,77 @@
   - 而是一个前端 runtime helper 漏进仓库
   - 补回 helper 后，web 生产构建已重新恢复
 
+## 继续修正补充（2026-07-30 05:30）
+
+### 1. 把“安装态专属能力不得串到网页版本”升级为长期规则
+
+- 这次继续把规则补进：
+  - `docs/engineering-standards.md`
+  - `docs/development-delivery-checklist.md`
+- 新规则明确要求：
+  - 任何只属于 `local-single-user` 安装态的入口，不能只在单一点位做门禁
+  - 至少同时检查导航、概览卡片 / workspaceLinks、以及手输 URL 直达页
+  - 前端必须复用同一份运行时判断，不能让不同页面各写一套口径
+
+### 2. 个人中心概览页同步接入版本入口门禁
+
+- 继续回看个人中心概览页时，发现 `apps/web/src/app/(dashboard)/personal-center/page.tsx` 里仍保留了：
+  - `/personal-center/version`
+  - `版本与升级`
+  这组 workspaceLinks 入口定义
+- 虽然当前页面主视图未直接渲染这组数据，但它本身仍然是一个潜在回流点；后续一旦恢复对应渲染，网站版又可能重新露出安装态入口
+- 这次已把概览页也接到与导航、升级页相同的 `shouldShowVersionWorkspace()` 判断：
+  - 非安装态默认过滤 `/personal-center/version`
+  - 安装态继续保留该入口
+
+### 3. 本轮影响范围
+
+- `apps/web/src/app/(dashboard)/personal-center/page.tsx`
+- `docs/engineering-standards.md`
+- `docs/development-delivery-checklist.md`
+- `docs/changes/2026-07-28-personal-center-version-update.md`
+
+### 4. 本轮验证结果
+
+- 代码层已补齐：
+  - 导航门禁
+  - 升级页直达门禁
+  - 概览页 workspaceLinks 门禁
+- 这次改动不涉及后端协议、数据库结构和升级执行逻辑
+
+## 继续修正补充（2026-07-30 06:10）
+
+### 1. 处理弱网长下载下直链过期导致的 `403`
+
+- 继续回看 `system-update` 下载链后确认，当前 Windows 安装态已经采用：
+  - 下载前先解析一次 `release-assets.githubusercontent.com` 最终直链
+  - 后续所有 `curl --range` chunk 都直接命中该 signed URL
+- 这能避开每个 chunk 都反复打 `github.com/releases/download/...` 的旧问题，但也引入了一个新的长下载风险：
+  - 在弱网环境下，整包下载耗时很长
+  - 如果前面若干 chunk 已经跑了较久，后续 chunk 可能在 signed URL 过期后直接返回 `401/403`
+  - 这样现场就会表现成：
+    - 首块或前几块能下载
+    - 之后某一块突然 `curl chunk download failed: ... 403`
+
+### 2. 本轮修正
+
+- `apps/server/src/modules/system-update/system-update.service.ts`
+  - 在下载开始时，继续保留“先解析一次最终直链”的策略
+  - 但在 chunk 级重试里新增一层：
+    - 如果当前 chunk 命中 `401/403`
+    - 就自动再对原始 `browser_download_url` 重新解析一次新的最终直链
+    - 再继续当前 chunk 和后续 chunk 的串行下载
+- 这样现在的下载链不再把首次解析出来的 signed URL 视为整包下载期间永久有效，而是允许在长下载过程中受控刷新。
+
+### 3. 本轮验证结果
+
+- `npm --workspace apps/server run build`
+  - 通过
+- 当前结论：
+  - 这次修复没有改升级状态机、apply 流程和 GitHub release 元数据读取口径
+  - 只补了一个更贴近当前现场的下载容错：
+    - **signed 直链过期后可自动刷新并继续分块下载**
+
 ## 继续验证补充（2026-07-28 17:50）
 
 ### 1. GitHub `releases/latest` 在当前网络下存在额外抖动，已补回退链
