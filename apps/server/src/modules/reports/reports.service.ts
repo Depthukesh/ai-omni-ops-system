@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { Inject, Injectable, NotFoundException, ServiceUnavailableException } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, NotFoundException, ServiceUnavailableException } from "@nestjs/common";
 import { AssetCategory, MediaType, Prisma, TaskStatus } from "@prisma/client";
 import { createId, database, type ApiProviderRecord, type AssetRecord } from "../../common/mock-data";
 import { XHS_MARKETING_CALENDAR_PROMPT_FALLBACK } from "../../common/prompt-fallbacks";
@@ -913,7 +913,7 @@ export type UpdateXiaohongshuMarketingCalendarPayload = {
 
 export type UpsertXiaohongshuMarketingCalendarItemPayload = {
   title?: string;
-  item?: Partial<XiaohongshuMarketingCalendarItem>;
+  item: XiaohongshuMarketingCalendarItem;
 };
 
 export type UpdateDouyinTopicLibraryPayload = {
@@ -1048,7 +1048,11 @@ export class ReportsService {
     private readonly knowledgeBasesService: KnowledgeBasesService,
   ) {}
 
-  private async resolveBrandAwareApiKeys(brandId: string | undefined, provider: ApiProviderRecord | undefined) {
+  private async resolveBrandAwareApiKeys(
+    brandId: string | undefined,
+    provider: ApiProviderRecord | undefined,
+    options: { allowMissingBrandApiKey?: boolean } = {},
+  ) {
     if (!provider) {
       return [];
     }
@@ -1057,6 +1061,9 @@ export class ReportsService {
       this.apiProvidersService.getBaseUrls(provider),
     );
     if (resolution.status === "brand-api-key-missing") {
+      if (options.allowMissingBrandApiKey) {
+        return [];
+      }
       throw new ServiceUnavailableException(
         `当前品牌尚未配置第三方平台「${resolution.platform.name}」API Key，请先前往个人中心-第三方接口配置完成品牌共享设置后再试。`,
       );
@@ -2734,34 +2741,41 @@ export class ReportsService {
   async upsertXiaohongshuMarketingCalendarItem(
     brandId: string,
     reportId: string,
-    calendarDate: string,
+    date: string,
     payload: UpsertXiaohongshuMarketingCalendarItemPayload,
   ) {
-    const targetDate = String(payload.item?.date ?? calendarDate).trim() || String(calendarDate || "").trim();
+    const targetDate = String(date || "").trim();
     if (!targetDate) {
-      throw new ServiceUnavailableException("营销日历日期不能为空");
+      throw new BadRequestException("请先填写日期。");
     }
 
     const workspace = await this.getXiaohongshuMarketingCalendarWorkspace(brandId);
-    const reports = workspace.latest
-      ? [workspace.latest, ...workspace.history.filter((item) => item.id !== workspace.latest?.id)]
-      : workspace.history;
-    const targetReport = reports.find((item) => item.id === reportId);
-    if (!targetReport) {
+    const currentRecord =
+      workspace.latest?.id === reportId ? workspace.latest : workspace.history.find((item) => item.id === reportId);
+    if (!currentRecord) {
       throw new NotFoundException("营销日历不存在");
     }
 
-    const patchId = String(payload.item?.id || "").trim();
-    const existingItem = targetReport.items.find((item) => item.id === patchId || item.date === targetDate);
-    const nextItem = this.mergeEditableMarketingCalendarItem(targetDate, payload.item, existingItem);
-    const nextItems = [
-      ...targetReport.items.filter((item) => item.id !== existingItem?.id && item.date !== targetDate),
-      nextItem,
-    ].sort((left, right) => left.date.localeCompare(right.date));
+    const currentItems = Array.isArray(currentRecord.items) ? [...currentRecord.items] : [];
+    const existingIndex = currentItems.findIndex(
+      (item) => item.date === targetDate || (payload.item.id && item.id === payload.item.id),
+    );
+    const nextItem = {
+      ...(existingIndex >= 0 ? currentItems[existingIndex] : {}),
+      ...payload.item,
+      date: targetDate,
+    };
+
+    if (existingIndex >= 0) {
+      currentItems[existingIndex] = nextItem;
+    } else {
+      currentItems.push(nextItem);
+      currentItems.sort((left, right) => left.date.localeCompare(right.date));
+    }
 
     return this.updateXiaohongshuMarketingCalendar(brandId, reportId, {
-      title: payload.title?.trim() || targetReport.title,
-      items: nextItems,
+      title: payload.title ?? currentRecord.title,
+      items: currentItems,
     });
   }
 
@@ -8330,9 +8344,6 @@ export class ReportsService {
     if (settings.debugProviderSummary) {
       attemptTrail.push(`[debug-provider-summary] ${settings.debugProviderSummary}`);
     }
-    // #region debug-point C:narrative-attempt-start
-    (()=>{const fs=require("node:fs");let u="http://127.0.0.1:7777/event",s="step-two-fallback";try{const e=fs.readFileSync(".dbg/step-two-fallback.env","utf8");u=e.match(/DEBUG_SERVER_URL=(.+)/)?.[1]||u;s=e.match(/DEBUG_SESSION_ID=(.+)/)?.[1]||s}catch{}fetch(u,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:s,runId:"pre-fix",hypothesisId:"C",location:"reports.service.ts:generateOpportunityInsightNarrativeMarkdownByModel:start",msg:"[DEBUG] narrative generation starting",data:{taskLabel,preferredModelName,providerCount:providers.length,providers:providers.map((item)=>({provider:item.provider,providerId:item.providerId,baseUrlCount:item.baseUrls.length,apiKeyCount:item.apiKeys.length,models:item.models}))},ts:Date.now()})}).catch(()=>{})})();
-    // #endregion
     for (const provider of providers) {
       for (const baseUrl of provider.baseUrls.slice(0, 2)) {
         for (const apiKey of provider.apiKeys.slice(0, 2)) {
@@ -8378,9 +8389,6 @@ export class ReportsService {
       }
     }
 
-    // #region debug-point D:narrative-attempt-failed
-    (()=>{const fs=require("node:fs");let u="http://127.0.0.1:7777/event",s="step-two-fallback";try{const e=fs.readFileSync(".dbg/step-two-fallback.env","utf8");u=e.match(/DEBUG_SERVER_URL=(.+)/)?.[1]||u;s=e.match(/DEBUG_SESSION_ID=(.+)/)?.[1]||s}catch{}fetch(u,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:s,runId:"pre-fix",hypothesisId:"D",location:"reports.service.ts:generateOpportunityInsightNarrativeMarkdownByModel:failed",msg:"[DEBUG] narrative generation exhausted attempts",data:{taskLabel,preferredModelName,lastError,attemptTrail},ts:Date.now()})}).catch(()=>{})})();
-    // #endregion
     throw new ServiceUnavailableException(
       this.buildReportAttemptFailureMessage(`${taskLabel}生成`, preferredModelName, lastError, attemptTrail, "未获取到有效响应"),
     );
@@ -10854,6 +10862,7 @@ ${normalizedMarkdown}`;
 
   private async loadGrowthReportProviderConfigs(settings: ModelGenerationSettings): Promise<GrowthReportProviderConfig[]> {
     const requestedModels = this.parseDelimitedModels(settings.modelName);
+    const apiKeyFallbackOptions = { allowMissingBrandApiKey: true };
     const [thirdPartyProvider, deepseekProvider, kimiProvider, glmProvider, doubaoProvider] = await Promise.all([
       this.resolveRuntimeProviderByBaseUrl("text-global", settings.baseUrl, settings.preferredProviderIds, settings.preferredModelName),
       this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-deepseek"),
@@ -10862,11 +10871,11 @@ ${normalizedMarkdown}`;
       this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-doubao"),
     ]);
     const [thirdPartyApiKeys, deepseekApiKeys, kimiApiKeys, glmApiKeys, doubaoApiKeys] = await Promise.all([
-      this.resolveBrandAwareApiKeys(settings.brandId, thirdPartyProvider),
-      this.resolveBrandAwareApiKeys(settings.brandId, deepseekProvider),
-      this.resolveBrandAwareApiKeys(settings.brandId, kimiProvider),
-      this.resolveBrandAwareApiKeys(settings.brandId, glmProvider),
-      this.resolveBrandAwareApiKeys(settings.brandId, doubaoProvider),
+      this.resolveBrandAwareApiKeys(settings.brandId, thirdPartyProvider, apiKeyFallbackOptions),
+      this.resolveBrandAwareApiKeys(settings.brandId, deepseekProvider, apiKeyFallbackOptions),
+      this.resolveBrandAwareApiKeys(settings.brandId, kimiProvider, apiKeyFallbackOptions),
+      this.resolveBrandAwareApiKeys(settings.brandId, glmProvider, apiKeyFallbackOptions),
+      this.resolveBrandAwareApiKeys(settings.brandId, doubaoProvider, apiKeyFallbackOptions),
     ]);
 
     const providers: GrowthReportProviderConfig[] = [];
@@ -11004,6 +11013,7 @@ ${normalizedMarkdown}`;
 
   private async loadDomesticVisualProviderConfigs(settings: ModelGenerationSettings): Promise<DomesticVisualProviderConfig[]> {
     const requestedModels = this.parseDelimitedModels(settings.modelName);
+    const apiKeyFallbackOptions = { allowMissingBrandApiKey: true };
     const [deepseekProvider, kimiProvider, glmProvider, doubaoProvider] = await Promise.all([
       this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-deepseek"),
       this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-kimi"),
@@ -11011,10 +11021,10 @@ ${normalizedMarkdown}`;
       this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-doubao"),
     ]);
     const [deepseekApiKeys, kimiApiKeys, glmApiKeys, doubaoApiKeys] = await Promise.all([
-      this.resolveBrandAwareApiKeys(settings.brandId, deepseekProvider),
-      this.resolveBrandAwareApiKeys(settings.brandId, kimiProvider),
-      this.resolveBrandAwareApiKeys(settings.brandId, glmProvider),
-      this.resolveBrandAwareApiKeys(settings.brandId, doubaoProvider),
+      this.resolveBrandAwareApiKeys(settings.brandId, deepseekProvider, apiKeyFallbackOptions),
+      this.resolveBrandAwareApiKeys(settings.brandId, kimiProvider, apiKeyFallbackOptions),
+      this.resolveBrandAwareApiKeys(settings.brandId, glmProvider, apiKeyFallbackOptions),
+      this.resolveBrandAwareApiKeys(settings.brandId, doubaoProvider, apiKeyFallbackOptions),
     ]);
 
     const providers: DomesticVisualProviderConfig[] = [];
@@ -11424,9 +11434,6 @@ ${normalizedMarkdown}`;
       "gpt-5.4, kimi-k2.6, deepseek-v4-pro, deepseek-v4-flash",
     );
     const preferredModelName = preferredModelNames[0] || skill?.defaultModel || prompt?.modelName || provider?.defaultModel || "gpt-5.4";
-    // #region debug-point A:narrative-settings
-    (()=>{const fs=require("node:fs");let u="http://127.0.0.1:7777/event",s="step-two-fallback";try{const e=fs.readFileSync(".dbg/step-two-fallback.env","utf8");u=e.match(/DEBUG_SERVER_URL=(.+)/)?.[1]||u;s=e.match(/DEBUG_SESSION_ID=(.+)/)?.[1]||s}catch{}fetch(u,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:s,runId:"pre-fix",hypothesisId:"A",location:"reports.service.ts:loadOpportunityInsightNarrativeGenerationSettings",msg:"[DEBUG] narrative settings prepared",data:{skillSlug,promptId,preferredSelections,preferredModelNames,preferredModelName,resolvedProviderId:provider?.id||"",resolvedProviderRuntimeKey:provider?this.apiProvidersService.getRuntimeKey(provider):"",resolvedProviderBaseUrl:provider?.baseUrl||"",preferredProviderIds:this.resolveFallbackPreferredProviderIds(preferredSelections, preferredModelNames)},ts:Date.now()})}).catch(()=>{})})();
-    // #endregion
     return {
       baseUrl: provider?.baseUrl || "",
       modelName: preferredModelNames.join(", "),
@@ -11968,6 +11975,7 @@ ${normalizedMarkdown}`;
 
   private async loadOpportunityInsightAccountProviderConfigs(settings: ModelGenerationSettings): Promise<XiaohongshuMarketingProviderConfig[]> {
     const preferredModels = ["kimi-k2.6", "deepseek-v4-pro", "deepseek-v4-flash", "doubao-seed-2-0-pro-260215"];
+    const apiKeyFallbackOptions = { allowMissingBrandApiKey: true };
     const requestedModels = this.orderModels(
       this.parseDelimitedModels(settings.modelName).filter((item) => preferredModels.includes(item)),
       preferredModels,
@@ -11980,9 +11988,9 @@ ${normalizedMarkdown}`;
       this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-doubao"),
     ]);
     const [deepseekApiKeys, kimiApiKeys, doubaoApiKeys] = await Promise.all([
-      this.resolveBrandAwareApiKeys(settings.brandId, deepseekProvider),
-      this.resolveBrandAwareApiKeys(settings.brandId, kimiProvider),
-      this.resolveBrandAwareApiKeys(settings.brandId, doubaoProvider),
+      this.resolveBrandAwareApiKeys(settings.brandId, deepseekProvider, apiKeyFallbackOptions),
+      this.resolveBrandAwareApiKeys(settings.brandId, kimiProvider, apiKeyFallbackOptions),
+      this.resolveBrandAwareApiKeys(settings.brandId, doubaoProvider, apiKeyFallbackOptions),
     ]);
     const deepseekModels = deepseekProvider
       ? this.pickProviderModels(deepseekProvider.modelWhitelist, effectiveRequestedModels, ["deepseek-v4-pro", "deepseek-v4-flash"])
@@ -12057,6 +12065,7 @@ ${normalizedMarkdown}`;
 
   private async loadOpportunityInsightNarrativeProviderConfigs(settings: ModelGenerationSettings): Promise<XiaohongshuMarketingProviderConfig[]> {
     const preferredModels = ["gpt-5.4", "kimi-k2.6", "deepseek-v4-pro", "deepseek-v4-flash"];
+    const apiKeyFallbackOptions = { allowMissingBrandApiKey: true };
     const requestedModels = this.orderModels(
       this.parseDelimitedModels(settings.modelName).filter((item) => preferredModels.includes(item)),
       preferredModels,
@@ -12069,9 +12078,9 @@ ${normalizedMarkdown}`;
       this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-deepseek"),
     ]);
     const [thirdPartyApiKeys, kimiApiKeys, deepseekApiKeys] = await Promise.all([
-      this.resolveBrandAwareApiKeys(settings.brandId, thirdPartyProvider),
-      this.resolveBrandAwareApiKeys(settings.brandId, kimiProvider),
-      this.resolveBrandAwareApiKeys(settings.brandId, deepseekProvider),
+      this.resolveBrandAwareApiKeys(settings.brandId, thirdPartyProvider, apiKeyFallbackOptions),
+      this.resolveBrandAwareApiKeys(settings.brandId, kimiProvider, apiKeyFallbackOptions),
+      this.resolveBrandAwareApiKeys(settings.brandId, deepseekProvider, apiKeyFallbackOptions),
     ]);
 
     const thirdPartyModels = thirdPartyProvider
@@ -12160,13 +12169,11 @@ ${normalizedMarkdown}`;
       `ruleSelected=${providersSelectedByRule.map((item) => `${item.provider}[${item.models.join("/") || "none"}|k${item.apiKeys.length}|b${item.baseUrls.length}]`).join(",") || "none"}`,
       `actual=${reorderedProviders.map((item) => `${item.provider}[${item.models.join("/") || "none"}|k${item.apiKeys.length}|b${item.baseUrls.length}]`).join(",") || "none"}`,
     ].join("; ");
-    // #region debug-point B:narrative-provider-configs
-    (()=>{const fs=require("node:fs");let u="http://127.0.0.1:7777/event",s="step-two-fallback";try{const e=fs.readFileSync(".dbg/step-two-fallback.env","utf8");u=e.match(/DEBUG_SERVER_URL=(.+)/)?.[1]||u;s=e.match(/DEBUG_SESSION_ID=(.+)/)?.[1]||s}catch{}fetch(u,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:s,runId:"pre-fix",hypothesisId:"B",location:"reports.service.ts:loadOpportunityInsightNarrativeProviderConfigs",msg:"[DEBUG] narrative provider configs resolved",data:{requestedModels,effectiveRequestedModels,baseUrl:settings.baseUrl||"",preferredModelName:settings.preferredModelName||"",thirdPartyProvider:{id:thirdPartyProvider?.id||"",runtimeKey:thirdPartyProvider?this.apiProvidersService.getRuntimeKey(thirdPartyProvider):"",apiKeyCount:thirdPartyApiKeys.length,modelWhitelistCount:thirdPartyProvider?.modelWhitelist.length||0,models:thirdPartyModels},kimiProvider:{id:kimiProvider?.id||"",runtimeKey:kimiProvider?this.apiProvidersService.getRuntimeKey(kimiProvider):"",apiKeyCount:kimiApiKeys.length,modelWhitelistCount:kimiProvider?.modelWhitelist.length||0,models:kimiModels},deepseekProvider:{id:deepseekProvider?.id||"",runtimeKey:deepseekProvider?this.apiProvidersService.getRuntimeKey(deepseekProvider):"",apiKeyCount:deepseekApiKeys.length,modelWhitelistCount:deepseekProvider?.modelWhitelist.length||0,models:deepseekModels},providersBeforeSelection:providers.map((item)=>({provider:item.provider,providerId:item.providerId,baseUrlCount:item.baseUrls.length,apiKeyCount:item.apiKeys.length,models:item.models})),providersSelectedByRule:providersSelectedByRule.map((item)=>({provider:item.provider,providerId:item.providerId,baseUrlCount:item.baseUrls.length,apiKeyCount:item.apiKeys.length,models:item.models})),providersAfterReorder:reorderedProviders.map((item)=>({provider:item.provider,providerId:item.providerId,baseUrlCount:item.baseUrls.length,apiKeyCount:item.apiKeys.length,models:item.models}))},ts:Date.now()})}).catch(()=>{})})();
-    // #endregion
     return reorderedProviders;
   }
 
   private async loadAnnualMarketingProviderConfigs(settings: ModelGenerationSettings): Promise<AnnualMarketingProviderConfig[]> {
+    const apiKeyFallbackOptions = { allowMissingBrandApiKey: true };
     const thirdPartyProvider = await this.resolveRuntimeProviderByBaseUrl(
       "text-global",
       settings.baseUrl,
@@ -12183,9 +12190,9 @@ ${normalizedMarkdown}`;
       this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-doubao"),
     ]);
     const [thirdPartyApiKeys, deepseekApiKeys, doubaoApiKeys] = await Promise.all([
-      this.resolveBrandAwareApiKeys(settings.brandId, thirdPartyProvider),
-      this.resolveBrandAwareApiKeys(settings.brandId, deepseekProvider),
-      this.resolveBrandAwareApiKeys(settings.brandId, doubaoProvider),
+      this.resolveBrandAwareApiKeys(settings.brandId, thirdPartyProvider, apiKeyFallbackOptions),
+      this.resolveBrandAwareApiKeys(settings.brandId, deepseekProvider, apiKeyFallbackOptions),
+      this.resolveBrandAwareApiKeys(settings.brandId, doubaoProvider, apiKeyFallbackOptions),
     ]);
     const thirdPartyModels = thirdPartyProvider
       ? this.pickProviderModels(
@@ -12284,6 +12291,7 @@ ${normalizedMarkdown}`;
       "deepseek-v4-pro",
       "deepseek-v4-flash",
     ];
+    const apiKeyFallbackOptions = { allowMissingBrandApiKey: true };
     const requestedModels = this.orderModels(
       this.parseDelimitedModels(settings.modelName).filter((item) => preferredModels.includes(item)),
       preferredModels,
@@ -12297,10 +12305,10 @@ ${normalizedMarkdown}`;
       this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-doubao"),
     ]);
     const [thirdPartyApiKeys, kimiApiKeys, deepseekApiKeys, doubaoApiKeys] = await Promise.all([
-      this.resolveBrandAwareApiKeys(settings.brandId, thirdPartyProvider),
-      this.resolveBrandAwareApiKeys(settings.brandId, kimiProvider),
-      this.resolveBrandAwareApiKeys(settings.brandId, deepseekProvider),
-      this.resolveBrandAwareApiKeys(settings.brandId, doubaoProvider),
+      this.resolveBrandAwareApiKeys(settings.brandId, thirdPartyProvider, apiKeyFallbackOptions),
+      this.resolveBrandAwareApiKeys(settings.brandId, kimiProvider, apiKeyFallbackOptions),
+      this.resolveBrandAwareApiKeys(settings.brandId, deepseekProvider, apiKeyFallbackOptions),
+      this.resolveBrandAwareApiKeys(settings.brandId, doubaoProvider, apiKeyFallbackOptions),
     ]);
     const thirdPartyModels = thirdPartyProvider
       ? this.pickProviderModels(thirdPartyProvider.modelWhitelist, effectiveRequestedModels, ["gpt-5.4", "claude-sonnet-4-6"])
@@ -12413,6 +12421,7 @@ ${normalizedMarkdown}`;
 
   private async loadXiaohongshuMarketingCalendarProviderConfigs(settings: ModelGenerationSettings): Promise<XiaohongshuMarketingProviderConfig[]> {
     const preferredModels = ["deepseek-v4-pro", "kimi-k2.6", "doubao-seed-2-0-pro-260215"];
+    const apiKeyFallbackOptions = { allowMissingBrandApiKey: true };
     const requestedModels = this.orderModels(
       this.parseDelimitedModels(settings.modelName).filter(
         (item) =>
@@ -12430,9 +12439,9 @@ ${normalizedMarkdown}`;
       this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-doubao"),
     ]);
     const [deepseekApiKeys, kimiApiKeys, doubaoApiKeys] = await Promise.all([
-      this.resolveBrandAwareApiKeys(settings.brandId, deepseekProvider),
-      this.resolveBrandAwareApiKeys(settings.brandId, kimiProvider),
-      this.resolveBrandAwareApiKeys(settings.brandId, doubaoProvider),
+      this.resolveBrandAwareApiKeys(settings.brandId, deepseekProvider, apiKeyFallbackOptions),
+      this.resolveBrandAwareApiKeys(settings.brandId, kimiProvider, apiKeyFallbackOptions),
+      this.resolveBrandAwareApiKeys(settings.brandId, doubaoProvider, apiKeyFallbackOptions),
     ]);
     const deepseekModels = deepseekProvider
       ? this.pickProviderModels(deepseekProvider.modelWhitelist, effectiveRequestedModels, ["deepseek-v4-pro", "deepseek-v4-flash"])
@@ -12771,146 +12780,6 @@ ${normalizedMarkdown}`;
       title: nextTitle?.trim() || "品牌全平台营销日历",
       summary: normalizedItems.length ? `已更新 ${normalizedItems.length} 天品牌全平台营销日历。` : "品牌全平台营销日历已更新。",
       items: normalizedItems,
-    };
-  }
-
-  private createEmptyXiaohongshuMarketingCalendarItem(date: string): XiaohongshuMarketingCalendarItem {
-    const normalizedDate = String(date || "").trim();
-    const id = normalizedDate ? `cal_manual_${normalizedDate.replace(/-/g, "")}` : `cal_manual_${Date.now()}`;
-    const emptyXhs = {
-      topic: "",
-      description: "",
-      contentType: "",
-      noteKeywords: [],
-      coverKeywords: [],
-      titleSuggestions: [],
-      expectedPerformance: "",
-    };
-    const emptyDouyin = {
-      topic: "",
-      description: "",
-      contentType: "",
-      presentationFormat: "",
-      copyKeywords: [],
-      coverKeywords: [],
-      titleSuggestions: [],
-      expectedPerformance: "",
-    };
-    const item = {
-      id,
-      date: normalizedDate,
-      festivalOrSolarTerm: undefined,
-      brandMarketing: {
-        theme: "",
-        description: "",
-      },
-      xiaohongshu: {
-        brandAccount: { ...emptyXhs },
-        employeeAccount: { ...emptyXhs },
-      },
-      douyin: {
-        brandAccount: { ...emptyDouyin },
-        ipAccount: { ...emptyDouyin },
-        employeeAccount: { ...emptyDouyin },
-      },
-      moments: {
-        topic: "",
-        description: "",
-        presentationFormat: "",
-      },
-    } satisfies XiaohongshuMarketingCalendarItem;
-    return {
-      ...item,
-      ...this.buildMarketingCalendarWorkflowSelection(item),
-    };
-  }
-
-  private mergeEditableMarketingCalendarItem(
-    date: string,
-    patch: Partial<XiaohongshuMarketingCalendarItem> | undefined,
-    existing?: XiaohongshuMarketingCalendarItem,
-  ): XiaohongshuMarketingCalendarItem {
-    const patchRecord = this.asRecord(patch) || {};
-    const base = existing || this.createEmptyXiaohongshuMarketingCalendarItem(date);
-    const fallbackTheme = String(
-      patchRecord.topicName
-      ?? this.readNestedRecord(patchRecord, ["brandMarketing"])?.theme
-      ?? base.brandMarketing.theme
-      ?? "",
-    ).trim();
-    const fallbackDescription = String(
-      patchRecord.topicContent
-      ?? this.readNestedRecord(patchRecord, ["brandMarketing"])?.description
-      ?? base.brandMarketing.description
-      ?? "",
-    ).trim();
-
-    const nextItem = {
-      id: String(patchRecord.id ?? base.id ?? "").trim() || base.id,
-      date: String(patchRecord.date ?? date).trim() || date,
-      festivalOrSolarTerm: String(patchRecord.festivalOrSolarTerm ?? base.festivalOrSolarTerm ?? "").trim() || undefined,
-      brandMarketing: this.normalizeMarketingCalendarThemeBlock(
-        { ...(base.brandMarketing as Record<string, unknown>), ...(this.asRecord(patchRecord.brandMarketing) || {}) },
-        fallbackTheme || base.brandMarketing.theme,
-        fallbackDescription || base.brandMarketing.description,
-      ),
-      xiaohongshu: {
-        brandAccount: this.normalizeMarketingCalendarXhsBlock(
-          {
-            ...(base.xiaohongshu.brandAccount as Record<string, unknown>),
-            ...(this.readNestedRecord(patchRecord, ["xiaohongshu", "brandAccount"]) || {}),
-          },
-          fallbackTheme || base.xiaohongshu.brandAccount.topic,
-          fallbackDescription || base.xiaohongshu.brandAccount.description,
-        ),
-        employeeAccount: this.normalizeMarketingCalendarXhsBlock(
-          {
-            ...(base.xiaohongshu.employeeAccount as Record<string, unknown>),
-            ...(this.readNestedRecord(patchRecord, ["xiaohongshu", "employeeAccount"]) || {}),
-          },
-          fallbackTheme || base.xiaohongshu.employeeAccount.topic,
-          fallbackDescription || base.xiaohongshu.employeeAccount.description,
-        ),
-      },
-      douyin: {
-        brandAccount: this.normalizeMarketingCalendarDouyinBlock(
-          {
-            ...(base.douyin.brandAccount as Record<string, unknown>),
-            ...(this.readNestedRecord(patchRecord, ["douyin", "brandAccount"]) || {}),
-          },
-          fallbackTheme || base.douyin.brandAccount.topic,
-          fallbackDescription || base.douyin.brandAccount.description,
-        ),
-        ipAccount: this.normalizeMarketingCalendarDouyinBlock(
-          {
-            ...(base.douyin.ipAccount as Record<string, unknown>),
-            ...(this.readNestedRecord(patchRecord, ["douyin", "ipAccount"]) || {}),
-          },
-          fallbackTheme || base.douyin.ipAccount.topic,
-          fallbackDescription || base.douyin.ipAccount.description,
-        ),
-        employeeAccount: this.normalizeMarketingCalendarDouyinBlock(
-          {
-            ...(base.douyin.employeeAccount as Record<string, unknown>),
-            ...(this.readNestedRecord(patchRecord, ["douyin", "employeeAccount"]) || {}),
-          },
-          fallbackTheme || base.douyin.employeeAccount.topic,
-          fallbackDescription || base.douyin.employeeAccount.description,
-        ),
-      },
-      moments: this.normalizeMarketingCalendarMomentsBlock(
-        {
-          ...(base.moments as Record<string, unknown>),
-          ...(this.asRecord(patchRecord.moments) || {}),
-        },
-        fallbackTheme || base.moments.topic,
-        fallbackDescription || base.moments.description,
-      ),
-    };
-
-    return {
-      ...nextItem,
-      ...this.buildMarketingCalendarWorkflowSelection(nextItem),
     };
   }
 

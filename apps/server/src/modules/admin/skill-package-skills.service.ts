@@ -531,24 +531,26 @@ export class SkillPackageSkillsService {
     if (!database.skillPackageSkills.length) {
       return;
     }
-    await this.prismaService.skillPackageSkill.createMany({
-      data: database.skillPackageSkills.map((item) => ({
-        id: item.id,
-        packageId: item.packageId,
-        packageKey: item.packageKey,
-        packageName: item.packageName,
-        skillId: item.skillId,
-        skillSlug: item.skillSlug,
-        bindingType: item.bindingType,
-        isDefault: item.isDefault,
-        sortOrder: item.sortOrder,
-        enabled: item.enabled,
-        remarks: item.remarks ?? "",
-        createdAt: new Date(item.createdAt),
-        updatedAt: new Date(item.updatedAt),
-      })),
-      skipDuplicates: true,
-    });
+    const count = await this.prismaService.skillPackageSkill.count();
+    if (count === 0) {
+      await this.prismaService.skillPackageSkill.createMany({
+        data: database.skillPackageSkills.map((item) => ({
+          id: item.id,
+          packageId: item.packageId,
+          packageKey: item.packageKey,
+          packageName: item.packageName,
+          skillId: item.skillId,
+          skillSlug: item.skillSlug,
+          bindingType: item.bindingType,
+          isDefault: item.isDefault,
+          sortOrder: item.sortOrder,
+          enabled: item.enabled,
+          remarks: item.remarks ?? "",
+          createdAt: new Date(item.createdAt),
+          updatedAt: new Date(item.updatedAt),
+        })),
+      });
+    }
     await this.prismaService.skillPackageSkill.updateMany({
       where: {
         skillSlug: { in: ["douyin-remix-short-video-studio", "douyin-remix-short-video-compose"] },

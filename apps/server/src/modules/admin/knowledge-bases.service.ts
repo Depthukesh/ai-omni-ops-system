@@ -762,7 +762,6 @@ export class KnowledgeBasesService {
           createdAt: new Date(item.updatedAt),
           updatedAt: new Date(item.updatedAt),
         })),
-        skipDuplicates: true,
       });
     }
 
@@ -779,7 +778,6 @@ export class KnowledgeBasesService {
           uploadedAt: new Date(item.uploadedAt),
           updatedAt: new Date(item.uploadedAt),
         })),
-        skipDuplicates: true,
       });
     }
 
@@ -798,7 +796,6 @@ export class KnowledgeBasesService {
           startedAt: new Date(item.startedAt),
           completedAt: item.completedAt ? new Date(item.completedAt) : null,
         })),
-        skipDuplicates: true,
       });
     }
   }
@@ -862,7 +859,6 @@ export class KnowledgeBasesService {
         createdAt: new Date(item.createdAt),
         updatedAt: new Date(item.updatedAt),
       })),
-      skipDuplicates: true,
     });
   }
 
@@ -894,7 +890,6 @@ export class KnowledgeBasesService {
         createdAt: new Date(item.createdAt),
         updatedAt: new Date(item.updatedAt),
       })),
-      skipDuplicates: true,
     });
   }
 

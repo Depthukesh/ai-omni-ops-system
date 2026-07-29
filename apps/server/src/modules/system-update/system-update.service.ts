@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { createReadStream, createWriteStream, existsSync, readFileSync } from "node:fs";
+import { createReadStream, createWriteStream, existsSync, openSync, readFileSync } from "node:fs";
 import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { spawn } from "node:child_process";
@@ -134,6 +134,10 @@ function parseChecksumValue(content: string) {
   return match?.[1]?.toLowerCase() || null;
 }
 
+function escapePowerShellSingleQuotedString(value: string) {
+  return String(value || "").replace(/'/g, "''");
+}
+
 function readErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error || "未知错误");
 }
@@ -185,7 +189,7 @@ export class SystemUpdateService {
     const current = this.getCurrentBuildInfo();
     this.ensureUpdateApplyReady(current);
 
-    const latestResult = await this.getLatestRelease({ force: true });
+    const latestResult = await this.getLatestRelease();
     const latest = latestResult.release;
     if (!latest) {
       throw new BadGatewayException(latestResult.errorMessage || "当前无法获取最新发布信息");
@@ -239,7 +243,7 @@ export class SystemUpdateService {
     this.ensureUpdateApplyReady(current);
 
     let persistedState = this.readPersistedState();
-    const latestResult = await this.getLatestRelease({ force: true });
+    const latestResult = await this.getLatestRelease();
     const latest = latestResult.release;
     if (!latest) {
       throw new BadGatewayException(latestResult.errorMessage || "当前无法获取最新发布信息");
@@ -273,8 +277,13 @@ export class SystemUpdateService {
 
     const updaterRunPath = join(runRoot, "local-single-user-updater.ps1");
     const updaterConfigPath = join(runRoot, "local-single-user-updater.config.json");
+    const updaterLauncherPath = join(runRoot, "run-local-single-user-updater.cmd");
+    const updaterStdoutPath = join(runRoot, "local-single-user-updater.stdout.log");
+    const updaterStderrPath = join(runRoot, "local-single-user-updater.stderr.log");
+    const launcherStdoutPath = join(runRoot, "updater-launcher.stdout.log");
+    const launcherStderrPath = join(runRoot, "updater-launcher.stderr.log");
     const updaterScriptContent = await readFile(updaterScriptSourcePath, "utf8");
-    await writeUtf8BomFile(updaterRunPath, updaterScriptContent);
+    await writeFile(updaterRunPath, updaterScriptContent, "utf8");
     await writeUtf8BomFile(
       updaterConfigPath,
       `${JSON.stringify(
@@ -294,6 +303,12 @@ export class SystemUpdateService {
         2,
       )}\n`,
     );
+    const powershellExe = this.resolvePowerShellExe();
+    await writeFile(
+      updaterLauncherPath,
+      `@echo off\r\n"${powershellExe}" -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "%~dp0local-single-user-updater.ps1" -ConfigPath "%~dp0local-single-user-updater.config.json" 1>>"%~dp0local-single-user-updater.stdout.log" 2>>"%~dp0local-single-user-updater.stderr.log"\r\n`,
+      "utf8",
+    );
 
     await this.writePersistedState({
       ...persistedState,
@@ -305,16 +320,16 @@ export class SystemUpdateService {
       failedAt: undefined,
     });
 
-    const powershellExe = this.resolvePowerShellExe();
     const cmdExe = this.resolveCmdExe();
-    const startCommand = `start "" /b "${escapeWindowsCmdArgument(powershellExe)}" -NoProfile -ExecutionPolicy Bypass -File "${escapeWindowsCmdArgument(updaterRunPath)}" -ConfigPath "${escapeWindowsCmdArgument(updaterConfigPath)}"`;
+    const launcherStdoutFd = openSync(launcherStdoutPath, "a");
+    const launcherStderrFd = openSync(launcherStderrPath, "a");
     const child = spawn(
       cmdExe,
-      ["/d", "/c", startCommand],
+      ["/d", "/c", updaterLauncherPath],
       {
         cwd: runRoot,
         detached: true,
-        stdio: "ignore",
+        stdio: ["ignore", launcherStdoutFd, launcherStderrFd],
         windowsHide: true,
       },
     );
@@ -447,7 +462,8 @@ export class SystemUpdateService {
 
     const zipPath = join(releaseRoot, LOCAL_SINGLE_USER_ZIP_NAME);
     const checksumPath = join(releaseRoot, LOCAL_SINGLE_USER_CHECKSUM_NAME);
-    await this.downloadFile(release.zipAsset.downloadUrl, zipPath, release.zipAsset.size);
+    const resolvedZipDownloadUrl = await this.resolveDirectAssetDownloadUrl(release.zipAsset.downloadUrl);
+    await this.downloadFile(resolvedZipDownloadUrl, zipPath, release.zipAsset.size);
     await writeFile(checksumPath, `${release.checksumValue}  ${LOCAL_SINGLE_USER_ZIP_NAME}\n`, "utf8");
 
     const actualHash = await this.hashFileSha256(zipPath);
@@ -576,6 +592,14 @@ export class SystemUpdateService {
   }
 
   private async fetchJson<T>(url: string) {
+    if (process.platform === "win32") {
+      try {
+        const responseText = await this.fetchTextWithWindowsCurl(url, "application/vnd.github+json");
+        return JSON.parse(responseText) as T;
+      } catch {
+        // Fall back to Node fetch when curl cannot reach GitHub in the current network path.
+      }
+    }
     const response = await this.fetch(url, {
       headers: {
         Accept: "application/vnd.github+json",
@@ -585,12 +609,62 @@ export class SystemUpdateService {
   }
 
   private async fetchText(url: string) {
+    if (process.platform === "win32") {
+      try {
+        return await this.fetchTextWithWindowsCurl(url, "text/plain");
+      } catch {
+        // Fall back to Node fetch when curl cannot reach GitHub in the current network path.
+      }
+    }
     const response = await this.fetch(url, {
       headers: {
         Accept: "text/plain",
       },
     });
     return response.text();
+  }
+
+  private async fetchTextWithWindowsCurl(url: string, accept: string, timeoutMs = 60_000) {
+    const curlExe = this.resolveCurlExe();
+    if (!existsSync(curlExe)) {
+      throw new Error("curl.exe not found");
+    }
+    const githubToken = String(process.env.GITHUB_TOKEN || process.env.GH_TOKEN || "").trim();
+    const maxTimeSeconds = Math.max(60, Math.ceil(timeoutMs / 1000));
+    const maxAttempts = 3;
+    let lastError: unknown;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      const args = [
+        "--fail",
+        "--silent",
+        "--show-error",
+        "--location",
+        "--connect-timeout",
+        "30",
+        "--max-time",
+        String(maxTimeSeconds),
+        "--header",
+        "User-Agent: ai-omni-ops-system-updater",
+        "--header",
+        `Accept: ${accept}`,
+      ];
+      if (githubToken) {
+        args.push("--header", `Authorization: Bearer ${githubToken}`);
+      }
+      args.push(url);
+
+      try {
+        return await this.runWindowsCurlCapture(curlExe, args, timeoutMs + 5_000, "curl fetch failed");
+      } catch (error) {
+        lastError = error;
+        if (attempt >= maxAttempts || !this.shouldRetryFetchError(error)) {
+          throw error;
+        }
+      }
+    }
+
+    throw lastError instanceof Error ? lastError : new Error(String(lastError || "fetch failed"));
   }
 
   private async fetch(url: string, init?: RequestInit, options?: { timeoutMs?: number }) {
@@ -631,6 +705,93 @@ export class SystemUpdateService {
     throw lastError instanceof Error ? lastError : new Error(String(lastError || "fetch failed"));
   }
 
+  private async resolveDirectAssetDownloadUrl(url: string) {
+    if (process.platform === "win32") {
+      try {
+        return await this.resolveDirectAssetDownloadUrlWithWindowsCurl(url);
+      } catch {
+        return url;
+      }
+    }
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30_000);
+    try {
+      const token = String(process.env.GITHUB_TOKEN || process.env.GH_TOKEN || "").trim();
+      const headers = new Headers();
+      headers.set("User-Agent", "ai-omni-ops-system-updater");
+      if (token) {
+        headers.set("Authorization", `Bearer ${token}`);
+      }
+
+      const response = await fetch(url, {
+        method: "HEAD",
+        redirect: "manual",
+        headers,
+        signal: controller.signal,
+      });
+      const redirectedUrl = response.headers.get("location");
+      if (response.status >= 300 && response.status < 400 && redirectedUrl) {
+        return redirectedUrl;
+      }
+      return url;
+    } catch {
+      return url;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  private async resolveDirectAssetDownloadUrlWithWindowsCurl(url: string) {
+    const curlExe = this.resolveCurlExe();
+    if (!existsSync(curlExe)) {
+      return url;
+    }
+    const githubToken = String(process.env.GITHUB_TOKEN || process.env.GH_TOKEN || "").trim();
+    const maxAttempts = 5;
+    let lastError: unknown;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      const args = [
+        "--silent",
+        "--show-error",
+        "--location",
+        "--range",
+        "0-0",
+        "--output",
+        "NUL",
+        "--connect-timeout",
+        "30",
+        "--max-time",
+        "60",
+        "--write-out",
+        "%{url_effective}",
+        "--header",
+        "User-Agent: ai-omni-ops-system-updater",
+      ];
+      if (githubToken) {
+        args.push("--header", `Authorization: Bearer ${githubToken}`);
+      }
+      args.push(url);
+
+      try {
+        const resolvedUrl = (await this.runWindowsCurlCapture(
+          curlExe,
+          args,
+          65_000,
+          "curl resolve asset url failed",
+        )).trim();
+        return resolvedUrl || url;
+      } catch (error) {
+        lastError = error;
+        if (attempt >= maxAttempts || !this.shouldRetryDownloadError(error)) {
+          break;
+        }
+      }
+    }
+
+    throw lastError instanceof Error ? lastError : new Error(String(lastError || "resolve asset url failed"));
+  }
+
   private shouldRetryFetchError(error: unknown) {
     if (!(error instanceof Error)) {
       return false;
@@ -643,6 +804,7 @@ export class SystemUpdateService {
     const statusCode = statusCodeMatch ? Number(statusCodeMatch[1]) : null;
     return error.name === "AbortError"
       || error.message === "fetch failed"
+      || error.message.startsWith("curl fetch failed:")
       || causeCode === "ECONNRESET"
       || statusCode === 408
       || statusCode === 429
@@ -650,6 +812,11 @@ export class SystemUpdateService {
   }
 
   private async downloadFile(url: string, filePath: string, expectedSize?: number) {
+    if (process.platform === "win32") {
+      await this.downloadFileWithWindowsPowerShell(url, filePath, expectedSize);
+      return;
+    }
+
     const maxAttempts = 20;
     let lastError: unknown;
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
@@ -696,6 +863,493 @@ export class SystemUpdateService {
     throw lastError instanceof Error ? lastError : new Error(String(lastError || "download failed"));
   }
 
+  private async downloadFileWithWindowsPowerShell(url: string, filePath: string, expectedSize?: number) {
+    const maxAttempts = 5;
+    let lastError: unknown;
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      const existingSize = await this.readExistingDownloadSize(filePath, expectedSize);
+      if (expectedSize && existingSize === expectedSize) {
+        return;
+      }
+      try {
+        const curlExe = this.resolveCurlExe();
+        if (existsSync(curlExe)) {
+          if (expectedSize && expectedSize > 0) {
+            await this.runWindowsParallelCurlDownload(curlExe, url, filePath, expectedSize, 45 * 60_000);
+          } else {
+            await this.runWindowsCurlDownload(curlExe, url, filePath, 45 * 60_000);
+          }
+        } else {
+          await this.runWindowsPowerShellDownload(url, filePath, expectedSize, 45 * 60_000);
+        }
+        await this.assertDownloadedFileSize(filePath, expectedSize);
+        return;
+      } catch (error) {
+        lastError = error;
+        if (attempt >= maxAttempts || !this.shouldRetryDownloadError(error)) {
+          throw error;
+        }
+      }
+    }
+    throw lastError instanceof Error ? lastError : new Error(String(lastError || "download failed"));
+  }
+
+  private async runWindowsCurlDownload(curlExe: string, url: string, filePath: string, timeoutMs: number) {
+    await mkdir(dirname(filePath), { recursive: true });
+    const githubToken = String(process.env.GITHUB_TOKEN || process.env.GH_TOKEN || "").trim();
+    const maxTimeSeconds = Math.max(60, Math.ceil(timeoutMs / 1000));
+    const args = [
+      "--fail",
+      "--silent",
+      "--show-error",
+      "--location",
+      "--continue-at",
+      "-",
+      "--output",
+      filePath,
+      "--connect-timeout",
+      "30",
+      "--max-time",
+      String(maxTimeSeconds),
+      "--speed-time",
+      "30",
+      "--speed-limit",
+      "10240",
+      "--header",
+      "User-Agent: ai-omni-ops-system-updater",
+    ];
+    if (githubToken) {
+      args.push("--header", `Authorization: Bearer ${githubToken}`);
+    }
+    args.push(url);
+
+    await this.runWindowsCurlCommand(curlExe, args, timeoutMs + 5_000, "curl download failed");
+  }
+
+  private async runWindowsParallelCurlDownload(
+    curlExe: string,
+    url: string,
+    filePath: string,
+    expectedSize: number,
+    timeoutMs: number,
+  ) {
+    await mkdir(dirname(filePath), { recursive: true });
+    const partsRoot = `${filePath}.parts`;
+    await rm(partsRoot, { recursive: true, force: true }).catch(() => undefined);
+    await rm(filePath, { force: true }).catch(() => undefined);
+    await mkdir(partsRoot, { recursive: true });
+
+    const chunkSize = 4 * 1024 * 1024;
+    const concurrency = 1;
+    const chunkCount = Math.ceil(expectedSize / chunkSize);
+    const chunks = Array.from({ length: chunkCount }, (_, index) => {
+      const start = index * chunkSize;
+      const end = Math.min(expectedSize - 1, start + chunkSize - 1);
+      return {
+        index,
+        start,
+        end,
+        expectedBytes: end - start + 1,
+        partPath: join(partsRoot, `part-${String(index).padStart(4, "0")}.bin`),
+      };
+    });
+    let cursor = 0;
+    const workerCount = Math.min(concurrency, chunks.length);
+
+    try {
+      await Promise.all(
+        Array.from({ length: workerCount }, async () => {
+          while (true) {
+            const chunk = chunks[cursor];
+            cursor += 1;
+            if (!chunk) {
+              return;
+            }
+            await this.downloadWindowsCurlChunk(curlExe, url, chunk.partPath, chunk.start, chunk.end, timeoutMs);
+            const partStat = await stat(chunk.partPath);
+            if (partStat.size !== chunk.expectedBytes) {
+              throw new Error(`curl chunk size mismatch: expected ${chunk.expectedBytes}, got ${partStat.size}`);
+            }
+          }
+        }),
+      );
+
+      for (const chunk of chunks) {
+        const chunkBuffer = await readFile(chunk.partPath);
+        await writeFile(filePath, chunkBuffer, { flag: chunk.index === 0 ? "w" : "a" });
+      }
+    } finally {
+      await rm(partsRoot, { recursive: true, force: true }).catch(() => undefined);
+    }
+  }
+
+  private async downloadWindowsCurlChunk(
+    curlExe: string,
+    url: string,
+    partPath: string,
+    start: number,
+    end: number,
+    timeoutMs: number,
+  ) {
+    const githubToken = String(process.env.GITHUB_TOKEN || process.env.GH_TOKEN || "").trim();
+    const maxTimeSeconds = Math.max(120, Math.ceil(timeoutMs / 1000));
+    const maxAttempts = 6;
+    let lastError: unknown;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      await rm(partPath, { force: true }).catch(() => undefined);
+      const args = [
+        "--fail",
+        "--silent",
+        "--show-error",
+        "--location",
+        "--range",
+        `${start}-${end}`,
+        "--output",
+        partPath,
+        "--connect-timeout",
+        "30",
+        "--max-time",
+        String(maxTimeSeconds),
+        "--speed-time",
+        "30",
+        "--speed-limit",
+        "10240",
+        "--header",
+        "User-Agent: ai-omni-ops-system-updater",
+      ];
+      if (githubToken) {
+        args.push("--header", `Authorization: Bearer ${githubToken}`);
+      }
+      args.push(url);
+
+      try {
+    await this.runWindowsCurlCommand(curlExe, args, timeoutMs + 5_000, "curl chunk download failed", partPath);
+        return;
+      } catch (error) {
+        lastError = error;
+        if (attempt >= maxAttempts || !this.shouldRetryDownloadError(error)) {
+          throw error;
+        }
+      }
+    }
+
+    throw lastError instanceof Error ? lastError : new Error(String(lastError || "download failed"));
+  }
+
+  private async runWindowsCurlCommand(
+    curlExe: string,
+    args: string[],
+    timeoutMs: number,
+    label: string,
+    progressFilePath?: string,
+  ) {
+    await new Promise<void>((resolvePromise, rejectPromise) => {
+      const child = spawn(curlExe, args, {
+        stdio: ["ignore", "pipe", "pipe"],
+        windowsHide: true,
+      });
+      const stdoutChunks: Buffer[] = [];
+      const stderrChunks: Buffer[] = [];
+      const timeout = timeoutMs > 0
+        ? setTimeout(() => {
+            void this.terminateChildProcess(child.pid);
+          }, timeoutMs + 5_000)
+        : null;
+      let lastObservedSize = -1;
+      let lastGrowthAt = Date.now();
+      const progressWatch = progressFilePath
+        ? setInterval(async () => {
+            try {
+              const fileStat = await stat(progressFilePath);
+              if (fileStat.size > lastObservedSize) {
+                lastObservedSize = fileStat.size;
+                lastGrowthAt = Date.now();
+                return;
+              }
+            } catch {
+              // Ignore missing progress files until the first bytes land.
+            }
+            if (Date.now() - lastGrowthAt >= 45_000) {
+              void this.terminateChildProcess(child.pid);
+            }
+          }, 10_000)
+        : null;
+
+      child.stdout?.on("data", (chunk) => stdoutChunks.push(Buffer.from(chunk)));
+      child.stderr?.on("data", (chunk) => stderrChunks.push(Buffer.from(chunk)));
+      child.on("error", (error) => {
+        if (timeout) {
+          clearTimeout(timeout);
+        }
+        if (progressWatch) {
+          clearInterval(progressWatch);
+        }
+        rejectPromise(error);
+      });
+      child.on("close", (code, signal) => {
+        if (timeout) {
+          clearTimeout(timeout);
+        }
+        if (progressWatch) {
+          clearInterval(progressWatch);
+        }
+        if (code === 0) {
+          resolvePromise();
+          return;
+        }
+        const stderrText = Buffer.concat(stderrChunks).toString("utf8").trim();
+        const stdoutText = Buffer.concat(stdoutChunks).toString("utf8").trim();
+        const details = stderrText || stdoutText || `exit=${code ?? "null"}, signal=${signal ?? "null"}`;
+        rejectPromise(new Error(`${label}: ${details}`));
+      });
+    });
+  }
+
+  private async terminateChildProcess(pid: number | undefined) {
+    if (!pid) {
+      return;
+    }
+    if (process.platform === "win32") {
+      await new Promise<void>((resolvePromise) => {
+        const cmdExe = this.resolveCmdExe();
+        const killer = spawn(cmdExe, ["/d", "/c", "taskkill", "/PID", String(pid), "/T", "/F"], {
+          stdio: "ignore",
+          windowsHide: true,
+        });
+        killer.on("error", () => resolvePromise());
+        killer.on("close", () => resolvePromise());
+      });
+      return;
+    }
+    try {
+      process.kill(pid, "SIGKILL");
+    } catch {
+      // Ignore already-exited processes.
+    }
+  }
+
+  private async runWindowsCurlCapture(curlExe: string, args: string[], timeoutMs: number, label: string) {
+    return new Promise<string>((resolvePromise, rejectPromise) => {
+      const child = spawn(curlExe, args, {
+        stdio: ["ignore", "pipe", "pipe"],
+        windowsHide: true,
+      });
+      const stdoutChunks: Buffer[] = [];
+      const stderrChunks: Buffer[] = [];
+      const timeout = timeoutMs > 0
+        ? setTimeout(() => {
+            child.kill();
+          }, timeoutMs)
+        : null;
+
+      child.stdout?.on("data", (chunk) => stdoutChunks.push(Buffer.from(chunk)));
+      child.stderr?.on("data", (chunk) => stderrChunks.push(Buffer.from(chunk)));
+      child.on("error", (error) => {
+        if (timeout) {
+          clearTimeout(timeout);
+        }
+        rejectPromise(error);
+      });
+      child.on("close", (code, signal) => {
+        if (timeout) {
+          clearTimeout(timeout);
+        }
+        if (code === 0) {
+          resolvePromise(Buffer.concat(stdoutChunks).toString("utf8"));
+          return;
+        }
+        const stderrText = Buffer.concat(stderrChunks).toString("utf8").trim();
+        const stdoutText = Buffer.concat(stdoutChunks).toString("utf8").trim();
+        const details = stderrText || stdoutText || `exit=${code ?? "null"}, signal=${signal ?? "null"}`;
+        rejectPromise(new Error(`${label}: ${details}`));
+      });
+    });
+  }
+
+  private async runWindowsPowerShellDownload(url: string, filePath: string, expectedSize: number | undefined, timeoutMs: number) {
+    await mkdir(dirname(filePath), { recursive: true });
+    const powershellExe = this.resolvePowerShellExe();
+    const githubToken = String(process.env.GITHUB_TOKEN || process.env.GH_TOKEN || "").trim();
+    const expectedSizeArgument = expectedSize && expectedSize > 0 ? Math.trunc(expectedSize) : 0;
+    const scriptPath = `${filePath}.download.ps1`;
+    const scriptContent = [
+      `param(`,
+      `  [Parameter(Mandatory = $true)][string]$DownloadUrl,`,
+      `  [Parameter(Mandatory = $true)][string]$DestinationPath,`,
+      `  [string]$GitHubToken = '',`,
+      `  [Int64]$ExpectedSize = 0`,
+      `)`,
+      ``,
+      `$ErrorActionPreference = 'Stop'`,
+      `$ProgressPreference = 'SilentlyContinue'`,
+      `Add-Type -AssemblyName System.Net.Http`,
+      ``,
+      `$handler = [System.Net.Http.HttpClientHandler]::new()`,
+      `$handler.AllowAutoRedirect = $false`,
+      `$client = [System.Net.Http.HttpClient]::new($handler)`,
+      `$client.Timeout = [TimeSpan]::FromMinutes(10)`,
+      ``,
+      `try {`,
+      `  $headRequest = [System.Net.Http.HttpRequestMessage]::new([System.Net.Http.HttpMethod]::Head, $DownloadUrl)`,
+      `  $headRequest.Headers.UserAgent.ParseAdd('ai-omni-ops-system-updater')`,
+      `  if ($GitHubToken) {`,
+      `    $headRequest.Headers.Authorization = [System.Net.Http.Headers.AuthenticationHeaderValue]::new('Bearer', $GitHubToken)`,
+      `  }`,
+      `  $headResponse = $client.SendAsync($headRequest).Result`,
+      `  try {`,
+      `    $resolvedUrl = if ($headResponse.StatusCode.value__ -ge 300 -and $headResponse.StatusCode.value__ -lt 400 -and $headResponse.Headers.Location) {`,
+      `      $headResponse.Headers.Location.ToString()`,
+      `    } else {`,
+      `      $DownloadUrl`,
+      `    }`,
+      `    $resolvedContentLength = if ($headResponse.Content -and $headResponse.Content.Headers -and $headResponse.Content.Headers.ContentLength) {`,
+      `      [Int64]$headResponse.Content.Headers.ContentLength`,
+      `    } else {`,
+      `      0`,
+      `    }`,
+      `  } finally {`,
+      `    $headResponse.Dispose()`,
+      `    $headRequest.Dispose()`,
+      `  }`,
+      ``,
+      `  $targetSize = if ($ExpectedSize -gt 0) { $ExpectedSize } elseif ($resolvedContentLength -gt 0) { $resolvedContentLength } else { 0 }`,
+      `  if ($targetSize -le 0) {`,
+      `    throw 'Unable to determine expected download size.'`,
+      `  }`,
+      ``,
+      `  $destinationDir = Split-Path -Parent $DestinationPath`,
+      `  if ($destinationDir) {`,
+      `    New-Item -ItemType Directory -Force -Path $destinationDir | Out-Null`,
+      `  }`,
+      ``,
+      `  $existingLength = if (Test-Path $DestinationPath) { [Int64](Get-Item $DestinationPath).Length } else { 0 }`,
+      `  if ($existingLength -gt $targetSize) {`,
+      `    Remove-Item -Force $DestinationPath`,
+      `    $existingLength = 0`,
+      `  }`,
+      ``,
+      `  $chunkSize = [Int64](8MB)`,
+      `  $buffer = New-Object byte[] (1024 * 1024)`,
+      `  $maxChunkAttempts = 8`,
+      ``,
+      `  while ($existingLength -lt $targetSize) {`,
+      `    $chunkStart = $existingLength`,
+      `    $chunkEnd = [Math]::Min($chunkStart + $chunkSize - 1, $targetSize - 1)`,
+      `    $expectedChunkBytes = $chunkEnd - $chunkStart + 1`,
+      `    $chunkCompleted = $false`,
+      ``,
+      `    for ($chunkAttempt = 1; $chunkAttempt -le $maxChunkAttempts -and -not $chunkCompleted; $chunkAttempt += 1) {`,
+      `      $request = $null`,
+      `      $response = $null`,
+      `      $stream = $null`,
+      `      $fileStream = $null`,
+      `      $bytesWritten = 0`,
+      `      try {`,
+      `        $request = [System.Net.Http.HttpRequestMessage]::new([System.Net.Http.HttpMethod]::Get, $resolvedUrl)`,
+      `        $request.Headers.UserAgent.ParseAdd('ai-omni-ops-system-updater')`,
+      `        if ($GitHubToken) {`,
+      `          $request.Headers.Authorization = [System.Net.Http.Headers.AuthenticationHeaderValue]::new('Bearer', $GitHubToken)`,
+      `        }`,
+      `        $request.Headers.Range = [System.Net.Http.Headers.RangeHeaderValue]::new($chunkStart, $chunkEnd)`,
+      `        $response = $client.SendAsync($request, [System.Net.Http.HttpCompletionOption]::ResponseHeadersRead).Result`,
+      `        if ($response.StatusCode -ne [System.Net.HttpStatusCode]::PartialContent) {`,
+      `          throw ('Unexpected status code for ranged download: ' + [int]$response.StatusCode.value__)`,
+      `        }`,
+      `        $stream = $response.Content.ReadAsStreamAsync().Result`,
+      `        $fileStream = [System.IO.File]::Open($DestinationPath, [System.IO.FileMode]::OpenOrCreate, [System.IO.FileAccess]::Write, [System.IO.FileShare]::None)`,
+      `        $fileStream.Seek($chunkStart, [System.IO.SeekOrigin]::Begin) | Out-Null`,
+      `        while (($read = $stream.Read($buffer, 0, $buffer.Length)) -gt 0) {`,
+      `          $fileStream.Write($buffer, 0, $read)`,
+      `          $bytesWritten += $read`,
+      `        }`,
+      `        if ($bytesWritten -ne $expectedChunkBytes) {`,
+      `          throw ('chunk size mismatch: expected ' + $expectedChunkBytes + ', got ' + $bytesWritten)`,
+      `        }`,
+      `        $existingLength += $bytesWritten`,
+      `        $chunkCompleted = $true`,
+      `      } catch {`,
+      `        if ($fileStream) {`,
+      `          $fileStream.SetLength($chunkStart)`,
+      `        }`,
+      `        if ($chunkAttempt -ge $maxChunkAttempts) {`,
+      `          throw`,
+      `        }`,
+      `      } finally {`,
+      `        if ($fileStream) { $fileStream.Dispose() }`,
+      `        if ($stream) { $stream.Dispose() }`,
+      `        if ($response) { $response.Dispose() }`,
+      `        if ($request) { $request.Dispose() }`,
+      `      }`,
+      `    }`,
+      `  }`,
+      `} finally {`,
+      `  $client.Dispose()`,
+      `  $handler.Dispose()`,
+      `}`,
+      ``,
+    ].join("\r\n");
+    await writeFile(scriptPath, scriptContent, "utf8");
+
+    try {
+      await new Promise<void>((resolvePromise, rejectPromise) => {
+        const child = spawn(
+          powershellExe,
+          [
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            scriptPath,
+            "-DownloadUrl",
+            url,
+            "-DestinationPath",
+            filePath,
+            "-GitHubToken",
+            githubToken,
+            "-ExpectedSize",
+            String(expectedSizeArgument),
+          ],
+          {
+            stdio: ["ignore", "pipe", "pipe"],
+            windowsHide: true,
+          },
+        );
+        const stdoutChunks: Buffer[] = [];
+        const stderrChunks: Buffer[] = [];
+        const timeout = timeoutMs > 0
+          ? setTimeout(() => {
+              child.kill();
+            }, timeoutMs)
+          : null;
+
+        child.stdout?.on("data", (chunk) => stdoutChunks.push(Buffer.from(chunk)));
+        child.stderr?.on("data", (chunk) => stderrChunks.push(Buffer.from(chunk)));
+        child.on("error", (error) => {
+          if (timeout) {
+            clearTimeout(timeout);
+          }
+          rejectPromise(error);
+        });
+        child.on("close", (code, signal) => {
+          if (timeout) {
+            clearTimeout(timeout);
+          }
+          if (code === 0) {
+            resolvePromise();
+            return;
+          }
+          const stderrText = Buffer.concat(stderrChunks).toString("utf8").trim();
+          const stdoutText = Buffer.concat(stdoutChunks).toString("utf8").trim();
+          const details = stderrText || stdoutText || `exit=${code ?? "null"}, signal=${signal ?? "null"}`;
+          rejectPromise(new Error(`PowerShell download failed: ${details}`));
+        });
+      });
+    } finally {
+      await rm(scriptPath, { force: true }).catch(() => undefined);
+    }
+  }
+
   private async readExistingDownloadSize(filePath: string, expectedSize?: number) {
     const fileStat = await stat(filePath).catch(() => null);
     if (!fileStat) {
@@ -728,6 +1382,9 @@ export class SystemUpdateService {
         : null;
     return error.message === "terminated"
       || error.message.startsWith("downloaded file size mismatch:")
+      || error.message.startsWith("curl chunk download failed:")
+      || error.message.startsWith("curl download failed:")
+      || error.message.startsWith("PowerShell download failed:")
       || causeCode === "ECONNRESET"
       || this.shouldRetryFetchError(error);
   }
@@ -750,6 +1407,14 @@ export class SystemUpdateService {
     return resolve(systemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
   }
 
+  private resolveCurlExe() {
+    if (process.platform !== "win32") {
+      return "curl";
+    }
+    const systemRoot = String(process.env.SystemRoot || "C:\\Windows").trim() || "C:\\Windows";
+    return resolve(systemRoot, "System32", "curl.exe");
+  }
+
   private resolveCmdExe() {
     if (process.platform !== "win32") {
       return "cmd";
@@ -759,6 +1424,7 @@ export class SystemUpdateService {
   }
 }
 
+
 function sanitizeFileName(value: string) {
   return String(value || "")
     .trim()
@@ -766,8 +1432,4 @@ function sanitizeFileName(value: string) {
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "")
     || "latest";
-}
-
-function escapeWindowsCmdArgument(value: string) {
-  return String(value || "").replace(/"/g, "\"\"");
 }

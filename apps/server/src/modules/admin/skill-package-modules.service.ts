@@ -420,22 +420,24 @@ export class SkillPackageModulesService {
     if (!database.skillPackageModules.length) {
       return;
     }
-    await this.prismaService.skillPackageModule.createMany({
-      data: database.skillPackageModules.map((item) => ({
-        id: item.id,
-        packageId: item.packageId,
-        packageKey: item.packageKey,
-        packageName: item.packageName,
-        moduleKey: item.moduleKey,
-        bindingType: item.bindingType,
-        isDefault: item.isDefault,
-        sortOrder: item.sortOrder,
-        enabled: item.enabled,
-        remarks: item.remarks ?? "",
-        createdAt: new Date(item.createdAt),
-        updatedAt: new Date(item.updatedAt),
-      })),
-      skipDuplicates: true,
-    });
+    const count = await this.prismaService.skillPackageModule.count();
+    if (count === 0) {
+      await this.prismaService.skillPackageModule.createMany({
+        data: database.skillPackageModules.map((item) => ({
+          id: item.id,
+          packageId: item.packageId,
+          packageKey: item.packageKey,
+          packageName: item.packageName,
+          moduleKey: item.moduleKey,
+          bindingType: item.bindingType,
+          isDefault: item.isDefault,
+          sortOrder: item.sortOrder,
+          enabled: item.enabled,
+          remarks: item.remarks ?? "",
+          createdAt: new Date(item.createdAt),
+          updatedAt: new Date(item.updatedAt),
+        })),
+      });
+    }
   }
 }

@@ -2126,7 +2126,6 @@ export class SkillPackagesService {
         createdAt: new Date(item.createdAt),
         updatedAt: new Date(item.updatedAt),
       })),
-      skipDuplicates: true,
     });
   }
 
@@ -2159,7 +2158,6 @@ export class SkillPackagesService {
         createdAt: new Date(item.createdAt),
         updatedAt: new Date(item.updatedAt),
       })),
-      skipDuplicates: true,
     });
   }
 
@@ -2192,7 +2190,6 @@ export class SkillPackagesService {
         createdAt: new Date(item.createdAt),
         updatedAt: new Date(item.updatedAt),
       })),
-      skipDuplicates: true,
     });
   }
 
@@ -2307,26 +2304,28 @@ export class SkillPackagesService {
     if (!database.skillPackages.length) {
       return;
     }
-    await this.prismaService.skillPackage.createMany({
-      data: database.skillPackages.map((item) => ({
-        id: item.id,
-        packageKey: item.packageKey,
-        packageName: item.packageName,
-        description: item.description ?? "",
-        status: item.status,
-        scope: item.scope,
-        moduleKeysJson: item.moduleKeys,
-        workflowStepKeysJson: item.workflowStepKeys,
-        tagsJson: item.tags,
-        currentVersionId: item.currentVersionId,
-        defaultKnowledgeSpaceIdsJson: item.defaultKnowledgeSpaceIds,
-        defaultProviderPolicyIdsJson: item.defaultProviderPolicyIds,
-        sortOrder: item.sortOrder,
-        remarks: item.remarks ?? "",
-        createdAt: new Date(item.createdAt),
-        updatedAt: new Date(item.updatedAt),
-      })),
-      skipDuplicates: true,
-    });
+    const count = await this.prismaService.skillPackage.count();
+    if (count === 0) {
+      await this.prismaService.skillPackage.createMany({
+        data: database.skillPackages.map((item) => ({
+          id: item.id,
+          packageKey: item.packageKey,
+          packageName: item.packageName,
+          description: item.description ?? "",
+          status: item.status,
+          scope: item.scope,
+          moduleKeysJson: item.moduleKeys,
+          workflowStepKeysJson: item.workflowStepKeys,
+          tagsJson: item.tags,
+          currentVersionId: item.currentVersionId,
+          defaultKnowledgeSpaceIdsJson: item.defaultKnowledgeSpaceIds,
+          defaultProviderPolicyIdsJson: item.defaultProviderPolicyIds,
+          sortOrder: item.sortOrder,
+          remarks: item.remarks ?? "",
+          createdAt: new Date(item.createdAt),
+          updatedAt: new Date(item.updatedAt),
+        })),
+      });
+    }
   }
 }

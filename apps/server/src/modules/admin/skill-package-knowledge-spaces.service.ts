@@ -491,7 +491,6 @@ export class SkillPackageKnowledgeSpacesService {
         createdAt: new Date(item.createdAt),
         updatedAt: new Date(item.updatedAt),
       })),
-      skipDuplicates: true,
     });
   }
 }

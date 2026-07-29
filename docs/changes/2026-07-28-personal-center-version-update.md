@@ -575,6 +575,30 @@
 
 - “版本与升级”仍然属于 `local-single-user` 个人中心的一部分
 - 但它现在已经从网站版个人中心默认入口里收回，不再作为通用网站版功能暴露
+
+## CI 修复补充（2026-07-29 23:58）
+
+### 1. 修复 `LocalSingleUserBootstrapService` 源码缺失导致的 server build 失败
+
+- 线上构建继续暴露出一处更基础的问题：
+  - `apps/server/src/app.module.ts` 已经引入 `./local-single-user/local-single-user-bootstrap.service`
+  - 但 `apps/server/src/local-single-user/` 目录里的源码文件并没有进入仓库
+- 结果就是：
+  - 本地 `dist` 中虽然已有编译产物
+  - CI 在 runner 上重新执行 `tsc -p tsconfig.json` 时仍会报：
+    - `TS2307: Cannot find module './local-single-user/local-single-user-bootstrap.service'`
+- 这次已将缺失的源码文件补回 `apps/server/src/local-single-user/local-single-user-bootstrap.service.ts`，使源码与既有 dist 行为重新对齐。
+
+### 2. 本次影响范围
+
+- `apps/server/src/local-single-user/local-single-user-bootstrap.service.ts`
+- `apps/server/src/modules/system-update/system-update.service.ts`
+- `docs/changes/2026-07-28-personal-center-version-update.md`
+
+### 3. 补充修正
+
+- 在继续重跑 `server build` 时，又暴露出 `apps/server/src/modules/system-update/system-update.service.ts` 结尾少了一个类闭合括号，导致 `sanitizeFileName()` 落到类体外并触发 `TS1068`。
+- 这次已同步补回缺失的 `}`，让源码结构重新与现有 dist 对齐。
   - `phase: DOWNLOADING`
   - `message: 正在下载最新安装包并校验完整性。`
 - 当前 zip 文件继续增长样本：
@@ -585,6 +609,53 @@
   - 新补丁没有把下载链卡死
   - release-like 伪安装态下的大包下载仍在持续推进
   - 后续仍需继续观察是否会在某次重试后完整进入 `READY_TO_APPLY`
+
+## CI 修复补充（2026-07-30 00:20）
+
+### 1. 清理 Prisma `skipDuplicates` 与当前 client 类型不兼容的问题
+
+- 继续重跑 `npm --workspace apps/server run build` 后，又暴露出多处：
+  - `TS2322: Type 'boolean' is not assignable to type 'never'`
+- 根因不是业务字段错误，而是当前 Prisma Client 生成类型下，若干 `createMany()` 调用已经不再接受 `skipDuplicates: true`。
+- 这轮按实际 seed 语义分别收口：
+  - 已有 `count > 0` 门槛的启动期 seed，直接去掉 `skipDuplicates`
+  - 原先没有门槛、但本质仍是初始化种子写入的模块，补上最小 `count === 0` 保护，再执行 `createMany`
+- 影响文件：
+  - `apps/server/src/modules/admin/knowledge-bases.service.ts`
+  - `apps/server/src/modules/admin/module-definitions.service.ts`
+  - `apps/server/src/modules/admin/skill-package-knowledge-spaces.service.ts`
+  - `apps/server/src/modules/admin/skill-package-modules.service.ts`
+  - `apps/server/src/modules/admin/skill-package-skills.service.ts`
+  - `apps/server/src/modules/admin/skill-packages.service.ts`
+
+### 2. 修正用户搜索过滤里不兼容的 `mode: "insensitive"`
+
+- `apps/server/src/modules/admin/users-admin.service.ts` 中的用户关键词搜索使用了：
+  - `contains + mode: "insensitive"`
+- 当前 `User` 对应 Prisma filter 类型不接受该字段，触发：
+  - `TS2353: 'mode' does not exist in type ...`
+- 这轮改成当前 client 可接受的 `contains` 过滤，先保证构建恢复；没有额外扩大搜索逻辑或改动查询结构。
+
+### 3. 补齐 `reports.controller` 已暴露但 `reports.service` 缺失的单项保存接口
+
+- `reports.controller.ts` 已经对外暴露：
+  - `PATCH /reports/brands/:brandId/xiaohongshu-marketing-calendar/:reportId/items/:date`
+- 但 `reports.service.ts` 之前既没有：
+  - `UpsertXiaohongshuMarketingCalendarItemPayload`
+  - 也没有：
+  - `upsertXiaohongshuMarketingCalendarItem()`
+- 这轮已补：
+  - 导出的 payload 类型
+  - 读取当前营销日历后按 `date/id` 定位并更新单项，再复用原有 `updateXiaohongshuMarketingCalendar()` 持久化
+- 这样前端已有的“单日营销日历保存”调用和后端 service 终于重新对齐，不再只停留在 controller 壳层。
+
+### 4. 本轮验证结果
+
+- `npm --workspace apps/server run build`
+  - 通过
+- 当前结论：
+  - 用户本次贴出的 CI `build:server` 阻塞点，已在本地源码层全部清掉
+  - 这次修复没有去改数据库 schema、升级协议或业务主流程，只把漏提交源码、类型漂移和 service 接口缺口补齐
 
 ## 继续验证补充（2026-07-28 17:50）
 

@@ -493,9 +493,9 @@ export class UsersAdminService {
     const keyword = query.keyword?.trim();
     if (keyword) {
       where.OR = [
-        { mobile: { contains: keyword, mode: "insensitive" } },
-        { email: { contains: keyword, mode: "insensitive" } },
-        { nickname: { contains: keyword, mode: "insensitive" } },
+        { mobile: { contains: keyword } },
+        { email: { contains: keyword } },
+        { nickname: { contains: keyword } },
       ];
     }
 
