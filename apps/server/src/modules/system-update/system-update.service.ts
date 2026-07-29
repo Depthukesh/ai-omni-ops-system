@@ -1049,7 +1049,7 @@ export class SystemUpdateService {
               chunkUrl = refreshedUrl;
             }
           } catch {
-            // Keep the previous URL and let the normal retry path continue.
+            chunkUrl = sourceUrl;
           }
         }
         if (attempt >= maxAttempts || !this.shouldRetryDownloadError(error)) {
