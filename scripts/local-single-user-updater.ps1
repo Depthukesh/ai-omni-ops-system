@@ -66,6 +66,13 @@ function Stop-RuntimeFromMetadata {
     $processes += @($script:Config.fallbackStopPids)
   }
 
+  if ($script:Config.restartCommandPath) {
+    $restartCommandPath = [string]$script:Config.restartCommandPath
+    $processes += @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
+        $_.Name -ieq "cmd.exe" -and $_.CommandLine -like "*$restartCommandPath*"
+      } | ForEach-Object { $_.ProcessId })
+  }
+
   if (-not ($processes | Where-Object { $_ })) {
     return
   }

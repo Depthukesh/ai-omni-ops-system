@@ -1534,3 +1534,187 @@
      - 自动重启恢复监听
 - 当前尚未完成的是：
   - **基于这份更小的新发布资产，重新验证最终真实远端升级闭环**
+
+## 继续修正补充（安装态 apply 收口）
+
+### 1. 真实下载链已跑通到 `READY_TO_APPLY`
+
+- 这轮继续在真实安装态下长时间观察后，已确认：
+  - 整包 `curl --continue-at -` 续传可以跨多轮超时和断线持续推进
+  - 安装包最终完整落盘到：
+    - `252669050` bytes
+  - `status` 已真实进入：
+    - `READY_TO_APPLY`
+- 这说明此前的下载链问题已经从“无法完成下载”收口到：
+  - **下载完成后，`apply` 阶段没有真正继续执行**
+
+### 2. `apply` 卡死的真实根因是 updater 脚本 BOM
+
+- 在 `READY_TO_APPLY` 后自动触发 `apply`，状态文件进入了：
+  - `APPLYING`
+- 但进一步检查发现：
+  - `apply-runs/.../local-single-user-updater.stdout.log`
+  - `apply-runs/.../local-single-user-updater.stderr.log`
+  始终为空
+  - 解压目录也没有创建
+- 手动执行生成出来的 updater 脚本后，拿到了真实报错：
+  - `The term '﻿param' is not recognized`
+- 这说明生成的：
+  - `local-single-user-updater.ps1`
+  在写出时把文件头 BOM 当成了普通文本字符带进了脚本内容
+  - PowerShell 把首行识别成了：
+    - `﻿param`
+    而不是正常的 `param`
+- 结果就是：
+  - updater 根本没有真正进入校验 / 停机 / 解压 / 替换 / 重启流程
+  - 但外层状态已经先写成了 `APPLYING`
+  - 从而表现为“升级一直卡在 APPLYING”
+
+### 3. 本轮代码修正
+
+- 在：
+  - `apps/server/src/modules/system-update/system-update.service.ts`
+  中调整 apply-run 脚本生成逻辑：
+- 读取源 `local-single-user-updater.ps1` 后，先剥掉脚本文本里的首字符 BOM
+  - 再以真正的 UTF-8 BOM 文件形式写入 `apply-runs/.../local-single-user-updater.ps1`
+- 这样可以保证：
+  - 不会再把 `﻿param` 这种非法首字符写进脚本文本
+  - 同时 Windows PowerShell 仍能按 UTF-8 正确解析脚本里的中文字符串
+
+### 4. 当前下一步
+
+- 重新 build server
+- 同步新的 `system-update.service.js` 到当前安装态 release root
+- 重新触发真实 `apply`
+- 继续验证是否能从：
+  - `APPLYING`
+  真正推进到：
+  - `SUCCEEDED`
+
+## 继续修正补充（安装根自检回归）
+
+### 1. 真实升级链已经跑到 `SUCCEEDED`
+
+- 这轮在修正 apply-run updater 编码问题后，真实链路已继续推进到：
+  - `正在解压升级包`
+  - `SUCCEEDED`
+- 同时 runtime metadata 也已经刷新到了新的一组进程 PID，说明升级后的重启确实发生了。
+
+### 2. 但升级后安装根出现了“半替换”残留
+
+- 继续核查安装根后发现：
+  - `.release/local-single-user-win-x64/start-local-single-user.cmd`
+    - 丢失
+  - `.release/local-single-user-win-x64/app/package.json`
+    - 丢失
+- `system-update-status.json` 仍然保留的是：
+  - `SUCCEEDED`
+- 但 `/api/system/update/status` 里新的 runtime 已经把自己识别成：
+  - `当前运行环境不是已安装的 local-single-user 发布包`
+- 这说明：
+  - **升级重启虽然完成了，但安装目录替换过程出现了一次“半替换”**
+
+### 3. 半替换的真实根因
+
+- 从 updater 实际运行输出中拿到了更准确的安装错误：
+  - `Move-Item ... local-single-user-win-x64 ... The process cannot access the file ... because it is being used by another process`
+- 进一步对照进程树确认：
+  - 运行时虽然已经停止了 launcher / server / worker / web 的主 PID
+  - 但仍有一个：
+    - `cmd.exe /c ... start-local-single-user.cmd`
+    包装进程还活着
+- 这个 `cmd.exe` 继续占着安装根里的启动脚本或相关路径，导致：
+  - 安装目录移动到 backup 时不是完整成功，也不是完整失败
+  - 最终留下“旧目录部分被搬走，新目录部分被复制回来”的半残现场
+
+### 4. 本轮代码修正
+
+- 在：
+  - `scripts/local-single-user-updater.ps1`
+  中继续补强停机逻辑：
+  - 除了 runtime metadata 里的 launcher / server / worker / web PID
+  - 还会额外扫描并终止命令行中引用当前 `start-local-single-user.cmd` 的 `cmd.exe` wrapper 进程
+- 目标是保证：
+  - 后续再执行升级时，`Move-Item $InstallRoot -> backup` 能一次性完整完成
+  - 不再留下“安装根自检失败但服务又能起来”的半替换状态
+
+### 5. 成功升级后的状态回显也一并收口
+
+- 继续核对升级后 `/api/system/update/status` 的真实返回时，又发现了两个收尾问题：
+  1. `system-update-status.json` 是由 PowerShell 写出的 UTF-8 BOM 文件
+     - Node 侧原先直接 `JSON.parse(readFileSync(..., "utf8"))`
+     - 读取 persisted status 时会因为 BOM 导致解析失败
+     - 表现为：
+       - `downloadedReleaseTag / appliedAt / failedAt` 全部丢失
+       - `phase` 回退成按远端重新计算的默认值
+  2. 即使成功安装的是当前 latest 同一 `tag`，原逻辑也仍可能因为
+     - `publishedAt > generatedAt`
+     把它重新判成 `updateAvailable = true`
+
+- 本轮在：
+  - `apps/server/src/modules/system-update/system-update.service.ts`
+  中补了两层修正：
+  - 读取本地 JSON 时先剥掉 UTF-8 BOM
+  - 如果 persisted state 已经指向当前 latest 同一 `tag`，且阶段是：
+    - `READY_TO_APPLY`
+    - `APPLYING`
+    - `SUCCEEDED`
+    则不再重复显示为可升级
+
+- 这样可以保证：
+  - 升级完成后的本地状态能稳定读回
+  - 不会出现“明明刚升完，又立刻显示还有同一个更新”的假回归
+
+## 继续验证补充（安装根现场修复与成功态回显）
+
+### 1. 升级后的当前安装根曾短暂缺失 `app/apps/server`
+
+- 继续把最新修复同步回当前 `.release/local-single-user-win-x64` 运行根时，现场确认：
+  - `app/apps/server` 目录已经空掉
+  - 导致 3011 API 无法重新启动
+- 这说明当次升级后的运行根虽然已经被 updater 标记成：
+  - `SUCCEEDED`
+  但程序目录现场仍存在一次性损坏残留
+
+### 2. 当前现场修复方式
+
+- 先从本次升级解压目录补回完整的：
+  - `app/apps/server`
+- 再把当前仓库里最新 build 产物整体覆盖到运行根：
+  - `apps/server/dist -> .release/local-single-user-win-x64/app/apps/server/dist`
+- 同时把最新：
+  - `scripts/local-single-user-updater.ps1`
+  覆盖进当前运行根：
+  - `.release/local-single-user-win-x64/app/scripts/local-single-user-updater.ps1`
+
+### 3. 修复后重新启动验证
+
+- 重新拉起：
+  - `.release/local-single-user-win-x64/start-local-single-user.cmd`
+- 实测：
+  - `GET http://127.0.0.1:3011/api/health`
+    - 返回 `200`
+    - `status=ok`
+  - `GET http://127.0.0.1:3001`
+    - 返回 `200`
+- 当前 runtime metadata 也已刷新为新的 PID，说明修复后的 launcher / server / worker / web 已重新稳定拉起。
+
+### 4. 最终状态回显已恢复正确
+
+- 在完成上述现场修复并重启后，再次请求：
+  - `GET http://127.0.0.1:3011/api/system/update/status`
+- 当前真实返回已经恢复为：
+  - `phase = SUCCEEDED`
+  - `updateAvailable = false`
+  - `downloadedReleaseTag = local-single-user-win-x64-2026-07-29-hotfix-2`
+  - `appliedAt` 为本次真实升级完成时间
+- 这说明：
+  - **真实升级链已经跑到 `SUCCEEDED`**
+  - **升级后的状态持久化读取与同 tag 成功态回显已经闭环**
+
+### 5. 当前剩余事项
+
+- 当前源码里的修复已经验证有效，但这轮现场修复还没有再重新跑一遍全新的：
+  - `check -> download -> apply -> restart -> succeeded`
+- 因此后续如果要把这条链完全收口到“可重复演练”，下一步优先做：
+  - 基于当前修复后的运行根，再重跑一轮完整升级演练

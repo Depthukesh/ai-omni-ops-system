@@ -109,7 +109,7 @@ function safeReadJson<T>(filePath: string): T | null {
     if (!existsSync(filePath)) {
       return null;
     }
-    return JSON.parse(readFileSync(filePath, "utf8")) as T;
+    return JSON.parse(readFileSync(filePath, "utf8").replace(/^\uFEFF/, "")) as T;
   } catch {
     return null;
   }
@@ -161,7 +161,14 @@ export class SystemUpdateService {
     });
 
     const latest = latestResult.release;
-    const updateAvailable = this.computeUpdateAvailable(current, latest);
+    let updateAvailable = this.computeUpdateAvailable(current, latest);
+    if (
+      persistedState?.downloadedReleaseTag
+      && persistedState.downloadedReleaseTag === latest?.tagName
+      && (persistedState.phase === "READY_TO_APPLY" || persistedState.phase === "APPLYING" || persistedState.phase === "SUCCEEDED")
+    ) {
+      updateAvailable = false;
+    }
     const phase = this.resolvePhase(current, persistedState, latest, updateAvailable);
 
     return {
@@ -282,8 +289,8 @@ export class SystemUpdateService {
     const updaterStderrPath = join(runRoot, "local-single-user-updater.stderr.log");
     const launcherStdoutPath = join(runRoot, "updater-launcher.stdout.log");
     const launcherStderrPath = join(runRoot, "updater-launcher.stderr.log");
-    const updaterScriptContent = await readFile(updaterScriptSourcePath, "utf8");
-    await writeFile(updaterRunPath, updaterScriptContent, "utf8");
+    const updaterScriptContent = (await readFile(updaterScriptSourcePath, "utf8")).replace(/^\uFEFF/, "");
+    await writeUtf8BomFile(updaterRunPath, updaterScriptContent);
     await writeUtf8BomFile(
       updaterConfigPath,
       `${JSON.stringify(

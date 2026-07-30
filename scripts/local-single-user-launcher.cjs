@@ -30,6 +30,11 @@ function resolveNpmCli() {
   throw new Error("未找到 npm-cli.js，无法执行本地单机构建。");
 }
 
+function isPrebuiltOnlyLauncherMode(env = process.env) {
+  const value = String(env.LOCAL_SINGLE_USER_PREBUILT_ONLY || "").trim().toLowerCase();
+  return value === "1" || value === "true" || value === "yes" || value === "on";
+}
+
 function resolveNextBin() {
   const candidates = [
     path.join(projectRoot, "node_modules", "next", "dist", "bin", "next"),
@@ -427,7 +432,8 @@ function updateHashWithPathEntry(hash, rootPath) {
     }
     return;
   }
-  hash.update(`file:${relativePath}:${stats.size}:${Math.trunc(stats.mtimeMs)}\n`);
+  const fileHash = crypto.createHash("sha1").update(fs.readFileSync(rootPath)).digest("hex");
+  hash.update(`file:${relativePath}:${stats.size}:${fileHash}\n`);
 }
 
 function getWebBuildFingerprint(webRoot) {
@@ -731,8 +737,9 @@ async function main() {
   });
   const initialPaths = initialRuntime.paths;
   const runtimeMetadataPath = path.join(initialPaths.runtimeRoot, "local-single-user-runtime.json");
-  const npmCli = resolveNpmCli();
-  const nextBin = resolveNextBin();
+  const prebuiltOnlyMode = isPrebuiltOnlyLauncherMode();
+  const npmCli = prebuiltOnlyMode ? null : resolveNpmCli();
+  const nextBin = prebuiltOnlyMode ? null : resolveNextBin();
   const prismaCli = resolvePrismaCli();
 
   async function stopPreviousRuntime() {
@@ -808,13 +815,23 @@ async function main() {
   } else {
     console.log("[skip] Local Prisma db push (schema unchanged and current runtime database already aligned)");
   }
-  if (shouldRunServerBuild(serverRoot)) {
+  if (prebuiltOnlyMode) {
+    if (!hasServerBuildOutputs(serverRoot)) {
+      throw new Error("当前发布物处于预构建运行时模式，但缺少后端 dist 产物。");
+    }
+    console.log("[skip] Server build (prebuilt-only runtime mode)");
+  } else if (shouldRunServerBuild(serverRoot)) {
     await runStep("Server build", process.execPath, [npmCli, "--workspace", "apps/server", "run", "build"], projectRoot, env);
     recordServerBuild(serverRoot);
   } else {
     console.log("[skip] Server build (sources unchanged and dist output already exists)");
   }
-  if (shouldRunWebBuild(webRoot)) {
+  if (prebuiltOnlyMode) {
+    if (!hasWebBuildOutputs(webRoot)) {
+      throw new Error("当前发布物处于预构建运行时模式，但缺少 Web standalone 产物。");
+    }
+    console.log("[skip] Web build (prebuilt-only runtime mode)");
+  } else if (shouldRunWebBuild(webRoot)) {
     await runStep("Web build", process.execPath, [nextBin, "build"], webRoot, env);
     recordWebBuild(webRoot);
   } else {
@@ -823,6 +840,9 @@ async function main() {
   const stagedWebRuntime = stageStandaloneWebRuntime(webRoot, paths);
   const standaloneServer = stagedWebRuntime?.runtimeStandaloneServer || null;
   const sourceStandaloneServer = stagedWebRuntime?.sourceStandaloneServer || null;
+  if (prebuiltOnlyMode && !standaloneServer) {
+    throw new Error("当前发布物处于预构建运行时模式，但未找到可启动的 standalone server.js。");
+  }
 
   const serverEntry = resolveServerBuiltEntry();
   const children = [];

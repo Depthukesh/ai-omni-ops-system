@@ -99,6 +99,8 @@
 - “版本与升级”这类安装态专属入口，不允许再串回网站版个人中心；后续新增相关入口时，必须同步覆盖概览页、导航和直达路由的三层门禁
 - 自动升级必须通过独立 updater 在安装目录外执行；升级前必须先校验 `.zip` 对应的 `.sha256`，升级时只替换程序目录，不动 `LOCAL_APP_DATA_ROOT` 下的 `data/`、`storage/`、`logs/`、`cache/`、`backup/`、`updates/`
 - 凡是 `local-single-user` 交付链里会被 Windows PowerShell 5 直接执行的 `.ps1`，包括独立 updater 和安装脚本，都必须以 `UTF-8 BOM` 写入；Node 侧生成或复制脚本时不能只落无 BOM 的 `utf8` 文本
+- 如果 `local-single-user` 的独立 updater 要在安装前整体移动或替换安装根，停机阶段不能只杀 runtime metadata 中记录的 launcher / server / worker / web PID；还必须额外清理命令行仍引用 `start-local-single-user.cmd` 的 `cmd.exe` wrapper 进程，否则 `Move-Item` 会因为文件占用留下“半替换”安装根
+- 如果 `local-single-user` 升级链里存在由 PowerShell 写出的本地 JSON（例如 `system-update-status.json`），Node 侧读取时必须先剥掉 UTF-8 BOM 再做 `JSON.parse`，不能假设持久化状态文件一定是纯无 BOM 文本
 - Windows 下构建 `local-single-user` 发布物时，大目录复制优先走 `robocopy` 这类系统级工具，不要继续直接依赖 Node `fs.cpSync()` 去整包复制 `node_modules`、standalone 等大目录；否则既可能把进程直接打崩，也没有足够的进度日志可用于排障
 - 如果 launcher 在安装态仍会调用 `npm-cli.js`、并且仍可能依据源码指纹决定是否重跑 `server build` / `web build`，那么发布物就不能只带 `node.exe + dist/standalone`；还必须随包带上 launcher 真正依赖的 npm 运行时和对应源码输入，至少覆盖 `bin/node_modules/npm`、`apps/server/src` 这类安装态首启会命中的输入
 - 面向用户分发的正式 `local-single-user` 发布物，默认应开启 `LOCAL_SINGLE_USER_PREBUILT_ONLY=true` 并按预构建运行时模式启动；除非明确要支持安装态现场重编诊断，否则不要再把 `apps/server/src`、`apps/web/src`、顶层 `next/@next/react` 等仅服务构建兜底的大体积输入继续打进升级包

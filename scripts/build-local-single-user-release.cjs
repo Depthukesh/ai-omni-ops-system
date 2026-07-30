@@ -117,7 +117,8 @@ function updateHashWithPathEntry(hash, rootBase, targetPath) {
     }
     return;
   }
-  hash.update(`file:${relativePath}:${stats.size}:${Math.trunc(stats.mtimeMs)}\n`);
+  const fileHash = crypto.createHash("sha1").update(fs.readFileSync(targetPath)).digest("hex");
+  hash.update(`file:${relativePath}:${stats.size}:${fileHash}\n`);
 }
 
 function getServerBuildFingerprint(rootBase) {
@@ -196,6 +197,7 @@ function buildLauncherCmd() {
     'set "APP_DIR=%SCRIPT_DIR%app"',
     'set "NODE_EXE=%SCRIPT_DIR%bin\\node.exe"',
     'if not exist "%NODE_EXE%" set "NODE_EXE=node"',
+    'set "LOCAL_SINGLE_USER_PREBUILT_ONLY=true"',
     'if not defined LOCAL_SINGLE_USER_AUTO_OPEN_BROWSER set "LOCAL_SINGLE_USER_AUTO_OPEN_BROWSER=true"',
     'pushd "%APP_DIR%"',
     '"%NODE_EXE%" "scripts\\local-single-user-launcher.cjs"',
@@ -360,6 +362,7 @@ function buildReadme(releaseManifest) {
     "",
     "- 当前发布物默认针对 Windows 本机交付",
     "- `node.exe` 已随包携带，用户机器不再要求预装 Node",
+    "- 启动链默认走预构建运行时模式，不再依赖源码兜底构建",
     "- 当前发布物目录由脚本自动生成，请勿手工改动 `app/` 内文件结构",
     "",
     "## 5. 本次发布摘要",
@@ -372,25 +375,43 @@ function buildReadme(releaseManifest) {
   ].join("\r\n");
 }
 
+function pruneReleaseNodeModules() {
+  const removableRelativePaths = [
+    "node_modules\\.cache",
+    "node_modules\\@esbuild",
+    "node_modules\\@img",
+    "node_modules\\@next",
+    "node_modules\\@types",
+    "node_modules\\caniuse-lite",
+    "node_modules\\fast-check",
+    "node_modules\\lucide-react",
+    "node_modules\\lunar-javascript",
+    "node_modules\\next",
+    "node_modules\\qrcode",
+    "node_modules\\react",
+    "node_modules\\react-dom",
+    "node_modules\\tsx",
+    "node_modules\\typescript",
+  ];
+  for (const relativePath of removableRelativePaths) {
+    const targetPath = path.join(releaseAppRoot, relativePath);
+    if (!exists(targetPath)) {
+      continue;
+    }
+    console.log(`[step] prune ${listRelativePaths(relativePath)}`);
+    removePath(targetPath);
+  }
+}
+
 function main() {
   generateLocalSchema();
 
   const requiredRelativePaths = [
     "package.json",
-    "package-lock.json",
-    "tsconfig.base.json",
     "prisma\\schema.prisma",
     "prisma\\schema.local.prisma",
     "node_modules",
-    "packages",
-    "apps\\server\\package.json",
-    "apps\\server\\tsconfig.json",
-    "apps\\server\\src",
     "apps\\server\\dist",
-    "apps\\web\\package.json",
-    "apps\\web\\tsconfig.json",
-    "apps\\web\\next.config.ts",
-    "apps\\web\\src",
     "apps\\web\\public",
     "apps\\web\\.next\\standalone",
     "apps\\web\\.next\\static",
@@ -456,6 +477,7 @@ function main() {
     );
     copyPath(operation.sourcePath, operation.destinationPath);
   });
+  pruneReleaseNodeModules();
 
   const bundledNodePath = path.join(releaseBinRoot, "node.exe");
   console.log("[step] copy bundled node.exe");
@@ -488,6 +510,7 @@ function main() {
       autostartRemove: "remove-autostart.cmd",
       autostartStatus: "status-autostart.cmd",
     },
+    runtimeMode: "prebuilt-only",
     copiedPaths: allCopyOperations.map((operation) => operation.relativePath),
   };
 
