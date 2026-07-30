@@ -457,7 +457,6 @@ export class SystemUpdateService {
     }
 
     const releaseRoot = join(this.appConfigService.getLocalUpdatesRoot(), "downloads", sanitizeFileName(release.tagName));
-    await rm(releaseRoot, { recursive: true, force: true }).catch(() => undefined);
     await mkdir(releaseRoot, { recursive: true });
 
     const zipPath = join(releaseRoot, LOCAL_SINGLE_USER_ZIP_NAME);
@@ -751,7 +750,7 @@ export class SystemUpdateService {
       return url;
     }
     const githubToken = String(process.env.GITHUB_TOKEN || process.env.GH_TOKEN || "").trim();
-    const maxAttempts = 5;
+    const maxAttempts = 20;
     let lastError: unknown;
 
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {

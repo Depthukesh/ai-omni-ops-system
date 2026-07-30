@@ -963,6 +963,37 @@
   - 单连接续传 > 顺序 range 分块
 - 那默认策略就应该优先选择现场更稳的方案，而不是继续保留更复杂但更脆弱的下载形态
 
+## 继续修正补充（2026-07-30 15:20）
+
+### 1. 失败后的重新点击下载，不能再把已下载部分清空
+
+- 继续验证整包续传后，真实现场已经能把 zip 拉到约 `71.7 MB`
+- 但随后仍可能被网络层打断，例如：
+  - `curl: (56) Recv failure: Connection was reset`
+- 这时又暴露出一个新的恢复性问题：
+  - 单次请求内部虽然会用 `curl --continue-at -` 续传
+  - 但一旦本次请求最终落成 `FAILED`
+  - 下次重新点击“下载更新”时，`downloadRelease()` 会先把当前 tag 对应的 `downloads/<tag>/` 目录整个删掉
+  - 结果就是前面已经积累下来的几十 MB 直接归零
+
+### 2. 本轮修正
+
+- `apps/server/src/modules/system-update/system-update.service.ts`
+  - 下载同一 release tag 时，不再在入口处先删整个 `releaseRoot`
+  - 改为：
+    - 保留已存在的目标目录
+    - 让 `zip` 文件继续走 `readExistingDownloadSize + curl --continue-at -`
+    - 只有当本地文件尺寸异常大于预期时，才按原有逻辑清掉单文件重来
+- 同时把 Windows 下载外层重试次数从 `5` 提高到 `20`
+  - 让弱网下多次 `Recv failure / timeout` 后，仍然有更多自动续传机会
+
+### 3. 本轮验证目标
+
+- 本轮不是验证“从 0 开始能不能起步”
+- 而是验证：
+  - 已经失败并残留部分 zip 后
+  - 再次触发下载时，是否会从已有体积继续增长，而不是被清零重下
+
 ## 继续验证补充（2026-07-28 17:50）
 
 ### 1. GitHub `releases/latest` 在当前网络下存在额外抖动，已补回退链
