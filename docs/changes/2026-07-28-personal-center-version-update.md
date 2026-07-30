@@ -823,6 +823,146 @@
   - 下载链现在不再只依赖“有无文件增长”这一条保护
   - 即使出现零字节分块卡死，也多了一层按 chunk 粒度收口的硬上限
 
+## 继续修正补充（2026-07-30 09:25）
+
+### 1. 非 `401/403` 的卡死重试也回退到原始 `browser_download_url`
+
+- 继续盯这轮真实安装态下载后又确认了一个很细的现场事实：
+  - 首块或某一块 `curl` 会真实连到 `release-assets.githubusercontent.com:443`
+  - TCP 连接处于 `Established`
+  - 但分块文件仍可能长时间保持 `0 byte`
+- 这说明在一部分现场里，问题不一定是：
+  - signed URL 过期
+  - 也不一定是连接直接被拒绝
+- 还可能是：
+  - 已经连上当前 signed 直链
+  - 但这个直链本身长时间不返回有效字节
+
+### 2. 本轮修正
+
+- `apps/server/src/modules/system-update/system-update.service.ts`
+  - 之前只有在命中 `401/403` 时，才会：
+    - 刷新 signed 直链
+    - 或回退到原始 `browser_download_url`
+  - 现在进一步扩大到：
+    - **只要当前是 signed 直链，且这次失败属于可重试下载错误**
+    - 下一次 chunk 重试就允许先退回原始 `browser_download_url`
+    - 让 `curl --location` 再重新走一遍 GitHub 跳转
+- 这样即使当前 signed 直链不是“过期”，而是“已连上但长期不出字节”，后续重试也不会一直死磕同一条直链。
+
+### 3. 本轮验证结果
+
+- `npm --workspace apps/server run build`
+  - 通过
+- 当前结论：
+  - 这次修正不是替换原有 `401/403` 刷新逻辑
+  - 而是把“原始下载 URL 重新跳转一次”扩展成更通用的重试分支，继续压缩弱网下零字节分块的卡死面
+
+## 继续修正补充（2026-07-30 10:20）
+
+### 1. Windows 分块下载改为默认从原始 `browser_download_url` 起步
+
+- 继续盯真实安装态下载现场后确认：
+  - `downloadRelease()` 之前会先把 `browser_download_url` 解析成一次 signed 直链
+  - 然后再把这条直链交给 Windows 的顺序分块下载
+  - 结果就是首块下载即使最终具备“失败后回退原始 URL”的逻辑，也仍然会先撞一次最不稳定的 signed 直链
+- 现场表现为：
+  - `part-0000.bin` 可先被创建为 `0 byte`
+  - 活跃 `curl` 长时间停在 `release-assets.githubusercontent.com`
+  - 必须等 watchdog 或超时切走以后，后续重试才有机会退回原始 release URL
+
+### 2. 本轮修正
+
+- `apps/server/src/modules/system-update/system-update.service.ts`
+  - Windows 平台下载 zip 时：
+    - 不再先解析 signed 直链作为初始下载地址
+    - 改为直接使用 GitHub Release 的原始 `browser_download_url`
+    - 继续依赖 `curl --location` 为每个 chunk 获取当次有效跳转
+  - 非 Windows 平台维持原有逻辑，仍可先解析直链再下载
+- 这样做的目标不是提速，而是减少：
+  - 首块先命中过期 / 发呆 / 长时间不回字节的 signed URL
+  - 导致整个下载链一开始就进入等待 watchdog 的被动态
+
+### 3. 预期收益
+
+- Windows 安装态分块下载从第一块开始就更接近“每次重试都重新走一次官方跳转”
+- 现有的：
+  - `401/403` 直链刷新
+  - 非 `401/403` 可重试错误回退原始 URL
+  - watchdog 零字节保护
+  - chunk 级超时上限
+  仍然全部保留，作为后续兜底
+
+## 继续修正补充（2026-07-30 10:30）
+
+### 1. 去掉过于激进的 `curl --speed-limit` 保护
+
+- 改完“原始 release URL 起步”后继续盯现场，又看到新的真实表现：
+  - `curl` 已经不再先打 signed 直链
+  - 但首块仍会反复重启
+  - 分块文件经常还没来得及稳定落地
+- 结合前面历史报错：
+  - `curl: (28) Operation too slow. Less than 10240 bytes/sec transferred the last 30 seconds`
+- 说明当前这层保护对弱网环境太激进：
+  - 只要 30 秒内平均速率低于 `10 KB/s`
+  - `curl` 就会主动判失败
+  - 即使连接本身未死、后续本来还有机会慢慢出字节
+
+### 2. 本轮修正
+
+- `apps/server/src/modules/system-update/system-update.service.ts`
+  - 对 Windows `curl` 整包下载与 chunk 下载，去掉：
+    - `--speed-time 30`
+    - `--speed-limit 10240`
+- 保留的保护仍包括：
+  - `--connect-timeout 30`
+  - chunk 级 `--max-time`
+  - 文件大小校验
+  - watchdog 零字节/无增长终止
+  - 下载错误重试
+
+### 3. 修正意图
+
+- 把“慢连接”与“死连接”重新区分开：
+  - 死连接继续交给 watchdog 和 chunk 超时去清理
+  - 慢连接不再被 `curl` 的固定速率阈值过早判死
+
+## 继续修正补充（2026-07-30 10:45）
+
+### 1. 基于现场证据，Windows 默认下载策略从分块切回整包续传
+
+- 继续排查时补做了三组手工 `curl` 对照：
+  - `--range 0-1023`
+    - 可快速拿到 `1024 bytes`
+  - `--range 0-4194303`
+    - `90s` 内只拿到约 `1.1 MB`
+  - `--continue-at -`
+    - `120s` 内已稳定写入约 `1.59 MB`
+- 这说明在当前弱网现场里：
+  - GitHub release 本身不是完全不可达
+  - 真正的问题更偏向“顺序分块下载每一块都要重新建立一次慢连接”
+  - 对这种极慢链路，整包单连接续传反而比 `Range` 分块更稳
+
+### 2. 本轮修正
+
+- `apps/server/src/modules/system-update/system-update.service.ts`
+  - Windows 下如果可用 `curl.exe`：
+    - 默认改回整包 `curl --continue-at -` 续传
+    - 初始 URL 直接使用原始 `browser_download_url`
+    - 每轮失败后依旧依赖外层重试与最终文件大小校验收口
+- 保留的保护包括：
+  - `--connect-timeout`
+  - 长窗口 `--max-time`
+  - 文件大小校验
+  - 外层下载重试
+
+### 3. 这次策略切换的原因
+
+- 当前目标已经从“理论上最细粒度的分块控制”切换为“真实弱网下先把下载跑通”
+- 既然手工实测已经证明：
+  - 单连接续传 > 顺序 range 分块
+- 那默认策略就应该优先选择现场更稳的方案，而不是继续保留更复杂但更脆弱的下载形态
+
 ## 继续验证补充（2026-07-28 17:50）
 
 ### 1. GitHub `releases/latest` 在当前网络下存在额外抖动，已补回退链

@@ -462,8 +462,10 @@ export class SystemUpdateService {
 
     const zipPath = join(releaseRoot, LOCAL_SINGLE_USER_ZIP_NAME);
     const checksumPath = join(releaseRoot, LOCAL_SINGLE_USER_CHECKSUM_NAME);
-    const resolvedZipDownloadUrl = await this.resolveDirectAssetDownloadUrl(release.zipAsset.downloadUrl);
-    await this.downloadFile(resolvedZipDownloadUrl, zipPath, release.zipAsset.size, {
+    const initialZipDownloadUrl = process.platform === "win32"
+      ? release.zipAsset.downloadUrl
+      : await this.resolveDirectAssetDownloadUrl(release.zipAsset.downloadUrl);
+    await this.downloadFile(initialZipDownloadUrl, zipPath, release.zipAsset.size, {
       sourceUrl: release.zipAsset.downloadUrl,
     });
     await writeFile(checksumPath, `${release.checksumValue}  ${LOCAL_SINGLE_USER_ZIP_NAME}\n`, "utf8");
@@ -881,18 +883,7 @@ export class SystemUpdateService {
       try {
         const curlExe = this.resolveCurlExe();
         if (existsSync(curlExe)) {
-          if (expectedSize && expectedSize > 0) {
-            await this.runWindowsParallelCurlDownload(
-              curlExe,
-              url,
-              filePath,
-              expectedSize,
-              45 * 60_000,
-              options?.sourceUrl || url,
-            );
-          } else {
-            await this.runWindowsCurlDownload(curlExe, url, filePath, 45 * 60_000);
-          }
+          await this.runWindowsCurlDownload(curlExe, options?.sourceUrl || url, filePath, 45 * 60_000);
         } else {
           await this.runWindowsPowerShellDownload(url, filePath, expectedSize, 45 * 60_000);
         }
@@ -925,10 +916,6 @@ export class SystemUpdateService {
       "30",
       "--max-time",
       String(maxTimeSeconds),
-      "--speed-time",
-      "30",
-      "--speed-limit",
-      "10240",
       "--header",
       "User-Agent: ai-omni-ops-system-updater",
     ];
@@ -1026,10 +1013,6 @@ export class SystemUpdateService {
         "30",
         "--max-time",
         String(maxTimeSeconds),
-        "--speed-time",
-        "30",
-        "--speed-limit",
-        "10240",
         "--header",
         "User-Agent: ai-omni-ops-system-updater",
       ];
@@ -1052,6 +1035,8 @@ export class SystemUpdateService {
           } catch {
             chunkUrl = sourceUrl;
           }
+        } else if (sourceUrl && chunkUrl !== sourceUrl && this.shouldRetryDownloadError(error)) {
+          chunkUrl = sourceUrl;
         }
         if (attempt >= maxAttempts || !this.shouldRetryDownloadError(error)) {
           throw error;
