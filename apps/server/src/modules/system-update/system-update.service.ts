@@ -1005,7 +1005,8 @@ export class SystemUpdateService {
     timeoutMs: number,
   ) {
     const githubToken = String(process.env.GITHUB_TOKEN || process.env.GH_TOKEN || "").trim();
-    const maxTimeSeconds = Math.max(120, Math.ceil(timeoutMs / 1000));
+    const commandTimeoutMs = Math.min(timeoutMs, 90_000);
+    const maxTimeSeconds = Math.max(60, Math.ceil(commandTimeoutMs / 1000));
     const maxAttempts = 6;
     let lastError: unknown;
     let chunkUrl = url;
@@ -1038,7 +1039,7 @@ export class SystemUpdateService {
       args.push(chunkUrl);
 
       try {
-        await this.runWindowsCurlCommand(curlExe, args, timeoutMs + 5_000, "curl chunk download failed", partPath);
+        await this.runWindowsCurlCommand(curlExe, args, commandTimeoutMs + 5_000, "curl chunk download failed", partPath);
         return chunkUrl;
       } catch (error) {
         lastError = error;
@@ -1075,9 +1076,17 @@ export class SystemUpdateService {
       });
       const stdoutChunks: Buffer[] = [];
       const stderrChunks: Buffer[] = [];
+      const requestChildTermination = () => {
+        try {
+          child.kill();
+        } catch {
+          // Ignore already-exited child processes.
+        }
+        void this.terminateChildProcess(child.pid);
+      };
       const timeout = timeoutMs > 0
         ? setTimeout(() => {
-            void this.terminateChildProcess(child.pid);
+            requestChildTermination();
           }, timeoutMs + 5_000)
         : null;
       let lastObservedSize = -1;
@@ -1095,7 +1104,7 @@ export class SystemUpdateService {
               // Ignore missing progress files until the first bytes land.
             }
             if (Date.now() - lastGrowthAt >= 45_000) {
-              void this.terminateChildProcess(child.pid);
+              requestChildTermination();
             }
           }, 10_000)
         : null;

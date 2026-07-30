@@ -765,6 +765,64 @@
   - 只补了一个更贴近当前现场的下载容错：
     - **signed 直链过期后可自动刷新并继续分块下载**
 
+## 继续修正补充（2026-07-30 08:50）
+
+### 1. 处理“零字节首块”场景下 watchdog 没有真正终止 `curl`
+
+- 继续把最新 `system-update` 代码同步进当前 release 运行根并重启安装态后，重新触发了一次真实：
+  - `POST /api/system/update/download`
+- 新现场确认：
+  - 状态文件会切到 `DOWNLOADING`
+  - `curl.exe --range 0-4194303 --output ...part-0000.bin` 会真实拉起
+  - 但 `part-0000.bin` 可以长时间保持 `0 byte`
+  - 且同一个 `curl` PID 超过原来的 `45s` watchdog 窗口后仍未被终止
+- 这说明当前问题已经不是 signed URL `403`，而是：
+  - **零字节首块卡死时，现有 watchdog 没有真正把子进程切掉**
+
+### 2. 本轮修正
+
+- `apps/server/src/modules/system-update/system-update.service.ts`
+  - 在 `runWindowsCurlCommand()` 里补了更硬的终止策略：
+    - 先直接对当前 `child` 执行 `child.kill()`
+    - 再继续走已有的 `taskkill /PID /T /F`
+  - 这样当：
+    - 总超时命中
+    - 或 watchdog 判断 `45s` 无增量
+    时，不再只依赖外层 `taskkill`，而是先对当前 `curl` 子进程发本地终止信号，再补一层进程树清理
+
+### 3. 本轮验证结果
+
+- `npm --workspace apps/server run build`
+  - 通过
+- 当前结论：
+  - 新的真实断点已经被压缩为“零字节首块卡死”
+  - 本轮补丁就是针对这一点做更强的子进程终止兜底，便于后续继续观察它是否能自动切换到下一次 chunk 重试
+
+## 继续修正补充（2026-07-30 09:10）
+
+### 1. 给单个 `4 MiB` chunk 增加更紧的执行上限
+
+- 在继续真实观察时，又确认了更细的一层现象：
+  - 第二块 `part-0001.bin` 仍可能长时间保持 `0 byte`
+  - 即使 `curl` PID 已经换过一次，之后仍可能卡在同一个 PID 上不再退出
+  - 这说明仅靠当前 watchdog，不足以保证“零字节分块一定会被及时切走”
+
+### 2. 本轮修正
+
+- `apps/server/src/modules/system-update/system-update.service.ts`
+  - 为单个 chunk 新增更紧的命令执行上限：
+    - `commandTimeoutMs = min(timeoutMs, 90_000)`
+  - 同时把 `curl --max-time` 与 `runWindowsCurlCommand()` 的超时窗口都对齐到这条更紧的单块上限
+- 这样就算 watchdog 再次失手，单个 `4 MiB` chunk 也不会继续无限期挂住，而是最多在当前块窗口内被强制结束并进入下一次 chunk 级重试。
+
+### 3. 本轮验证结果
+
+- `npm --workspace apps/server run build`
+  - 通过
+- 当前结论：
+  - 下载链现在不再只依赖“有无文件增长”这一条保护
+  - 即使出现零字节分块卡死，也多了一层按 chunk 粒度收口的硬上限
+
 ## 继续验证补充（2026-07-28 17:50）
 
 ### 1. GitHub `releases/latest` 在当前网络下存在额外抖动，已补回退链
