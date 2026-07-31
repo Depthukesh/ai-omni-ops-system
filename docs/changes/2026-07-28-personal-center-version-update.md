@@ -258,6 +258,33 @@
   - `DOWNLOADING`
   - `READY_TO_APPLY`
   - `APPLYING`
+
+## 继续验证补充（2026-07-31 08:30）
+
+### 1. 定位“重启电脑后页面打不开”的真实原因
+
+- 这次现场确认，问题不是页面路由或页面渲染崩溃，而是机器重启后 `local-single-user` 根本没有自动启动：
+  - `3001` / `3011` 未监听
+  - `local-single-user-runtime.json` 里仍残留旧 PID
+  - 安装目录里虽然有 `install-autostart.cmd`，但当前机器既没有已安装的计划任务，也没有 Startup 启动项
+- 这说明此前交付基线实际上要求用户“安装后还得自己再手工点一次 `install-autostart.cmd`”，这和产品级交付预期不一致。
+
+### 2. 这次补的修正
+
+- 调整 `scripts/build-local-single-user-release.cjs` 生成的 `install-local-single-user.ps1`：
+  - 安装时在复制完发布物后，默认自动执行安装目录内的 `install-autostart.cmd`
+  - 只有自启动真正安装成功后，安装流程才继续完成
+- 同步把 release README 和仓库根 README 改成当前事实：
+  - 新用户执行 `install-local-single-user.cmd` 后，会默认获得当前用户开机自启动
+  - 如需查看或关闭，再执行 `status-autostart.cmd` / `remove-autostart.cmd`
+
+### 3. 影响范围与收益
+
+- 这次没有改业务接口、数据库或升级协议
+- 只影响 `local-single-user` 的安装交付链
+- 直接收益是：
+  - 新用户安装后，不再因为漏执行 `install-autostart.cmd` 导致“每次重启电脑后页面打不开”
+  - 安装说明与实际产品行为重新一致
   为顺序继续验证真实升级闭环
 
 ## 继续验证补充（2026-07-28 12:56）

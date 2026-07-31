@@ -122,7 +122,12 @@ install-local-single-user.cmd
 - 桌面快捷方式
 - 安装目录里的 `start-local-single-user.cmd`
 
-7. 进入系统后，如需升级新版本，优先在个人中心里的 `版本与升级` 页面执行：
+7. 安装脚本会默认帮当前用户配置开机自启动；如果后续想查看或移除，可执行：
+
+- `status-autostart.cmd`
+- `remove-autostart.cmd`
+
+8. 进入系统后，如需升级新版本，优先在个人中心里的 `版本与升级` 页面执行：
 
 - `检查更新`
 - `预下载安装包`
@@ -245,7 +250,17 @@ npm run local:release:package
 .release/artifacts/AiOmniOps-local-single-user-win-x64.zip
 ```
 
-### 4. 更多系统结构和变更记录去哪里看
+### 4. 为什么我重启电脑后页面打不开
+
+如果是通过安装包正常安装的新用户，安装脚本现在会默认配置当前用户开机自启动。
+
+如果你是旧安装，或曾手工拷贝目录但没执行安装脚本，可以在安装目录里手工执行：
+
+```text
+install-autostart.cmd
+```
+
+### 5. 更多系统结构和变更记录去哪里看
 
 - `docs/README.md`
 - `docs/site-map.md`

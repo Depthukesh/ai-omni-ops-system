@@ -95,6 +95,7 @@
 - 当主 `local-single-user` runtime 仍在服务用户时，不允许再对同一份 live `.next` 目录直接做 fresh `next build` 作为日常验证手段；要么先停站重建，要么使用隔离的构建/预览路径
 - 面向用户交付 `local-single-user` 时，默认不能要求用户机器预装 Node；发布物至少要提供随包 `node.exe`、可双击启动的 `.cmd` 入口，以及与 launcher 相匹配的 `app/` 运行目录
 - 面向用户分发 `local-single-user` 时，不能只停留在裸 `.release/local-single-user-win-x64` 目录；至少还要提供安装入口和可校验的压缩包产物，例如 `install-local-single-user.cmd`、`.zip` 与配套 `.sha256`
+- 面向新用户交付的 `local-single-user` 安装脚本，默认要在安装完成时为当前用户配置开机自启动；不能把“安装后还得自己再手动执行 `install-autostart.cmd`”当成交付基线，用户若要关闭自启再通过 `remove-autostart.cmd` 显式移除
 - `local-single-user` 的“检查更新 / 立即升级”入口默认放在个人中心，由后端统一检查 GitHub Releases；前端只负责展示版本状态和触发动作，不在浏览器里直接替换安装目录
 - “版本与升级”这类安装态专属入口，不允许再串回网站版个人中心；后续新增相关入口时，必须同步覆盖概览页、导航和直达路由的三层门禁
 - 自动升级必须通过独立 updater 在安装目录外执行；升级前必须先校验 `.zip` 对应的 `.sha256`，升级时只替换程序目录，不动 `LOCAL_APP_DATA_ROOT` 下的 `data/`、`storage/`、`logs/`、`cache/`、`backup/`、`updates/`
