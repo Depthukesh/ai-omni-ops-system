@@ -285,7 +285,201 @@
 - 直接收益是：
   - 新用户安装后，不再因为漏执行 `install-autostart.cmd` 导致“每次重启电脑后页面打不开”
   - 安装说明与实际产品行为重新一致
-  为顺序继续验证真实升级闭环
+
+## 继续修正补充（2026-07-31 22:30）
+
+### 1. 定位“安装完成后立刻打不开页面”的真实原因
+
+- 这轮重新按新用户路径验证时，确认 `install-local-single-user.cmd` 只是执行安装 PowerShell：
+  - 复制 `app/bin/meta`
+  - 配置当前用户开机自启动
+  - 打印 `Launch: ...start-local-single-user.cmd`
+- 但安装脚本本身并不会真正调用 `start-local-single-user.cmd`。
+- 现场 pre-fix 调试日志已经确认：
+  - 安装脚本完整执行到了退出
+  - `3001 / 3011` 仍未监听
+  - 没有任何“启动脚本已进入”的证据
+- 因此用户看到的现象就是：
+  - 双击安装器后窗口运行一会儿消失
+  - 紧接着访问 `http://127.0.0.1:3001` 仍然 `ERR_CONNECTION_REFUSED`
+
+### 2. 这次补的修正
+
+- 调整 `scripts/build-local-single-user-release.cjs` 生成的 `install-local-single-user.ps1`：
+  - 安装成功后，先校验安装目录里的 `start-local-single-user.cmd` 存在
+  - 然后直接 `Start-Process` 无窗口拉起本地工作台
+- 同步把 README / release README 说明改成当前事实：
+  - 新用户安装完成后会自动启动本地工作台
+  - 如需后续手动再开，仍可通过桌面快捷方式或 `start-local-single-user.cmd`
+
+### 3. 影响范围与收益
+
+- 这次没有改数据库、升级协议或 launcher 主逻辑
+- 只影响 `local-single-user` 的安装完成收尾动作
+- 直接收益是：
+  - 新用户安装完成后，不再需要自己猜还要不要手动运行 `start-local-single-user.cmd`
+  - “安装成功但页面仍打不开”的第一印象问题被收口到安装脚本内直接解决
+
+## 继续修正补充（2026-07-31 22:50）
+
+### 1. 另一台机器重装时暴露出第二层问题
+
+- 在另一台测试机上，即使删除了解压目录并重新下载安装包，重新执行安装仍会停在：
+  - `Existing install detected; moving to backup: ...`
+- 这说明用户删除的是下载出来的目录，但：
+  - `%LOCALAPPDATA%\\Programs\\AiOmniOps`
+  里的旧安装仍然存在
+- 更关键的是，旧实例可能仍在运行或有残留 `cmd/node/powershell` 进程占用安装目录，导致 `Move-Item $InstallRoot -> backup` 这一步容易卡住
+
+### 2. 这次补的修正
+
+- 调整 `install-local-single-user.ps1` 生成逻辑：
+  - 当检测到旧安装目录存在时，先读取：
+    - `%APPDATA%\\AiOmniOps\\runtime\\local-single-user-runtime.json`
+  - 尝试终止旧的：
+    - launcher / server / worker / web PID
+  - 再补充扫描命令行里引用当前 `AiOmniOps` 安装目录的进程
+  - 确认停机后再执行：
+    - `Move-Item -LiteralPath $InstallRoot -Destination $backupRoot`
+
+### 3. 影响范围与收益
+
+- 这次依然没有改数据库、升级协议或业务接口
+- 只影响：
+  - 本地安装包的“重装 / 覆盖安装”路径
+- 直接收益是：
+  - 用户在另一台机器重复安装时，不需要先自己手动清理旧进程
+  - 安装器能更稳地处理“已有旧安装目录”的现场
+
+## 继续修正补充（2026-07-31 23:05）
+
+### 1. 另一台机器仍然出现“窗口闪一下就消失”
+
+- 这次现象说明安装入口 `install-local-single-user.cmd` 仍然存在一个交付体验问题：
+  - 如果 PowerShell 安装脚本返回非 0
+  - `cmd` 窗口会直接退出
+  - 用户拿不到真实错误，也不知道该去哪里看日志
+
+### 2. 这次补的修正
+
+- 调整 `install-local-single-user.cmd` 生成逻辑：
+  - 每次安装都会把 stdout / stderr 固定写到：
+    - `%LOCALAPPDATA%\\AiOmniOps\\logs\\install-local-single-user.log`
+  - 若安装失败：
+    - 直接在窗口里打印 `Install failed`
+    - 展示日志路径
+    - 回显日志内容
+    - `pause` 保持窗口不自动关闭
+
+### 3. 影响范围与收益
+
+- 这次不改业务运行逻辑，只改安装失败时的可观测性
+- 直接收益是：
+  - 另一台机器即使再次安装失败，也能第一时间看到真实报错
+  - 后续排障不再依赖“窗口一闪而过”的模糊现象
+
+## 继续修正补充（2026-07-31 23:20）
+
+### 1. 新日志确认卡点落在“旧安装 backup 前”
+
+- 用户在另一台机器上反馈的最新日志只停留在：
+  - `Existing install detected; moving to backup: ...`
+- 这说明新的“失败留窗 + 固定日志”已经生效，同时也把卡点进一步收缩到了：
+  - 旧安装目录处理阶段
+- 当前最可疑的点不再是 PowerShell 直接退出，而是：
+  - 安装器里的旧进程扫描 / 停机逻辑
+  - 或 `Move-Item $InstallRoot -> backup` 本身
+
+### 2. 这次补的修正
+
+- 继续调整 `install-local-single-user.ps1` 生成逻辑：
+  - 去掉此前最可疑的全量 `Get-CimInstance Win32_Process` 枚举
+  - 改成只读取 runtime metadata 里的 PID
+  - 对这些 PID 使用：
+    - `taskkill /PID <pid> /T /F`
+    - 再辅以 `Stop-Process`
+  - 同时新增更明确的阶段日志：
+    - `Stopping existing runtime PIDs: ...`
+    - `Creating backup from existing install...`
+  - 若 `Move-Item` 失败，直接把安装根、backup 根和真实异常信息写进日志
+
+### 3. 影响范围与收益
+
+- 这次仍然只影响安装器
+- 直接收益是：
+  - 把“旧安装处理阶段”从黑盒卡住变成可观察、可定位
+  - 避免因为全量 WMI 进程枚举导致安装器在某些机器上卡死
+
+## 继续修正补充（2026-07-31 23:45）
+
+### 1. 另一台机器确认“安装完成但启动链无日志”
+
+- 用户在另一台机器上使用 `hotfix-4` 安装后，`install-local-single-user.log` 已显示：
+  - `Install completed.`
+  - `Starting local workspace...`
+- 但 `%APPDATA%\\AiOmniOps\\logs` 为空，`runtime` 下也没有 `local-single-user-runtime.json`
+- 这说明问题已不在安装链，而是收缩为：
+  - launcher 在写出 server/web 日志和 runtime metadata 之前就提前退出
+
+### 2. 这次补的修正
+
+- 在 `scripts/local-single-user-launcher.cjs` 中新增最早期 bootstrap 日志：
+  - 固定写入 `%APPDATA%\\AiOmniOps\\logs\\launcher.log`
+- 记录的关键阶段包括：
+  - Launcher start
+  - 端口分配
+  - Prisma generate / db push 是否执行
+  - server / worker / web 是否已 spawn
+  - runtime metadata 是否成功写出
+  - `main.catch` / `uncaughtException` / `unhandledRejection`
+
+### 3. 影响范围与收益
+
+- 不改业务逻辑，只增强启动链首阶段的可观测性
+- 直接收益是：
+  - 即使 `server.log` / `web.log` 尚未来得及生成，也能通过 `launcher.log` 知道启动到底卡在哪一步
+  - 为顺序继续验证真实升级闭环
+
+### 4. 再往前补一层 `cmd` 级启动日志
+
+- 继续收口后确认，仅有 `launcher.log` 仍然不够：
+  - 如果 `start-local-single-user.cmd` 在调用 `node.exe` 前就失败，`launcher.log` 依旧不会出现
+- 因此又在 `scripts/build-local-single-user-release.cjs` 生成的启动入口中补了：
+  - 固定写入 `%APPDATA%\\AiOmniOps\\logs\\start-local-single-user.log`
+  - 记录 `SCRIPT_DIR`、`APP_DIR`、`NODE_SOURCE`、`NODE_EXE`
+  - 记录是否缺少 `scripts\\local-single-user-launcher.cjs`
+  - 记录 `pushd` 是否成功
+  - 记录 launcher 进程退出码
+- 这样下一轮即使 `node.exe`、工作目录或启动入口本身异常，也能直接看到更早期的失败点
+
+### 5. OSS 发布补一条固定上传链
+
+- 为了避免每次热修都手工拼对象路径和 `latest.json`，新增：
+  - `scripts/upload-local-single-user-release-to-oss.cjs`
+  - `npm run local:release:upload:oss -- --version <version>`
+- 这条链会固定上传：
+  - `.release/artifacts/AiOmniOps-local-single-user-win-x64.zip`
+  - `.release/artifacts/AiOmniOps-local-single-user-win-x64.zip.sha256`
+  - `.release/artifacts/latest.json`
+- 并统一写入：
+  - `ai-omni-ops/local-single-user/win-x64/<version>/...`
+  - `ai-omni-ops/local-single-user/win-x64/latest.json`
+- 这样本次新测试包和后续小热修都可以走同一条 OSS 分发口径，减少手工发布误差
+
+### 6. 修复发布包误删 `fast-check` 导致首启失败
+
+- 用户在真实测试机重新安装后，`install-local-single-user.log` 已显示安装完成，但页面仍打不开
+- 新增的 `start-local-single-user.log` 和 `launcher.log` 明确收敛出真实根因：
+  - launcher 在 `Local Prisma generate` 阶段退出
+  - Prisma CLI 通过 `@prisma/config -> effect` 间接加载 `fast-check`
+  - 当前 release 裁剪步骤把 `node_modules\\fast-check` 当成“可删包”移除了，导致首启直接 `MODULE_NOT_FOUND`
+- 这次修复只收口一处：
+  - `scripts/build-local-single-user-release.cjs` 不再从发布包里裁掉 `node_modules\\fast-check`
+- 影响与收益：
+  - 不改 launcher 启动策略
+  - 不改数据库逻辑
+  - 只修正发布物瘦身规则里的误删项
+  - 让安装态首启可以继续跑完 `Local Prisma generate -> db push -> server/web 拉起`
 
 ## 继续验证补充（2026-07-28 12:56）
 
@@ -1745,3 +1939,191 @@
   - `check -> download -> apply -> restart -> succeeded`
 - 因此后续如果要把这条链完全收口到“可重复演练”，下一步优先做：
   - 基于当前修复后的运行根，再重跑一轮完整升级演练
+
+## 继续验证补充（launcher 与手工直启的环境差异）
+
+### 1. 新现场说明 API 手工直启已可成功启动
+
+- 用户在测试机上按我们给出的 PowerShell 命令，直接执行：
+  - `bin/node.exe app/apps/server/dist/apps/server/src/main.js`
+- 现场输出显示：
+  - Nest 模块初始化完成
+  - `/api/health` 路由已注册
+  - `AI全域运营系统后端已启动: http://127.0.0.1:3011/api/health`
+
+- 这说明当时机器上的阻塞点已经不再是：
+  - `Prisma generate`
+  - `Prisma db push`
+  - 数据库路径
+  - 后端 dist 缺失
+
+### 2. 进一步收缩后，问题集中到 launcher 注入的运行时环境
+
+- 同一台机器上：
+  - 手工直启 API 可以成功
+  - launcher 拉起 API 却在健康检查超时后判定失败
+- 两条链路最关键的差异项是：
+  - launcher 会给整个本地单机运行时默认注入 `NODE_ENV=production`
+  - 手工直启命令当时并没有注入这项
+
+- 结合当前服务端配置可确认：
+  - `production` 下对本机回环地址会走不同的公共地址归一逻辑
+  - 这类差异不应该反向影响本地安装态 API 的首启稳定性
+
+### 3. 本轮修正
+
+- 在：
+  - `scripts/local-single-user-launcher.cjs`
+  中调整本地单机 launcher 的环境注入策略：
+  - API / worker 不再强制写入 `NODE_ENV=production`
+  - Web 进程仍保留 `NODE_ENV=production`，保证 standalone/预构建运行时继续按正式前端模式启动
+
+- 这次修正的目标不是放宽整个交付基线，而是让：
+  - 本地安装态 API 启动环境尽量贴近已验证通过的手工直启现场
+  - 避免 launcher 比真实 API 启动链额外多打一层生产态分支
+
+### 4. 继续收缩后，API/worker 的工作目录也确认为高可疑差异项
+
+- 用户回传的 `aiomniops-startup-report.txt` 显示：
+  - `Prisma generate` / `db push` 已成功
+  - launcher 仍在 `waitForUrl(api/health)` 阶段超时
+  - `server.log` / `server.err.log` 都为空
+  - 3001 / 3011 端口均未监听
+
+- 与此同时，用户手工执行：
+  - `bin/node.exe app/apps/server/dist/apps/server/src/main.js`
+  却能够把 Nest API 正常拉起。
+
+- 这说明问题已经进一步收缩为：
+  - launcher 启动 API 子进程的方式，仍和手工直启现场存在关键差异
+
+- 本轮继续在：
+  - `scripts/local-single-user-launcher.cjs`
+  中收紧：
+  - API / worker 不再以 `apps/server` 为 `cwd`
+  - 改为以安装包 `app` 根目录启动，尽量贴近已验证通过的手工直启链路
+
+- 这次调整的目的，是避免服务端在安装态启动时因为 `process.cwd()` 指向偏深目录，命中不同的路径解析分支，导致首启既没监听端口，也没来得及留下有效日志。
+
+## 继续验证补充（后台接口供应商在 SQLite 下回退到演示数据）
+
+### 1. 现象已经收缩到后台初始化的单一失败接口
+
+- 本地单机安装态重新可登录后，`/admin` 虽然能进入，但顶部仍出现红色提示：
+  - `部分后台接口暂不可用，当前已回退到本地演示数据。`
+- 顺着后台前端的 `Promise.allSettled(...)` 初始化链逐个排查后，确认并不是整套后台不可用，而是只有：
+  - `/api/admin/api-providers`
+  返回了 `500`
+- 其它后台初始化接口，包括：
+  - 计费规则
+  - 用户管理
+  - 模型用量
+  - 技能中心
+  - Prompt / 运营 Prompt / 生图 Prompt
+  - 能力包
+  - 模块注册
+  - 知识库与知识文件
+  - 第三方平台
+  都已可正常返回
+
+### 2. 根因是 `ApiProvidersService` 仍残留 PostgreSQL 方言假设
+
+- 本地单机安装态跑的是 SQLite。
+- 但 `apps/server/src/modules/admin/api-providers.service.ts` 里原先的 provider 治理与系统 seed 同步逻辑，仍然把多处数据库操作写成 PostgreSQL 专用语法，例如：
+  - `JSONB`
+  - `::jsonb`
+  - `TIMESTAMPTZ`
+  - `ANY (...::text[])`
+- 这会导致后台首次拉取接口供应商列表时，SQLite 在 raw SQL 阶段直接报错，前端随后回退到本地演示数据。
+
+### 3. 本轮修正
+
+- 在：
+  - `apps/server/src/modules/admin/api-providers.service.ts`
+  中补齐 SQLite 分支，避免本地安装态继续走 PostgreSQL raw SQL：
+  - provider 列表读取改为 Prisma ORM
+  - 新建 / 更新 / 归档 / 删除 provider 改为 Prisma ORM
+  - SQLite 下的 `ApiProviderConfig` 建表与补列改为 SQLite 兼容定义
+  - 系统 provider seed 同步、废弃 provider 清理与 `Right Codes Codex` 默认值迁移，全部补齐 SQLite 路径
+  - JSON 字段统一通过 `Prisma.InputJsonValue` 写入，避免本地模式下继续拼接 `::jsonb`
+
+### 4. 影响范围与防副作用说明
+
+- 这次修正只收口：
+  - 后台 `接口供应商` 治理模块
+- 没有改：
+  - 数据库 schema
+  - 前端后台初始化协议
+  - 其它 admin 模块接口
+  - 网站版 / PostgreSQL 模式下原有治理链路
+- PostgreSQL 路径仍保留原有 raw SQL 行为；SQLite 仅在本地单机安装态切到兼容分支，避免局部修复扩大成全局行为变化。
+
+### 5. 验证
+
+- `npm exec tsc -- -p "d:\\王笑东\\aiproject\\AI全域运营\\AI全域智能体\\local-ai-omni-ops-system\\apps\\server\\tsconfig.json" --noEmit`
+  - 通过
+- 安装态真实运行根热补丁后验证：
+  - `GET http://127.0.0.1:3011/api/health`
+    - 返回 `200`
+    - `status=ok`
+- 本地默认管理员登录验证：
+  - `POST http://127.0.0.1:3011/api/auth/login`
+    - 返回 `200`
+    - `systemRole=SUPER_ADMIN`
+- 接口供应商接口验证：
+  - `GET http://127.0.0.1:3011/api/admin/api-providers`
+    - 返回 `200`
+    - 已返回真实 provider 列表
+- 通过 Web 代理再验后台初始化链：
+  - `GET http://127.0.0.1:3001/api/admin/api-providers`
+    - 返回 `200`
+  - 后台初始化涉及的 20 个接口经管理员 token 逐个请求，现已全部返回 `200`
+
+### 6. 当前结论
+
+- 后台此前显示“回退到本地演示数据”的直接根因已经修掉：
+  - `/api/admin/api-providers` 不再在 SQLite 下报错
+- 按当前实测结果，`/admin` 重新刷新后应恢复使用真实后台数据，不再进入本地 seed 回退模式。
+
+## 继续修正补充（版本升级页成功态文案归一）
+
+### 1. 当前版本页的版本源判断本身是正确的
+
+- 这次顺着“能不能直接通过版本升级修复后台问题”继续验证时，确认版本页当前仍然默认读取：
+  - GitHub Releases
+- 当前安装态的 `generatedAt` 已晚于最新 GitHub Release 的 `publishedAt`，所以：
+  - `updateAvailable = false`
+  的判断本身没有问题
+
+### 2. 但成功态消息会残留上一次升级时的旧提示
+
+- `system-update` 状态接口此前只要检测到持久化状态文件里还保留了：
+  - `phase = SUCCEEDED`
+  - `message = 升级安装完成，正在重新启动本地工作台。`
+- 就会原样把这条旧消息继续回给前端，即使当前实际上已经稳定运行且没有新版本。
+- 这会让版本页出现一种口径不一致：
+  - 右侧显示“已是最新”
+  - 但状态说明还像“系统仍在刚刚重启”
+
+### 3. 本轮修正
+
+- 在：
+  - `apps/server/src/modules/system-update/system-update.service.ts`
+  中把 `resolveMessage(...)` 的逻辑收紧为按当前阶段返回消息：
+  - `DOWNLOADING` / `APPLYING` / `READY_TO_APPLY` / `FAILED`
+    继续优先使用持久化状态里的实时消息
+  - `SUCCEEDED + !updateAvailable`
+    统一返回：
+    - `当前已经是最新发布版本。`
+- 这样“历史成功消息”不会再覆盖当前真实状态
+
+### 4. 验证
+
+- `npm exec tsc -- -p "d:\\王笑东\\aiproject\\AI全域运营\\AI全域智能体\\local-ai-omni-ops-system\\apps\\server\\tsconfig.json" --noEmit`
+  - 通过
+- 安装态运行根热补丁并重启后验证：
+  - `GET http://127.0.0.1:3011/api/system/update/status`
+  - 当前已返回：
+    - `phase = SUCCEEDED`
+    - `updateAvailable = false`
+    - `message = 当前已经是最新发布版本。`

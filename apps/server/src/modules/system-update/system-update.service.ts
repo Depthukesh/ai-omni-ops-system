@@ -554,14 +554,26 @@ export class SystemUpdateService {
     latestErrorMessage: string | null,
     updateAvailable: boolean,
   ) {
-    if (persistedState?.message) {
-      return persistedState.message;
-    }
     if (current.applyBlockedReason) {
       return current.applyBlockedReason;
     }
     if (latestErrorMessage) {
       return latestErrorMessage;
+    }
+    if (persistedState?.phase === "DOWNLOADING") {
+      return persistedState.message || "正在下载最新安装包并校验完整性。";
+    }
+    if (persistedState?.phase === "APPLYING") {
+      return persistedState.message || "升级进程已启动，正在后台替换安装目录。";
+    }
+    if (persistedState?.phase === "READY_TO_APPLY" && !updateAvailable) {
+      return persistedState.message || "安装包已准备完成，可开始升级。";
+    }
+    if (persistedState?.phase === "FAILED") {
+      return persistedState.message || "上一次升级失败，请重新检查更新。";
+    }
+    if (persistedState?.phase === "SUCCEEDED" && !updateAvailable) {
+      return "当前已经是最新发布版本。";
     }
     if (updateAvailable) {
       return "检测到可用新版本，可以先下载校验，再执行一键升级。";

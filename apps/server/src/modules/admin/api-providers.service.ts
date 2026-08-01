@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
+import { Prisma } from "@prisma/client";
 import {
   DECOMMISSIONED_SYSTEM_API_PROVIDER_IDS,
   LEGACY_API_PROVIDER_IDS,
@@ -71,9 +72,25 @@ export class ApiProvidersService {
 
   constructor(private readonly prismaService: PrismaService) {}
 
+  private isSqliteDatabase() {
+    return this.prismaService.isLocalSqliteMode();
+  }
+
+  private toInputJsonValue(value: unknown) {
+    return value as Prisma.InputJsonValue;
+  }
+
   async listProviders() {
     if (await this.prismaService.canUseDatabase()) {
       await this.ensureTableReady();
+      if (this.isSqliteDatabase()) {
+        const rows = await this.prismaService.apiProviderConfig.findMany({
+          orderBy: {
+            updatedAt: "desc",
+          },
+        });
+        return rows.map((item) => this.normalizeRow(item as unknown as ApiProviderRow));
+      }
       const rows = await this.prismaService.$queryRaw<ApiProviderRow[]>`
         SELECT *
         FROM "ApiProviderConfig"
@@ -178,6 +195,34 @@ export class ApiProvidersService {
 
     if (await this.prismaService.canUseDatabase()) {
       await this.ensureTableReady();
+      if (this.isSqliteDatabase()) {
+        const row = await this.prismaService.apiProviderConfig.create({
+          data: {
+            id: record.id,
+            name: record.name,
+            providerType: record.providerType,
+            status: record.status,
+            baseUrl: record.baseUrl,
+            tutorialUrl: record.tutorialUrl,
+            modelWhitelistJson: record.modelWhitelist,
+            apiKey: record.apiKey,
+            defaultModel: record.defaultModel,
+            organization: record.organization,
+            project: record.project,
+            timeoutMs: record.timeoutMs,
+            streamEnabled: record.streamEnabled,
+            customHeadersJson: this.toInputJsonValue(record.customHeaders),
+            extraParamsJson: this.toInputJsonValue(record.extraParams),
+            remark: record.remark,
+            successRate: record.successRate,
+            requestCount24h: record.requestCount24h,
+            totalCostYuan: record.totalCostYuan,
+            lastCalledAt: new Date(record.lastCalledAt),
+            updatedAt: new Date(record.updatedAt),
+          },
+        });
+        return this.normalizeRow(row as unknown as ApiProviderRow);
+      }
       const rows = await this.prismaService.$queryRaw<ApiProviderRow[]>`
         INSERT INTO "ApiProviderConfig" (
           "id",
@@ -240,6 +285,31 @@ export class ApiProvidersService {
       const current = await this.findById(id);
       if (!current) {
         throw new NotFoundException("API Provider 不存在");
+      }
+      if (this.isSqliteDatabase()) {
+        const row = await this.prismaService.apiProviderConfig.update({
+          where: { id },
+          data: {
+            status: payload.status ?? current.status,
+            baseUrl: payload.baseUrl ?? current.baseUrl,
+            tutorialUrl: payload.tutorialUrl ?? current.tutorialUrl,
+            modelWhitelistJson: payload.modelWhitelist ?? current.modelWhitelist,
+            apiKey: payload.apiKey ?? current.apiKey,
+            defaultModel: payload.defaultModel ?? current.defaultModel,
+            organization: payload.organization ?? current.organization,
+            project: payload.project ?? current.project,
+            timeoutMs: payload.timeoutMs ?? current.timeoutMs,
+            streamEnabled: payload.streamEnabled ?? current.streamEnabled,
+            customHeadersJson: this.toInputJsonValue(
+              this.normalizeStringMap(payload.customHeaders ?? current.customHeaders),
+            ),
+            extraParamsJson: this.toInputJsonValue(
+              this.normalizeObjectMap(payload.extraParams ?? current.extraParams),
+            ),
+            remark: payload.remark ?? current.remark,
+          },
+        });
+        return this.normalizeRow(row as unknown as ApiProviderRow);
       }
 
       const rows = await this.prismaService.$queryRaw<ApiProviderRow[]>`
@@ -317,6 +387,21 @@ export class ApiProvidersService {
   async archiveProvider(id: string) {
     if (await this.prismaService.canUseDatabase()) {
       await this.ensureTableReady();
+      if (this.isSqliteDatabase()) {
+        const row = await this.prismaService.apiProviderConfig.findUnique({
+          where: { id },
+        });
+        if (!row) {
+          throw new NotFoundException("API Provider 不存在");
+        }
+        const updated = await this.prismaService.apiProviderConfig.update({
+          where: { id },
+          data: {
+            status: "DISABLED",
+          },
+        });
+        return this.normalizeRow(updated as unknown as ApiProviderRow);
+      }
       const rows = await this.prismaService.$queryRaw<ApiProviderRow[]>`
         UPDATE "ApiProviderConfig"
         SET
@@ -344,6 +429,18 @@ export class ApiProvidersService {
   async deleteProvider(id: string) {
     if (await this.prismaService.canUseDatabase()) {
       await this.ensureTableReady();
+      if (this.isSqliteDatabase()) {
+        const row = await this.prismaService.apiProviderConfig.findUnique({
+          where: { id },
+        });
+        if (!row) {
+          throw new NotFoundException("API Provider 不存在");
+        }
+        await this.prismaService.apiProviderConfig.delete({
+          where: { id },
+        });
+        return this.normalizeRow(row as unknown as ApiProviderRow);
+      }
       const rows = await this.prismaService.$queryRaw<ApiProviderRow[]>`
         DELETE FROM "ApiProviderConfig"
         WHERE "id" = ${id}
@@ -373,6 +470,50 @@ export class ApiProvidersService {
 
   private async bootstrapTable() {
     if (!(await this.prismaService.canUseDatabase())) {
+      return;
+    }
+
+    if (this.isSqliteDatabase()) {
+      await this.prismaService.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "ApiProviderConfig" (
+          "id" TEXT PRIMARY KEY,
+          "name" TEXT NOT NULL,
+          "providerType" TEXT NOT NULL,
+          "status" TEXT NOT NULL,
+          "baseUrl" TEXT NOT NULL DEFAULT '',
+          "tutorialUrl" TEXT NOT NULL DEFAULT '',
+          "modelWhitelistJson" TEXT NOT NULL DEFAULT '[]',
+          "apiKey" TEXT NOT NULL DEFAULT '',
+          "defaultModel" TEXT NOT NULL DEFAULT '',
+          "organization" TEXT NOT NULL DEFAULT '',
+          "project" TEXT NOT NULL DEFAULT '',
+          "timeoutMs" INTEGER NOT NULL DEFAULT 60000,
+          "streamEnabled" BOOLEAN NOT NULL DEFAULT FALSE,
+          "customHeadersJson" TEXT NOT NULL DEFAULT '{}',
+          "extraParamsJson" TEXT NOT NULL DEFAULT '{}',
+          "remark" TEXT NOT NULL DEFAULT '',
+          "successRate" REAL NOT NULL DEFAULT 0,
+          "requestCount24h" INTEGER NOT NULL DEFAULT 0,
+          "totalCostYuan" REAL NOT NULL DEFAULT 0,
+          "lastCalledAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      await this.prismaService.ensureTableColumns("ApiProviderConfig", [
+        { name: "tutorialUrl", definition: "TEXT NOT NULL DEFAULT ''" },
+        { name: "modelWhitelistJson", definition: "TEXT NOT NULL DEFAULT '[]'" },
+        { name: "apiKey", definition: "TEXT NOT NULL DEFAULT ''" },
+        { name: "defaultModel", definition: "TEXT NOT NULL DEFAULT ''" },
+        { name: "organization", definition: "TEXT NOT NULL DEFAULT ''" },
+        { name: "project", definition: "TEXT NOT NULL DEFAULT ''" },
+        { name: "timeoutMs", definition: "INTEGER NOT NULL DEFAULT 60000" },
+        { name: "streamEnabled", definition: "BOOLEAN NOT NULL DEFAULT FALSE" },
+        { name: "customHeadersJson", definition: "TEXT NOT NULL DEFAULT '{}'" },
+        { name: "extraParamsJson", definition: "TEXT NOT NULL DEFAULT '{}'" },
+        { name: "remark", definition: "TEXT NOT NULL DEFAULT ''" },
+      ]);
+      await this.bootstrapSystemProviders();
+      await this.migrateTextGlobalRightCodesCodexDefaults();
       return;
     }
 
@@ -440,6 +581,12 @@ export class ApiProvidersService {
   }
 
   private async findById(id: string) {
+    if (this.isSqliteDatabase()) {
+      const row = await this.prismaService.apiProviderConfig.findUnique({
+        where: { id },
+      });
+      return row ? this.normalizeRow(row as unknown as ApiProviderRow) : undefined;
+    }
     const rows = await this.prismaService.$queryRaw<ApiProviderRow[]>`
       SELECT *
       FROM "ApiProviderConfig"
@@ -450,6 +597,50 @@ export class ApiProvidersService {
   }
 
   private async bootstrapSystemProviders() {
+    if (this.isSqliteDatabase()) {
+      const existingRows = await this.prismaService.apiProviderConfig.findMany();
+      const existingProviders = existingRows.map((item) => this.normalizeRow(item as unknown as ApiProviderRow));
+      const existingById = new Map(existingProviders.map((item) => [item.id, item]));
+      const existingIds = new Set(existingProviders.map((item) => item.id));
+      const hasSystemSeed = SYSTEM_API_PROVIDER_SEEDS.some((item) => existingIds.has(item.id));
+
+      if (!hasSystemSeed && LEGACY_API_PROVIDER_IDS.some((item) => existingIds.has(item))) {
+        await this.prismaService.apiProviderConfig.deleteMany({
+          where: {
+            id: { in: LEGACY_API_PROVIDER_IDS },
+          },
+        });
+        for (const legacyId of LEGACY_API_PROVIDER_IDS) {
+          existingIds.delete(legacyId);
+        }
+      }
+
+      const decommissionedProviderIds = existingProviders
+        .filter((item) => this.isDecommissionedProvider(item))
+        .map((item) => item.id);
+      if (decommissionedProviderIds.length) {
+        await this.prismaService.apiProviderConfig.deleteMany({
+          where: {
+            id: { in: decommissionedProviderIds },
+          },
+        });
+        for (const providerId of decommissionedProviderIds) {
+          existingById.delete(providerId);
+          existingIds.delete(providerId);
+        }
+      }
+
+      for (const provider of SYSTEM_API_PROVIDER_SEEDS) {
+        const current = existingById.get(provider.id);
+        if (current) {
+          await this.syncSystemProviderSeed(current, provider);
+          continue;
+        }
+        await this.insertProviderSeed(provider);
+      }
+      return;
+    }
+
     const existingRows = await this.prismaService.$queryRaw<ApiProviderRow[]>`
       SELECT *
       FROM "ApiProviderConfig"
@@ -532,6 +723,20 @@ export class ApiProvidersService {
       sourceFolder: "Right Codes Codex 文生文/带图问答",
     };
 
+    if (this.isSqliteDatabase()) {
+      await this.prismaService.apiProviderConfig.update({
+        where: { id: provider.id },
+        data: {
+          baseUrl: nextBaseUrl,
+          tutorialUrl: nextTutorialUrl,
+          modelWhitelistJson: nextModelWhitelist,
+          defaultModel: nextDefaultModel,
+          extraParamsJson: this.toInputJsonValue(nextExtraParams),
+        },
+      });
+      return;
+    }
+
     await this.prismaService.$executeRaw`
       UPDATE "ApiProviderConfig"
       SET
@@ -588,6 +793,27 @@ export class ApiProvidersService {
       && currentExtraParamsJson === nextExtraParamsJson
       && current.remark === nextRemark
     ) {
+      return;
+    }
+    if (this.isSqliteDatabase()) {
+      await this.prismaService.apiProviderConfig.update({
+        where: { id: current.id },
+        data: {
+          name: nextName,
+          providerType: nextProviderType,
+          status: nextStatus,
+          baseUrl: nextBaseUrl,
+          tutorialUrl: nextTutorialUrl,
+          modelWhitelistJson: nextModelWhitelist,
+          apiKey: nextApiKey,
+          defaultModel: nextDefaultModel,
+          timeoutMs: nextTimeoutMs,
+          streamEnabled: nextStreamEnabled,
+          customHeadersJson: this.toInputJsonValue(JSON.parse(nextCustomHeadersJson)),
+          extraParamsJson: this.toInputJsonValue(JSON.parse(nextExtraParamsJson)),
+          remark: nextRemark,
+        },
+      });
       return;
     }
     await this.prismaService.$executeRaw`
@@ -654,6 +880,34 @@ export class ApiProvidersService {
   }
 
   private async insertProviderSeed(provider: ApiProviderRecord) {
+    if (this.isSqliteDatabase()) {
+      await this.prismaService.apiProviderConfig.create({
+        data: {
+          id: provider.id,
+          name: provider.name,
+          providerType: provider.providerType,
+          status: provider.status,
+          baseUrl: provider.baseUrl,
+          tutorialUrl: provider.tutorialUrl,
+          modelWhitelistJson: provider.modelWhitelist,
+          apiKey: provider.apiKey,
+          defaultModel: provider.defaultModel,
+          organization: provider.organization,
+          project: provider.project,
+          timeoutMs: provider.timeoutMs,
+          streamEnabled: provider.streamEnabled,
+          customHeadersJson: this.toInputJsonValue(provider.customHeaders),
+          extraParamsJson: this.toInputJsonValue(provider.extraParams),
+          remark: provider.remark,
+          successRate: provider.successRate,
+          requestCount24h: provider.requestCount24h,
+          totalCostYuan: provider.totalCostYuan,
+          lastCalledAt: new Date(provider.lastCalledAt),
+          updatedAt: new Date(provider.updatedAt),
+        },
+      });
+      return;
+    }
     await this.prismaService.$executeRaw`
       INSERT INTO "ApiProviderConfig" (
         "id",
