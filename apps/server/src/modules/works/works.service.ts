@@ -78,61 +78,6 @@ const VIDEO_TASK_TOTAL_TIMEOUT_MS = 20 * 60 * 1000;
 const RUNNINGHUB_TASK_POLL_INTERVAL_MS = 15 * 1000;
 const RUNNINGHUB_TASK_TOTAL_TIMEOUT_MS = 2 * 60 * 60 * 1000;
 const WORKS_KNOWLEDGE_BINDING_LIMIT = 3;
-
-async function reportRunningHubStatusStuckDebugEvent(payload: Record<string, unknown>) {
-  const baseUrl = String(process.env.PUBLIC_API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "").trim().replace(/\/$/, "");
-  if (!baseUrl) {
-    return;
-  }
-  await fetch(`${baseUrl}/openclaw/mcp/debug/runninghub-status-stuck/event`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      ...(payload || {}),
-      ts: typeof payload.ts === "number" ? payload.ts : Date.now(),
-    }),
-  }).catch(() => {});
-}
-
-async function reportDuoyuanxPlatformMatchDebugEvent(payload: Record<string, unknown>) {
-  const baseUrl = String(process.env.PUBLIC_API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "").trim().replace(/\/$/, "");
-  if (!baseUrl) {
-    return;
-  }
-  await fetch(`${baseUrl}/openclaw/mcp/debug/duoyuanx-platform-match/event`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      ...(payload || {}),
-      ts: typeof payload.ts === "number" ? payload.ts : Date.now(),
-    }),
-  }).catch(() => {});
-}
-
-async function reportRunningHubMissingTaskIdDebugEvent(payload: Record<string, unknown>) {
-  let targetUrl = "http://127.0.0.1:7777/event";
-  let sessionId = "runninghub-missing-taskid";
-  try {
-    const envContent = readFileSync(join(process.cwd(), ".dbg", "runninghub-missing-taskid.env"), "utf8");
-    const resolvedUrl = envContent.match(/^DEBUG_SERVER_URL=(.+)$/m)?.[1]?.trim();
-    const resolvedSessionId = envContent.match(/^DEBUG_SESSION_ID=(.+)$/m)?.[1]?.trim();
-    if (resolvedUrl) {
-      targetUrl = resolvedUrl;
-    }
-    if (resolvedSessionId) {
-      sessionId = resolvedSessionId;
-    }
-  } catch {}
-  await fetch(targetUrl, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      sessionId,
-      ...(payload || {}),
-      ts: typeof payload.ts === "number" ? payload.ts : Date.now(),
-    }),
-  }).catch(() => {});
-}
 const WORKS_KNOWLEDGE_TOP_K = 4;
 const DOUYIN_AD_PRE_AUDIT_TASK_TYPE = "DOUYIN_AD_PRE_AUDIT";
 const OPERATIONS_PROMPT_CENTER_TASK_TYPE = "OPERATIONS_PROMPT_CENTER";
@@ -3133,7 +3078,6 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
   private readonly heavyRecoveryPollingIntervalMs = readPositiveIntegerEnv("WORKS_HEAVY_RECOVERY_POLLING_INTERVAL_MS", 30_000);
   private readonly heavyRecoveryPollingBatchLimit = readPositiveIntegerEnv("WORKS_HEAVY_RECOVERY_POLLING_BATCH_LIMIT", 2);
   private readonly inFlightHeavyRecoveryRefreshes = new Set<string>();
-  private readonly inFlightRunningHubSettlementMonitors = new Set<string>();
   private readonly videoQueryDedupTtlMs = readPositiveIntegerEnv("WORKS_VIDEO_QUERY_DEDUP_TTL_MS", 2_000);
   private readonly videoQueryErrorBackoffMs = readPositiveIntegerEnv("WORKS_VIDEO_QUERY_ERROR_BACKOFF_MS", 5_000);
   private readonly videoQueryDedupMaxEntries = readPositiveIntegerEnv("WORKS_VIDEO_QUERY_DEDUP_MAX_ENTRIES", 300);
@@ -3186,8 +3130,16 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
     private readonly wechatOfficialAccountApiService: WechatOfficialAccountApiService,
   ) {}
 
+  private shouldRunLocalHeavyRecoveryPolling() {
+    return !this.appConfigService.isLocalSingleUserMode() || this.appConfigService.isWorkerBootMode();
+  }
+
   onModuleInit() {
     if (!this.heavyRecoveryPollingEnabled) {
+      return;
+    }
+    if (!this.shouldRunLocalHeavyRecoveryPolling()) {
+      this.logger.log("Skip heavy recovery polling on local API process; worker owns background recovery polling.");
       return;
     }
     void this.runHeavyRecoveryPollingCycle().catch((error) => {
@@ -3354,27 +3306,30 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
     const scanLimit = Math.max(limit * 5, 30);
     const rows: RunningHubSubmissionRow[] = await (async (): Promise<RunningHubSubmissionRow[]> => {
       if (await this.prismaService.canUseDatabase()) {
-        try {
-          return await this.prismaService.$queryRaw<Array<RunningHubSubmissionRow>>(Prisma.sql`
-            SELECT "id", "brandId", "taskId", "storageKey", "metadataJson", "updatedAt", "createdAt"
-            FROM "MediaAsset"
-            WHERE "mediaType" = CAST(${MediaType.HTML} AS "MediaType")
-              AND "brandId" IS NOT NULL
-              AND COALESCE("metadataJson"->>'kind', '') = ${"DOUYIN_RUNNINGHUB_APP"}
-            ORDER BY "createdAt" DESC, "updatedAt" DESC
-            LIMIT ${scanLimit}
-          `);
-        } catch {
-          const fallbackRows = await this.prismaService.mediaAsset.findMany({
-            where: {
-              mediaType: MediaType.HTML,
-              brandId: { not: null },
-            },
-            orderBy: [{ createdAt: "desc" }, { updatedAt: "desc" }],
-            take: scanLimit,
-          });
-          return fallbackRows.filter((item) => this.isRunningHubWorkMeta(item.metadataJson));
+        if (!this.prismaService.isLocalSqliteMode()) {
+          try {
+            return await this.prismaService.$queryRaw<Array<RunningHubSubmissionRow>>(Prisma.sql`
+              SELECT "id", "brandId", "taskId", "storageKey", "metadataJson", "updatedAt", "createdAt"
+              FROM "MediaAsset"
+              WHERE "mediaType" = CAST(${MediaType.HTML} AS "MediaType")
+                AND "brandId" IS NOT NULL
+                AND COALESCE("metadataJson"->>'kind', '') = ${"DOUYIN_RUNNINGHUB_APP"}
+              ORDER BY "createdAt" DESC, "updatedAt" DESC
+              LIMIT ${scanLimit}
+            `);
+          } catch {
+            // Fall back to Prisma delegate filtering if the datasource cannot evaluate JSON kind filters.
+          }
         }
+        const fallbackRows = await this.prismaService.mediaAsset.findMany({
+          where: {
+            mediaType: MediaType.HTML,
+            brandId: { not: null },
+          },
+          orderBy: [{ createdAt: "desc" }, { updatedAt: "desc" }],
+          take: scanLimit,
+        });
+        return fallbackRows.filter((item) => this.isRunningHubWorkMeta(item.metadataJson));
       }
       return database.media
         .filter((item) => item.mediaType === "HTML" && item.brandId)
@@ -3429,38 +3384,42 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       "DOUYIN_DIRECT_VIDEO",
       "DOUYIN_REMIX_SHORT_VIDEO",
     ];
+    const scanLimit = Math.max(limit * 5, 30);
     const rows: HeavyRecoveryRow[] = await (async (): Promise<HeavyRecoveryRow[]> => {
       if (await this.prismaService.canUseDatabase()) {
-        try {
-          return await this.prismaService.$queryRaw<Array<HeavyRecoveryRow>>(Prisma.sql`
-            SELECT "id", "brandId", "taskId", "storageKey", "metadataJson", "updatedAt"
-            FROM "MediaAsset"
-            WHERE "mediaType" = CAST(${MediaType.HTML} AS "MediaType")
-              AND "brandId" IS NOT NULL
-              AND COALESCE("metadataJson"->>'kind', '') IN (${Prisma.join(heavyRecoveryKinds.map((item) => Prisma.sql`${item}`))})
-            ORDER BY "updatedAt" ASC
-            LIMIT ${limit}
-          `);
-        } catch {
-          const fallbackRows = await this.prismaService.mediaAsset.findMany({
-            where: {
-              mediaType: MediaType.HTML,
-              brandId: { not: null },
-            },
-            orderBy: { updatedAt: "asc" },
-            take: limit,
-          });
-          return fallbackRows.filter((item) => {
-            const kind = String(this.asRecord(item.metadataJson)?.kind || "").trim();
-            return heavyRecoveryKinds.includes(kind);
-          });
+        if (!this.prismaService.isLocalSqliteMode()) {
+          try {
+            return await this.prismaService.$queryRaw<Array<HeavyRecoveryRow>>(Prisma.sql`
+              SELECT "id", "brandId", "taskId", "storageKey", "metadataJson", "updatedAt"
+              FROM "MediaAsset"
+              WHERE "mediaType" = CAST(${MediaType.HTML} AS "MediaType")
+                AND "brandId" IS NOT NULL
+                AND COALESCE("metadataJson"->>'kind', '') IN (${Prisma.join(heavyRecoveryKinds.map((item) => Prisma.sql`${item}`))})
+              ORDER BY "updatedAt" DESC
+              LIMIT ${scanLimit}
+            `);
+          } catch {
+            // Fall back to Prisma delegate filtering if the datasource cannot evaluate JSON kind filters.
+          }
         }
+        const fallbackRows = await this.prismaService.mediaAsset.findMany({
+          where: {
+            mediaType: MediaType.HTML,
+            brandId: { not: null },
+          },
+          orderBy: { updatedAt: "desc" },
+          take: scanLimit,
+        });
+        return fallbackRows.filter((item) => {
+          const kind = String(this.asRecord(item.metadataJson)?.kind || "").trim();
+          return heavyRecoveryKinds.includes(kind);
+        });
       }
       return database.media
         .filter((item) => item.mediaType === "HTML" && item.brandId)
         .filter((item) => heavyRecoveryKinds.includes(String(this.asRecord((item as { metadataJson?: unknown }).metadataJson)?.kind || "").trim()))
-        .sort((left, right) => new Date(left.updatedAt || left.createdAt).getTime() - new Date(right.updatedAt || right.createdAt).getTime())
-        .slice(0, limit);
+        .sort((left, right) => new Date(right.updatedAt || right.createdAt).getTime() - new Date(left.updatedAt || left.createdAt).getTime())
+        .slice(0, scanLimit);
     })();
 
     const candidates: HeavyRecoveryCandidate[] = [];
@@ -3883,7 +3842,11 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
     storageKey: string,
     meta: VideoWorkAssetMeta,
   ) {
-    if (!taskId || !meta.storyboardPrompt || !meta.storyboardImageUrl) {
+    const requiresDirectVideoPrompt = meta.kind === "DOUYIN_DIRECT_VIDEO";
+    const hasContinueInputs = requiresDirectVideoPrompt
+      ? Boolean(taskId && (meta.videoPrompt || meta.fullVideoPrompt))
+      : Boolean(taskId && meta.storyboardPrompt && meta.storyboardImageUrl);
+    if (!hasContinueInputs) {
       return;
     }
     await this.runContinueVideoGenerationTask(
@@ -3950,35 +3913,38 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
     if (!normalizedKinds.length) {
       return [];
     }
-    try {
-      return await this.prismaService.$queryRaw<Array<{
-        id: string;
-        brandId: string | null;
-        taskId: string | null;
-        metadataJson: Prisma.JsonValue | null;
-        createdAt: Date;
-        updatedAt: Date;
-      }>>(Prisma.sql`
-        SELECT "id", "brandId", "taskId", "metadataJson", "createdAt", "updatedAt"
-        FROM "MediaAsset"
-        WHERE "brandId" = ${brandId}
-          AND "mediaType" = CAST(${MediaType.HTML} AS "MediaType")
-          AND COALESCE("metadataJson"->>'kind', '') IN (${Prisma.join(normalizedKinds.map((item) => Prisma.sql`${item}`))})
-        ORDER BY "createdAt" DESC
-      `);
-    } catch {
-      const rows = await this.prismaService.mediaAsset.findMany({
-        where: {
-          brandId,
-          mediaType: MediaType.HTML,
-        },
-        orderBy: { createdAt: "desc" },
-      });
-      return rows.filter((item) => {
-        const kind = String(this.asRecord(item.metadataJson)?.kind || "").trim();
-        return normalizedKinds.includes(kind);
-      });
+    if (!this.prismaService.isLocalSqliteMode()) {
+      try {
+        return await this.prismaService.$queryRaw<Array<{
+          id: string;
+          brandId: string | null;
+          taskId: string | null;
+          metadataJson: Prisma.JsonValue | null;
+          createdAt: Date;
+          updatedAt: Date;
+        }>>(Prisma.sql`
+          SELECT "id", "brandId", "taskId", "metadataJson", "createdAt", "updatedAt"
+          FROM "MediaAsset"
+          WHERE "brandId" = ${brandId}
+            AND "mediaType" = CAST(${MediaType.HTML} AS "MediaType")
+            AND COALESCE("metadataJson"->>'kind', '') IN (${Prisma.join(normalizedKinds.map((item) => Prisma.sql`${item}`))})
+          ORDER BY "createdAt" DESC
+        `);
+      } catch {
+        // Fall back to Prisma delegate filtering if the datasource cannot evaluate JSON kind filters.
+      }
     }
+    const rows = await this.prismaService.mediaAsset.findMany({
+      where: {
+        brandId,
+        mediaType: MediaType.HTML,
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    return rows.filter((item) => {
+      const kind = String(this.asRecord(item.metadataJson)?.kind || "").trim();
+      return normalizedKinds.includes(kind);
+    });
   }
 
   async listXiaohongshuVideoProviderOptions() {
@@ -4148,7 +4114,7 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
 
       return {
         items: tasks
-          .map((task) => this.mapDesignTaskToHistoryRecord(task))
+          .map((task) => this.mapDesignTaskToHistoryRecord(task, brandId))
           .filter((item): item is DesignGeneratedWorkRecord => Boolean(item)),
       };
     }
@@ -4158,7 +4124,7 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
         .filter((task) => task.brandId === brandId && String(task.taskType || "").startsWith("DESIGN_"))
         .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime())
         .slice(0, 80)
-        .map((task) => this.mapDesignTaskToHistoryRecord(task))
+        .map((task) => this.mapDesignTaskToHistoryRecord(task, brandId))
         .filter((item): item is DesignGeneratedWorkRecord => Boolean(item)),
     };
   }
@@ -4462,47 +4428,27 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
     const now = new Date().toISOString();
     const record = this.normalizeOperationsPromptTemplateCreatePayload(payload, now);
     if (await this.canUseOperationsPromptTemplateTable()) {
-      await this.prismaService.$executeRawUnsafe(
-        `INSERT INTO "OperationsPromptTemplate" (
-          "id",
-          "slug",
-          "title",
-          "preview",
-          "content",
-          "status",
-          "sourceFilePath",
-          "sourceCategory",
-          "sourceFileName",
-          "businessStage",
-          "outputType",
-          "scenarioLabel",
-          "tagsJson",
-          "sortOrder",
-          "createdAt",
-          "updatedAt"
-        ) VALUES (
-          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, CAST($13 AS jsonb), $14, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-        )`,
-        record.id,
-        record.slug,
-        record.title,
-        record.preview,
-        record.content,
-        record.status,
-        record.sourceFilePath,
-        record.sourceCategory,
-        record.sourceFileName,
-        record.businessStage,
-        record.outputType,
-        record.scenarioLabel,
-        JSON.stringify(record.tagsJson || []),
-        record.sortOrder,
-      );
-      const created = await this.findOperationsPromptTemplateStoreItem(record.id);
-      if (!created) {
-        throw new NotFoundException("运营提示词模板创建失败");
-      }
-      return this.mapOperationsPromptTemplateToAdmin(created);
+      const created = await this.prismaService.operationsPromptTemplate.create({
+        data: {
+          id: record.id,
+          slug: record.slug,
+          title: record.title,
+          preview: record.preview,
+          content: record.content,
+          status: record.status,
+          sourceFilePath: record.sourceFilePath,
+          sourceCategory: record.sourceCategory,
+          sourceFileName: record.sourceFileName,
+          businessStage: record.businessStage,
+          outputType: record.outputType,
+          scenarioLabel: record.scenarioLabel,
+          tagsJson: record.tagsJson,
+          sortOrder: record.sortOrder,
+          createdAt: new Date(now),
+          updatedAt: new Date(now),
+        },
+      });
+      return this.mapOperationsPromptTemplateToAdmin(this.mapOperationsPromptTemplateEntity(created));
     }
 
     operationsPromptTemplateMockStore.unshift(record);
@@ -4521,36 +4467,22 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
 
     const nextRecord = this.normalizeOperationsPromptTemplateUpdatePayload(existing, payload);
     if (await this.canUseOperationsPromptTemplateTable()) {
-      await this.prismaService.$executeRawUnsafe(
-        `UPDATE "OperationsPromptTemplate"
-        SET
-          "title" = $2,
-          "preview" = $3,
-          "content" = $4,
-          "status" = $5,
-          "businessStage" = $6,
-          "outputType" = $7,
-          "scenarioLabel" = $8,
-          "tagsJson" = CAST($9 AS jsonb),
-          "sortOrder" = $10,
-          "updatedAt" = CURRENT_TIMESTAMP
-        WHERE "id" = $1 OR "slug" = $1`,
-        existing.id,
-        nextRecord.title,
-        nextRecord.preview,
-        nextRecord.content,
-        nextRecord.status,
-        nextRecord.businessStage,
-        nextRecord.outputType,
-        nextRecord.scenarioLabel,
-        JSON.stringify(nextRecord.tagsJson || []),
-        nextRecord.sortOrder,
-      );
-      const updated = await this.findOperationsPromptTemplateStoreItem(existing.id);
-      if (!updated) {
-        throw new NotFoundException("运营提示词模板不存在");
-      }
-      return this.mapOperationsPromptTemplateToAdmin(updated);
+      const updated = await this.prismaService.operationsPromptTemplate.update({
+        where: { id: existing.id },
+        data: {
+          title: nextRecord.title,
+          preview: nextRecord.preview,
+          content: nextRecord.content,
+          status: nextRecord.status,
+          businessStage: nextRecord.businessStage,
+          outputType: nextRecord.outputType,
+          scenarioLabel: nextRecord.scenarioLabel,
+          tagsJson: nextRecord.tagsJson,
+          sortOrder: nextRecord.sortOrder,
+          updatedAt: new Date(),
+        },
+      });
+      return this.mapOperationsPromptTemplateToAdmin(this.mapOperationsPromptTemplateEntity(updated));
     }
 
     const index = operationsPromptTemplateMockStore.findIndex((item) => item.id === existing.id || item.slug === templateId);
@@ -4574,15 +4506,13 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
     }
 
     if (await this.canUseOperationsPromptTemplateTable()) {
-      await this.prismaService.$executeRawUnsafe(
-        `UPDATE "OperationsPromptTemplate"
-        SET
-          "status" = $2,
-          "updatedAt" = CURRENT_TIMESTAMP
-        WHERE "id" = $1 OR "slug" = $1`,
-        existing.id,
-        DELETED_PROMPT_TEMPLATE_STATUS,
-      );
+      await this.prismaService.operationsPromptTemplate.update({
+        where: { id: existing.id },
+        data: {
+          status: DELETED_PROMPT_TEMPLATE_STATUS,
+          updatedAt: new Date(),
+        },
+      });
     } else {
       const index = operationsPromptTemplateMockStore.findIndex((item) => item.id === existing.id || item.slug === templateId);
       if (index >= 0) {
@@ -4781,134 +4711,66 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async canUseOperationsPromptTemplateTable() {
-    if (!(await this.prismaService.canUseDatabase())) {
-      return false;
-    }
-    try {
-      const rows = await this.prismaService.$queryRawUnsafe<Array<{ exists: boolean }>>(
-        `SELECT EXISTS (
-          SELECT 1
-          FROM information_schema.tables
-          WHERE table_schema = 'public' AND table_name = 'OperationsPromptTemplate'
-        ) AS "exists"`,
-      );
-      return Boolean(rows[0]?.exists);
-    } catch {
-      return false;
-    }
+    return this.prismaService.tableExists("OperationsPromptTemplate");
   }
 
   private async upsertOperationsPromptTemplate(seed: OperationsPromptSeedRecord) {
-    const existingRows = await this.prismaService.$queryRawUnsafe<Array<Record<string, unknown>>>(
-      `SELECT "status"
-      FROM "OperationsPromptTemplate"
-      WHERE "sourceFilePath" = $1
-      LIMIT 1`,
-      seed.sourceFilePath,
-    ).catch(() => []);
-    const existingStatus = this.readOptionalString(existingRows[0]?.status);
+    const existing = await this.prismaService.operationsPromptTemplate.findUnique({
+      where: { sourceFilePath: seed.sourceFilePath },
+    });
+    const existingStatus = this.readOptionalString(existing?.status);
     if (isDeletedPromptTemplateStatus(existingStatus || "")) {
       return;
     }
-    await this.prismaService.$executeRawUnsafe(
-      `INSERT INTO "OperationsPromptTemplate" (
-        "id",
-        "slug",
-        "title",
-        "preview",
-        "content",
-        "status",
-        "sourceFilePath",
-        "sourceCategory",
-        "sourceFileName",
-        "businessStage",
-        "outputType",
-        "scenarioLabel",
-        "tagsJson",
-        "sortOrder",
-        "createdAt",
-        "updatedAt"
-      ) VALUES (
-        $1, $2, $3, $4, $5, 'ACTIVE', $6, $7, $8, $9, $10, $11, CAST($12 AS jsonb), $13, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-      )
-      ON CONFLICT ("sourceFilePath") DO UPDATE SET
-        "slug" = EXCLUDED."slug",
-        "title" = CASE
-          WHEN "OperationsPromptTemplate"."title" IS NULL
-            OR btrim("OperationsPromptTemplate"."title") = ''
-            OR lower(btrim("OperationsPromptTemplate"."title")) IN ('执行指令', '系统指令', '提示词', 'prompt', 'prompt 模板', '智能体提示词', '角色', '目的')
-            OR "OperationsPromptTemplate"."title" ~* '^执行指令[：: -]*$'
-            OR "OperationsPromptTemplate"."title" ~* '^角色[：: -]*$'
-          THEN EXCLUDED."title"
-          ELSE "OperationsPromptTemplate"."title"
-        END,
-        "preview" = CASE
-          WHEN "OperationsPromptTemplate"."preview" IS NULL
-            OR btrim("OperationsPromptTemplate"."preview") = ''
-          THEN EXCLUDED."preview"
-          ELSE "OperationsPromptTemplate"."preview"
-        END,
-        "content" = CASE
-          WHEN "OperationsPromptTemplate"."content" IS NULL
-            OR btrim("OperationsPromptTemplate"."content") = ''
-          THEN EXCLUDED."content"
-          ELSE "OperationsPromptTemplate"."content"
-        END,
-        "status" = CASE
-          WHEN "OperationsPromptTemplate"."status" IS NULL
-            OR btrim("OperationsPromptTemplate"."status") = ''
-          THEN 'ACTIVE'
-          ELSE "OperationsPromptTemplate"."status"
-        END,
-        "sourceCategory" = EXCLUDED."sourceCategory",
-        "sourceFileName" = EXCLUDED."sourceFileName",
-        "businessStage" = EXCLUDED."businessStage",
-        "outputType" = EXCLUDED."outputType",
-        "scenarioLabel" = EXCLUDED."scenarioLabel",
-        "tagsJson" = EXCLUDED."tagsJson",
-        "sortOrder" = EXCLUDED."sortOrder",
-        "updatedAt" = CURRENT_TIMESTAMP`,
-      seed.id,
-      seed.slug,
-      seed.title,
-      seed.preview,
-      seed.content,
-      seed.sourceFilePath,
-      seed.sourceCategory,
-      seed.sourceFileName,
-      seed.businessStage,
-      seed.outputType,
-      seed.scenarioLabel,
-      JSON.stringify(seed.tagsJson || []),
-      seed.sortOrder,
-    );
+    const preservedTitle = String(existing?.title || "").trim();
+    const preservedPreview = String(existing?.preview || "").trim();
+    const preservedContent = String(existing?.content || "").trim();
+    const shouldUseSeedTitle = !preservedTitle || isGenericOperationsPromptTemplateTitle(preservedTitle);
+    await this.prismaService.operationsPromptTemplate.upsert({
+      where: { sourceFilePath: seed.sourceFilePath },
+      create: {
+        id: seed.id,
+        slug: seed.slug,
+        title: seed.title,
+        preview: seed.preview,
+        content: seed.content,
+        status: "ACTIVE",
+        sourceFilePath: seed.sourceFilePath,
+        sourceCategory: seed.sourceCategory,
+        sourceFileName: seed.sourceFileName,
+        businessStage: seed.businessStage,
+        outputType: seed.outputType,
+        scenarioLabel: seed.scenarioLabel,
+        tagsJson: seed.tagsJson || [],
+        sortOrder: seed.sortOrder,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      update: {
+        slug: seed.slug,
+        title: shouldUseSeedTitle ? seed.title : preservedTitle,
+        preview: preservedPreview || seed.preview,
+        content: preservedContent || seed.content,
+        status: existingStatus || "ACTIVE",
+        sourceCategory: seed.sourceCategory,
+        sourceFileName: seed.sourceFileName,
+        businessStage: seed.businessStage,
+        outputType: seed.outputType,
+        scenarioLabel: seed.scenarioLabel,
+        tagsJson: seed.tagsJson || [],
+        sortOrder: seed.sortOrder,
+        updatedAt: new Date(),
+      },
+    });
   }
 
   private async listOperationsPromptTemplateStoreItems(): Promise<OperationsPromptTemplateStoreRecord[]> {
     if (await this.canUseOperationsPromptTemplateTable()) {
-      const rows = await this.prismaService.$queryRawUnsafe<Array<Record<string, unknown>>>(
-        `SELECT
-          "id",
-          "slug",
-          "title",
-          "preview",
-          "content",
-          "status",
-          "sourceFilePath",
-          "sourceCategory",
-          "sourceFileName",
-          "businessStage",
-          "outputType",
-          "scenarioLabel",
-          "tagsJson",
-          "sortOrder",
-          "createdAt",
-          "updatedAt"
-        FROM "OperationsPromptTemplate"
-        ORDER BY "sortOrder" ASC, "updatedAt" DESC`,
-      );
+      const rows = await this.prismaService.operationsPromptTemplate.findMany({
+        orderBy: [{ sortOrder: "asc" }, { updatedAt: "desc" }],
+      });
       return rows
-        .map((row) => this.mapOperationsPromptTemplateRow(row))
+        .map((row) => this.mapOperationsPromptTemplateEntity(row))
         .filter((item) => !isDeletedPromptTemplateStatus(item.status));
     }
 
@@ -4924,30 +4786,12 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
     }
 
     if (await this.canUseOperationsPromptTemplateTable()) {
-      const rows = await this.prismaService.$queryRawUnsafe<Array<Record<string, unknown>>>(
-        `SELECT
-          "id",
-          "slug",
-          "title",
-          "preview",
-          "content",
-          "status",
-          "sourceFilePath",
-          "sourceCategory",
-          "sourceFileName",
-          "businessStage",
-          "outputType",
-          "scenarioLabel",
-          "tagsJson",
-          "sortOrder",
-          "createdAt",
-          "updatedAt"
-        FROM "OperationsPromptTemplate"
-        WHERE "id" = $1 OR "slug" = $1
-        LIMIT 1`,
-        normalizedTemplateId,
-      );
-      const record = rows[0] ? this.mapOperationsPromptTemplateRow(rows[0]) : null;
+      const row = await this.prismaService.operationsPromptTemplate.findFirst({
+        where: {
+          OR: [{ id: normalizedTemplateId }, { slug: normalizedTemplateId }],
+        },
+      });
+      const record = row ? this.mapOperationsPromptTemplateEntity(row) : null;
       return record && !isDeletedPromptTemplateStatus(record.status) ? record : null;
     }
 
@@ -4976,6 +4820,27 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       createdAt: this.normalizeHistoryTimestamp(row.createdAt as string | Date | null | undefined) || new Date().toISOString(),
       updatedAt: this.normalizeHistoryTimestamp(row.updatedAt as string | Date | null | undefined) || new Date().toISOString(),
     };
+  }
+
+  private mapOperationsPromptTemplateEntity(row: {
+    id: string;
+    slug: string;
+    title: string;
+    preview: string;
+    content: string;
+    status: string;
+    sourceFilePath: string;
+    sourceCategory: string;
+    sourceFileName: string;
+    businessStage: string;
+    outputType: string;
+    scenarioLabel: string;
+    tagsJson: Prisma.JsonValue;
+    sortOrder: number;
+    createdAt: Date;
+    updatedAt: Date;
+  }): OperationsPromptTemplateStoreRecord {
+    return this.mapOperationsPromptTemplateRow(row as unknown as Record<string, unknown>);
   }
 
   private mapOperationsPromptTemplateToCard(item: OperationsPromptTemplateStoreRecord): OperationsPromptTemplateCardRecord {
@@ -5504,49 +5369,28 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       previewImageContentType: storedPreview.contentType || record.previewImageContentType,
     } satisfies ImagePromptTemplateStoreRecord;
     if (await this.canUseImagePromptTemplateTable()) {
-      await this.prismaService.$executeRawUnsafe(
-        `INSERT INTO "ImagePromptTemplate" (
-          "id",
-          "slug",
-          "title",
-          "preview",
-          "content",
-          "status",
-          "sourceFilePath",
-          "sourceCategory",
-          "sourceFileName",
-          "categoryLabel",
-          "tagsJson",
-          "previewImageStorageKey",
-          "previewImageFileName",
-          "previewImageContentType",
-          "sortOrder",
-          "createdAt",
-          "updatedAt"
-        ) VALUES (
-          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, CAST($11 AS jsonb), $12, $13, $14, $15, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-        )`,
-        nextRecord.id,
-        nextRecord.slug,
-        nextRecord.title,
-        nextRecord.preview,
-        nextRecord.content,
-        nextRecord.status,
-        nextRecord.sourceFilePath,
-        nextRecord.sourceCategory,
-        nextRecord.sourceFileName,
-        nextRecord.categoryLabel,
-        JSON.stringify(nextRecord.tagsJson || []),
-        nextRecord.previewImageStorageKey || null,
-        nextRecord.previewImageFileName || null,
-        nextRecord.previewImageContentType || null,
-        nextRecord.sortOrder,
-      );
-      const created = await this.findImagePromptTemplateStoreItem(nextRecord.id);
-      if (!created) {
-        throw new NotFoundException("生图提示词模板创建失败");
-      }
-      return this.mapImagePromptTemplateToAdmin(created);
+      const created = await this.prismaService.imagePromptTemplate.create({
+        data: {
+          id: nextRecord.id,
+          slug: nextRecord.slug,
+          title: nextRecord.title,
+          preview: nextRecord.preview,
+          content: nextRecord.content,
+          status: nextRecord.status,
+          sourceFilePath: nextRecord.sourceFilePath,
+          sourceCategory: nextRecord.sourceCategory,
+          sourceFileName: nextRecord.sourceFileName,
+          categoryLabel: nextRecord.categoryLabel,
+          tagsJson: nextRecord.tagsJson,
+          previewImageStorageKey: nextRecord.previewImageStorageKey || null,
+          previewImageFileName: nextRecord.previewImageFileName || null,
+          previewImageContentType: nextRecord.previewImageContentType || null,
+          sortOrder: nextRecord.sortOrder,
+          createdAt: new Date(now),
+          updatedAt: new Date(now),
+        },
+      });
+      return this.mapImagePromptTemplateToAdmin(this.mapImagePromptTemplateEntity(created));
     }
 
     imagePromptTemplateMockStore.unshift(nextRecord);
@@ -5594,38 +5438,23 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       previewImageContentType: storedPreview.contentType || nextRecord.previewImageContentType,
     } satisfies ImagePromptTemplateStoreRecord;
     if (await this.canUseImagePromptTemplateTable()) {
-      await this.prismaService.$executeRawUnsafe(
-        `UPDATE "ImagePromptTemplate"
-        SET
-          "title" = $2,
-          "preview" = $3,
-          "content" = $4,
-          "status" = $5,
-          "categoryLabel" = $6,
-          "tagsJson" = CAST($7 AS jsonb),
-          "sortOrder" = $8,
-          "previewImageStorageKey" = $9,
-          "previewImageFileName" = $10,
-          "previewImageContentType" = $11,
-          "updatedAt" = CURRENT_TIMESTAMP
-        WHERE "id" = $1 OR "slug" = $1`,
-        existing.id,
-        persistedRecord.title,
-        persistedRecord.preview,
-        persistedRecord.content,
-        persistedRecord.status,
-        persistedRecord.categoryLabel,
-        JSON.stringify(persistedRecord.tagsJson || []),
-        persistedRecord.sortOrder,
-        persistedRecord.previewImageStorageKey || null,
-        persistedRecord.previewImageFileName || null,
-        persistedRecord.previewImageContentType || null,
-      );
-      const updated = await this.findImagePromptTemplateStoreItem(existing.id);
-      if (!updated) {
-        throw new NotFoundException("生图提示词模板不存在");
-      }
-      return this.mapImagePromptTemplateToAdmin(updated);
+      const updated = await this.prismaService.imagePromptTemplate.update({
+        where: { id: existing.id },
+        data: {
+          title: persistedRecord.title,
+          preview: persistedRecord.preview,
+          content: persistedRecord.content,
+          status: persistedRecord.status,
+          categoryLabel: persistedRecord.categoryLabel,
+          tagsJson: persistedRecord.tagsJson,
+          sortOrder: persistedRecord.sortOrder,
+          previewImageStorageKey: persistedRecord.previewImageStorageKey || null,
+          previewImageFileName: persistedRecord.previewImageFileName || null,
+          previewImageContentType: persistedRecord.previewImageContentType || null,
+          updatedAt: new Date(),
+        },
+      });
+      return this.mapImagePromptTemplateToAdmin(this.mapImagePromptTemplateEntity(updated));
     }
 
     const index = imagePromptTemplateMockStore.findIndex((item) => item.id === existing.id || item.slug === templateId);
@@ -5654,18 +5483,16 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
     }
 
     if (await this.canUseImagePromptTemplateTable()) {
-      await this.prismaService.$executeRawUnsafe(
-        `UPDATE "ImagePromptTemplate"
-        SET
-          "status" = $2,
-          "previewImageStorageKey" = NULL,
-          "previewImageFileName" = NULL,
-          "previewImageContentType" = NULL,
-          "updatedAt" = CURRENT_TIMESTAMP
-        WHERE "id" = $1 OR "slug" = $1`,
-        existing.id,
-        DELETED_PROMPT_TEMPLATE_STATUS,
-      );
+      await this.prismaService.imagePromptTemplate.update({
+        where: { id: existing.id },
+        data: {
+          status: DELETED_PROMPT_TEMPLATE_STATUS,
+          previewImageStorageKey: null,
+          previewImageFileName: null,
+          previewImageContentType: null,
+          updatedAt: new Date(),
+        },
+      });
     } else {
       const index = imagePromptTemplateMockStore.findIndex((item) => item.id === existing.id || item.slug === templateId);
       if (index >= 0) {
@@ -5699,7 +5526,7 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       });
       return {
         items: tasks
-          .map((task) => this.mapImagePromptTaskToWorkRecord(task))
+          .map((task) => this.mapImagePromptTaskToWorkRecord(task, brandId))
           .filter((item): item is ImagePromptWorkRecord => Boolean(item)),
       };
     }
@@ -5709,7 +5536,7 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
         .filter((task) => task.brandId === brandId && task.taskType === IMAGE_PROMPT_CENTER_TASK_TYPE)
         .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime())
         .slice(0, 120)
-        .map((task) => this.mapImagePromptTaskToWorkRecord(task))
+        .map((task) => this.mapImagePromptTaskToWorkRecord(task, brandId))
         .filter((item): item is ImagePromptWorkRecord => Boolean(item)),
     };
   }
@@ -5835,7 +5662,7 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       ...task,
       outputJson: initialOutput,
       taskStatus: TaskStatus.QUEUED,
-    }) as ImagePromptWorkRecord;
+    }, brandId) as ImagePromptWorkRecord;
   }
 
   async getImagePromptTemplatePreviewAsset(templateId: string) {
@@ -5908,154 +5735,70 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async canUseImagePromptTemplateTable() {
-    if (!(await this.prismaService.canUseDatabase())) {
-      return false;
-    }
-    try {
-      const rows = await this.prismaService.$queryRawUnsafe<Array<{ exists: boolean }>>(
-        `SELECT EXISTS (
-          SELECT 1
-          FROM information_schema.tables
-          WHERE table_schema = 'public' AND table_name = 'ImagePromptTemplate'
-        ) AS "exists"`,
-      );
-      return Boolean(rows[0]?.exists);
-    } catch {
-      return false;
-    }
+    return this.prismaService.tableExists("ImagePromptTemplate");
   }
 
   private async upsertImagePromptTemplate(seed: ImagePromptSeedRecord, previewImage?: UploadFilePayload) {
-    const existingRows = await this.prismaService.$queryRawUnsafe<Array<Record<string, unknown>>>(
-      `SELECT
-        "id",
-        "status",
-        "previewImageStorageKey",
-        "previewImageFileName",
-        "previewImageContentType"
-      FROM "ImagePromptTemplate"
-      WHERE "sourceFilePath" = $1
-      LIMIT 1`,
-      seed.sourceFilePath,
-    ).catch(() => []);
-    const existingStatus = this.readOptionalString(existingRows[0]?.status);
+    const existingRow = await this.prismaService.imagePromptTemplate.findUnique({
+      where: { sourceFilePath: seed.sourceFilePath },
+    });
+    const existingStatus = this.readOptionalString(existingRow?.status);
     if (isDeletedPromptTemplateStatus(existingStatus || "")) {
       return;
     }
-    const existing = existingRows[0] ? this.mapImagePromptTemplatePreviewOnlyRow(existingRows[0]) : null;
+    const existing = existingRow ? this.mapImagePromptTemplatePreviewOnlyEntity(existingRow) : null;
     const storedPreview = await this.ensureImagePromptTemplatePreviewStored(seed, existing || undefined, previewImage);
-    await this.prismaService.$executeRawUnsafe(
-      `INSERT INTO "ImagePromptTemplate" (
-        "id",
-        "slug",
-        "title",
-        "preview",
-        "content",
-        "status",
-        "sourceFilePath",
-        "sourceCategory",
-        "sourceFileName",
-        "categoryLabel",
-        "tagsJson",
-        "previewImageStorageKey",
-        "previewImageFileName",
-        "previewImageContentType",
-        "sortOrder",
-        "createdAt",
-        "updatedAt"
-      ) VALUES (
-        $1, $2, $3, $4, $5, 'ACTIVE', $6, $7, $8, $9, CAST($10 AS jsonb), $11, $12, $13, $14, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-      )
-      ON CONFLICT ("sourceFilePath") DO UPDATE SET
-        "slug" = EXCLUDED."slug",
-        "title" = CASE
-          WHEN "ImagePromptTemplate"."title" IS NULL
-            OR btrim("ImagePromptTemplate"."title") = ''
-          THEN EXCLUDED."title"
-          ELSE "ImagePromptTemplate"."title"
-        END,
-        "preview" = CASE
-          WHEN "ImagePromptTemplate"."preview" IS NULL
-            OR btrim("ImagePromptTemplate"."preview") = ''
-          THEN EXCLUDED."preview"
-          ELSE "ImagePromptTemplate"."preview"
-        END,
-        "content" = CASE
-          WHEN "ImagePromptTemplate"."content" IS NULL
-            OR btrim("ImagePromptTemplate"."content") = ''
-          THEN EXCLUDED."content"
-          ELSE "ImagePromptTemplate"."content"
-        END,
-        "status" = CASE
-          WHEN "ImagePromptTemplate"."status" IS NULL
-            OR btrim("ImagePromptTemplate"."status") = ''
-          THEN 'ACTIVE'
-          ELSE "ImagePromptTemplate"."status"
-        END,
-        "sourceCategory" = EXCLUDED."sourceCategory",
-        "sourceFileName" = EXCLUDED."sourceFileName",
-        "categoryLabel" = EXCLUDED."categoryLabel",
-        "tagsJson" = EXCLUDED."tagsJson",
-        "previewImageStorageKey" = CASE
-          WHEN EXCLUDED."previewImageStorageKey" IS NULL OR btrim(COALESCE(EXCLUDED."previewImageStorageKey", '')) = ''
-          THEN "ImagePromptTemplate"."previewImageStorageKey"
-          ELSE EXCLUDED."previewImageStorageKey"
-        END,
-        "previewImageFileName" = CASE
-          WHEN EXCLUDED."previewImageFileName" IS NULL OR btrim(COALESCE(EXCLUDED."previewImageFileName", '')) = ''
-          THEN "ImagePromptTemplate"."previewImageFileName"
-          ELSE EXCLUDED."previewImageFileName"
-        END,
-        "previewImageContentType" = CASE
-          WHEN EXCLUDED."previewImageContentType" IS NULL OR btrim(COALESCE(EXCLUDED."previewImageContentType", '')) = ''
-          THEN "ImagePromptTemplate"."previewImageContentType"
-          ELSE EXCLUDED."previewImageContentType"
-        END,
-        "sortOrder" = EXCLUDED."sortOrder",
-        "updatedAt" = CURRENT_TIMESTAMP`,
-      seed.id,
-      seed.slug,
-      seed.title,
-      seed.preview,
-      seed.content,
-      seed.sourceFilePath,
-      seed.sourceCategory,
-      seed.sourceFileName,
-      seed.categoryLabel,
-      JSON.stringify(seed.tagsJson || []),
-      storedPreview.storageKey || null,
-      storedPreview.fileName || null,
-      storedPreview.contentType || null,
-      seed.sortOrder,
-    );
+    const existingTemplate = existingRow ? this.mapImagePromptTemplateEntity(existingRow) : null;
+    const preservedTitle = String(existingTemplate?.title || "").trim();
+    const preservedPreview = String(existingTemplate?.preview || "").trim();
+    const preservedContent = String(existingTemplate?.content || "").trim();
+    await this.prismaService.imagePromptTemplate.upsert({
+      where: { sourceFilePath: seed.sourceFilePath },
+      create: {
+        id: seed.id,
+        slug: seed.slug,
+        title: seed.title,
+        preview: seed.preview,
+        content: seed.content,
+        status: "ACTIVE",
+        sourceFilePath: seed.sourceFilePath,
+        sourceCategory: seed.sourceCategory,
+        sourceFileName: seed.sourceFileName,
+        categoryLabel: seed.categoryLabel,
+        tagsJson: seed.tagsJson || [],
+        previewImageStorageKey: storedPreview.storageKey || null,
+        previewImageFileName: storedPreview.fileName || null,
+        previewImageContentType: storedPreview.contentType || null,
+        sortOrder: seed.sortOrder,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      update: {
+        slug: seed.slug,
+        title: preservedTitle || seed.title,
+        preview: preservedPreview || seed.preview,
+        content: preservedContent || seed.content,
+        status: existingStatus || "ACTIVE",
+        sourceCategory: seed.sourceCategory,
+        sourceFileName: seed.sourceFileName,
+        categoryLabel: seed.categoryLabel,
+        tagsJson: seed.tagsJson || [],
+        previewImageStorageKey: storedPreview.storageKey || existingTemplate?.previewImageStorageKey || null,
+        previewImageFileName: storedPreview.fileName || existingTemplate?.previewImageFileName || null,
+        previewImageContentType: storedPreview.contentType || existingTemplate?.previewImageContentType || null,
+        sortOrder: seed.sortOrder,
+        updatedAt: new Date(),
+      },
+    });
   }
 
   private async listImagePromptTemplateStoreItems(): Promise<ImagePromptTemplateStoreRecord[]> {
     if (await this.canUseImagePromptTemplateTable()) {
-      const rows = await this.prismaService.$queryRawUnsafe<Array<Record<string, unknown>>>(
-        `SELECT
-          "id",
-          "slug",
-          "title",
-          "preview",
-          "content",
-          "status",
-          "sourceFilePath",
-          "sourceCategory",
-          "sourceFileName",
-          "categoryLabel",
-          "tagsJson",
-          "previewImageStorageKey",
-          "previewImageFileName",
-          "previewImageContentType",
-          "sortOrder",
-          "createdAt",
-          "updatedAt"
-        FROM "ImagePromptTemplate"
-        ORDER BY "sortOrder" ASC, "updatedAt" DESC`,
-      );
+      const rows = await this.prismaService.imagePromptTemplate.findMany({
+        orderBy: [{ sortOrder: "asc" }, { updatedAt: "desc" }],
+      });
       return rows
-        .map((row) => this.mapImagePromptTemplateRow(row))
+        .map((row) => this.mapImagePromptTemplateEntity(row))
         .filter((item) => !isDeletedPromptTemplateStatus(item.status));
     }
 
@@ -6071,31 +5814,12 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
     }
 
     if (await this.canUseImagePromptTemplateTable()) {
-      const rows = await this.prismaService.$queryRawUnsafe<Array<Record<string, unknown>>>(
-        `SELECT
-          "id",
-          "slug",
-          "title",
-          "preview",
-          "content",
-          "status",
-          "sourceFilePath",
-          "sourceCategory",
-          "sourceFileName",
-          "categoryLabel",
-          "tagsJson",
-          "previewImageStorageKey",
-          "previewImageFileName",
-          "previewImageContentType",
-          "sortOrder",
-          "createdAt",
-          "updatedAt"
-        FROM "ImagePromptTemplate"
-        WHERE "id" = $1 OR "slug" = $1
-        LIMIT 1`,
-        normalizedTemplateId,
-      );
-      const record = rows[0] ? this.mapImagePromptTemplateRow(rows[0]) : null;
+      const row = await this.prismaService.imagePromptTemplate.findFirst({
+        where: {
+          OR: [{ id: normalizedTemplateId }, { slug: normalizedTemplateId }],
+        },
+      });
+      const record = row ? this.mapImagePromptTemplateEntity(row) : null;
       return record && !isDeletedPromptTemplateStatus(record.status) ? record : null;
     }
 
@@ -6112,6 +5836,15 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       previewImageFileName: this.readOptionalString(row.previewImageFileName) || "",
       previewImageContentType: this.readOptionalString(row.previewImageContentType) || "",
     };
+  }
+
+  private mapImagePromptTemplatePreviewOnlyEntity(row: {
+    id: string;
+    previewImageStorageKey: string | null;
+    previewImageFileName: string | null;
+    previewImageContentType: string | null;
+  }) {
+    return this.mapImagePromptTemplatePreviewOnlyRow(row as unknown as Record<string, unknown>);
   }
 
   private mapImagePromptTemplateRow(row: Record<string, unknown>): ImagePromptTemplateStoreRecord {
@@ -6135,6 +5868,28 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       createdAt: this.normalizeHistoryTimestamp(row.createdAt as string | Date | null | undefined) || new Date().toISOString(),
       updatedAt: this.normalizeHistoryTimestamp(row.updatedAt as string | Date | null | undefined) || new Date().toISOString(),
     };
+  }
+
+  private mapImagePromptTemplateEntity(row: {
+    id: string;
+    slug: string;
+    title: string;
+    preview: string;
+    content: string;
+    status: string;
+    sourceFilePath: string;
+    sourceCategory: string;
+    sourceFileName: string;
+    categoryLabel: string;
+    tagsJson: Prisma.JsonValue;
+    previewImageStorageKey: string | null;
+    previewImageFileName: string | null;
+    previewImageContentType: string | null;
+    sortOrder: number;
+    createdAt: Date;
+    updatedAt: Date;
+  }): ImagePromptTemplateStoreRecord {
+    return this.mapImagePromptTemplateRow(row as unknown as Record<string, unknown>);
   }
 
   private mapImagePromptTemplateToCard(item: ImagePromptTemplateStoreRecord): ImagePromptTemplateCardRecord {
@@ -6339,7 +6094,7 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
     updatedAt?: string | Date | null;
     finishedAt?: string | Date | null;
     createdAt?: string | Date | null;
-  }): ImagePromptWorkRecord | null {
+  }, brandId: string): ImagePromptWorkRecord | null {
     const output = this.asRecord(task.outputJson);
     const templateId = this.readOptionalString(output?.templateId);
     const templateTitle = this.readOptionalString(output?.templateTitle);
@@ -6373,7 +6128,7 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       tags: this.readStringArray(output?.tags, []),
       templateId,
       templateTitle,
-      assetUrl: this.readOptionalString(output?.assetUrl),
+      assetUrl: this.normalizeLocalAssetUrl(this.readOptionalString(output?.assetUrl), brandId),
       promptSnapshot: this.readOptionalString(output?.promptSnapshot),
       userRequirement: this.readOptionalString(output?.userRequirement),
       modelName: this.readOptionalString(output?.modelName) || this.readOptionalString(task.modelName),
@@ -6610,7 +6365,7 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
     updatedAt?: string | Date | null;
     finishedAt?: string | Date | null;
     createdAt?: string | Date | null;
-  }): DesignGeneratedWorkRecord | null {
+  }, brandId: string): DesignGeneratedWorkRecord | null {
     const module = this.resolveDesignModuleFromTaskType(task.taskType);
     if (!module) {
       return null;
@@ -6651,7 +6406,7 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
         this.readOptionalString(output?.designType) || DESIGN_MODULE_TYPES[module][0],
         this.readOptionalString(output?.productLabel) || "不植入产品",
       ]),
-      assetUrl: this.readOptionalString(output?.assetUrl),
+      assetUrl: this.normalizeLocalAssetUrl(this.readOptionalString(output?.assetUrl), brandId),
       htmlContent: this.readOptionalString(output?.htmlContent),
     };
   }
@@ -6734,38 +6489,6 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async listDesignImageModelOptions(brandId: string): Promise<DesignModelOptionRecord[]> {
-    // #region debug-point D:duoyuanx-image-provider-status
-    const allProviders = await this.apiProvidersService.listProviders();
-    const allImageProviders = allProviders.filter((item) => this.apiProvidersService.getRuntimeKey(item) === "image-generation");
-    const activeImageProviders = allImageProviders.filter((item) => item.status === "ACTIVE");
-    const duoyuanxProviders = allImageProviders
-      .filter((item) =>
-        String(item.name || "").includes("多元探索")
-        || String(item.baseUrl || "").toLowerCase().includes("duoyuanx.com"),
-      )
-      .map((item) => ({
-        id: item.id,
-        name: item.name,
-        status: item.status,
-        baseUrl: item.baseUrl,
-        defaultModel: item.defaultModel,
-      }));
-    await reportDuoyuanxPlatformMatchDebugEvent({
-      sessionId: "duoyuanx-platform-match",
-      runId: "pre-fix",
-      hypothesisId: "D",
-      location: "works.service.ts:listDesignImageModelOptions",
-      msg: "[DEBUG] Design image providers inspected",
-      data: {
-        brandId,
-        imageProviderCount: allImageProviders.length,
-        activeImageProviderCount: activeImageProviders.length,
-        activeImageProviderNames: activeImageProviders.slice(0, 20).map((item) => item.name),
-        duoyuanxProviders,
-      },
-    });
-    // #endregion
-
     const providers = await this.loadImageGenerationProviders(brandId, undefined, { usage: "general" });
     return providers.flatMap((provider, providerIndex) =>
       provider.models.map((modelName, modelIndex) => ({
@@ -9447,10 +9170,13 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       return {
         list: await this.chanjingOpenApiService.listTemplateTags(credential),
       };
-    } catch {
-      return {
-        list: [],
-      };
+    } catch (error) {
+      throw new ServiceUnavailableException(
+        this.normalizeChanjingUserFacingMessage(
+          error instanceof Error ? error.message : "",
+          "数字人模板标签读取失败，请检查蝉镜配置或稍后重试。",
+        ),
+      );
     }
   }
 
@@ -9464,56 +9190,19 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
     },
   ) {
     const credential = await this.resolveChanjingCredential(brandId);
-    // #region debug-point D:digital-human-template-service-entry
-    fetch("http://127.0.0.1:7777/event", {
-      method: "POST",
-      body: JSON.stringify({
-        sessionId: "digital-human-502-list",
-        runId: "pre-fix",
-        hypothesisId: "D",
-        location: "apps/server/src/modules/works/works.service.ts:listDouyinDigitalHumanTemplates",
-        msg: "[DEBUG] WorksService 开始读取数字人模板",
-        data: { brandId, options, hasCredential: Boolean(String(credential || "").trim()), credentialLength: String(credential || "").length },
-        ts: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
     try {
       const response = await this.chanjingOpenApiService.listCommonDigitalPersons(credential, options);
-      // #region debug-point D:digital-human-template-service-success
-      fetch("http://127.0.0.1:7777/event", {
-        method: "POST",
-        body: JSON.stringify({
-          sessionId: "digital-human-502-list",
-          runId: "pre-fix",
-          hypothesisId: "D",
-          location: "apps/server/src/modules/works/works.service.ts:listDouyinDigitalHumanTemplates",
-          msg: "[DEBUG] WorksService 成功拿到数字人模板",
-          data: { brandId, count: Array.isArray(response.list) ? response.list.length : -1, pageInfo: response.pageInfo },
-          ts: Date.now(),
-        }),
-      }).catch(() => {});
-      // #endregion
       return {
         list: response.list,
         pageInfo: response.pageInfo,
       };
     } catch (error) {
-      // #region debug-point D:digital-human-template-service-error
-      fetch("http://127.0.0.1:7777/event", {
-        method: "POST",
-        body: JSON.stringify({
-          sessionId: "digital-human-502-list",
-          runId: "pre-fix",
-          hypothesisId: "D",
-          location: "apps/server/src/modules/works/works.service.ts:listDouyinDigitalHumanTemplates",
-          msg: "[DEBUG] WorksService 读取数字人模板失败",
-          data: { brandId, options, message: error instanceof Error ? error.message : String(error) },
-          ts: Date.now(),
-        }),
-      }).catch(() => {});
-      // #endregion
-      throw error;
+      throw new ServiceUnavailableException(
+        this.normalizeChanjingUserFacingMessage(
+          error instanceof Error ? error.message : "",
+          "数字人模板读取失败，请检查蝉镜配置或稍后重试。",
+        ),
+      );
     }
   }
 
@@ -9531,11 +9220,13 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
         list: response.list,
         pageInfo: response.pageInfo,
       };
-    } catch {
-      return {
-        list: [],
-        pageInfo: undefined,
-      };
+    } catch (error) {
+      throw new ServiceUnavailableException(
+        this.normalizeChanjingUserFacingMessage(
+          error instanceof Error ? error.message : "",
+          "公共声音读取失败，请检查蝉镜配置或稍后重试。",
+        ),
+      );
     }
   }
 
@@ -9553,11 +9244,13 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
         list: response.list,
         pageInfo: response.pageInfo,
       };
-    } catch {
-      return {
-        list: [],
-        pageInfo: undefined,
-      };
+    } catch (error) {
+      throw new ServiceUnavailableException(
+        this.normalizeChanjingUserFacingMessage(
+          error instanceof Error ? error.message : "",
+          "我的声音读取失败，请检查蝉镜配置或稍后重试。",
+        ),
+      );
     }
   }
 
@@ -9571,29 +9264,38 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
     }
     this.validateLipSyncAudioFile(payload.audioFile);
     const credential = await this.resolveChanjingCredential(brandId);
-    const uploaded = await this.uploadChanjingPromptAudio(credential, payload.audioFile);
-    const normalizedName = this.normalizeVoiceCloneName(payload.name, payload.audioFile.fileName);
-    const voiceId = await this.chanjingOpenApiService.createCustomisedAudio(credential, {
-      name: normalizedName,
-      url: uploaded.fileUrl,
-      modelType: payload.modelType,
-      language: payload.language,
-      text: this.normalizeVoicePreviewText(payload.text),
-    });
-    let item: ChanjingCustomisedAudioRecord;
     try {
-      item = await this.chanjingOpenApiService.getCustomisedAudioDetail(credential, voiceId);
-    } catch {
-      item = {
-        id: voiceId,
+      const uploaded = await this.uploadChanjingPromptAudio(credential, payload.audioFile);
+      const normalizedName = this.normalizeVoiceCloneName(payload.name, payload.audioFile.fileName);
+      const voiceId = await this.chanjingOpenApiService.createCustomisedAudio(credential, {
         name: normalizedName,
-        type: payload.modelType,
-        progress: 0,
-        audioPath: uploaded.fileUrl,
-        status: 0,
-      };
+        url: uploaded.fileUrl,
+        modelType: payload.modelType,
+        language: payload.language,
+        text: this.normalizeVoicePreviewText(payload.text),
+      });
+      let item: ChanjingCustomisedAudioRecord;
+      try {
+        item = await this.chanjingOpenApiService.getCustomisedAudioDetail(credential, voiceId);
+      } catch {
+        item = {
+          id: voiceId,
+          name: normalizedName,
+          type: payload.modelType,
+          progress: 0,
+          audioPath: uploaded.fileUrl,
+          status: 0,
+        };
+      }
+      return { item };
+    } catch (error) {
+      throw new ServiceUnavailableException(
+        this.normalizeChanjingUserFacingMessage(
+          error instanceof Error ? error.message : "",
+          "定制声音创建失败，请稍后重试。",
+        ),
+      );
     }
-    return { item };
   }
 
   async deleteDouyinCustomVoice(brandId: string, voiceId: string, _auth?: RequestAuthContext) {
@@ -9602,8 +9304,17 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       throw new BadRequestException("缺少要删除的定制声音 ID。");
     }
     const credential = await this.resolveChanjingCredential(brandId);
-    await this.chanjingOpenApiService.deleteCustomisedAudio(credential, normalizedVoiceId);
-    return { success: true };
+    try {
+      await this.chanjingOpenApiService.deleteCustomisedAudio(credential, normalizedVoiceId);
+      return { success: true };
+    } catch (error) {
+      throw new ServiceUnavailableException(
+        this.normalizeChanjingUserFacingMessage(
+          error instanceof Error ? error.message : "",
+          "删除定制声音失败，请稍后重试。",
+        ),
+      );
+    }
   }
 
   async createDouyinSpeechTask(
@@ -9620,32 +9331,41 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       throw new BadRequestException("请输入要合成的文本内容。");
     }
     const credential = await this.resolveChanjingCredential(brandId);
-    const taskId = await this.chanjingOpenApiService.createAudioTask(credential, {
-      audioMan: audioManId,
-      speed: this.normalizeSpeechRate(payload.speed),
-      pitch: this.normalizeSpeechPitch(payload.pitch),
-      dialect: this.normalizeSpeechDialect(payload.dialect),
-      text: {
-        text,
-        plainText: text,
-      },
-    });
-    let item: ChanjingAudioTaskDetail;
     try {
-      item = await this.chanjingOpenApiService.getAudioTaskDetail(credential, taskId);
-    } catch {
-      item = {
-        id: taskId,
-        type: "tts",
-        status: 1,
-        text: [text],
-        subtitles: [],
+      const taskId = await this.chanjingOpenApiService.createAudioTask(credential, {
+        audioMan: audioManId,
+        speed: this.normalizeSpeechRate(payload.speed),
+        pitch: this.normalizeSpeechPitch(payload.pitch),
+        dialect: this.normalizeSpeechDialect(payload.dialect),
+        text: {
+          text,
+          plainText: text,
+        },
+      });
+      let item: ChanjingAudioTaskDetail;
+      try {
+        item = await this.chanjingOpenApiService.getAudioTaskDetail(credential, taskId);
+      } catch {
+        item = {
+          id: taskId,
+          type: "tts",
+          status: 1,
+          text: [text],
+          subtitles: [],
+        };
+      }
+      return {
+        taskId,
+        item,
       };
+    } catch (error) {
+      throw new ServiceUnavailableException(
+        this.normalizeChanjingUserFacingMessage(
+          error instanceof Error ? error.message : "",
+          "语音合成任务创建失败，请稍后重试。",
+        ),
+      );
     }
-    return {
-      taskId,
-      item,
-    };
   }
 
   async getDouyinSpeechTaskDetail(brandId: string, taskId: string) {
@@ -9654,9 +9374,18 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       throw new BadRequestException("缺少语音合成任务 ID。");
     }
     const credential = await this.resolveChanjingCredential(brandId);
-    return {
-      item: await this.chanjingOpenApiService.getAudioTaskDetail(credential, normalizedTaskId),
-    };
+    try {
+      return {
+        item: await this.chanjingOpenApiService.getAudioTaskDetail(credential, normalizedTaskId),
+      };
+    } catch (error) {
+      throw new ServiceUnavailableException(
+        this.normalizeChanjingUserFacingMessage(
+          error instanceof Error ? error.message : "",
+          "获取语音合成任务详情失败，请稍后重试。",
+        ),
+      );
+    }
   }
 
   async listDouyinDigitalHumanFavoriteTemplates(brandId: string, auth?: RequestAuthContext) {
@@ -9821,29 +9550,6 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
     this.validateCustomPersonTrainingVideo(payload.trainingVideo);
     const userId = await this.resolveTaskUserId(brandId, auth);
     const normalizedName = this.normalizeCustomPersonName(payload.name, payload.trainingVideo.fileName);
-    // #region debug-point F:digital-human-custom-create-service
-    fetch("http://127.0.0.1:7777/event", {
-      method: "POST",
-      body: JSON.stringify({
-        sessionId: "digital-human-502-list",
-        runId: "pre-fix",
-        hypothesisId: "F",
-        location: "apps/server/src/modules/works/works.service.ts:createDouyinDigitalHumanCustomPerson",
-        msg: "[DEBUG] WorksService 准备创建定制数字人任务",
-        data: {
-          brandId,
-          authUserId: auth?.userId || null,
-          authBrandId: auth?.brandId || null,
-          authSource: auth?.source || null,
-          resolvedTaskUserId: userId,
-          normalizedName,
-          trainingVideoFileName: payload.trainingVideo.fileName,
-          trainingVideoSizeBytes: payload.trainingVideo.sizeBytes ?? null,
-        },
-        ts: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
     const task = await this.createVideoTask({
       userId,
       brandId,
@@ -10278,7 +9984,7 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
         item: {
           ...app,
           configured: false,
-          configHint: error instanceof Error ? error.message : "RunningHub 配置暂不可用",
+          configHint: this.normalizeRunningHubConfigHint(error),
           nodeInfoList: [],
         } satisfies DouyinRunningHubAppDetailRecord,
       };
@@ -10291,20 +9997,6 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       .filter((item) => this.shouldRefreshRunningHubWorkMeta(this.readRunningHubWorkMeta(item.metadataJson)))
       .slice(0, 3)
       .map((item) => item.id);
-    // #region debug-point RHS-C:runninghub-list-enter
-    void reportRunningHubStatusStuckDebugEvent({
-      sessionId: "runninghub-status-stuck",
-      runId: "pre-fix",
-      hypothesisId: "C",
-      location: "works.service.ts:listDouyinRunningHubWorks",
-      msg: "[DEBUG] RunningHub list entered",
-      data: {
-        brandId,
-        rowCount: rows.length,
-        syncRefreshWorkIds,
-      },
-    });
-    // #endregion debug-point RHS-C:runninghub-list-enter
     if (syncRefreshWorkIds.length) {
       await Promise.allSettled(syncRefreshWorkIds.map((workId) => this.refreshRunningHubWorkSnapshot(brandId, workId)));
       rows = await this.listRunningHubWorkRows(brandId);
@@ -10322,34 +10014,6 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
         .map((item) => this.mapRunningHubWorkRecord(item))
         .filter(Boolean) as DouyinRunningHubWorkRecord[],
     };
-  }
-
-  async getDouyinRunningHubWork(
-    brandId: string,
-    workId: string,
-    options?: { refresh?: boolean },
-  ) {
-    let target = await this.getRunningHubWorkRowById(brandId, workId);
-    let meta = this.readRunningHubWorkMeta(this.getMediaMetadata(target));
-    const shouldRefresh = options?.refresh !== false && this.shouldRefreshRunningHubWorkMeta(meta);
-    if (shouldRefresh) {
-      meta = await this.refreshRunningHubWorkSnapshot(brandId, workId);
-      target = await this.getRunningHubWorkRowById(brandId, workId);
-    }
-    if (this.shouldRefreshRunningHubWorkMeta(meta)) {
-      this.ensureRunningHubSettlementMonitor({
-        brandId,
-        workId,
-        storageKey: String(target.storageKey || "").trim() || `${workId}.html`,
-        taskId: meta.taskId || String(target.taskId || "").trim(),
-        appName: meta.appName,
-      });
-    }
-    const item = this.mapRunningHubWorkRecord(target);
-    if (!item) {
-      throw new NotFoundException("RunningHub 作品不存在");
-    }
-    return { item };
   }
 
   async createDouyinRunningHubWork(
@@ -11250,7 +10914,9 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       sourceUrl: htmlFile.url,
       metadata,
     });
-    this.scheduleHeavyBackgroundTask(() => this.runInitialVideoWorkflowTask(brandId, workMedia.id, task.id, context, htmlFile.storageKey));
+    if (!this.heavySubmissionWorkerEnabled) {
+      this.scheduleHeavyBackgroundTask(() => this.runInitialVideoWorkflowTask(brandId, workMedia.id, task.id, context, htmlFile.storageKey));
+    }
     return {
       item: this.mapVideoWorkRecord(workMedia.id, brandId, task.id, metadata, "QUEUED"),
     };
@@ -11327,7 +10993,9 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       sourceUrl: htmlFile.url,
       metadata,
     });
-    this.scheduleHeavyBackgroundTask(() => this.runInitialVideoWorkflowTask(brandId, workMedia.id, task.id, context, htmlFile.storageKey));
+    if (!this.heavySubmissionWorkerEnabled) {
+      this.scheduleHeavyBackgroundTask(() => this.runInitialVideoWorkflowTask(brandId, workMedia.id, task.id, context, htmlFile.storageKey));
+    }
     return {
       item: this.mapVideoWorkRecord(workMedia.id, brandId, task.id, metadata, "QUEUED"),
     };
@@ -11410,7 +11078,9 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       sourceUrl: htmlFile.url,
       metadata,
     });
-    this.scheduleHeavyBackgroundTask(() => this.runInitialRemixShortVideoWorkflowTask(brandId, workMedia.id, task.id, context, htmlFile.storageKey));
+    if (!this.heavySubmissionWorkerEnabled) {
+      this.scheduleHeavyBackgroundTask(() => this.runInitialRemixShortVideoWorkflowTask(brandId, workMedia.id, task.id, context, htmlFile.storageKey));
+    }
     return {
       item: this.mapVideoWorkRecord(workMedia.id, brandId, task.id, metadata, "QUEUED"),
     };
@@ -11487,7 +11157,9 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       sourceUrl: htmlFile.url,
       metadata,
     });
-    this.scheduleHeavyBackgroundTask(() => this.runInitialDirectVideoWorkflowTask(brandId, workMedia.id, task.id, context, htmlFile.storageKey));
+    if (!this.heavySubmissionWorkerEnabled) {
+      this.scheduleHeavyBackgroundTask(() => this.runInitialDirectVideoWorkflowTask(brandId, workMedia.id, task.id, context, htmlFile.storageKey));
+    }
     return {
       item: this.mapVideoWorkRecord(workMedia.id, brandId, task.id, metadata, "QUEUED"),
     };
@@ -12488,25 +12160,6 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
     payload: RecoverDouyinDigitalHumanVideoPayload,
   ) {
     const providerTaskId = payload.providerTaskId?.trim();
-    // #region debug-point D:digital-human-recover-enter
-    fetch("http://127.0.0.1:7777/event", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        sessionId: "digital-human-recover-result",
-        runId: "pre-fix",
-        hypothesisId: "D",
-        location: "apps/server/src/modules/works/works.service.ts:recoverDouyinDigitalHumanVideo",
-        msg: "[DEBUG] 后端收到数字人结果找回请求",
-        data: {
-          brandId,
-          workId: payload.workId,
-          providerTaskId,
-        },
-        ts: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
     if (!providerTaskId && !payload.workId?.trim()) {
       throw new BadRequestException("请提供站内作品 ID 或蝉镜视频任务 ID。");
     }
@@ -12518,30 +12171,6 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
     const meta = this.readDigitalHumanVideoWorkMeta(this.getMediaMetadata(target));
     const taskId = meta.taskId || String(target.taskId || "").trim();
     const effectiveProviderTaskId = providerTaskId || meta.providerTaskId || "";
-    // #region debug-point E:digital-human-recover-target
-    fetch("http://127.0.0.1:7777/event", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        sessionId: "digital-human-recover-result",
-        runId: "pre-fix",
-        hypothesisId: "E",
-        location: "apps/server/src/modules/works/works.service.ts:recoverDouyinDigitalHumanVideo",
-        msg: "[DEBUG] 后端命中数字人找回目标作品",
-        data: {
-          brandId,
-          requestedWorkId: payload.workId,
-          requestedProviderTaskId: providerTaskId,
-          resolvedWorkId: workId,
-          resolvedTaskId: taskId,
-          metaProviderTaskId: meta.providerTaskId,
-          metaStage: meta.stage,
-          hasVideoUrl: Boolean(meta.videoUrl),
-        },
-        ts: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
     if (!taskId) {
       throw new BadRequestException("当前数字人作品缺少站内任务记录，暂无法恢复。");
     }
@@ -14569,27 +14198,6 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
           pointsCost: 360,
         },
       });
-      // #region debug-point F:digital-human-video-task-db
-      fetch("http://127.0.0.1:7777/event", {
-        method: "POST",
-        body: JSON.stringify({
-          sessionId: "digital-human-502-list",
-          runId: "pre-fix",
-          hypothesisId: "F",
-          location: "apps/server/src/modules/works/works.service.ts:createVideoTask",
-          msg: "[DEBUG] WorksService 已写入视频任务",
-          data: {
-            taskId: createdTask.id,
-            userId: createdTask.userId,
-            brandId: createdTask.brandId || null,
-            taskType: createdTask.taskType,
-            taskStatus: createdTask.taskStatus,
-            taskTitle: createdTask.taskTitle || "",
-          },
-          ts: Date.now(),
-        }),
-      }).catch(() => {});
-      // #endregion
       return createdTask;
     }
 
@@ -14607,27 +14215,6 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       updatedAt: now,
     };
     database.tasks.unshift(task);
-    // #region debug-point F:digital-human-video-task-mock
-    fetch("http://127.0.0.1:7777/event", {
-      method: "POST",
-      body: JSON.stringify({
-        sessionId: "digital-human-502-list",
-        runId: "pre-fix",
-        hypothesisId: "F",
-        location: "apps/server/src/modules/works/works.service.ts:createVideoTask",
-        msg: "[DEBUG] WorksService 已写入视频任务(mock)",
-        data: {
-          taskId: task.id,
-          userId: task.userId,
-          brandId: task.brandId || null,
-          taskType: task.taskType,
-          taskStatus: task.taskStatus,
-          taskTitle: task.taskTitle,
-        },
-        ts: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
     return task;
   }
 
@@ -15199,23 +14786,6 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
     }
 
     const ownerUserId = await this.getBrandOwnerUserId(brandId);
-    // #region debug-point F:digital-human-task-owner-fallback
-    fetch("http://127.0.0.1:7777/event", {
-      method: "POST",
-      body: JSON.stringify({
-        sessionId: "digital-human-502-list",
-        runId: "pre-fix",
-        hypothesisId: "F",
-        location: "apps/server/src/modules/works/works.service.ts:resolveTaskUserId",
-        msg: "[DEBUG] 任务归属回退到品牌拥有者",
-        data: {
-          brandId,
-          ownerUserId,
-        },
-        ts: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
     return ownerUserId;
   }
 
@@ -15247,7 +14817,7 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
         "defaultAdvertiserId" TEXT NULL,
         "defaultBusinessType" TEXT NOT NULL DEFAULT 'ad',
         "vodSpaceName" TEXT NULL,
-        "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+        "updatedAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
     `);
     await this.prismaService.$executeRawUnsafe(
@@ -15282,11 +14852,11 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
         "brandId" TEXT PRIMARY KEY,
         "appId" TEXT NOT NULL DEFAULT '',
         "appSecret" TEXT NOT NULL DEFAULT '',
-        "whitelistIpsJson" JSONB NOT NULL DEFAULT '[]'::jsonb,
+        "whitelistIpsJson" JSON NOT NULL DEFAULT '[]',
         "defaultAuthor" TEXT NULL,
         "defaultThemeColor" TEXT NULL,
         "commentMode" TEXT NOT NULL DEFAULT 'open',
-        "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+        "updatedAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
     `);
     await this.prismaService.$executeRawUnsafe(`
@@ -15298,7 +14868,7 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
         "fanCommentsOnly" BOOLEAN NOT NULL DEFAULT FALSE,
         "defaultInputType" TEXT NOT NULL DEFAULT 'html',
         "defaultAccountId" TEXT NULL,
-        "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+        "updatedAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
     `);
     await this.prismaService.$executeRawUnsafe(`
@@ -15308,9 +14878,9 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
         "accountName" TEXT NOT NULL DEFAULT '',
         "appId" TEXT NOT NULL DEFAULT '',
         "appSecret" TEXT NOT NULL DEFAULT '',
-        "whitelistIpsJson" JSONB NOT NULL DEFAULT '[]'::jsonb,
+        "whitelistIpsJson" JSON NOT NULL DEFAULT '[]',
         "isDefault" BOOLEAN NOT NULL DEFAULT FALSE,
-        "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+        "updatedAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
     `);
     await this.prismaService.$executeRawUnsafe(`
@@ -15328,37 +14898,33 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
         "author" TEXT NOT NULL DEFAULT '',
         "content" TEXT NOT NULL DEFAULT '',
         "htmlContent" TEXT NOT NULL DEFAULT '',
-        "htmlStyleConfigJson" JSONB NOT NULL DEFAULT '{}'::jsonb,
+        "htmlStyleConfigJson" JSON NOT NULL DEFAULT '{}',
         "articleProvider" TEXT NULL,
         "articleRuntimeKey" TEXT NULL,
         "articleModelName" TEXT NULL,
-        "articleCanonicalJson" JSONB NULL,
+        "articleCanonicalJson" JSON NULL,
         "coverImageBrief" TEXT NULL,
-        "bodyImageBriefsJson" JSONB NULL,
+        "bodyImageBriefsJson" JSON NULL,
         "themeColor" TEXT NOT NULL DEFAULT '#25554a',
         "commentMode" TEXT NOT NULL DEFAULT 'open',
         "imageMode" TEXT NOT NULL DEFAULT 'cover-and-body',
         "bodyImageSize" TEXT NOT NULL DEFAULT 'landscape-4-3',
         "injectBrandProfile" BOOLEAN NOT NULL DEFAULT FALSE,
-        "selectedMarketingLabelsJson" JSONB NOT NULL DEFAULT '[]'::jsonb,
-        "selectedProductLabelsJson" JSONB NOT NULL DEFAULT '[]'::jsonb,
-        "selectedBrandLabelsJson" JSONB NOT NULL DEFAULT '[]'::jsonb,
-        "imageBundleJson" JSONB NULL,
-        "publishConfigJson" JSONB NULL,
+        "selectedMarketingLabelsJson" JSON NOT NULL DEFAULT '[]',
+        "selectedProductLabelsJson" JSON NOT NULL DEFAULT '[]',
+        "selectedBrandLabelsJson" JSON NOT NULL DEFAULT '[]',
+        "imageBundleJson" JSON NULL,
+        "publishConfigJson" JSON NULL,
         "linkedDraftId" TEXT NULL,
         "errorDetail" TEXT NULL,
-        "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+        "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
     `);
-    await this.prismaService.$executeRawUnsafe(`
-      ALTER TABLE "WechatWorkflowSession"
-      ADD COLUMN IF NOT EXISTS "htmlStyleConfigJson" JSONB NOT NULL DEFAULT '{}'::jsonb
-    `);
-    await this.prismaService.$executeRawUnsafe(`
-      ALTER TABLE "WechatWorkflowSession"
-      ADD COLUMN IF NOT EXISTS "articleCanonicalJson" JSONB NULL
-    `);
+    await this.prismaService.ensureTableColumns("WechatWorkflowSession", [
+      { name: "htmlStyleConfigJson", definition: `JSON NOT NULL DEFAULT '{}'` },
+      { name: "articleCanonicalJson", definition: `JSON NULL` },
+    ]);
     await this.prismaService.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS "WechatArticleDraft" (
         "id" TEXT PRIMARY KEY,
@@ -15377,24 +14943,24 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
         "injectMarketingCalendar" BOOLEAN NOT NULL DEFAULT TRUE,
         "injectProducts" BOOLEAN NOT NULL DEFAULT TRUE,
         "injectBrandProfile" BOOLEAN NOT NULL DEFAULT FALSE,
-        "selectedMarketingLabelsJson" JSONB NOT NULL DEFAULT '[]'::jsonb,
-        "selectedProductLabelsJson" JSONB NOT NULL DEFAULT '[]'::jsonb,
-        "selectedBrandLabelsJson" JSONB NOT NULL DEFAULT '[]'::jsonb,
+        "selectedMarketingLabelsJson" JSON NOT NULL DEFAULT '[]',
+        "selectedProductLabelsJson" JSON NOT NULL DEFAULT '[]',
+        "selectedBrandLabelsJson" JSON NOT NULL DEFAULT '[]',
         "articleSkillSlug" TEXT NOT NULL DEFAULT 'wechat-article-composer',
         "articlePromptScene" TEXT NOT NULL DEFAULT '公众号创作文章',
         "articleProvider" TEXT NOT NULL DEFAULT '',
         "articleRuntimeKey" TEXT NOT NULL DEFAULT '',
         "articleModelName" TEXT NOT NULL DEFAULT '',
-        "articleCanonicalJson" JSONB NULL,
+        "articleCanonicalJson" JSON NULL,
         "coverImageBrief" TEXT NULL,
-        "bodyImageBriefsJson" JSONB NULL,
-        "imageTasksJson" JSONB NULL,
+        "bodyImageBriefsJson" JSON NULL,
+        "imageTasksJson" JSON NULL,
         "publishStatus" TEXT NOT NULL DEFAULT 'DRAFT',
-        "publishedAt" TIMESTAMPTZ NULL,
+        "publishedAt" TIMESTAMP NULL,
         "publishTaskId" TEXT NULL,
         "taskStatus" TEXT NOT NULL DEFAULT 'QUEUED',
-        "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+        "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
     `);
     await this.prismaService.$executeRawUnsafe(`
@@ -15415,14 +14981,13 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
         "fanCommentsOnly" BOOLEAN NOT NULL DEFAULT FALSE,
         "retryCount" INTEGER NOT NULL DEFAULT 0,
         "errorDetail" TEXT NULL,
-        "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+        "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
     `);
-    await this.prismaService.$executeRawUnsafe(`
-      ALTER TABLE "WechatArticleDraft"
-      ADD COLUMN IF NOT EXISTS "articleCanonicalJson" JSONB NULL
-    `);
+    await this.prismaService.ensureTableColumns("WechatArticleDraft", [
+      { name: "articleCanonicalJson", definition: `JSON NULL` },
+    ]);
     await this.prismaService.$executeRawUnsafe(
       `CREATE INDEX IF NOT EXISTS "WechatOfficialAccount_brandId_updatedAt_idx" ON "WechatOfficialAccount" ("brandId", "updatedAt" DESC)`,
     );
@@ -15635,7 +15200,7 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
         ${item.brandId},
         ${item.appId},
         ${item.appSecret},
-        ${JSON.stringify(item.whitelistIps || [])}::jsonb,
+        ${this.prismaService.jsonValueSql(item.whitelistIps || [])},
         ${item.defaultAuthor ?? null},
         ${item.defaultThemeColor ?? null},
         ${item.commentMode},
@@ -15730,7 +15295,7 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
         ${item.accountName},
         ${item.appId},
         ${item.appSecret},
-        ${JSON.stringify(item.whitelistIps || [])}::jsonb,
+        ${this.prismaService.jsonValueSql(item.whitelistIps || [])},
         ${item.isDefault},
         ${new Date(item.updatedAt)}
       )
@@ -15765,11 +15330,11 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       )
       VALUES (
         ${item.id},${item.brandId},${item.accountId ?? null},${item.accountName ?? null},${item.status},${item.currentStep},${item.inputType},
-        ${item.inputContent ?? null},${item.title},${item.summary},${item.author},${item.content},${item.htmlContent},${JSON.stringify(item.htmlStyleConfig || buildDefaultWechatHtmlStyleConfig())}::jsonb,${item.articleProvider ?? null},
-        ${item.articleRuntimeKey ?? null},${item.articleModelName ?? null},${item.articleCanonical ? JSON.stringify(item.articleCanonical) : null}::jsonb,${item.coverImageBrief ?? null},${JSON.stringify(item.bodyImageBriefs || [])}::jsonb,
-        ${item.themeColor},${item.commentMode},${item.imageMode},${item.bodyImageSize},${item.injectBrandProfile},${JSON.stringify(item.selectedMarketingLabels || [])}::jsonb,
-        ${JSON.stringify(item.selectedProductLabels || [])}::jsonb,${JSON.stringify(item.selectedBrandLabels || [])}::jsonb,
-        ${item.imageBundle ? JSON.stringify(item.imageBundle) : null}::jsonb,${item.publishConfig ? JSON.stringify(item.publishConfig) : null}::jsonb,
+        ${item.inputContent ?? null},${item.title},${item.summary},${item.author},${item.content},${item.htmlContent},${this.prismaService.jsonValueSql(item.htmlStyleConfig || buildDefaultWechatHtmlStyleConfig())},${item.articleProvider ?? null},
+        ${item.articleRuntimeKey ?? null},${item.articleModelName ?? null},${this.prismaService.jsonValueSql(item.articleCanonical, { nullable: true })},${item.coverImageBrief ?? null},${this.prismaService.jsonValueSql(item.bodyImageBriefs || [])},
+        ${item.themeColor},${item.commentMode},${item.imageMode},${item.bodyImageSize},${item.injectBrandProfile},${this.prismaService.jsonValueSql(item.selectedMarketingLabels || [])},
+        ${this.prismaService.jsonValueSql(item.selectedProductLabels || [])},${this.prismaService.jsonValueSql(item.selectedBrandLabels || [])},
+        ${this.prismaService.jsonValueSql(item.imageBundle, { nullable: true })},${this.prismaService.jsonValueSql(item.publishConfig, { nullable: true })},
         ${item.linkedDraftId ?? null},${item.errorDetail ?? null},${new Date(item.createdAt)},${new Date(item.updatedAt)}
       )
       ON CONFLICT ("id") DO UPDATE SET
@@ -15849,10 +15414,10 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       VALUES (
         ${item.id},${item.taskId},${item.brandId},${item.title},${item.summary},${item.author},${item.content},${item.htmlContent},${item.outputFormat},
         ${item.coverMode},${item.commentMode},${item.imageMode},${item.themeColor},${item.injectMarketingCalendar},${item.injectProducts},
-        ${item.injectBrandProfile},${JSON.stringify(item.selectedMarketingLabels || [])}::jsonb,${JSON.stringify(item.selectedProductLabels || [])}::jsonb,
-        ${JSON.stringify(item.selectedBrandLabels || [])}::jsonb,${item.articleSkillSlug},${item.articlePromptScene},${item.articleProvider},
-        ${item.articleRuntimeKey},${item.articleModelName},${item.articleCanonical ? JSON.stringify(item.articleCanonical) : null}::jsonb,${item.coverImageBrief ?? null},${JSON.stringify(item.bodyImageBriefs || [])}::jsonb,
-        ${item.imageTasks ? JSON.stringify(item.imageTasks) : null}::jsonb,${item.publishStatus},${item.publishedAt ? new Date(item.publishedAt) : null},
+        ${item.injectBrandProfile},${this.prismaService.jsonValueSql(item.selectedMarketingLabels || [])},${this.prismaService.jsonValueSql(item.selectedProductLabels || [])},
+        ${this.prismaService.jsonValueSql(item.selectedBrandLabels || [])},${item.articleSkillSlug},${item.articlePromptScene},${item.articleProvider},
+        ${item.articleRuntimeKey},${item.articleModelName},${this.prismaService.jsonValueSql(item.articleCanonical, { nullable: true })},${item.coverImageBrief ?? null},${this.prismaService.jsonValueSql(item.bodyImageBriefs || [])},
+        ${this.prismaService.jsonValueSql(item.imageTasks, { nullable: true })},${item.publishStatus},${item.publishedAt ? new Date(item.publishedAt) : null},
         ${item.publishTaskId ?? null},${item.taskStatus},${new Date(item.createdAt)},${new Date(item.updatedAt)}
       )
       ON CONFLICT ("id") DO UPDATE SET
@@ -16166,7 +15731,9 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       articleCanonical: this.normalizeWechatArticleCanonical(row.articleCanonicalJson),
       coverImageBrief: this.readOptionalString(row.coverImageBrief),
       bodyImageBriefs: this.normalizeStringArray(row.bodyImageBriefsJson, []),
-      imageTasks: Array.isArray(row.imageTasksJson) ? row.imageTasksJson as WechatImageTaskRecord[] : undefined,
+      imageTasks: Array.isArray(this.parseStructuredJsonValue(row.imageTasksJson))
+        ? this.parseStructuredJsonValue(row.imageTasksJson) as WechatImageTaskRecord[]
+        : undefined,
       publishStatus: row.publishStatus === "PUBLISHED" ? "PUBLISHED" : "DRAFT",
       publishedAt: row.publishedAt ? this.normalizeWechatTimestamp(row.publishedAt) : undefined,
       publishTaskId: this.readOptionalString(row.publishTaskId),
@@ -18175,7 +17742,7 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
   private resolveXiaohongshuNoteImageGenerationSize() {
     return {
       apiz: "3:4",
-      openai: "1248x1664",
+      openai: "1242x1660",
     };
   }
 
@@ -18201,21 +17768,12 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
     if (!match) {
       return "";
     }
-    const width = this.normalizeImageEdgeToMultiple(Number(match[1]), 16);
-    const height = this.normalizeImageEdgeToMultiple(Number(match[2]), 16);
+    const width = Number(match[1]);
+    const height = Number(match[2]);
     if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
       return "";
     }
     return `${Math.trunc(width)}x${Math.trunc(height)}`;
-  }
-
-  private normalizeImageEdgeToMultiple(value: number, multiple: number) {
-    if (!Number.isFinite(value) || value <= 0) {
-      return 0;
-    }
-    const normalizedMultiple = Math.max(1, Math.trunc(multiple));
-    const normalizedValue = Math.max(normalizedMultiple, Math.trunc(value));
-    return Math.ceil(normalizedValue / normalizedMultiple) * normalizedMultiple;
   }
 
   private resolveClosestImageAspectRatio(width: number, height: number) {
@@ -18340,13 +17898,13 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
   }
 
   private stripWechatImageVerticalSizeHints(prompt: string): string {
-    // 清除 brief/prompt 中的竖版、小红书、3:4、1242x1660 / 1248x1664 等尺寸描述，防止与公众号横版尺寸冲突
+    // 清除 brief/prompt 中的竖版、小红书、3:4、1242x1660 等尺寸描述，防止与公众号横版尺寸冲突
     return String(prompt || "")
-      .replace(/竖版小红书图文比例[，,]?\s*严格按\s*(?:1242x1660|1248x1664)[（(]宽3:高4[)）]\s*构图[^。]*。?/g, "")
-      .replace(/竖版[^，,。\n]*?(?:3\s*[:：]\s*4|1242\s*x\s*1660|1248\s*x\s*1664)[^。]*。?/gi, "")
-      .replace(/小红书[^，,。\n]*?(?:3\s*[:：]\s*4|1242\s*x\s*1660|1248\s*x\s*1664)[^。]*。?/gi, "")
+      .replace(/竖版小红书图文比例[，,]?\s*严格按\s*1242x1660[（(]宽3:高4[)）]\s*构图[^。]*。?/g, "")
+      .replace(/竖版[^，,。\n]*?(?:3\s*[:：]\s*4|1242\s*x\s*1660)[^。]*。?/gi, "")
+      .replace(/小红书[^，,。\n]*?(?:3\s*[:：]\s*4|1242\s*x\s*1660)[^。]*。?/gi, "")
       .replace(/(?:宽\s*)?3\s*[:：]\s*4\s*(?:高\s*)?4\b[^。]*。?/gi, "")
-      .replace(/(?:1242|1248)\s*x\s*(?:1660|1664)/g, "")
+      .replace(/1242\s*x\s*1660/g, "")
       .replace(/竖版/g, "横版")
       .replace(/\s{2,}/g, " ")
       .trim();
@@ -21638,8 +21196,13 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
         throw new BadRequestException("音频驱动模式下，请先上传驱动音频。");
       }
       this.validateLipSyncAudioFile(payload.audioFile);
-    } else if (!String(payload.script || "").trim()) {
-      throw new BadRequestException("文本驱动模式下，请先输入驱动文案。");
+    } else {
+      if (!String(payload.script || "").trim()) {
+        throw new BadRequestException("文本驱动模式下，请先输入驱动文案。");
+      }
+      if (!String(payload.audioManId || "").trim()) {
+        throw new BadRequestException("文本驱动模式下，请先填写音色 ID。");
+      }
     }
     const fallbackTitle = String(payload.sourceVideo.fileName || "").replace(/\.[^.]+$/, "").trim() || `口型驱动-${Date.now()}`;
     return {
@@ -22032,6 +21595,7 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
   }
 
   private buildChanjingLipSyncCreatePayload(meta: DouyinLipSyncWorkAssetMeta): ChanjingCreateLipSyncPayload {
+    const useAudioFile = Boolean(meta.audioFileId) || meta.audioType === "AUDIO";
     return {
       video_file_id: meta.sourceVideoFileId || "",
       screen_width: meta.screenWidth,
@@ -22039,9 +21603,9 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       model: meta.model ?? 0,
       backway: meta.backway ?? 1,
       ...(meta.driveMode ? { drive_mode: meta.driveMode } : {}),
-      audio_type: meta.audioType === "AUDIO" ? "audio" : "tts",
+      audio_type: useAudioFile ? "audio" : "tts",
       ...(typeof meta.volume === "number" ? { volume: meta.volume } : {}),
-      ...(meta.audioType === "AUDIO"
+      ...(useAudioFile
         ? {
             audio_file_id: meta.audioFileId,
           }
@@ -22054,6 +21618,57 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
             },
           }),
     };
+  }
+
+  private async waitForChanjingSpeechTaskReady(credential: string, taskId: string) {
+    let latest: ChanjingAudioTaskDetail | undefined;
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      latest = await this.chanjingOpenApiService.getAudioTaskDetail(credential, taskId);
+      if (latest.full?.url) {
+        return latest;
+      }
+      const errorMessage = String(latest.errMsg || latest.errReason || "").trim();
+      if (errorMessage) {
+        throw new ServiceUnavailableException(
+          this.normalizeChanjingUserFacingMessage(errorMessage, "口型驱动文本转音频失败"),
+        );
+      }
+      if (attempt < 9) {
+        await wait(3_000);
+      }
+    }
+    throw new ServiceUnavailableException("口型驱动文本转音频超时，请稍后重试。");
+  }
+
+  private async buildLipSyncAudioPayloadFromSpeechResult(detail: ChanjingAudioTaskDetail, taskId: string): Promise<UploadFilePayload> {
+    const remoteUrl = String(detail.full?.url || "").trim();
+    if (!remoteUrl) {
+      throw new ServiceUnavailableException("口型驱动文本转音频成功，但未返回可用音频地址。");
+    }
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 120000);
+    try {
+      const response = await fetch(remoteUrl, {
+        method: "GET",
+        signal: controller.signal,
+      });
+      if (!response.ok) {
+        throw new ServiceUnavailableException(`下载口型驱动文本音频失败：${response.status}`);
+      }
+      const contentType = response.headers.get("content-type") || "audio/mpeg";
+      const extension = this.resolveAudioExtensionFromMimeType(contentType, remoteUrl || ".mp3");
+      const buffer = Buffer.from(await response.arrayBuffer());
+      return {
+        fileName: `lip-sync-tts-${taskId}${extension}`,
+        contentType,
+        dataBase64: buffer.toString("base64"),
+        sizeBytes: buffer.length,
+      };
+    } catch (error) {
+      throw this.describeFetchError(error, "下载口型驱动文本音频");
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   private async runGenerateDouyinLipSyncTask(
@@ -22079,7 +21694,7 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       meta = await this.saveDouyinLipSyncMetadataSnapshot(brandId, workId, storageKey, {
         ...meta,
         sourceVideoFileId: sourceVideo.fileId,
-        providerStatusText: payload.audioType === "AUDIO" ? "驱动视频已上传，准备上传驱动音频" : "驱动视频已上传，准备提交蝉镜任务",
+        providerStatusText: payload.audioType === "AUDIO" ? "驱动视频已上传，准备上传驱动音频" : "驱动视频已上传，准备合成驱动音频",
         providerUpdatedAt: new Date().toISOString(),
       });
       if (payload.audioType === "AUDIO" && payload.audioFile) {
@@ -22088,6 +21703,30 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
           ...meta,
           audioFileId: audioFile.fileId,
           providerStatusText: "驱动音频已上传，准备提交蝉镜任务",
+          providerUpdatedAt: new Date().toISOString(),
+        });
+      } else if (payload.audioType === "TEXT") {
+        const speechTaskId = await this.chanjingOpenApiService.createAudioTask(credential, {
+          audioMan: payload.audioManId || "",
+          speed: this.normalizeSpeechRate(payload.speechRate),
+          pitch: this.normalizeSpeechPitch(payload.pitch),
+          text: {
+            text: payload.script || "",
+            plainText: payload.script || "",
+          },
+        });
+        meta = await this.saveDouyinLipSyncMetadataSnapshot(brandId, workId, storageKey, {
+          ...meta,
+          providerStatusText: `驱动音频合成中（任务 ${speechTaskId}）`,
+          providerUpdatedAt: new Date().toISOString(),
+        });
+        const speechDetail = await this.waitForChanjingSpeechTaskReady(credential, speechTaskId);
+        const generatedAudioPayload = await this.buildLipSyncAudioPayloadFromSpeechResult(speechDetail, speechTaskId);
+        const generatedAudio = await this.uploadChanjingLipSyncAudio(credential, generatedAudioPayload);
+        meta = await this.saveDouyinLipSyncMetadataSnapshot(brandId, workId, storageKey, {
+          ...meta,
+          audioFileId: generatedAudio.fileId,
+          providerStatusText: "文本驱动音频已上传，准备提交蝉镜任务",
           providerUpdatedAt: new Date().toISOString(),
         });
       }
@@ -22117,7 +21756,10 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
         await this.queryDouyinLipSyncSnapshot(brandId, providerTaskId),
       );
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "口型驱动生成失败";
+      const errorMessage = this.normalizeChanjingUserFacingMessage(
+        error instanceof Error ? error.message : "",
+        "口型驱动生成失败",
+      );
       try {
         const target = await this.getDouyinLipSyncWorkRowById(brandId, workId);
         await this.saveDouyinLipSyncMetadataSnapshot(brandId, workId, storageKey, {
@@ -22167,7 +21809,7 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
         id: detail.id || normalizedTaskId,
         status,
         progress: Math.max(0, Math.min(100, Number(detail.progress || 0))),
-        detail: detail.msg,
+        detail: this.normalizeChanjingUserFacingMessage(detail.msg || "", ""),
         videoUrl: detail.videoUrl,
         previewUrl: detail.previewUrl,
         durationSec: this.normalizeLipSyncDurationSec(detail.duration),
@@ -23305,6 +22947,29 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
     return { retryable: false as const };
   }
 
+  private normalizeRunningHubUserFacingMessage(message: string, fallbackMessage: string) {
+    const normalizedMessage = String(message || "").trim();
+    if (
+      /USER_DOES_NOT_EXIST/i.test(normalizedMessage)
+      || /User not found/i.test(normalizedMessage)
+      || /未找到对应用户/.test(normalizedMessage)
+      || /errorCode=806\b/i.test(normalizedMessage)
+      || /INVALID[_\s-]?API/i.test(normalizedMessage)
+      || /unauthorized/i.test(normalizedMessage)
+      || /forbidden/i.test(normalizedMessage)
+    ) {
+      return "当前品牌配置的 RunningHub API Key 无效，请前往个人中心-第三方接口配置检查后重新保存。";
+    }
+    return normalizedMessage || fallbackMessage;
+  }
+
+  private normalizeRunningHubConfigHint(error: unknown) {
+    return this.normalizeRunningHubUserFacingMessage(
+      error instanceof Error ? error.message : "",
+      "RunningHub 配置暂不可用",
+    );
+  }
+
   private computeRunningHubSubmissionRetryDelayMs(meta: RunningHubWorkAssetMeta, failureCode: string) {
     const queueRetryCount = Math.max(0, Number(meta.queueRetryCount || 0));
     if (failureCode === "QUEUE_LIMIT") {
@@ -23547,15 +23212,7 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       });
       if (currentMeta.status === "SUCCESS" || currentMeta.status === "FAILED") {
         await this.refreshRunningHubWorkSnapshot(brandId, workMediaId);
-        return;
       }
-      this.ensureRunningHubSettlementMonitor({
-        brandId,
-        workId: workMediaId,
-        storageKey,
-        taskId,
-        appName: app.name,
-      });
       // Do not keep a heavy background queue slot occupied for up to hours while polling
       // RunningHub. Submission and result recovery are intentionally decoupled: once the
       // provider task id is persisted, the shared recovery polling loop will continue syncing.
@@ -23596,7 +23253,10 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
           workId: workMediaId,
           taskId,
           storageKey,
-          meta: currentMeta,
+          meta: {
+            ...currentMeta,
+            nodeInfoList: params.nodeInfoList,
+          },
           appName: app.name,
           message,
           failureCode: failure.code,
@@ -24011,21 +23671,6 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
     nodeInfoList: DouyinRunningHubAppFieldRecord[],
     instanceType: RunningHubInstanceType,
   ) {
-    // #region debug-point A:runninghub-submit-enter
-    await reportRunningHubMissingTaskIdDebugEvent({
-      runId: "pre-fix",
-      hypothesisId: "A",
-      location: "works.service.ts:submitRunningHubTask:enter",
-      msg: "[DEBUG] RunningHub submit task entered",
-      data: {
-        webappId,
-        instanceType,
-        nodeCount: nodeInfoList.length,
-        nodeIds: nodeInfoList.slice(0, 10).map((item) => item.nodeId || ""),
-        fieldNames: nodeInfoList.slice(0, 10).map((item) => item.fieldName || ""),
-      },
-    });
-    // #endregion
     const response = await fetch(`https://www.runninghub.cn/openapi/v2/run/ai-app/${encodeURIComponent(webappId)}`, {
       method: "POST",
       headers: {
@@ -24040,19 +23685,6 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
     });
     if (!response.ok) {
       const payload = await response.json().catch(() => ({}));
-      // #region debug-point C:runninghub-submit-http-failure
-      await reportRunningHubMissingTaskIdDebugEvent({
-        runId: "pre-fix",
-        hypothesisId: "C",
-        location: "works.service.ts:submitRunningHubTask:http-failure",
-        msg: "[DEBUG] RunningHub submit returned non-OK response",
-        data: {
-          webappId,
-          httpStatus: response.status,
-          payloadSummary: this.summarizeRunningHubPayload(payload),
-        },
-      });
-      // #endregion
       const envelope = this.unwrapRunningHubEnvelope(payload);
       const detailedMessage = this.buildRunningHubSubmitFailureMessage(payload, envelope.message || `RunningHub 提交任务失败：${response.status}`);
       this.logger.error(
@@ -24061,55 +23693,16 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       throw new ServiceUnavailableException(detailedMessage);
     }
     const payload = await response.json().catch(() => ({}));
-    // #region debug-point B:runninghub-submit-response
-    await reportRunningHubMissingTaskIdDebugEvent({
-      runId: "pre-fix",
-      hypothesisId: "B",
-      location: "works.service.ts:submitRunningHubTask:response",
-      msg: "[DEBUG] RunningHub submit returned payload",
-      data: {
-        webappId,
-        httpStatus: response.status,
-        payloadSummary: this.summarizeRunningHubPayload(payload),
-      },
-    });
-    // #endregion
     const envelope = this.unwrapRunningHubEnvelope(payload);
     const data = this.asRecord(envelope.data);
     const taskId = this.extractRunningHubTaskId(payload);
     if (!taskId) {
-      // #region debug-point B:runninghub-submit-missing-taskid
-      await reportRunningHubMissingTaskIdDebugEvent({
-        runId: "pre-fix",
-        hypothesisId: "B",
-        location: "works.service.ts:submitRunningHubTask:missing-taskid",
-        msg: "[DEBUG] RunningHub submit payload missing task id after extraction",
-        data: {
-          webappId,
-          envelopeMessage: envelope.message || "",
-          payloadSummary: this.summarizeRunningHubPayload(payload),
-        },
-      });
-      // #endregion
       const detailedMessage = this.buildRunningHubSubmitFailureMessage(payload, envelope.message || "RunningHub 未返回任务 ID");
       this.logger.error(
         `[RunningHubSubmitResponse] webappId=${webappId} missing task id; ${detailedMessage}; payload=${this.summarizeRunningHubPayload(payload)}`,
       );
       throw new ServiceUnavailableException(detailedMessage);
     }
-    // #region debug-point A:runninghub-submit-taskid-resolved
-    await reportRunningHubMissingTaskIdDebugEvent({
-      runId: "pre-fix",
-      hypothesisId: "A",
-      location: "works.service.ts:submitRunningHubTask:taskid-resolved",
-      msg: "[DEBUG] RunningHub submit task id resolved",
-      data: {
-        webappId,
-        taskId,
-        status: String(data?.taskStatus || data?.task_status || data?.status || "RUNNING"),
-      },
-    });
-    // #endregion
     this.logger.log(
       `[RunningHubSubmitResponse] webappId=${webappId} taskId=${taskId} payload=${this.summarizeRunningHubPayload(payload)}`,
     );
@@ -24165,45 +23758,13 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
   private async refreshRunningHubWorkSnapshot(brandId: string, workId: string) {
     const target = await this.getRunningHubWorkRowById(brandId, workId);
     const meta = this.readRunningHubWorkMeta(this.getMediaMetadata(target));
-    // #region debug-point RHS-D:runninghub-refresh-enter
-    void reportRunningHubStatusStuckDebugEvent({
-      sessionId: "runninghub-status-stuck",
-      runId: "pre-fix",
-      hypothesisId: "D",
-      location: "works.service.ts:refreshRunningHubWorkSnapshot:enter",
-      msg: "[DEBUG] RunningHub refresh entered",
-      data: {
-        brandId,
-        workId,
-        status: meta.status,
-        providerTaskId: meta.providerTaskId || "",
-      },
-    });
-    // #endregion debug-point RHS-D:runninghub-refresh-enter
     if (!meta.providerTaskId || meta.status === "SUCCESS" || meta.status === "FAILED") {
       return meta;
     }
     try {
       const apiKey = await this.resolveRunningHubApiKey(brandId);
       const snapshot = await this.queryRunningHubTask(apiKey, meta.providerTaskId);
-      // #region debug-point RHS-E:runninghub-refresh-query
-      void reportRunningHubStatusStuckDebugEvent({
-        sessionId: "runninghub-status-stuck",
-        runId: "pre-fix",
-        hypothesisId: "E",
-        location: "works.service.ts:refreshRunningHubWorkSnapshot:query",
-        msg: "[DEBUG] RunningHub refresh queried third-party snapshot",
-        data: {
-          brandId,
-          workId,
-          providerTaskId: meta.providerTaskId,
-          snapshotStatus: snapshot.status,
-          snapshotTaskId: snapshot.taskId,
-          resultCount: Array.isArray(snapshot.results) ? snapshot.results.length : 0,
-        },
-      });
-      // #endregion debug-point RHS-E:runninghub-refresh-query
-      const nextMeta = await this.persistRunningHubQueryResult(
+      return await this.persistRunningHubQueryResult(
         brandId,
         workId,
         target.storageKey || `${workId}.html`,
@@ -24211,40 +23772,9 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
         meta,
         snapshot,
       );
-      if (this.shouldRefreshRunningHubWorkMeta(nextMeta)) {
-        this.ensureRunningHubSettlementMonitor({
-          brandId,
-          workId,
-          storageKey: target.storageKey || `${workId}.html`,
-          taskId: meta.taskId || String(target.taskId || "").trim(),
-          appName: meta.appName,
-        });
-      }
-      return nextMeta;
     } catch {
       return meta;
     }
-  }
-
-  private ensureRunningHubSettlementMonitor(params: {
-    brandId: string;
-    workId: string;
-    storageKey: string;
-    taskId: string;
-    appName: string;
-  }) {
-    const refreshKey = `${params.brandId}:${params.workId}`;
-    if (this.inFlightRunningHubSettlementMonitors.has(refreshKey)) {
-      return;
-    }
-    this.inFlightRunningHubSettlementMonitors.add(refreshKey);
-    void this.monitorRunningHubWorkUntilSettled(params)
-      .catch((error) => {
-        this.logHeavyBackgroundTaskError(`runninghub-monitor:${params.brandId}:${params.workId}`, error);
-      })
-      .finally(() => {
-        this.inFlightRunningHubSettlementMonitors.delete(refreshKey);
-      });
   }
 
   private async monitorRunningHubWorkUntilSettled(params: {
@@ -24430,7 +23960,9 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
     const code = typeof rawCode === "number" ? rawCode : Number(rawCode || 0);
     const message = String(root.msg || root.message || "").trim();
     if (Number.isFinite(code) && code !== 0) {
-      throw new ServiceUnavailableException(message || "RunningHub 请求失败");
+      throw new ServiceUnavailableException(
+        this.normalizeRunningHubUserFacingMessage(message, "RunningHub 请求失败"),
+      );
     }
     return {
       data,
@@ -24541,7 +24073,10 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
     ]
       .map((item) => String(item || "").trim())
       .filter(Boolean);
-    return parts.join(" | ") || "RunningHub 未返回任务 ID";
+    return this.normalizeRunningHubUserFacingMessage(
+      parts.join(" | "),
+      "RunningHub 未返回任务 ID",
+    );
   }
 
   private resolveRunningHubResultContentType(outputType: string) {
@@ -24851,6 +24386,29 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
     );
   }
 
+  private normalizeChanjingUserFacingMessage(message: string, fallbackMessage: string) {
+    const normalizedMessage = String(message || "").trim();
+    if (
+      /凭证格式不正确/.test(normalizedMessage)
+      || /appId::secretKey/i.test(normalizedMessage)
+    ) {
+      return "当前品牌配置的蝉镜凭证格式不正确，请检查 appId::secretKey 后重新保存。";
+    }
+    if (
+      /无效APPID/i.test(normalizedMessage)
+      || /无效APPID 和SecretKey/i.test(normalizedMessage)
+      || /无效APPID和SecretKey/i.test(normalizedMessage)
+      || /invalid.*appid/i.test(normalizedMessage)
+      || /invalid.*secret/i.test(normalizedMessage)
+      || /secretkey/i.test(normalizedMessage)
+      || /unauthorized/i.test(normalizedMessage)
+      || /forbidden/i.test(normalizedMessage)
+    ) {
+      return "当前品牌配置的蝉镜凭证无效，请检查 appId::secretKey 后重新保存。";
+    }
+    return normalizedMessage || fallbackMessage;
+  }
+
   private validateCustomPersonTrainingVideo(payload: UploadFilePayload) {
     if (!String(payload.dataBase64 || "").trim() && !String(payload.tempFilePath || "").trim()) {
       throw new BadRequestException("训练视频内容为空，请重新上传。");
@@ -24884,7 +24442,10 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       });
     } catch (error) {
       throw new ServiceUnavailableException(
-        `获取蝉镜训练视频上传地址失败：${error instanceof Error ? error.message : "请稍后重试"}`,
+        `获取蝉镜训练视频上传地址失败：${this.normalizeChanjingUserFacingMessage(
+          error instanceof Error ? error.message : "",
+          "请稍后重试",
+        )}`,
       );
     }
 
@@ -24900,7 +24461,10 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       );
     } catch (error) {
       throw new ServiceUnavailableException(
-        `上传训练视频到蝉镜失败：${error instanceof Error ? error.message : "请稍后重试"}`,
+        `上传训练视频到蝉镜失败：${this.normalizeChanjingUserFacingMessage(
+          error instanceof Error ? error.message : "",
+          "请稍后重试",
+        )}`,
       );
     }
 
@@ -24909,7 +24473,10 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       fileDetail = await this.waitForChanjingFileReady(credential, upload.fileId);
     } catch (error) {
       throw new ServiceUnavailableException(
-        `等待蝉镜训练视频同步完成失败：${error instanceof Error ? error.message : "请稍后重试"}`,
+        `等待蝉镜训练视频同步完成失败：${this.normalizeChanjingUserFacingMessage(
+          error instanceof Error ? error.message : "",
+          "请稍后重试",
+        )}`,
       );
     }
 
@@ -24961,7 +24528,10 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
           return latestDetail;
         }
       } catch (error) {
-        latestError = error instanceof Error ? error.message : "蝉镜定制数字人详情查询失败";
+        latestError = this.normalizeChanjingUserFacingMessage(
+          error instanceof Error ? error.message : "",
+          "蝉镜定制数字人详情查询失败",
+        );
       }
       if (attempt < 4) {
         await wait(2_000);
@@ -25004,7 +24574,10 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       progress: Math.max(0, Math.min(100, Number(item.progress || 0))),
       previewVideoUrl: item.previewUrl,
       coverImageUrl: item.picUrl,
-      errorReason: item.errReason || item.reason,
+      errorReason: this.normalizeChanjingUserFacingMessage(
+        String(item.errReason || item.reason || "").trim(),
+        "",
+      ) || undefined,
       audioManId: item.audioManId,
       width: item.width,
       height: item.height,
@@ -25094,7 +24667,10 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
         await this.queryDigitalHumanVideoSnapshot(brandId, providerTaskId),
       );
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "数字人视频生成失败";
+      const errorMessage = this.normalizeChanjingUserFacingMessage(
+        error instanceof Error ? error.message : "",
+        "数字人视频生成失败",
+      );
       try {
         const target = await this.getDigitalHumanWorkRowById(brandId, workId);
         const meta = await this.saveDigitalHumanWorkMetadataSnapshot(brandId, workId, storageKey, {
@@ -25557,7 +25133,10 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
         { modelName: "ffmpeg" },
       );
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "完整作品生成失败";
+      const errorMessage = this.normalizeChanjingUserFacingMessage(
+        error instanceof Error ? error.message : "",
+        "完整作品生成失败",
+      );
       try {
         const target = await this.getDigitalHumanWorkRowById(brandId, workId);
         await this.saveDigitalHumanWorkMetadataSnapshot(brandId, workId, storageKey, {
@@ -25586,13 +25165,17 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       const detail = await this.chanjingOpenApiService.getVideoDetail(credential, normalizedTaskId);
       const stage = this.resolveDigitalHumanSnapshotStage(detail);
       const rawStatus = [detail.status, detail.queueStatus].filter((item) => item !== undefined && item !== null && item !== "").join("/");
+      const detailMessage = this.normalizeChanjingUserFacingMessage(
+        [detail.msg, detail.queueDesc].filter(Boolean).join(" ").trim(),
+        "",
+      );
       return {
         id: detail.id || normalizedTaskId,
         stage,
         status: stage,
         statusLabel: this.getDigitalHumanStageLabel(stage),
         rawStatus: rawStatus || undefined,
-        detail: detail.msg || detail.queueDesc || undefined,
+        detail: detailMessage || undefined,
         videoUrl: detail.videoUrl,
         previewUrl: detail.previewUrl,
         durationSec: detail.duration,
@@ -25717,35 +25300,16 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
   ) {
     try {
       const snapshot = await this.queryDigitalHumanVideoSnapshot(brandId, providerTaskId);
-      // #region debug-point F:digital-human-recover-snapshot
-      fetch("http://127.0.0.1:7777/event", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sessionId: "digital-human-recover-result",
-          runId: "post-fix",
-          hypothesisId: "F",
-          location: "apps/server/src/modules/works/works.service.ts:runDigitalHumanRecoveryInBackground",
-          msg: "[DEBUG] 后端后台查询到数字人第三方快照",
-          data: {
-            brandId,
-            resolvedWorkId: workId,
-            snapshotId: snapshot.id,
-            snapshotStatus: snapshot.status,
-            hasSnapshotVideoUrl: Boolean(snapshot.videoUrl),
-            snapshotDetail: snapshot.detail,
-          },
-          ts: Date.now(),
-        }),
-      }).catch(() => {});
-      // #endregion
       await this.persistDigitalHumanSnapshot(brandId, workId, storageKey, taskId, meta, snapshot);
     } catch (error) {
       await this.saveDigitalHumanWorkMetadataSnapshot(brandId, workId, storageKey, {
         ...meta,
         providerTaskId,
         thirdPartyStatusLabel: "找回失败",
-        thirdPartyStatusDetail: error instanceof Error ? error.message : "蝉镜结果找回失败，请稍后重试。",
+        thirdPartyStatusDetail: this.normalizeChanjingUserFacingMessage(
+          error instanceof Error ? error.message : "",
+          "蝉镜结果找回失败，请稍后重试。",
+        ),
         thirdPartyStatusUpdatedAt: new Date().toISOString(),
       }).catch(() => undefined);
     }
@@ -25886,32 +25450,6 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       const candidates = rows
         .filter((item) => this.isDigitalHumanVideoWorkMeta(item.metadataJson))
         .map((item) => ({ row: item, meta: this.readDigitalHumanVideoWorkMeta(item.metadataJson) }));
-      // #region debug-point G:digital-human-recover-candidates
-      fetch("http://127.0.0.1:7777/event", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sessionId: "digital-human-recover-result",
-          runId: "pre-fix",
-          hypothesisId: "G",
-          location: "apps/server/src/modules/works/works.service.ts:findRecoverableDigitalHumanWorkRow",
-          msg: "[DEBUG] 后端扫描可找回数字人作品候选",
-          data: {
-            brandId,
-            providerTaskId: normalizedTaskId,
-            candidateCount: candidates.length,
-            recoverableCount: candidates.filter((item) => !item.meta.videoUrl && isRecoverableStage(item.meta.stage)).length,
-            recentCandidates: candidates.slice(0, 5).map((item) => ({
-              id: item.row.id,
-              providerTaskId: item.meta.providerTaskId,
-              stage: item.meta.stage,
-              hasVideoUrl: Boolean(item.meta.videoUrl),
-            })),
-          },
-          ts: Date.now(),
-        }),
-      }).catch(() => {});
-      // #endregion
       const exact = candidates.find((item) => item.meta.providerTaskId === normalizedTaskId);
       if (exact) {
         return exact.row;
@@ -26445,20 +25983,7 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async hasDigitalHumanScriptTemplateColumn(columnName: string) {
-    try {
-      const rows = await this.prismaService.$queryRawUnsafe<Array<{ exists?: boolean }>>(
-        `SELECT EXISTS (
-           SELECT 1
-           FROM information_schema.columns
-           WHERE table_name = 'digital_human_script_templates'
-             AND column_name = $1
-         ) AS "exists"`,
-        columnName,
-      );
-      return Boolean(rows[0]?.exists);
-    } catch {
-      return false;
-    }
+    return this.prismaService.hasTableColumn("digital_human_script_templates", columnName);
   }
 
   private normalizeDigitalHumanScriptTemplateCategory(value?: string) {
@@ -27038,9 +26563,21 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
     attemptTrail: string[],
     fallbackMessage: string,
   ) {
+    const normalizedLastError = this.normalizeTextModelFailureMessage(lastError || fallbackMessage);
     const preferredDetail = preferredModelName ? `首选模型：${preferredModelName}；` : "";
     const trailDetail = attemptTrail.length ? `；实际尝试顺序：${this.formatAttemptTrail(attemptTrail)}` : "";
-    return `${taskLabel}失败：${preferredDetail}最后失败：${lastError || fallbackMessage}${trailDetail}`;
+    return `${taskLabel}失败：${preferredDetail}最后失败：${normalizedLastError}${trailDetail}`;
+  }
+
+  private normalizeTextModelFailureMessage(message: string) {
+    const normalized = String(message || "").trim();
+    if (!normalized) {
+      return "未获取到有效响应";
+    }
+    if (/api key|access denied|enterprise-shared api keys|unauthorized|forbidden|\b401\b|\b403\b/i.test(normalized)) {
+      return "当前品牌配置的文案模型 API Key 无效或无权限，请前往个人中心-第三方接口配置检查后重新保存。";
+    }
+    return normalized;
   }
 
   private normalizeImageGenerationFailureMessage(message: string) {
@@ -28040,7 +27577,7 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
     const providers = await this.apiProvidersService.listActiveProvidersByRuntimeKey("image-generation");
     if (!providers.length) {
       throw new ServiceUnavailableException(
-        "未找到已激活的文生图 Provider，请先在后台接口配置中启用「Right Codes · 文生图/图生图」「多元探索 · 文生图/图生图」或其他 image-generation Provider。",
+        "未找到已激活的文生图 Provider，请先在后台接口配置中启用「Right Codes · 文生图/图生图」或其他 image-generation Provider。",
       );
     }
     const preferredModels = preference?.configuredModels?.length
@@ -28166,19 +27703,6 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       preferredProviderIds: overridePreference?.preferredProviderIds || preference?.preferredProviderIds || [],
     };
     const scopedConfigs = this.applyImageProviderSelectionRule(normalizedConfigs, effectivePreference);
-    if (overridePreference?.strictPreferredProvider && effectivePreference.preferredProviderIds.length) {
-      const strictConfigs = scopedConfigs.filter((item) => effectivePreference.preferredProviderIds.includes(item.providerId));
-      if (!strictConfigs.length) {
-        throw new ServiceUnavailableException(
-          `已指定文生图 Provider，但当前品牌无法命中对应执行配置。请改用 get_design_workspace_options 返回的 selectionKey，确保 providerId 来自当前可用的平台模型列表。`,
-        );
-      }
-      return this.reorderImageProvidersByPrimaryModel(
-        strictConfigs,
-        effectivePreference.preferredModelName,
-        effectivePreference.preferredProviderIds,
-      );
-    }
     return this.reorderImageProvidersByPrimaryModel(
       scopedConfigs,
       effectivePreference.preferredModelName,
@@ -29783,7 +29307,7 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
         model: modelName,
         prompt,
         image: referenceImageUrls,
-        size: imageSizeOverride?.openai || this.resolveXiaohongshuNoteImageGenerationSize().openai,
+        size: imageSizeOverride?.openai || "1242x1660",
         response_format: "url",
       };
     }
@@ -30114,7 +29638,7 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
     const imageLabel = role === "COVER" ? "封面图" : `第${order + 1}张配图`;
     // 根据 imageSizeOverride 动态生成尺寸指令
     const aspectRatio = imageSizeOverride?.apiz || "3:4";
-    const pixelSize = imageSizeOverride?.openai || this.resolveXiaohongshuNoteImageGenerationSize().openai;
+    const pixelSize = imageSizeOverride?.openai || "1242x1660";
     const isLandscape = aspectRatio === "16:9" || aspectRatio === "4:3";
     const orientationText = isLandscape ? "横版" : aspectRatio === "1:1" ? "正方形" : "竖版";
     return [
@@ -30519,17 +30043,34 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
   }
 
   private asRecord(value: unknown) {
-    if (!value || typeof value !== "object" || Array.isArray(value)) {
+    const normalizedValue = this.parseStructuredJsonValue(value);
+    if (!normalizedValue || typeof normalizedValue !== "object" || Array.isArray(normalizedValue)) {
       return null;
     }
-    return value as Record<string, unknown>;
+    return normalizedValue as Record<string, unknown>;
   }
 
   private normalizeStringArray(raw: unknown, fallback: string[] = [], limit = 8) {
-    const values = Array.isArray(raw)
-      ? raw.map((item) => String(item ?? "").trim()).filter(Boolean)
+    const normalizedValue = this.parseStructuredJsonValue(raw);
+    const values = Array.isArray(normalizedValue)
+      ? normalizedValue.map((item) => String(item ?? "").trim()).filter(Boolean)
       : [];
     return (values.length ? values : fallback).slice(0, limit);
+  }
+
+  private parseStructuredJsonValue(value: unknown) {
+    if (typeof value !== "string") {
+      return value;
+    }
+    const normalized = value.trim();
+    if (!normalized) {
+      return value;
+    }
+    try {
+      return JSON.parse(normalized);
+    } catch {
+      return value;
+    }
   }
 
   private normalizeNumberArray(raw: unknown, fallback: number[] = [], limit = 8) {
@@ -30916,10 +30457,10 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
 
     try {
       const { default: sharp } = await import("sharp");
-      const normalizedSizeSpec = this.normalizeDesignImageSpec(sizeSpec || "") || this.resolveXiaohongshuNoteImageGenerationSize().openai;
+      const normalizedSizeSpec = this.normalizeDesignImageSpec(sizeSpec || "") || "1242x1660";
       const [targetWidthText, targetHeightText] = normalizedSizeSpec.split("x");
-      const targetWidth = Number(targetWidthText) || 1248;
-      const targetHeight = Number(targetHeightText) || 1664;
+      const targetWidth = Number(targetWidthText) || 1242;
+      const targetHeight = Number(targetHeightText) || 1660;
       const image = sharp(buffer, { animated: false, failOn: "none" }).rotate();
       const metadata = await image.metadata();
       if (!metadata.width || !metadata.height) {
@@ -31002,15 +30543,41 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
   }
 
   private extractLocalAssetFileName(url: string, brandId: string) {
-    const expectedPrefix = `${this.resolveServerBaseUrl()}/api/works/brands/${brandId}/assets/`;
-    if (url.startsWith(expectedPrefix)) {
-      return decodeURIComponent(url.slice(expectedPrefix.length));
+    const normalizedUrl = String(url || "").trim();
+    if (!normalizedUrl) {
+      return "";
     }
-    const queryPrefix = `${this.resolveServerBaseUrl()}/api/works/brands/${brandId}/assets?fileName=`;
-    if (url.startsWith(queryPrefix)) {
-      return decodeURIComponent(url.slice(queryPrefix.length));
+
+    const encodedBrandId = encodeURIComponent(brandId);
+    const assetPathPrefix = `/api/works/brands/${encodedBrandId}/assets/`;
+    const assetQueryPath = `/api/works/brands/${encodedBrandId}/assets`;
+
+    try {
+      const parsed = new URL(normalizedUrl, this.resolveServerBaseUrl());
+      if (parsed.pathname.startsWith(assetPathPrefix)) {
+        return decodeURIComponent(parsed.pathname.slice(assetPathPrefix.length));
+      }
+      if (parsed.pathname === assetQueryPath) {
+        const fileName = parsed.searchParams.get("fileName");
+        return fileName ? decodeURIComponent(fileName) : "";
+      }
+    } catch {
+      return "";
     }
+
     return "";
+  }
+
+  private normalizeLocalAssetUrl(url: string | undefined, brandId: string) {
+    const normalizedUrl = String(url || "").trim();
+    if (!normalizedUrl) {
+      return "";
+    }
+    const localAssetFileName = this.extractLocalAssetFileName(normalizedUrl, brandId);
+    if (!localAssetFileName) {
+      return normalizedUrl;
+    }
+    return this.resolveGeneratedAssetUrl(brandId, localAssetFileName);
   }
 
   private resolveServerBaseUrl() {

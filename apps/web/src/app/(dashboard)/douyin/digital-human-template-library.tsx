@@ -132,6 +132,12 @@ export function DigitalHumanTemplateLibrary(props: DigitalHumanTemplateLibraryPr
         </div>
       ) : null}
 
+      {props.templateTagLoadError ? (
+        <div className="empty-state" style={{ marginTop: 12, borderColor: "#fed7aa", background: "#fff7ed", color: "#9a3412" }}>
+          模板标签读取失败：{props.templateTagLoadError}
+        </div>
+      ) : null}
+
       {tagOptions.length ? (
         <div className="strategy-chip-row" style={{ marginBottom: 16 }}>
           <button

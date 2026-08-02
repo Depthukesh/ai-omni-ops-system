@@ -280,20 +280,31 @@ function renderWorkPreview(module: DesignModuleMeta, work: DesignWork) {
   );
 }
 
-function ImagePreviewDialog({
-  open,
-  title,
-  imageUrl,
+function isHtmlPreviewWork(work: DesignWork | null) {
+  if (!work) {
+    return false;
+  }
+
+  if (work.module === "html" || Boolean(work.htmlContent)) {
+    return true;
+  }
+
+  return /\.html(?:[?#].*)?$/i.test(work.assetUrl ?? "");
+}
+
+function DesignPreviewDialog({
+  work,
   onClose,
 }: {
-  open: boolean;
-  title: string;
-  imageUrl: string;
+  work: DesignWork | null;
   onClose: () => void;
 }) {
-  if (!open || !imageUrl) {
+  if (!work || (!work.assetUrl && !work.htmlContent)) {
     return null;
   }
+
+  const isHtml = isHtmlPreviewWork(work);
+  const canOpenAsset = Boolean(work.assetUrl);
 
   return (
     <div className="design-v3-dialog-backdrop design-v3-preview-backdrop" onClick={onClose}>
@@ -301,17 +312,42 @@ function ImagePreviewDialog({
         className="design-v3-preview-dialog"
         role="dialog"
         aria-modal="true"
-        aria-label={title}
+        aria-label={work.title}
         onClick={(event) => event.stopPropagation()}
       >
         <div className="design-v3-preview-header">
-          <strong>{title}</strong>
-          <button type="button" className="secondary-button" onClick={onClose}>
-            关闭
-          </button>
+          <strong>{work.title}</strong>
+          <div className="design-v3-preview-header-actions">
+            {canOpenAsset ? (
+              <a href={work.assetUrl} target="_blank" rel="noreferrer" className="secondary-button">
+                站内打开
+              </a>
+            ) : null}
+            <button type="button" className="secondary-button" onClick={onClose}>
+              关闭
+            </button>
+          </div>
         </div>
         <div className="design-v3-preview-body">
-          <img src={imageUrl} alt={title} className="design-v3-preview-image" />
+          {isHtml ? (
+            <iframe
+              title={`${work.title} 预览`}
+              srcDoc={work.htmlContent}
+              src={work.htmlContent ? undefined : work.assetUrl}
+              className="design-v3-preview-iframe"
+            />
+          ) : work.module === "image" && work.assetUrl ? (
+            <img src={work.assetUrl} alt={work.title} className="design-v3-preview-image" />
+          ) : (
+            <div className="design-v3-preview-empty">
+              <p>当前资源暂不支持站内弹窗预览，请直接打开原始资源查看。</p>
+              {canOpenAsset ? (
+                <a href={work.assetUrl} target="_blank" rel="noreferrer" className="primary-button">
+                  打开资源
+                </a>
+              ) : null}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -915,7 +951,7 @@ export function DesignWorkspaceShell({ section }: DesignWorkspaceShellProps) {
 
   const handleViewWork = (work: DesignWork) => {
     handleSelectWork(getWorkId(work));
-    if (work.assetUrl) {
+    if (work.assetUrl || work.htmlContent) {
       setPreviewWork(work);
     }
   };
@@ -1048,10 +1084,8 @@ export function DesignWorkspaceShell({ section }: DesignWorkspaceShellProps) {
         onReferenceChange={setReferenceFile}
         onSubmit={handleSubmit}
       />
-      <ImagePreviewDialog
-        open={Boolean(previewWork?.assetUrl)}
-        title={previewWork?.title ?? "设计预览"}
-        imageUrl={previewWork?.assetUrl ?? ""}
+      <DesignPreviewDialog
+        work={previewWork}
         onClose={() => setPreviewWork(null)}
       />
     </main>

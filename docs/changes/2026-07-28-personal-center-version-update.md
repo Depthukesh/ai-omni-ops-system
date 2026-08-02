@@ -378,6 +378,34 @@
   - 另一台机器即使再次安装失败，也能第一时间看到真实报错
   - 后续排障不再依赖“窗口一闪而过”的模糊现象
 
+## 继续修正补充（2026-08-02 10:20）
+
+### 1. 用户安装时仍然不知道该去哪里看进度
+
+- 之前的安装入口虽然已经会把日志固定写到：
+  - `%LOCALAPPDATA%\\AiOmniOps\\logs\\install-local-single-user.log`
+- 但对普通用户来说，这仍然有一个体验断层：
+  - 安装窗口里看不到实时进度
+  - 只有知道日志路径的人，才知道安装到底做到哪一步
+
+### 2. 这次补的修正
+
+- 调整 `scripts/build-local-single-user-release.cjs` 里的 `install-local-single-user.cmd` 生成逻辑：
+  - 安装 PowerShell 的输出改为直接在窗口中实时显示
+  - 同一份输出继续通过 `Tee-Object` 追加写入：
+    - `%LOCALAPPDATA%\\AiOmniOps\\logs\\install-local-single-user.log`
+  - 安装窗口启动时也会先提示：
+    - 当前输出正在实时显示
+    - 同时日志会继续落盘
+
+### 3. 影响范围与收益
+
+- 这次不改安装目标路径、不改启动逻辑，也不改数据保留策略
+- 只补安装期的可见性
+- 直接收益是：
+  - 普通用户双击安装后，能在当前窗口里直接看到进度
+  - 即使安装失败，仍然保留完整日志文件给后续排查
+
 ## 继续修正补充（2026-07-31 23:20）
 
 ### 1. 新日志确认卡点落在“旧安装 backup 前”
@@ -2127,3 +2155,283 @@
     - `phase = SUCCEEDED`
     - `updateAvailable = false`
     - `message = 当前已经是最新发布版本。`
+
+## 继续修正补充（升级重启窗口下的版本页容错）
+
+### 1. 当前现象不是“版本号文件丢失”，而是刷新时卡在重启窗口
+
+- 用户在版本页点击“立即升级”后，前端会先收到：
+  - `APPLYING`
+  - `升级进程已启动`
+- 但如果此时用户过一会儿刷新页面，而本地 API 仍处于：
+  - 停旧进程
+  - 替换安装目录
+  - 重新拉起
+  的窗口期，`/system/update/status` 会短暂请求失败。
+- 版本页此前一旦遇到这类失败，就直接把状态清空，导致页面看起来像：
+  - `当前版本 = -`
+  - `最新 Release = 未获取`
+  - 顶部直接显示 `Failed to fetch`
+
+### 2. 这次修正
+
+- 在：
+  - `apps/web/src/app/(dashboard)/personal-center/version/page.tsx`
+  中补了版本页的本地状态保留与自动重试：
+  - 每次成功拿到 `SystemUpdateStatus` 都写入浏览器本地缓存
+  - 点击“立即升级”后，会先把 `APPLYING` 状态写入本地缓存
+  - 如果刷新时遇到 API 暂时不可达，页面优先展示最近一次成功状态，而不是直接清空成 `-`
+  - 当缓存状态处于 `APPLYING` / `DOWNLOADING` 时，页面会自动定时重试
+
+### 3. 影响范围与收益
+
+- 这次不改升级协议，不改 installer，也不改 updater 停机逻辑
+- 只修正版本页在升级重启窗口中的前端体验
+- 直接收益是：
+  - 用户即使在升级后立即刷新，也不会误以为“版本号和 Release 信息都没了”
+  - 页面会更明确地表达“正在重启 / 正在恢复”，并自动重试
+
+### 4. 验证
+
+- `npm --workspace apps/web exec tsc --noEmit`
+  - 通过
+- 本地安装态现场复查：
+  - `meta/release-manifest.json`
+  - `app/package.json`
+  - `start-local-single-user.cmd`
+  均存在，说明当前问题并不是安装根基础文件丢失
+- `GET http://127.0.0.1:3001/api/health`
+  - 当前返回 `200`
+  - 说明重启后的服务可恢复
+
+## 继续修正补充（测试机 SQLite 启动兼容与慢启动容错）
+
+### 1. 测试机真实日志确认：旧包不是“没装上”，而是安装后运行链不稳定
+
+- 从测试机导出的诊断目录可确认：
+  - 安装目录和 `release-manifest.json` 已落盘
+  - `local-single-user-runtime.json` 记录过 `launcher/server/worker/web` 的真实 PID
+  - 但导出时 `ports.txt` 与 `node-processes.txt` 已为空
+- 这说明问题不是“安装失败”，而是：
+  - 启动后 Node 进程又退出了
+  - 且测试机拿到的仍是较早一版旧包，不是后续已修热更版本
+
+### 2. 测试机 server.err.log 暴露出两类残留问题
+
+- 一类是旧包仍带着早期发布物问题：
+  - `Local Prisma generate` 缺少 `fast-check`
+- 另一类是本地单机 SQLite 模式下仍有残留 PostgreSQL 语法：
+  - `unrecognized token: ":"`
+  - `near "EXISTS": syntax error`
+- 本轮把源码里真实命中的 OpenClaw 工作区模块一起收口，避免继续出现：
+  - `TIMESTAMPTZ`
+  - `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`
+  这类 SQLite 不兼容语法
+
+### 3. 本轮代码收口
+
+- 在以下模块中补齐 SQLite 建表/补列分支：
+  - `apps/server/src/modules/openclaw/openclaw-daily-plan.service.ts`
+  - `apps/server/src/modules/openclaw/openclaw-lobster-diary.service.ts`
+  - `apps/server/src/modules/openclaw/openclaw-geo-visibility-report.service.ts`
+  - `apps/server/src/modules/openclaw/openclaw-creative-material.service.ts`
+  - `apps/server/src/modules/openclaw/openclaw-video-work.service.ts`
+- 统一策略为：
+  - SQLite：`CREATE TABLE` 使用 `DATETIME`
+  - SQLite：新增列改走 `prismaService.ensureTableColumns(...)`
+  - PostgreSQL：保留现有 `TIMESTAMPTZ` 与 `ADD COLUMN IF NOT EXISTS` 行为
+- 同时在：
+  - `scripts/local-single-user-launcher.cjs`
+  中把 URL 就绪等待窗口从 `45s` 提高到 `90s`
+- 这样可以避免慢机器上：
+  - API 实际快起来了
+  - 但 launcher 因健康检查过早超时，提前判定失败并杀掉整套进程
+
+### 4. 影响范围控制
+
+- 本轮没有改 API 协议
+- 没有改数据库 schema 定义文件
+- 没有改业务页面入口
+- 只修：
+  - 本地单机 SQLite 运行态的建表/补列兼容
+  - launcher 的启动等待容错
+
+### 5. 验证
+
+- `npm exec tsc -- -p "d:\\王笑东\\aiproject\\AI全域运营\\AI全域智能体\\local-ai-omni-ops-system\\apps\\server\\tsconfig.json" --noEmit`
+  - 通过
+- 代码回扫确认：
+  - OpenClaw 模块的 PostgreSQL 语法仅保留在 PostgreSQL 分支
+  - SQLite 分支已改为兼容写法
+
+## 继续修正补充（安装态版本升级入口被误隐藏）
+
+### 1. 现象
+
+- 测试机安装新版可正常启动后，个人中心顶部二级导航里的：
+  - `版本与升级`
+  再次消失。
+- 页面并不是被删除，而是前端会根据：
+  - `system/update/status`
+  返回的 `supported && current.canApplyUpdate`
+  决定是否显示入口。
+
+### 2. 根因
+
+- 之前为修复本地单机启动，把 API / Worker 的 `cwd` 调整到了安装包的：
+  - `app` 根目录
+- 但 `apps/server/src/modules/system-update/system-update.service.ts`
+  里仍然按旧假设使用：
+  - `resolve(process.cwd(), "..", "..")`
+  推导 `projectRoot`
+- 在新的启动方式下，这会把安装态根目录算错，继而误判：
+  - 当前不是已安装的 local-single-user 发布包
+- 结果就是：
+  - `canApplyUpdate = false`
+  - 前端把 `版本与升级` 入口过滤掉
+
+### 3. 修复
+
+- 在：
+  - `apps/server/src/modules/system-update/system-update.service.ts`
+  增加 `findNearestPackageJsonRoot(startPath)`，
+  改为从当前 `cwd` 向上就近定位真正的 `package.json` 根目录，而不是硬编码 `..\\..`
+- 这样两种场景都能正确识别：
+  - 安装态：`cwd = app`
+  - 源码态：`cwd = repo` 或其他开发目录
+
+### 4. 验证
+
+- `npm exec tsc -- -p "d:\\王笑东\\aiproject\\AI全域运营\\AI全域智能体\\local-ai-omni-ops-system\\apps\\server\\tsconfig.json" --noEmit`
+  - 通过
+- 代码回读确认：
+  - `getCurrentBuildInfo()` 已改为走 `findNearestPackageJsonRoot(process.cwd())`
+  - 不再依赖固定层级推导安装根
+
+## 继续修正补充（下载与应用内升级统一切到 OSS）
+
+### 1. 背景
+
+- GitHub Release 更适合做版本归档，但大安装包在当前网络环境下下载速度慢、稳定性也不够好。
+- 用户已明确要求：
+  - 手工下载安装走 OSS
+  - 应用内“检查更新 / 预下载安装包 / 立即升级”也统一走 OSS
+
+### 2. 本次收口
+
+- `scripts/upload-local-single-user-release-to-oss.cjs`
+  - 大文件改为分片上传，避免 60 秒单次上传超时
+  - `latest.json` 补充：
+    - `name`
+    - `publishedAt`
+    - `checksumValue`
+    - `source=oss`
+- `scripts/build-local-single-user-release.cjs`
+  - `meta/release-manifest.json` 新增：
+    - `releaseTag`
+- `apps/server/src/modules/system-update/system-update.service.ts`
+  - 安装态升级源改为默认读取 OSS `latest.json`
+  - 不再以 GitHub Release 作为默认检查源
+  - 当前安装包若已携带 `releaseTag`，则优先按 `releaseTag` 精确判断是否有更新
+- `apps/web/src/app/(dashboard)/personal-center/version/page.tsx`
+  - 页面文案从 GitHub Release 改为 OSS 升级源
+  - 下载按钮改为直达 OSS 安装包资源
+
+### 3. 当前 OSS 升级源
+
+- `latest.json`
+  - `https://bucketwangxiaodong.oss-cn-beijing.aliyuncs.com/ai-omni-ops/local-single-user/win-x64/latest.json`
+
+### 4. 风险与兼容
+
+- 已安装的旧包如果 `release-manifest.json` 里还没有 `releaseTag`，仍会退回到 `generatedAt` 口径判断新旧。
+- 从下一版开始，安装态会具备更稳定的版本判断能力，不再容易出现“明明装了新包，却被同名 zip 或旧元数据干扰”的问题。
+
+## 继续修正补充（重启后打不开的自启动链分叉）
+
+### 1. 现场现象
+
+- 用户反馈：电脑重启后，`127.0.0.1:3001` 打不开。
+- 现场日志显示：
+  - 手工执行 `start-local-single-user.cmd` 时，`LOCAL_SINGLE_USER_PREBUILT_ONLY=true`，launcher 会跳过 `server build / web build`
+  - 但开机后的自启动链里，`launcher.log` 出现了：
+    - `Run server build`
+    - `npm error No workspaces found: --workspace=apps/server`
+
+### 2. 根因
+
+- `install-autostart.cmd` 安装的是 `scripts/local-single-user-autostart.ps1`
+- 旧版 `local-single-user-autostart.ps1` 直接调用：
+  - `node scripts/local-single-user-launcher.cjs`
+- 这条链**绕过了**安装目录顶层的 `start-local-single-user.cmd`
+- 因而也绕过了 `start-local-single-user.cmd` 里统一注入的：
+  - `LOCAL_SINGLE_USER_PREBUILT_ONLY=true`
+  - 以及其它启动期受控环境
+- 结果就是：
+  - 手工启动能走预构建运行时
+  - 开机自启动却错误进入“现场重编”分支
+  - 而安装态发布物并不带 workspace 构建环境，所以重编必然失败
+
+### 3. 修复
+
+- `scripts/local-single-user-autostart.ps1`
+  - 不再直接调用 `local-single-user-launcher.cjs`
+  - 改为直接 `Start-Process` 启动安装根下的：
+    - `start-local-single-user.cmd`
+  - 同时继续保留：
+    - `LOCAL_SINGLE_USER_AUTO_OPEN_BROWSER=false`
+- 这样开机自启动与用户手动双击启动入口完全复用同一条链，不再出现“手动能开、重启后打不开”的分叉行为
+
+## 继续修正补充（版本页升级时报错与升级后状态残留）
+
+### 1. 现场现象
+
+- 用户在个人中心点击：
+  - `立即升级`
+- 页面会偶发直接报：
+  - `Failed to fetch`
+- 即使升级实际已经开始，刷新后也可能继续看到：
+  - `升级进行中`
+  - 或状态页短暂不可达
+
+### 2. 根因
+
+- `POST /system/update/apply` 会先后台拉起独立 updater，再由 updater 停掉当前 API / Web / worker。
+- 原先 updater 在接管后停机太快，浏览器还没来得及稳定收到 JSON 响应，就先碰到了连接断开，于是前端把这次断连显示成了硬错误。
+- 同时，若本地状态文件里还保留着旧的：
+  - `phase = APPLYING`
+  但当前安装包其实已经和最新版本对齐，状态页仍可能继续展示“升级中”，而不是自动回到成功态。
+
+### 3. 这次修复
+
+- `scripts/local-single-user-updater.ps1`
+  - 在真正执行 `Stop-RuntimeFromMetadata` 前增加短暂延时：
+    - `Start-Sleep -Seconds 3`
+  - 给 `/system/update/apply` 这个请求留出响应窗口，减少“升级已启动但前端只看到 Failed to fetch”的误报。
+- `apps/web/src/app/(dashboard)/personal-center/version/page.tsx`
+  - `handleApply()` 捕获到 `Failed to fetch` 时，不再直接显示“升级失败”
+  - 而是按“升级进程可能已接管当前工作台”处理，并继续走状态轮询与页面提示
+  - 页面在 `APPLYING` / `DOWNLOADING` 阶段保留最近一次成功状态并自动重试
+- `apps/server/src/modules/system-update/system-update.service.ts`
+  - 当当前安装包已经和最新版本对齐时，会把残留的 `APPLYING` 自动归并成：
+    - `SUCCEEDED`
+  - 避免用户手工装到最新版本后，版本页还长时间显示“升级进行中”
+
+### 4. 影响范围
+
+- 不改升级协议
+- 不改安装包目录结构
+- 不改用户数据目录
+- 只收口：
+  - 升级请求返回窗口
+  - 升级状态页的前端容错
+  - 已升级完成后的状态归一
+
+### 5. 验证计划
+
+- `npm --workspace apps/web exec tsc --noEmit`
+- `npm exec tsc -- -p "d:\\王笑东\\aiproject\\AI全域运营\\AI全域智能体\\local-ai-omni-ops-system\\apps\\server\\tsconfig.json" --noEmit`
+- 重新打包 `local-single-user`
+- 上传 OSS 并用版本页再次执行：
+  - 检查更新
+  - 立即升级

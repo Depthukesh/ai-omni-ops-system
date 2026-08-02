@@ -278,31 +278,52 @@ export class OpenClawGeoVisibilityReportService {
     if (!(await this.prismaService.canUseDatabase())) {
       return;
     }
-    await this.prismaService.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS "OpenClawGeoVisibilityReport" (
-        "id" TEXT PRIMARY KEY,
-        "brandId" TEXT NOT NULL,
-        "workspaceScope" TEXT NOT NULL DEFAULT '${DEFAULT_OPENCLAW_WORKSPACE_SCOPE}',
-        "createdByUserId" TEXT NOT NULL,
-        "title" TEXT NOT NULL DEFAULT '',
-        "description" TEXT NOT NULL DEFAULT '',
-        "htmlContent" TEXT NOT NULL DEFAULT '',
-        "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-    await this.prismaService.$executeRawUnsafe(`
-      ALTER TABLE "OpenClawGeoVisibilityReport"
-      ADD COLUMN IF NOT EXISTS "workspaceScope" TEXT NOT NULL DEFAULT '${DEFAULT_OPENCLAW_WORKSPACE_SCOPE}'
-    `);
-    await this.prismaService.$executeRawUnsafe(`
-      ALTER TABLE "OpenClawGeoVisibilityReport"
-      ADD COLUMN IF NOT EXISTS "description" TEXT NOT NULL DEFAULT ''
-    `);
-    await this.prismaService.$executeRawUnsafe(`
-      ALTER TABLE "OpenClawGeoVisibilityReport"
-      ADD COLUMN IF NOT EXISTS "htmlContent" TEXT NOT NULL DEFAULT ''
-    `);
+    if (this.prismaService.isLocalSqliteMode()) {
+      await this.prismaService.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "OpenClawGeoVisibilityReport" (
+          "id" TEXT PRIMARY KEY,
+          "brandId" TEXT NOT NULL,
+          "workspaceScope" TEXT NOT NULL DEFAULT '${DEFAULT_OPENCLAW_WORKSPACE_SCOPE}',
+          "createdByUserId" TEXT NOT NULL,
+          "title" TEXT NOT NULL DEFAULT '',
+          "description" TEXT NOT NULL DEFAULT '',
+          "htmlContent" TEXT NOT NULL DEFAULT '',
+          "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      await this.prismaService.ensureTableColumns("OpenClawGeoVisibilityReport", [
+        { name: "workspaceScope", definition: `TEXT NOT NULL DEFAULT '${DEFAULT_OPENCLAW_WORKSPACE_SCOPE}'` },
+        { name: "description", definition: "TEXT NOT NULL DEFAULT ''" },
+        { name: "htmlContent", definition: "TEXT NOT NULL DEFAULT ''" },
+      ]);
+    } else {
+      await this.prismaService.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "OpenClawGeoVisibilityReport" (
+          "id" TEXT PRIMARY KEY,
+          "brandId" TEXT NOT NULL,
+          "workspaceScope" TEXT NOT NULL DEFAULT '${DEFAULT_OPENCLAW_WORKSPACE_SCOPE}',
+          "createdByUserId" TEXT NOT NULL,
+          "title" TEXT NOT NULL DEFAULT '',
+          "description" TEXT NOT NULL DEFAULT '',
+          "htmlContent" TEXT NOT NULL DEFAULT '',
+          "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      await this.prismaService.$executeRawUnsafe(`
+        ALTER TABLE "OpenClawGeoVisibilityReport"
+        ADD COLUMN IF NOT EXISTS "workspaceScope" TEXT NOT NULL DEFAULT '${DEFAULT_OPENCLAW_WORKSPACE_SCOPE}'
+      `);
+      await this.prismaService.$executeRawUnsafe(`
+        ALTER TABLE "OpenClawGeoVisibilityReport"
+        ADD COLUMN IF NOT EXISTS "description" TEXT NOT NULL DEFAULT ''
+      `);
+      await this.prismaService.$executeRawUnsafe(`
+        ALTER TABLE "OpenClawGeoVisibilityReport"
+        ADD COLUMN IF NOT EXISTS "htmlContent" TEXT NOT NULL DEFAULT ''
+      `);
+    }
     await this.prismaService.$executeRawUnsafe(`
       UPDATE "OpenClawGeoVisibilityReport"
       SET "workspaceScope" = 'geo'

@@ -425,51 +425,80 @@ export class OpenClawCreativeMaterialService {
     if (!(await this.prismaService.canUseDatabase())) {
       return;
     }
-    await this.prismaService.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS "OpenClawCreativeMaterial" (
-        "id" TEXT PRIMARY KEY,
-        "brandId" TEXT NOT NULL,
-        "workspaceScope" TEXT NOT NULL DEFAULT '${DEFAULT_OPENCLAW_WORKSPACE_SCOPE}',
-        "createdByUserId" TEXT NOT NULL,
-        "title" TEXT NOT NULL DEFAULT '',
-        "description" TEXT NOT NULL DEFAULT '',
-        "materialType" TEXT NOT NULL DEFAULT '',
-        "fileUrl" TEXT,
-        "fileName" TEXT,
-        "mimeType" TEXT,
-        "textContent" TEXT,
-        "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-    await this.prismaService.$executeRawUnsafe(`
-      ALTER TABLE "OpenClawCreativeMaterial"
-      ADD COLUMN IF NOT EXISTS "workspaceScope" TEXT NOT NULL DEFAULT '${DEFAULT_OPENCLAW_WORKSPACE_SCOPE}'
-    `);
-    await this.prismaService.$executeRawUnsafe(`
-      ALTER TABLE "OpenClawCreativeMaterial"
-      ADD COLUMN IF NOT EXISTS "description" TEXT NOT NULL DEFAULT ''
-    `);
-    await this.prismaService.$executeRawUnsafe(`
-      ALTER TABLE "OpenClawCreativeMaterial"
-      ADD COLUMN IF NOT EXISTS "materialType" TEXT NOT NULL DEFAULT ''
-    `);
-    await this.prismaService.$executeRawUnsafe(`
-      ALTER TABLE "OpenClawCreativeMaterial"
-      ADD COLUMN IF NOT EXISTS "fileUrl" TEXT
-    `);
-    await this.prismaService.$executeRawUnsafe(`
-      ALTER TABLE "OpenClawCreativeMaterial"
-      ADD COLUMN IF NOT EXISTS "fileName" TEXT
-    `);
-    await this.prismaService.$executeRawUnsafe(`
-      ALTER TABLE "OpenClawCreativeMaterial"
-      ADD COLUMN IF NOT EXISTS "mimeType" TEXT
-    `);
-    await this.prismaService.$executeRawUnsafe(`
-      ALTER TABLE "OpenClawCreativeMaterial"
-      ADD COLUMN IF NOT EXISTS "textContent" TEXT
-    `);
+    if (this.prismaService.isLocalSqliteMode()) {
+      await this.prismaService.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "OpenClawCreativeMaterial" (
+          "id" TEXT PRIMARY KEY,
+          "brandId" TEXT NOT NULL,
+          "workspaceScope" TEXT NOT NULL DEFAULT '${DEFAULT_OPENCLAW_WORKSPACE_SCOPE}',
+          "createdByUserId" TEXT NOT NULL,
+          "title" TEXT NOT NULL DEFAULT '',
+          "description" TEXT NOT NULL DEFAULT '',
+          "materialType" TEXT NOT NULL DEFAULT '',
+          "fileUrl" TEXT,
+          "fileName" TEXT,
+          "mimeType" TEXT,
+          "textContent" TEXT,
+          "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      await this.prismaService.ensureTableColumns("OpenClawCreativeMaterial", [
+        { name: "workspaceScope", definition: `TEXT NOT NULL DEFAULT '${DEFAULT_OPENCLAW_WORKSPACE_SCOPE}'` },
+        { name: "description", definition: "TEXT NOT NULL DEFAULT ''" },
+        { name: "materialType", definition: "TEXT NOT NULL DEFAULT ''" },
+        { name: "fileUrl", definition: "TEXT" },
+        { name: "fileName", definition: "TEXT" },
+        { name: "mimeType", definition: "TEXT" },
+        { name: "textContent", definition: "TEXT" },
+      ]);
+    } else {
+      await this.prismaService.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "OpenClawCreativeMaterial" (
+          "id" TEXT PRIMARY KEY,
+          "brandId" TEXT NOT NULL,
+          "workspaceScope" TEXT NOT NULL DEFAULT '${DEFAULT_OPENCLAW_WORKSPACE_SCOPE}',
+          "createdByUserId" TEXT NOT NULL,
+          "title" TEXT NOT NULL DEFAULT '',
+          "description" TEXT NOT NULL DEFAULT '',
+          "materialType" TEXT NOT NULL DEFAULT '',
+          "fileUrl" TEXT,
+          "fileName" TEXT,
+          "mimeType" TEXT,
+          "textContent" TEXT,
+          "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      await this.prismaService.$executeRawUnsafe(`
+        ALTER TABLE "OpenClawCreativeMaterial"
+        ADD COLUMN IF NOT EXISTS "workspaceScope" TEXT NOT NULL DEFAULT '${DEFAULT_OPENCLAW_WORKSPACE_SCOPE}'
+      `);
+      await this.prismaService.$executeRawUnsafe(`
+        ALTER TABLE "OpenClawCreativeMaterial"
+        ADD COLUMN IF NOT EXISTS "description" TEXT NOT NULL DEFAULT ''
+      `);
+      await this.prismaService.$executeRawUnsafe(`
+        ALTER TABLE "OpenClawCreativeMaterial"
+        ADD COLUMN IF NOT EXISTS "materialType" TEXT NOT NULL DEFAULT ''
+      `);
+      await this.prismaService.$executeRawUnsafe(`
+        ALTER TABLE "OpenClawCreativeMaterial"
+        ADD COLUMN IF NOT EXISTS "fileUrl" TEXT
+      `);
+      await this.prismaService.$executeRawUnsafe(`
+        ALTER TABLE "OpenClawCreativeMaterial"
+        ADD COLUMN IF NOT EXISTS "fileName" TEXT
+      `);
+      await this.prismaService.$executeRawUnsafe(`
+        ALTER TABLE "OpenClawCreativeMaterial"
+        ADD COLUMN IF NOT EXISTS "mimeType" TEXT
+      `);
+      await this.prismaService.$executeRawUnsafe(`
+        ALTER TABLE "OpenClawCreativeMaterial"
+        ADD COLUMN IF NOT EXISTS "textContent" TEXT
+      `);
+    }
     await this.prismaService.$executeRawUnsafe(`
       UPDATE "OpenClawCreativeMaterial"
       SET "workspaceScope" = '${DEFAULT_OPENCLAW_WORKSPACE_SCOPE}'

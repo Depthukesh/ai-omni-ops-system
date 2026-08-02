@@ -171,6 +171,7 @@ export type SystemUpdateCurrentBuild = {
   runtimeMode: "standard" | "local-single-user";
   generatedAt: string | null;
   buildName: string | null;
+  releaseTag: string | null;
   installRoot: string | null;
   projectRoot: string;
   canApplyUpdate: boolean;
@@ -198,6 +199,12 @@ export type SystemUpdateStatus = {
   supported: boolean;
   current: SystemUpdateCurrentBuild;
   latest: SystemUpdateLatestRelease | null;
+  source: {
+    kind: "oss";
+    label: string;
+    manifestUrl: string;
+    publicBaseUrl: string;
+  };
   phase: SystemUpdatePhase;
   updateAvailable: boolean;
   message: string;
@@ -206,10 +213,6 @@ export type SystemUpdateStatus = {
   downloadedAt: string | null;
   appliedAt: string | null;
   failedAt: string | null;
-  githubRepo: {
-    owner: string;
-    repo: string;
-  };
 };
 
 export type ApplySystemUpdateResult = {

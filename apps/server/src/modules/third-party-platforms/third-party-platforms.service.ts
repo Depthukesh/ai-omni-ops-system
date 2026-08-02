@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
+import { Prisma } from "@prisma/client";
 import { database } from "../../common/mock-data";
 import {
   THIRD_PARTY_PLATFORM_SEEDS,
@@ -8,36 +9,6 @@ import {
 } from "../../common/third-party-platform-catalog";
 import { PrismaService } from "../../prisma/prisma.service";
 import { ChanjingOpenApiService } from "../works/chanjing-open-api.service";
-
-async function reportRightCodesOpenClawDebugEvent(payload: Record<string, unknown>) {
-  const baseUrl = String(process.env.PUBLIC_API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "").trim().replace(/\/$/, "");
-  if (!baseUrl) {
-    return;
-  }
-  await fetch(`${baseUrl}/openclaw/mcp/debug/right-codes-openclaw/event`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      ...(payload || {}),
-      ts: typeof payload.ts === "number" ? payload.ts : Date.now(),
-    }),
-  }).catch(() => {});
-}
-
-async function reportDuoyuanxPlatformMatchDebugEvent(payload: Record<string, unknown>) {
-  const baseUrl = String(process.env.PUBLIC_API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "").trim().replace(/\/$/, "");
-  if (!baseUrl) {
-    return;
-  }
-  await fetch(`${baseUrl}/openclaw/mcp/debug/duoyuanx-platform-match/event`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      ...(payload || {}),
-      ts: typeof payload.ts === "number" ? payload.ts : Date.now(),
-    }),
-  }).catch(() => {});
-}
 
 export type CreateThirdPartyPlatformPayload = {
   name: string;
@@ -126,8 +97,8 @@ export type BrandRuntimeAccessSummary =
 type ThirdPartyPlatformRow = {
   id: string;
   name: string;
-  providerType: ThirdPartyPlatformRecord["providerType"];
-  status: ThirdPartyPlatformRecord["status"];
+  providerType: string;
+  status: string;
   baseUrl: string;
   websiteUrl: string;
   tutorialUrl: string;
@@ -215,36 +186,22 @@ export class ThirdPartyPlatformsService {
 
     if (await this.prismaService.canUseDatabase()) {
       await this.ensureTablesReady();
-      const rows = await this.prismaService.$queryRaw<ThirdPartyPlatformRow[]>`
-        INSERT INTO "ThirdPartyPlatformConfig" (
-          "id",
-          "name",
-          "providerType",
-          "status",
-          "baseUrl",
-          "websiteUrl",
-          "tutorialUrl",
-          "modelIdsJson",
-          "defaultModel",
-          "remark",
-          "updatedAt"
-        )
-        VALUES (
-          ${nextRecord.id},
-          ${nextRecord.name},
-          ${nextRecord.providerType},
-          ${nextRecord.status},
-          ${nextRecord.baseUrl},
-          ${nextRecord.websiteUrl},
-          ${nextRecord.tutorialUrl},
-          ${JSON.stringify(nextRecord.modelIds)}::jsonb,
-          ${nextRecord.defaultModel},
-          ${nextRecord.remark},
-          ${new Date(nextRecord.updatedAt)}
-        )
-        RETURNING *
-      `;
-      return this.normalizePlatformRow(rows[0] ?? nextRecord);
+      const row = await this.prismaService.thirdPartyPlatformConfig.create({
+        data: {
+          id: nextRecord.id,
+          name: nextRecord.name,
+          providerType: nextRecord.providerType,
+          status: nextRecord.status,
+          baseUrl: nextRecord.baseUrl,
+          websiteUrl: nextRecord.websiteUrl,
+          tutorialUrl: nextRecord.tutorialUrl,
+          modelIdsJson: nextRecord.modelIds,
+          defaultModel: nextRecord.defaultModel,
+          remark: nextRecord.remark,
+          updatedAt: new Date(nextRecord.updatedAt),
+        },
+      });
+      return this.normalizePlatformRow(row);
     }
 
     if (!database.thirdPartyPlatforms) {
@@ -276,23 +233,21 @@ export class ThirdPartyPlatformsService {
 
     if (await this.prismaService.canUseDatabase()) {
       await this.ensureTablesReady();
-      const rows = await this.prismaService.$queryRaw<ThirdPartyPlatformRow[]>`
-        UPDATE "ThirdPartyPlatformConfig"
-        SET
-          "name" = ${nextRecord.name},
-          "providerType" = ${nextRecord.providerType},
-          "status" = ${nextRecord.status},
-          "baseUrl" = ${nextRecord.baseUrl},
-          "websiteUrl" = ${nextRecord.websiteUrl},
-          "tutorialUrl" = ${nextRecord.tutorialUrl},
-          "modelIdsJson" = ${JSON.stringify(nextRecord.modelIds)}::jsonb,
-          "defaultModel" = ${nextRecord.defaultModel},
-          "remark" = ${nextRecord.remark},
-          "updatedAt" = CURRENT_TIMESTAMP
-        WHERE "id" = ${platformId}
-        RETURNING *
-      `;
-      return this.normalizePlatformRow(rows[0] ?? nextRecord);
+      const row = await this.prismaService.thirdPartyPlatformConfig.update({
+        where: { id: platformId },
+        data: {
+          name: nextRecord.name,
+          providerType: nextRecord.providerType,
+          status: nextRecord.status,
+          baseUrl: nextRecord.baseUrl,
+          websiteUrl: nextRecord.websiteUrl,
+          tutorialUrl: nextRecord.tutorialUrl,
+          modelIdsJson: nextRecord.modelIds,
+          defaultModel: nextRecord.defaultModel,
+          remark: nextRecord.remark,
+        },
+      });
+      return this.normalizePlatformRow(row);
     }
 
     database.thirdPartyPlatforms = (database.thirdPartyPlatforms || []).map((item) =>
@@ -311,16 +266,35 @@ export class ThirdPartyPlatformsService {
 
     if (await this.prismaService.canUseDatabase()) {
       await this.ensureTablesReady();
-      await this.prismaService.$queryRawUnsafe(
-        `DELETE FROM "BrandThirdPartyPlatformSecret" WHERE "platformId" = ANY($1::text[])`,
-        targetIds,
-      );
-      const rows = await this.prismaService.$queryRaw<ThirdPartyPlatformRow[]>`
-        DELETE FROM "ThirdPartyPlatformConfig"
-        WHERE "id" = ANY (${targetIds}::text[])
-        RETURNING *
-      `;
-      return this.normalizePlatformRow(rows[0] ?? current);
+      const deletedRows = await this.prismaService.thirdPartyPlatformConfig.findMany({
+        where: {
+          id: {
+            in: targetIds,
+          },
+        },
+      });
+      await this.prismaService.brandThirdPartyPlatformSecret.deleteMany({
+        where: {
+          platformId: {
+            in: targetIds,
+          },
+        },
+      });
+      await this.prismaService.userThirdPartyPlatformSecret.deleteMany({
+        where: {
+          platformId: {
+            in: targetIds,
+          },
+        },
+      });
+      await this.prismaService.thirdPartyPlatformConfig.deleteMany({
+        where: {
+          id: {
+            in: targetIds,
+          },
+        },
+      });
+      return this.normalizePlatformRow(deletedRows[0] ?? current);
     }
 
     const targetIdSet = new Set(targetIds);
@@ -362,35 +336,24 @@ export class ThirdPartyPlatformsService {
       const existing = await this.findBrandPlatformSecretByPlatforms(brandId, targetPlatformIds);
 
       if (existing) {
-        const rows = await this.prismaService.$queryRaw<BrandThirdPartyPlatformSecretRow[]>`
-          UPDATE "BrandThirdPartyPlatformSecret"
-          SET
-            "apiKey" = ${nextApiKey},
-            "updatedAt" = CURRENT_TIMESTAMP
-          WHERE "id" = ${existing.id}
-          RETURNING *
-        `;
-        return this.normalizeUserPlatform(platform, rows[0]?.apiKey || nextApiKey);
+        const row = await this.prismaService.brandThirdPartyPlatformSecret.update({
+          where: { id: existing.id },
+          data: {
+            apiKey: nextApiKey,
+          },
+        });
+        return this.normalizeUserPlatform(platform, row.apiKey || nextApiKey);
       }
 
-      const rows = await this.prismaService.$queryRaw<BrandThirdPartyPlatformSecretRow[]>`
-        INSERT INTO "BrandThirdPartyPlatformSecret" (
-          "id",
-          "brandId",
-          "platformId",
-          "apiKey",
-          "updatedAt"
-        )
-        VALUES (
-          ${`brand_platform_secret_${Date.now()}`},
-          ${brandId},
-          ${platform.id},
-          ${nextApiKey},
-          CURRENT_TIMESTAMP
-        )
-        RETURNING *
-      `;
-      return this.normalizeUserPlatform(platform, rows[0]?.apiKey || nextApiKey);
+      const row = await this.prismaService.brandThirdPartyPlatformSecret.create({
+        data: {
+          id: `brand_platform_secret_${Date.now()}`,
+          brandId,
+          platformId: platform.id,
+          apiKey: nextApiKey,
+        },
+      });
+      return this.normalizeUserPlatform(platform, row.apiKey || nextApiKey);
     }
 
     if (!database.brandThirdPartyPlatformSecrets) {
@@ -435,40 +398,8 @@ export class ThirdPartyPlatformsService {
     const normalizedPlatformId = String(options?.platformId || "").trim();
     const normalizedPlatformName = String(options?.platformName || "").trim().toLowerCase();
     const normalizedBaseUrls = Array.from(new Set((options?.baseUrls || []).map((item) => String(item || "").trim()).filter(Boolean)));
-    // #region debug-point B:duoyuanx-inspect-runtime-enter
-    await reportDuoyuanxPlatformMatchDebugEvent({
-      sessionId: "duoyuanx-platform-match",
-      runId: "pre-fix",
-      hypothesisId: "B",
-      location: "third-party-platforms.service.ts:inspectBrandRuntimeAccess:enter",
-      msg: "[DEBUG] ThirdPartyPlatformsService inspect runtime access entered",
-      data: {
-        brandId: normalizedBrandId,
-        platformId: normalizedPlatformId,
-        platformName: normalizedPlatformName,
-        baseUrls: normalizedBaseUrls,
-      },
-    });
-    // #endregion
-
-    // #region debug-point RC-C:inspect-brand-runtime-enter
-    await reportRightCodesOpenClawDebugEvent({
-      sessionId: "right-codes-openclaw",
-      runId: "pre-fix",
-      hypothesisId: "C",
-      location: "third-party-platforms.service.ts:inspectBrandRuntimeAccess:enter",
-      msg: "[DEBUG] ThirdPartyPlatformsService inspect runtime access entered",
-      data: {
-        brandId: normalizedBrandId,
-        platformId: normalizedPlatformId,
-        platformName: normalizedPlatformName,
-        baseUrls: normalizedBaseUrls,
-      },
-    });
-    // #endregion
 
     const platformGroups = await this.listPlatformGroups();
-    const platformNameMatchTerms = this.resolvePlatformNameMatchTerms(normalizedPlatformName);
     const matchedGroup = normalizedPlatformId
       ? platformGroups.find((item) => item.aliasIds.includes(normalizedPlatformId))
       : normalizedBaseUrls.length
@@ -480,67 +411,18 @@ export class ThirdPartyPlatformsService {
           })
         : normalizedPlatformName
           ? platformGroups.find((item) => {
-              const candidates = this.buildPlatformNameMatchCandidates(item.platform);
-              return platformNameMatchTerms.some((term) =>
-                candidates.some((value) => value === term || value.includes(term) || term.includes(value)),
-              );
+              const candidates = [
+                item.platform.name,
+                item.platform.baseUrl,
+                item.platform.websiteUrl,
+                item.platform.defaultModel,
+                item.platform.remark,
+              ]
+                .map((value) => String(value || "").trim().toLowerCase())
+                .filter(Boolean);
+              return candidates.some((value) => value.includes(normalizedPlatformName));
             })
           : undefined;
-
-    // #region debug-point B:duoyuanx-inspect-runtime-match
-    await reportDuoyuanxPlatformMatchDebugEvent({
-      sessionId: "duoyuanx-platform-match",
-      runId: "pre-fix",
-      hypothesisId: "B",
-      location: "third-party-platforms.service.ts:inspectBrandRuntimeAccess:match",
-      msg: "[DEBUG] ThirdPartyPlatformsService runtime access platform match resolved",
-      data: {
-        brandId: normalizedBrandId,
-        normalizedPlatformId,
-        normalizedPlatformName,
-        platformNameMatchTerms,
-        normalizedBaseUrls,
-        matched: Boolean(matchedGroup),
-        candidatePlatformNames: platformGroups.slice(0, 20).map((item) => item.platform.name),
-        matchedPlatform: matchedGroup
-          ? {
-              id: matchedGroup.platform.id,
-              name: matchedGroup.platform.name,
-              baseUrl: matchedGroup.platform.baseUrl,
-              websiteUrl: matchedGroup.platform.websiteUrl,
-              aliasIds: matchedGroup.aliasIds,
-            }
-          : null,
-      },
-    });
-    // #endregion
-
-    // #region debug-point RC-D:inspect-brand-runtime-match
-    await reportRightCodesOpenClawDebugEvent({
-      sessionId: "right-codes-openclaw",
-      runId: "pre-fix",
-      hypothesisId: "D",
-      location: "third-party-platforms.service.ts:inspectBrandRuntimeAccess:match",
-      msg: "[DEBUG] ThirdPartyPlatformsService runtime access platform match resolved",
-      data: {
-        brandId: normalizedBrandId,
-        normalizedPlatformId,
-        normalizedPlatformName,
-        platformNameMatchTerms,
-        normalizedBaseUrls,
-        matched: Boolean(matchedGroup),
-        matchedPlatform: matchedGroup
-          ? {
-              id: matchedGroup.platform.id,
-              name: matchedGroup.platform.name,
-              baseUrl: matchedGroup.platform.baseUrl,
-              websiteUrl: matchedGroup.platform.websiteUrl,
-              aliasIds: matchedGroup.aliasIds,
-            }
-          : null,
-      },
-    });
-    // #endregion
 
     if (!matchedGroup) {
       return {
@@ -652,23 +534,6 @@ export class ThirdPartyPlatformsService {
   ): Promise<BrandRuntimeAccessSummary> {
     const secret = await this.findBrandPlatformSecretByPlatforms(brandId, aliasIds);
     const apiKey = String(secret?.apiKey || "").trim();
-    // #region debug-point RC-E:resolve-runtime-secret
-    await reportRightCodesOpenClawDebugEvent({
-      sessionId: "right-codes-openclaw",
-      runId: "pre-fix",
-      hypothesisId: "E",
-      location: "third-party-platforms.service.ts:resolveRuntimeAccessForPlatformGroup:secret",
-      msg: "[DEBUG] ThirdPartyPlatformsService runtime secret resolution checked",
-      data: {
-        brandId,
-        platformId: platform.id,
-        platformName: platform.name,
-        baseUrl: platform.baseUrl,
-        aliasIds,
-        hasBrandSecret: Boolean(apiKey),
-      },
-    });
-    // #endregion
     if (apiKey) {
       return {
         status: "resolved",
@@ -686,23 +551,6 @@ export class ThirdPartyPlatformsService {
     }
 
     const envApiKeys = this.resolveLocalEnvApiKeysForPlatform(platform);
-    // #region debug-point RC-F:resolve-runtime-env
-    await reportRightCodesOpenClawDebugEvent({
-      sessionId: "right-codes-openclaw",
-      runId: "pre-fix",
-      hypothesisId: "F",
-      location: "third-party-platforms.service.ts:resolveRuntimeAccessForPlatformGroup:env",
-      msg: "[DEBUG] ThirdPartyPlatformsService runtime env resolution checked",
-      data: {
-        brandId,
-        platformId: platform.id,
-        platformName: platform.name,
-        baseUrl: platform.baseUrl,
-        envKeyCount: envApiKeys.length,
-        nodeEnv: String(process.env.NODE_ENV || ""),
-      },
-    });
-    // #endregion
     if (envApiKeys.length) {
       return {
         status: "resolved",
@@ -770,8 +618,7 @@ export class ThirdPartyPlatformsService {
       "ark.cn-beijing.volces.com": ["ARK_API_KEY", "VOLCENGINE_ARK_API_KEY", "DOUBAO_API_KEY"],
       "open.volcengineapi.com": ["VOLCENGINE_MUSIC_OPENAPI_CREDENTIAL", "VOLCENGINE_MUSIC_API_CREDENTIAL", "VOLCENGINE_OPENAPI_AKSK"],
       "open.bigmodel.cn": ["GLM_API_KEY", "ZHIPU_API_KEY"],
-      "www.right.codes": ["RIGHT_CODES_API_KEY", "RIGHTAPI_API_KEY"],
-      "www.rightapi.ai": ["RIGHT_CODES_API_KEY", "RIGHTAPI_API_KEY"],
+      "www.right.codes": ["RIGHT_CODES_API_KEY"],
     };
 
     const directEnvValues = Array.from(
@@ -842,6 +689,7 @@ export class ThirdPartyPlatformsService {
         templatesResult.status === "rejected" ? this.describeDynamicStatsFailure("模板统计", templatesResult.reason) : "",
         customPersonsResult.status === "rejected" ? this.describeDynamicStatsFailure("定制数字人统计", customPersonsResult.reason) : "",
       ].filter(Boolean);
+      const mergedFailureMessage = Array.from(new Set(failureMessages)).join("；");
       if (typeof templateCount === "number" || typeof customPersonCount === "number" || typeof tagCount === "number") {
         return {
           status: failureMessages.length ? "partial" as const : "ready" as const,
@@ -849,16 +697,16 @@ export class ThirdPartyPlatformsService {
           customPersonCount,
           tagCount,
           syncedAt: new Date().toISOString(),
-          message: failureMessages.join("；") || undefined,
+          message: mergedFailureMessage || undefined,
         };
       }
       return {
         status: "error" as const,
-        message: failureMessages.join("；") || "蝉镜统计同步失败",
+        message: mergedFailureMessage || "蝉镜统计同步失败",
         syncedAt: new Date().toISOString(),
       };
     } catch (error) {
-      const message = error instanceof Error ? error.message : "蝉镜统计同步失败";
+      const message = this.normalizeChanjingDynamicStatsMessage(error instanceof Error ? error.message : "蝉镜统计同步失败");
       return {
         status: "error" as const,
         message,
@@ -868,8 +716,26 @@ export class ThirdPartyPlatformsService {
   }
 
   private describeDynamicStatsFailure(label: string, error: unknown) {
-    const message = error instanceof Error ? error.message : "接口请求失败";
+    const message = this.normalizeChanjingDynamicStatsMessage(error instanceof Error ? error.message : "接口请求失败");
+    if (message === "当前品牌配置的蝉镜凭证无效，请检查 appId::secretKey 后重新保存。") {
+      return message;
+    }
     return `${label}失败：${message}`;
+  }
+
+  private normalizeChanjingDynamicStatsMessage(message: string) {
+    const normalized = String(message || "").trim();
+    if (
+      /无效APPID/i.test(normalized)
+      || /无效APPID 和SecretKey/i.test(normalized)
+      || /无效APPID和SecretKey/i.test(normalized)
+      || /invalid.*appid/i.test(normalized)
+      || /invalid.*secret/i.test(normalized)
+      || /secretkey/i.test(normalized)
+    ) {
+      return "当前品牌配置的蝉镜凭证无效，请检查 appId::secretKey 后重新保存。";
+    }
+    return normalized || "蝉镜统计同步失败";
   }
 
   private async listBrandSecrets(brandId: string) {
@@ -1008,13 +874,11 @@ export class ThirdPartyPlatformsService {
   }
 
   private resolvePlatformGroupKey(platform: Pick<ThirdPartyPlatformRecord, "baseUrl" | "websiteUrl">) {
-    const normalizedWebsiteUrl = this.canonicalizeRightCodesBaseUrl(
-      this.normalizeBaseUrl(platform.websiteUrl || resolvePlatformWebsiteUrl(platform.baseUrl)),
-    );
+    const normalizedWebsiteUrl = this.normalizeBaseUrl(platform.websiteUrl || resolvePlatformWebsiteUrl(platform.baseUrl));
     if (normalizedWebsiteUrl) {
       return `website:${normalizedWebsiteUrl}`;
     }
-    const baseHost = this.canonicalizeRightCodesHost(this.extractHost(platform.baseUrl));
+    const baseHost = this.extractHost(platform.baseUrl);
     return baseHost ? `host:${baseHost}` : `base:${this.normalizeBaseUrl(platform.baseUrl)}`;
   }
 
@@ -1045,10 +909,10 @@ export class ThirdPartyPlatformsService {
     if (normalized === "https://api.apiz.ai") {
       return 90;
     }
-    if (normalized === "https://www.rightapi.ai/codex") {
+    if (normalized === "https://www.right.codes/codex") {
       return 100;
     }
-    if (normalized === "https://www.rightapi.ai/draw") {
+    if (normalized === "https://www.right.codes/draw") {
       return 90;
     }
     return 10;
@@ -1068,12 +932,14 @@ export class ThirdPartyPlatformsService {
 
     if (await this.prismaService.canUseDatabase()) {
       await this.ensureTablesReady();
-      const rows = await this.prismaService.$queryRaw<BrandThirdPartyPlatformSecretRow[]>`
-        SELECT *
-        FROM "BrandThirdPartyPlatformSecret"
-        WHERE "brandId" = ${brandId}
-          AND "platformId" = ANY (${normalizedPlatformIds}::text[])
-      `;
+      const rows = await this.prismaService.brandThirdPartyPlatformSecret.findMany({
+        where: {
+          brandId,
+          platformId: {
+            in: normalizedPlatformIds,
+          },
+        },
+      });
       const byPlatformId = new Map(rows.map((item) => [item.platformId, item] as const));
       return normalizedPlatformIds.map((item) => byPlatformId.get(item)).find(Boolean);
     }
@@ -1110,44 +976,17 @@ export class ThirdPartyPlatformsService {
     };
   }
 
-  private resolvePlatformNameMatchTerms(value: string) {
-    const normalized = String(value || "").trim().toLowerCase();
-    if (!normalized) {
-      return [];
-    }
-    const terms = new Set([normalized]);
-    if (normalized.includes("多元探索") || normalized.includes("duoyuanx")) {
-      ["多元探索", "多元探索平台", "duoyuanx", "duoyuanx.com"].forEach((item) => terms.add(item.toLowerCase()));
-    }
-    if (normalized.includes("apiz") || normalized.includes("xskill") || normalized.includes("nex ai")) {
-      ["apiz", "apiz / nex ai 平台", "xskill", "api.xskill.ai", "api.apiz.ai"].forEach((item) => terms.add(item.toLowerCase()));
-    }
-    return Array.from(terms);
-  }
-
-  private buildPlatformNameMatchCandidates(platform: Pick<ThirdPartyPlatformRecord, "name" | "baseUrl" | "websiteUrl">) {
-    return Array.from(new Set(
-      [
-        String(platform.name || "").trim().toLowerCase(),
-        this.normalizeBaseUrl(platform.baseUrl),
-        this.normalizeBaseUrl(platform.websiteUrl),
-        this.extractHost(platform.baseUrl),
-        this.extractHost(platform.websiteUrl),
-      ].filter(Boolean),
-    ));
-  }
-
   private normalizePlatformRow(row: ThirdPartyPlatformRow | ThirdPartyPlatformRecord): ThirdPartyPlatformRecord {
     const modelIds =
       "modelIdsJson" in row
-        ? (Array.isArray(row.modelIdsJson) ? (row.modelIdsJson as string[]) : [])
+        ? this.parseModelIds(row.modelIdsJson)
         : row.modelIds;
 
     return this.buildPlatformRecord({
       id: row.id,
       name: row.name,
-      providerType: row.providerType,
-      status: row.status,
+      providerType: row.providerType as ThirdPartyPlatformRecord["providerType"],
+      status: row.status as ThirdPartyPlatformRecord["status"],
       baseUrl: row.baseUrl,
       websiteUrl: "websiteUrl" in row ? row.websiteUrl : "",
       tutorialUrl: row.tutorialUrl,
@@ -1165,6 +1004,27 @@ export class ThirdPartyPlatformsService {
     return String(value || new Date().toISOString());
   }
 
+  private parseModelIds(value: unknown) {
+    if (Array.isArray(value)) {
+      return value
+        .map((item) => String(item || "").trim())
+        .filter(Boolean);
+    }
+    if (typeof value === "string") {
+      try {
+        const parsed = JSON.parse(value);
+        if (Array.isArray(parsed)) {
+          return parsed
+            .map((item) => String(item || "").trim())
+            .filter(Boolean);
+        }
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  }
+
   private normalizeBaseUrl(value: string) {
     const normalized = String(value || "").trim();
     if (!normalized) {
@@ -1172,7 +1032,6 @@ export class ThirdPartyPlatformsService {
     }
     try {
       const target = new URL(this.ensureUrlProtocol(normalized));
-      target.host = this.canonicalizeRightCodesHost(target.host);
       const pathname = target.pathname.replace(/\/+$/, "");
       return `${target.protocol}//${target.host}${pathname}`.toLowerCase();
     } catch {
@@ -1186,30 +1045,11 @@ export class ThirdPartyPlatformsService {
       return "";
     }
     try {
-      return this.canonicalizeRightCodesHost(new URL(this.ensureUrlProtocol(normalized)).host);
+      return new URL(this.ensureUrlProtocol(normalized)).host.toLowerCase();
     } catch {
       const matched = normalized.match(/^(?:[a-z]+:\/\/)?([^/]+)/i);
-      return this.canonicalizeRightCodesHost(matched?.[1] || "");
+      return matched?.[1]?.toLowerCase() || "";
     }
-  }
-
-  private canonicalizeRightCodesHost(value: string) {
-    const normalized = String(value || "").trim().toLowerCase();
-    if (normalized === "www.right.codes" || normalized === "right.codes" || normalized === "rightapi.ai") {
-      return "www.rightapi.ai";
-    }
-    return normalized;
-  }
-
-  private canonicalizeRightCodesBaseUrl(value: string) {
-    const normalized = String(value || "").trim().toLowerCase();
-    if (!normalized) {
-      return "";
-    }
-    return normalized
-      .replace("https://www.right.codes/", "https://www.rightapi.ai/")
-      .replace("https://right.codes/", "https://www.rightapi.ai/")
-      .replace("https://rightapi.ai/", "https://www.rightapi.ai/");
   }
 
   private ensureUrlProtocol(value: string) {
@@ -1253,15 +1093,20 @@ export class ThirdPartyPlatformsService {
         "baseUrl" TEXT NOT NULL DEFAULT '',
         "websiteUrl" TEXT NOT NULL DEFAULT '',
         "tutorialUrl" TEXT NOT NULL DEFAULT '',
-        "modelIdsJson" JSONB NOT NULL DEFAULT '[]'::jsonb,
+        "modelIdsJson" JSON NOT NULL DEFAULT '[]',
         "defaultModel" TEXT NOT NULL DEFAULT '',
         "remark" TEXT NOT NULL DEFAULT '',
-        "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+        "updatedAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
     `);
-    await this.prismaService.$executeRawUnsafe(
-      `ALTER TABLE "ThirdPartyPlatformConfig" ADD COLUMN IF NOT EXISTS "websiteUrl" TEXT NOT NULL DEFAULT ''`,
-    );
+    await this.prismaService.ensureTableColumns("ThirdPartyPlatformConfig", [
+      { name: "websiteUrl", definition: `TEXT NOT NULL DEFAULT ''` },
+      { name: "tutorialUrl", definition: `TEXT NOT NULL DEFAULT ''` },
+      { name: "modelIdsJson", definition: `JSON NOT NULL DEFAULT '[]'` },
+      { name: "defaultModel", definition: `TEXT NOT NULL DEFAULT ''` },
+      { name: "remark", definition: `TEXT NOT NULL DEFAULT ''` },
+      { name: "updatedAt", definition: `TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP` },
+    ]);
     await this.prismaService.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS "UserThirdPartyPlatformSecret" (
         "id" TEXT PRIMARY KEY,
@@ -1269,9 +1114,15 @@ export class ThirdPartyPlatformsService {
         "brandId" TEXT NOT NULL,
         "platformId" TEXT NOT NULL,
         "apiKey" TEXT NOT NULL DEFAULT '',
-        "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+        "updatedAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
     `);
+    await this.prismaService.ensureTableColumns("UserThirdPartyPlatformSecret", [
+      { name: "brandId", definition: `TEXT NOT NULL DEFAULT ''` },
+      { name: "platformId", definition: `TEXT NOT NULL DEFAULT ''` },
+      { name: "apiKey", definition: `TEXT NOT NULL DEFAULT ''` },
+      { name: "updatedAt", definition: `TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP` },
+    ]);
     await this.prismaService.$executeRawUnsafe(`
       CREATE UNIQUE INDEX IF NOT EXISTS "UserThirdPartyPlatformSecret_user_brand_platform_key"
       ON "UserThirdPartyPlatformSecret" ("userId", "brandId", "platformId")
@@ -1282,26 +1133,19 @@ export class ThirdPartyPlatformsService {
         "brandId" TEXT NOT NULL,
         "platformId" TEXT NOT NULL,
         "apiKey" TEXT NOT NULL DEFAULT '',
-        "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+        "updatedAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
     `);
+    await this.prismaService.ensureTableColumns("BrandThirdPartyPlatformSecret", [
+      { name: "platformId", definition: `TEXT NOT NULL DEFAULT ''` },
+      { name: "apiKey", definition: `TEXT NOT NULL DEFAULT ''` },
+      { name: "updatedAt", definition: `TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP` },
+    ]);
     await this.prismaService.$executeRawUnsafe(`
       CREATE UNIQUE INDEX IF NOT EXISTS "BrandThirdPartyPlatformSecret_brand_platform_key"
       ON "BrandThirdPartyPlatformSecret" ("brandId", "platformId")
     `);
-    await this.prismaService.$executeRawUnsafe(`
-      INSERT INTO "BrandThirdPartyPlatformSecret" ("id", "brandId", "platformId", "apiKey", "updatedAt")
-      SELECT DISTINCT ON ("brandId", "platformId")
-        CONCAT('brand_platform_secret_migrated_', md5("brandId" || ':' || "platformId")),
-        "brandId",
-        "platformId",
-        "apiKey",
-        "updatedAt"
-      FROM "UserThirdPartyPlatformSecret"
-      WHERE COALESCE("apiKey", '') <> ''
-      ORDER BY "brandId", "platformId", "updatedAt" DESC
-      ON CONFLICT ("brandId", "platformId") DO NOTHING
-    `);
+    await this.migrateUserSecretsToBrandSecrets();
 
     const existingRows = await this.prismaService.$queryRaw<ThirdPartyPlatformRow[]>`
       SELECT *
@@ -1316,18 +1160,18 @@ export class ThirdPartyPlatformsService {
       .filter((item) => this.isDecommissionedPlatform(item))
       .map((item) => item.id);
     if (decommissionedPlatformIds.length) {
-      await this.prismaService.$executeRaw`
+      await this.prismaService.$executeRaw(Prisma.sql`
         DELETE FROM "BrandThirdPartyPlatformSecret"
-        WHERE "platformId" = ANY (${decommissionedPlatformIds}::text[])
-      `;
-      await this.prismaService.$executeRaw`
+        WHERE "platformId" IN (${Prisma.join(decommissionedPlatformIds.map((item) => Prisma.sql`${item}`))})
+      `);
+      await this.prismaService.$executeRaw(Prisma.sql`
         DELETE FROM "UserThirdPartyPlatformSecret"
-        WHERE "platformId" = ANY (${decommissionedPlatformIds}::text[])
-      `;
-      await this.prismaService.$executeRaw`
+        WHERE "platformId" IN (${Prisma.join(decommissionedPlatformIds.map((item) => Prisma.sql`${item}`))})
+      `);
+      await this.prismaService.$executeRaw(Prisma.sql`
         DELETE FROM "ThirdPartyPlatformConfig"
-        WHERE "id" = ANY (${decommissionedPlatformIds}::text[])
-      `;
+        WHERE "id" IN (${Prisma.join(decommissionedPlatformIds.map((item) => Prisma.sql`${item}`))})
+      `);
       decommissionedPlatformIds.forEach((item) => existingById.delete(item));
     }
 
@@ -1337,34 +1181,21 @@ export class ThirdPartyPlatformsService {
         await this.syncSeedPlatform(current, item);
         continue;
       }
-      await this.prismaService.$queryRaw`
-        INSERT INTO "ThirdPartyPlatformConfig" (
-          "id",
-          "name",
-          "providerType",
-          "status",
-          "baseUrl",
-          "websiteUrl",
-          "tutorialUrl",
-          "modelIdsJson",
-          "defaultModel",
-          "remark",
-          "updatedAt"
-        )
-        VALUES (
-          ${item.id},
-          ${item.name},
-          ${item.providerType},
-          ${item.status},
-          ${item.baseUrl},
-          ${item.websiteUrl},
-          ${item.tutorialUrl},
-          ${JSON.stringify(item.modelIds)}::jsonb,
-          ${item.defaultModel},
-          ${item.remark},
-          ${new Date(item.updatedAt)}
-        )
-      `;
+      await this.prismaService.thirdPartyPlatformConfig.create({
+        data: {
+          id: item.id,
+          name: item.name,
+          providerType: item.providerType,
+          status: item.status,
+          baseUrl: item.baseUrl,
+          websiteUrl: item.websiteUrl,
+          tutorialUrl: item.tutorialUrl,
+          modelIdsJson: item.modelIds,
+          defaultModel: item.defaultModel,
+          remark: item.remark,
+          updatedAt: new Date(item.updatedAt),
+        },
+      });
     }
   }
 
@@ -1372,17 +1203,11 @@ export class ThirdPartyPlatformsService {
     const nextModelIds = Array.from(new Set([...(current.modelIds || []), ...(seed.modelIds || [])]));
     const nextName = current.name || seed.name || "";
     const nextProviderType = current.providerType || seed.providerType;
-    const nextStatus = current.status === "DISABLED"
-      ? current.status
-      : seed.status === "ACTIVE" && current.status === "DRAFT"
-        ? "ACTIVE"
-        : current.status || seed.status;
+    const nextStatus = current.status || seed.status;
     const nextBaseUrl = this.resolveSystemSeedBaseUrl(current.baseUrl, seed.baseUrl);
     const nextWebsiteUrl = current.websiteUrl || seed.websiteUrl || resolvePlatformWebsiteUrl(nextBaseUrl);
     const nextTutorialUrl = current.tutorialUrl || seed.tutorialUrl || "";
-    const nextDefaultModel = (current.status === "DRAFT" && nextStatus === "ACTIVE")
-      ? (seed.defaultModel || current.defaultModel || "")
-      : (current.defaultModel || seed.defaultModel || "");
+    const nextDefaultModel = current.defaultModel || seed.defaultModel || "";
     const nextRemark = current.remark || seed.remark || "";
     const currentModelIdsJson = JSON.stringify(current.modelIds || []);
     const nextModelIdsJson = JSON.stringify(nextModelIds);
@@ -1399,21 +1224,75 @@ export class ThirdPartyPlatformsService {
     ) {
       return;
     }
-    await this.prismaService.$queryRaw`
-      UPDATE "ThirdPartyPlatformConfig"
-      SET
-        "name" = ${nextName},
-        "providerType" = ${nextProviderType},
-        "status" = ${nextStatus},
-        "baseUrl" = ${nextBaseUrl},
-        "websiteUrl" = ${nextWebsiteUrl},
-        "modelIdsJson" = ${nextModelIdsJson}::jsonb,
-        "tutorialUrl" = ${nextTutorialUrl},
-        "defaultModel" = ${nextDefaultModel},
-        "remark" = ${nextRemark},
-        "updatedAt" = CURRENT_TIMESTAMP
-      WHERE "id" = ${current.id}
-    `;
+    await this.prismaService.thirdPartyPlatformConfig.update({
+      where: { id: current.id },
+      data: {
+        name: nextName,
+        providerType: nextProviderType,
+        status: nextStatus,
+        baseUrl: nextBaseUrl,
+        websiteUrl: nextWebsiteUrl,
+        modelIdsJson: JSON.parse(nextModelIdsJson),
+        tutorialUrl: nextTutorialUrl,
+        defaultModel: nextDefaultModel,
+        remark: nextRemark,
+      },
+    });
+  }
+
+  private async migrateUserSecretsToBrandSecrets() {
+    const legacyRows = await this.prismaService.userThirdPartyPlatformSecret.findMany({
+      where: {
+        apiKey: {
+          not: "",
+        },
+      },
+      orderBy: [
+        { brandId: "asc" },
+        { platformId: "asc" },
+        { updatedAt: "desc" },
+      ],
+    });
+    if (!legacyRows.length) {
+      return;
+    }
+
+    const existingRows = await this.prismaService.brandThirdPartyPlatformSecret.findMany({
+      select: {
+        brandId: true,
+        platformId: true,
+      },
+    });
+    const existingKeys = new Set(existingRows.map((item) => `${item.brandId}::${item.platformId}`));
+    const seenKeys = new Set<string>();
+    const pendingRows: Array<{
+      id: string;
+      brandId: string;
+      platformId: string;
+      apiKey: string;
+      updatedAt: Date;
+    }> = [];
+
+    for (const row of legacyRows) {
+      const key = `${row.brandId}::${row.platformId}`;
+      if (existingKeys.has(key) || seenKeys.has(key)) {
+        continue;
+      }
+      seenKeys.add(key);
+      pendingRows.push({
+        id: `brand_platform_secret_migrated_${Date.now()}_${pendingRows.length}`,
+        brandId: row.brandId,
+        platformId: row.platformId,
+        apiKey: row.apiKey,
+        updatedAt: row.updatedAt,
+      });
+    }
+
+    for (const row of pendingRows) {
+      await this.prismaService.brandThirdPartyPlatformSecret.create({
+        data: row,
+      });
+    }
   }
 
   private isDecommissionedPlatform(platform: Pick<ThirdPartyPlatformRecord, "baseUrl">) {

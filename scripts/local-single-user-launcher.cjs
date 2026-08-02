@@ -16,6 +16,27 @@ const {
 } = require("./local-single-user-runtime.cjs");
 const { generateLocalSchema, targetSchemaPath } = require("./generate-local-prisma-schema.cjs");
 
+const URL_READY_TIMEOUT_MS = 90_000;
+const URL_READY_POLL_INTERVAL_MS = 1_000;
+
+function getBootstrapLogPath() {
+  const runtime = buildLocalSingleUserEnv({
+    apiPort: DEFAULT_API_PORT,
+    webPort: DEFAULT_WEB_PORT,
+  });
+  fs.mkdirSync(runtime.paths.logsRoot, { recursive: true });
+  return path.join(runtime.paths.logsRoot, "launcher.log");
+}
+
+function appendBootstrapLog(message) {
+  try {
+    const line = `[${new Date().toISOString()}] ${message}\n`;
+    fs.appendFileSync(getBootstrapLogPath(), line, "utf8");
+  } catch {
+    // Ignore bootstrap logging failures.
+  }
+}
+
 function resolveNpmCli() {
   const candidates = [
     process.env.npm_execpath,
@@ -673,7 +694,7 @@ function requestStatus(url) {
 }
 
 async function waitForUrl(url, pid, acceptedStatusCodes) {
-  const deadline = Date.now() + 45_000;
+  const deadline = Date.now() + URL_READY_TIMEOUT_MS;
   while (Date.now() < deadline) {
     const status = await requestStatus(url);
     if (acceptedStatusCodes.includes(status)) {
@@ -682,7 +703,7 @@ async function waitForUrl(url, pid, acceptedStatusCodes) {
     if (!isProcessAlive(pid)) {
       return false;
     }
-    await sleep(1000);
+    await sleep(URL_READY_POLL_INTERVAL_MS);
   }
   return false;
 }
@@ -731,12 +752,12 @@ async function main() {
   const initialRuntime = buildLocalSingleUserEnv({
     apiPort: DEFAULT_API_PORT,
     webPort: DEFAULT_WEB_PORT,
-    env: {
-      NODE_ENV: "production",
-    },
   });
   const initialPaths = initialRuntime.paths;
   const runtimeMetadataPath = path.join(initialPaths.runtimeRoot, "local-single-user-runtime.json");
+  const launcherLog = path.join(initialPaths.logsRoot, "launcher.log");
+  fs.mkdirSync(initialPaths.logsRoot, { recursive: true });
+  appendBootstrapLog(`Launcher start: projectRoot=${projectRoot}`);
   const prebuiltOnlyMode = isPrebuiltOnlyLauncherMode();
   const npmCli = prebuiltOnlyMode ? null : resolveNpmCli();
   const nextBin = prebuiltOnlyMode ? null : resolveNextBin();
@@ -762,9 +783,11 @@ async function main() {
       aliveTargets.push(target);
     }
     if (!aliveTargets.length) {
+      appendBootstrapLog("Stop previous runtime skipped: no alive targets from runtime metadata");
       return;
     }
     console.log("[step] Stop previous local-single-user runtime...");
+    appendBootstrapLog(`Stop previous runtime: ${aliveTargets.map((item) => `${item.label}=${item.pid}`).join(", ")}`);
     for (const target of aliveTargets) {
       console.log(`[info] stop previous ${target.label} pid=${target.pid}`);
       killProcessTree(target.pid);
@@ -776,11 +799,12 @@ async function main() {
   await stopPreviousRuntime();
   const apiPort = await findAvailablePort(DEFAULT_API_PORT);
   const webPort = await findAvailablePort(DEFAULT_WEB_PORT);
+  appendBootstrapLog(`Resolved ports: api=${apiPort}, web=${webPort}`);
   const { env, paths } = buildLocalSingleUserEnv({
     apiPort,
     webPort,
     env: {
-      NODE_ENV: "production",
+      NODE_ENV: "",
     },
   });
   const serverRoot = path.join(projectRoot, "apps", "server");
@@ -794,16 +818,21 @@ async function main() {
   const serverErrLog = path.join(paths.logsRoot, "server.err.log");
   const workerErrLog = path.join(paths.logsRoot, "worker.err.log");
   const webErrLog = path.join(paths.logsRoot, "web.err.log");
+  appendBootstrapLog(`Runtime paths: logs=${paths.logsRoot}; runtime=${paths.runtimeRoot}; db=${paths.dbPath}`);
   ensureCompatibleNextSwcEnv(env);
 
+  appendBootstrapLog("Prepare local Prisma schema");
   generateLocalSchema();
   if (shouldRunLocalPrismaGenerate(paths)) {
+    appendBootstrapLog("Run local Prisma generate");
     await runStep("Local Prisma generate", process.execPath, [prismaCli, "generate", "--schema", targetSchemaPath], projectRoot, env);
     recordLocalPrismaGenerate(paths);
   } else {
     console.log("[skip] Local Prisma generate (schema unchanged and generated client already exists)");
+    appendBootstrapLog("Skip local Prisma generate");
   }
   if (shouldRunLocalPrismaDbPush(paths, env)) {
+    appendBootstrapLog("Run local Prisma db push");
     await runStep(
       "Local Prisma db push",
       process.execPath,
@@ -814,32 +843,40 @@ async function main() {
     recordLocalPrismaDbPush(paths, env);
   } else {
     console.log("[skip] Local Prisma db push (schema unchanged and current runtime database already aligned)");
+    appendBootstrapLog("Skip local Prisma db push");
   }
   if (prebuiltOnlyMode) {
     if (!hasServerBuildOutputs(serverRoot)) {
       throw new Error("当前发布物处于预构建运行时模式，但缺少后端 dist 产物。");
     }
     console.log("[skip] Server build (prebuilt-only runtime mode)");
+    appendBootstrapLog("Skip server build (prebuilt-only runtime mode)");
   } else if (shouldRunServerBuild(serverRoot)) {
+    appendBootstrapLog("Run server build");
     await runStep("Server build", process.execPath, [npmCli, "--workspace", "apps/server", "run", "build"], projectRoot, env);
     recordServerBuild(serverRoot);
   } else {
     console.log("[skip] Server build (sources unchanged and dist output already exists)");
+    appendBootstrapLog("Skip server build");
   }
   if (prebuiltOnlyMode) {
     if (!hasWebBuildOutputs(webRoot)) {
       throw new Error("当前发布物处于预构建运行时模式，但缺少 Web standalone 产物。");
     }
     console.log("[skip] Web build (prebuilt-only runtime mode)");
+    appendBootstrapLog("Skip web build (prebuilt-only runtime mode)");
   } else if (shouldRunWebBuild(webRoot)) {
+    appendBootstrapLog("Run web build");
     await runStep("Web build", process.execPath, [nextBin, "build"], webRoot, env);
     recordWebBuild(webRoot);
   } else {
     console.log("[skip] Web build (sources unchanged and standalone output already exists)");
+    appendBootstrapLog("Skip web build");
   }
   const stagedWebRuntime = stageStandaloneWebRuntime(webRoot, paths);
   const standaloneServer = stagedWebRuntime?.runtimeStandaloneServer || null;
   const sourceStandaloneServer = stagedWebRuntime?.sourceStandaloneServer || null;
+  appendBootstrapLog(`Stage standalone web runtime: runtimeServer=${standaloneServer || "null"}`);
   if (prebuiltOnlyMode && !standaloneServer) {
     throw new Error("当前发布物处于预构建运行时模式，但未找到可启动的 standalone server.js。");
   }
@@ -869,12 +906,13 @@ async function main() {
     label: "server",
     command: process.execPath,
     args: [serverEntry],
-    cwd: serverRoot,
+    cwd: projectRoot,
     env,
     outLog: serverLog,
     errLog: serverErrLog,
   });
   registerChild("server", serverChild);
+  appendBootstrapLog(`Server process started: pid=${serverChild.pid || "null"}; errLog=${serverErrLog}`);
 
   const apiReady = await waitForUrl(apiHealthUrl, serverChild.pid, [200]);
   if (!apiReady) {
@@ -886,7 +924,7 @@ async function main() {
     label: "worker",
     command: process.execPath,
     args: [serverEntry],
-    cwd: serverRoot,
+    cwd: projectRoot,
     env: {
       ...env,
       SERVER_BOOT_MODE: "worker",
@@ -895,6 +933,7 @@ async function main() {
     errLog: workerErrLog,
   });
   registerChild("worker", workerChild);
+  appendBootstrapLog(`Worker process started: pid=${workerChild.pid || "null"}; errLog=${workerErrLog}`);
   await sleep(1500);
   if (!isProcessAlive(workerChild.pid)) {
     killProcessTree(serverChild.pid);
@@ -908,6 +947,7 @@ async function main() {
     cwd: standaloneServer ? path.dirname(standaloneServer) : webRoot,
     env: {
       ...env,
+      NODE_ENV: "production",
       PORT: String(webPort),
       HOSTNAME: "127.0.0.1",
     },
@@ -915,6 +955,7 @@ async function main() {
     errLog: webErrLog,
   });
   registerChild("web", webChild);
+  appendBootstrapLog(`Web process started: pid=${webChild.pid || "null"}; errLog=${webErrLog}`);
   console.log(
     `[step] Web process started via ${standaloneServer ? "runtime-isolated standalone server.js" : "next start"} on ${env.WEB_PUBLIC_BASE_URL}`,
   );
@@ -958,6 +999,7 @@ async function main() {
     startedAt: new Date().toISOString(),
   };
   fs.writeFileSync(runtimeMetadataPath, JSON.stringify(runtimeMetadata, null, 2), "utf8");
+  appendBootstrapLog(`Runtime metadata written: ${runtimeMetadataPath}`);
 
   console.log(`local-single-user 已启动`);
   console.log(`工作台入口：${browserUrl}`);
@@ -967,9 +1009,11 @@ async function main() {
   console.log(`运行时信息：${runtimeMetadataPath}`);
   console.log(`日志目录：${paths.logsRoot}`);
   if (shouldAutoOpenBrowser(env)) {
+    appendBootstrapLog(`Open browser: ${browserUrl}`);
     openBrowser(browserUrl);
   } else {
     console.log("[skip] Auto open browser (disabled by current environment)");
+    appendBootstrapLog("Skip auto open browser");
   }
 
   const shutdown = (signal) => {
@@ -989,7 +1033,16 @@ async function main() {
   setInterval(() => {}, 60_000);
 }
 
+process.on("uncaughtException", (error) => {
+  appendBootstrapLog(`uncaughtException: ${error instanceof Error ? error.stack || error.message : String(error)}`);
+});
+
+process.on("unhandledRejection", (reason) => {
+  appendBootstrapLog(`unhandledRejection: ${reason instanceof Error ? reason.stack || reason.message : String(reason)}`);
+});
+
 main().catch((error) => {
+  appendBootstrapLog(`main.catch: ${error instanceof Error ? error.stack || error.message : String(error)}`);
   console.error(error instanceof Error ? error.message : String(error));
   process.exit(1);
 });

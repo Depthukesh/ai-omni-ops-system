@@ -37,6 +37,7 @@
     "local:launcher": "node scripts/local-single-user-launcher.cjs",
     "local:release:build": "node scripts/build-local-single-user-release.cjs",
     "local:release:package": "node scripts/package-local-single-user-release.cjs",
+    "local:release:upload:oss": "node scripts/upload-local-single-user-release-to-oss.cjs",
     "local:autostart:install": "node scripts/local-single-user-autostart.cjs install",
     "local:autostart:remove": "node scripts/local-single-user-autostart.cjs remove",
     "local:autostart:status": "node scripts/local-single-user-autostart.cjs status"

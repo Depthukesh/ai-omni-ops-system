@@ -116,7 +116,7 @@ flowchart TD
     E["设计工作台"]
     F["个人中心"]
     F --> F1["版本与升级"]
-    F1 --> F11["检查 GitHub Releases 最新发布"]
+    F1 --> F11["检查 OSS latest.json 最新发布"]
     F1 --> F12["预下载 zip + sha256 校验"]
     F1 --> F13["触发独立 updater 替换安装目录"]
     G["后台管理台"]

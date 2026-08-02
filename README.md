@@ -117,7 +117,7 @@ npm run local:release:package
 install-local-single-user.cmd
 ```
 
-6. 安装完成后，可通过下面任一方式启动：
+6. 安装脚本会在完成后自动启动本地工作台；如果后续需要手动再开，可通过下面任一方式启动：
 
 - 桌面快捷方式
 - 安装目录里的 `start-local-single-user.cmd`
@@ -127,7 +127,26 @@ install-local-single-user.cmd
 - `status-autostart.cmd`
 - `remove-autostart.cmd`
 
-8. 进入系统后，如需升级新版本，优先在个人中心里的 `版本与升级` 页面执行：
+8. 双击 `install-local-single-user.cmd` 后，安装输出会直接显示在窗口里，同时完整日志固定写到：
+
+```text
+%LOCALAPPDATA%\AiOmniOps\logs\install-local-single-user.log
+```
+
+9. 如果安装日志已经显示 `Install completed.`，但浏览器还是打不开，继续查看启动链日志：
+
+```text
+%APPDATA%\AiOmniOps\logs\start-local-single-user.log
+%APPDATA%\AiOmniOps\logs\launcher.log
+%APPDATA%\AiOmniOps\runtime\local-single-user-runtime.json
+```
+
+其中：
+
+- `start-local-single-user.log` 用来判断 `start-local-single-user.cmd`、`node.exe`、工作目录本身是否异常
+- `launcher.log` 用来判断 launcher 卡在端口分配、Prisma、server/web 拉起还是 runtime metadata 写入
+
+10. 进入系统后，如需升级新版本，优先在个人中心里的 `版本与升级` 页面执行：
 
 - `检查更新`
 - `预下载安装包`
@@ -220,6 +239,7 @@ npm run local:autostart:status
 - `scripts/local-single-user-*.cjs`：本地单机启动链
 - `scripts/build-local-single-user-release.cjs`：生成 release 目录
 - `scripts/package-local-single-user-release.cjs`：生成 zip 分发包
+- `scripts/upload-local-single-user-release-to-oss.cjs`：把 zip、sha256 与 `latest.json` 同步到 OSS
 - `docs`：系统基线、专题方案和变更记录
 
 ## 常见问题

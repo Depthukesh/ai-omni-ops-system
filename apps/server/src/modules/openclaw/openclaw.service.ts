@@ -98,51 +98,6 @@ type OpenClawWebsiteFunctionCatalogItem = {
   mcpTools: string[];
 };
 
-async function reportRunningHubStatusStuckDebugEvent(payload: Record<string, unknown>) {
-  const baseUrl = String(process.env.PUBLIC_API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "").trim().replace(/\/$/, "");
-  if (!baseUrl) {
-    return;
-  }
-  await fetch(`${baseUrl}/openclaw/mcp/debug/runninghub-status-stuck/event`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      ...(payload || {}),
-      ts: typeof payload.ts === "number" ? payload.ts : Date.now(),
-    }),
-  }).catch(() => {});
-}
-
-async function reportRightCodesOpenClawDebugEvent(payload: Record<string, unknown>) {
-  const baseUrl = String(process.env.PUBLIC_API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "").trim().replace(/\/$/, "");
-  if (!baseUrl) {
-    return;
-  }
-  await fetch(`${baseUrl}/openclaw/mcp/debug/right-codes-openclaw/event`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      ...(payload || {}),
-      ts: typeof payload.ts === "number" ? payload.ts : Date.now(),
-    }),
-  }).catch(() => {});
-}
-
-async function reportDuoyuanxPlatformMatchDebugEvent(payload: Record<string, unknown>) {
-  const baseUrl = String(process.env.PUBLIC_API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "").trim().replace(/\/$/, "");
-  if (!baseUrl) {
-    return;
-  }
-  await fetch(`${baseUrl}/openclaw/mcp/debug/duoyuanx-platform-match/event`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      ...(payload || {}),
-      ts: typeof payload.ts === "number" ? payload.ts : Date.now(),
-    }),
-  }).catch(() => {});
-}
-
 const OPENCLAW_MCP_SERVER_INFO = {
   name: "ai-omni-ops-openclaw-mcp-http",
   version: "0.5.0",
@@ -1718,7 +1673,7 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
   },
   {
     name: "get_design_workspace_options",
-    description: "查看设计工作台可用模块、设计类型、产品、营销日历和模型选项，并读取可直接传给 create_design_work.modelSelection 的 selectionKey。若用户明确指定平台（例如多元探索），必须从 providerName 匹配该平台的模型里选择 selectionKey。",
+    description: "查看设计工作台可用模块、设计类型、产品、营销日历和模型选项，并读取可直接传给 create_design_work.modelSelection 的 selectionKey。",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
   },
   {
@@ -1734,7 +1689,7 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
   },
   {
     name: "create_design_work",
-    description: "在网站设计工作台中直接创建一个设计任务。支持纯文字需求，也支持补充参考图 URL 或参考图上传对象；如需指定生图模型，应先调用 get_design_workspace_options，再把返回的 selectionKey 传入 modelSelection。若用户明确指定多元探索、Right Codes、火山方舟等平台，不要只按模型家族猜测，必须传入对应 providerName 的 selectionKey。",
+    description: "在网站设计工作台中直接创建一个设计任务。支持纯文字需求，也支持补充参考图 URL 或参考图上传对象；如需指定生图模型，应先调用 get_design_workspace_options，再把返回的 selectionKey 传入 modelSelection。",
     inputSchema: {
       type: "object",
       properties: {
@@ -2312,10 +2267,9 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
     inputSchema: {
       type: "object",
       properties: {
-        action: { type: "string", description: "例如 get_growth_workspace、generate_visual_growth_report、update_douyin_topic_library、generate_xiaohongshu_marketing_calendar、upsert_xiaohongshu_marketing_calendar_item。" },
+        action: { type: "string", description: "例如 get_growth_workspace、generate_visual_growth_report、update_douyin_topic_library、generate_xiaohongshu_marketing_calendar。" },
         reportId: { type: "string" },
         selectedDate: { type: "string", description: "热点选题候选日期，格式与原接口一致。" },
-        calendarDate: { type: "string", description: "营销日历日期，格式为 YYYY-MM-DD。" },
         payload: {
           type: "object",
           description: "对应动作的请求体，结构与网站原始接口保持一致。",
@@ -2351,7 +2305,7 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
       type: "object",
       properties: {
         section: { type: "string", description: "可选：video、direct_video、remix_short_video、digital_human、lip_sync、runninghub、ad_preaudit。" },
-        action: { type: "string", description: "例如 list_works、get_work、generate、recover、list_templates、list_voice_library、list_custom_voices、create_custom_voice、create_speech_task、get_speech_task、list_apps、get_app_detail、save_config 等。" },
+        action: { type: "string", description: "例如 list_works、generate、recover、list_templates、list_voice_library、list_custom_voices、create_custom_voice、create_speech_task、get_speech_task、list_apps、get_app_detail、save_config 等。" },
         workId: { type: "string" },
         taskId: { type: "string" },
         voiceId: { type: "string", description: "数字人语音 ID。create_speech_task 时可直接传这里，服务端会自动映射到 payload.audioManId。" },
@@ -2606,6 +2560,10 @@ export class OpenClawService {
     return createHash("sha256").update(value).digest("hex");
   }
 
+  private isInstallTokenRequest(headers: HeadersMap) {
+    return this.readHeaderValue(headers, "authorization").startsWith("Bearer ocp_");
+  }
+
   private buildReadOnlyMcpToolCacheScopeKey(headers: HeadersMap) {
     const scopeSeed = [
       this.readHeaderValue(headers, "authorization"),
@@ -2711,6 +2669,10 @@ export class OpenClawService {
   }
 
   private async handleCachedToolCall(headers: HeadersMap, toolName: string, toolArgs: Record<string, unknown>) {
+    // Install tokens must reflect revoke/expire state immediately, so bypass response cache.
+    if (this.isInstallTokenRequest(headers)) {
+      return this.executeToolCall(headers, toolName, toolArgs);
+    }
     const scopeKey = this.buildReadOnlyMcpToolCacheScopeKey(headers);
     const ttlMs = this.resolveReadOnlyMcpToolCacheTtlMs(toolName, toolArgs);
     if (ttlMs > 0) {
@@ -4153,23 +4115,16 @@ export class OpenClawService {
     return this.buildSummaryResponse({
       title: "第三方接口配置摘要",
       summary: items.length
-        ? `当前品牌共接入 ${items.length} 个第三方平台，可直接查看 API Key 遮罩状态、动态能力，以及 OpenClaw 是否可直接复用这些品牌共享凭证。这里的 status/defaultModel 属于平台配置聚合视图，不等于设计工作台图片模型列表。`
+        ? `当前品牌共接入 ${items.length} 个第三方平台，可直接查看 API Key 遮罩状态、动态能力，以及 OpenClaw 是否可直接复用这些品牌共享凭证。`
         : "当前品牌还没有第三方平台配置。",
       highlights: items.length
-        ? [
-            ...items.slice(0, 5).map((item) => {
-              const runtimeAccess = runtimeAccessMap.get(item.id);
-              return `${item.name}｜${item.effectiveApiKeyMasked || "未配置"}｜OpenClaw:${runtimeAccess?.openClawCanUse ? "可直用" : "未就绪"}`;
-            }),
-            "如需确认某个平台是否出现在作图模型里，请继续调用 get_design_workspace_options，并查看 moduleOptions.image.models",
-          ]
+        ? items.slice(0, 5).map((item) => {
+            const runtimeAccess = runtimeAccessMap.get(item.id);
+            return `${item.name}｜${item.effectiveApiKeyMasked || "未配置"}｜OpenClaw:${runtimeAccess?.openClawCanUse ? "可直用" : "未就绪"}`;
+          })
         : ["平台数：0"],
       data: {
         total: items.length,
-        notes: {
-          scope: "third-party-platform-config",
-          designWorkspaceImageModelsTool: "get_design_workspace_options",
-        },
         items: items.map((item) => ({
           id: item.id,
           name: item.name,
@@ -4208,92 +4163,12 @@ export class OpenClawService {
     const auth = await this.requireAuth(headers);
     const brandId = await this.requireCurrentBrandId(auth);
     await this.authService.assertBrandPermission(brandId, "personalCenter.thirdPartyPlatforms", "view", auth);
-    // #region debug-point A:duoyuanx-runtime-access-enter
-    await reportDuoyuanxPlatformMatchDebugEvent({
-      sessionId: "duoyuanx-platform-match",
-      runId: "pre-fix",
-      hypothesisId: "A",
-      location: "openclaw.service.ts:checkMyThirdPartyPlatformRuntimeAccess:enter",
-      msg: "[DEBUG] OpenClaw runtime access check entered",
-      data: {
-        brandId,
-        platformId: typeof options?.platformId === "string" ? options.platformId : "",
-        platformName: typeof options?.platformName === "string" ? options.platformName : "",
-        baseUrl: typeof options?.baseUrl === "string" ? options.baseUrl : "",
-      },
-    });
-    // #endregion
-
-    // #region debug-point RC-A:openclaw-runtime-access-enter
-    await reportRightCodesOpenClawDebugEvent({
-      sessionId: "right-codes-openclaw",
-      runId: "pre-fix",
-      hypothesisId: "A",
-      location: "openclaw.service.ts:checkMyThirdPartyPlatformRuntimeAccess:enter",
-      msg: "[DEBUG] OpenClaw runtime access check entered",
-      data: {
-        brandId,
-        platformId: typeof options?.platformId === "string" ? options.platformId : "",
-        platformName: typeof options?.platformName === "string" ? options.platformName : "",
-        baseUrl: typeof options?.baseUrl === "string" ? options.baseUrl : "",
-      },
-    });
-    // #endregion
 
     const access = await this.thirdPartyPlatformsService.inspectBrandRuntimeAccess(brandId, {
       platformId: typeof options?.platformId === "string" ? options.platformId : undefined,
       platformName: typeof options?.platformName === "string" ? options.platformName : undefined,
       baseUrls: typeof options?.baseUrl === "string" ? [options.baseUrl] : undefined,
     });
-    // #region debug-point B:duoyuanx-runtime-access-result
-    await reportDuoyuanxPlatformMatchDebugEvent({
-      sessionId: "duoyuanx-platform-match",
-      runId: "pre-fix",
-      hypothesisId: "B",
-      location: "openclaw.service.ts:checkMyThirdPartyPlatformRuntimeAccess:result",
-      msg: "[DEBUG] OpenClaw runtime access check resolved",
-      data: {
-        brandId,
-        status: access.status,
-        openClawCanUse: access.openClawCanUse,
-        resolvedFrom: "resolvedFrom" in access ? access.resolvedFrom || "" : "",
-        platform: access.platform
-          ? {
-              id: access.platform.id,
-              name: access.platform.name,
-              baseUrl: access.platform.baseUrl,
-              websiteUrl: access.platform.websiteUrl,
-              defaultModel: access.platform.defaultModel,
-            }
-          : null,
-      },
-    });
-    // #endregion
-
-    // #region debug-point RC-B:openclaw-runtime-access-result
-    await reportRightCodesOpenClawDebugEvent({
-      sessionId: "right-codes-openclaw",
-      runId: "pre-fix",
-      hypothesisId: "B",
-      location: "openclaw.service.ts:checkMyThirdPartyPlatformRuntimeAccess:result",
-      msg: "[DEBUG] OpenClaw runtime access check resolved",
-      data: {
-        brandId,
-        status: access.status,
-        openClawCanUse: access.openClawCanUse,
-        resolvedFrom: "resolvedFrom" in access ? access.resolvedFrom || "" : "",
-        platform: access.platform
-          ? {
-              id: access.platform.id,
-              name: access.platform.name,
-              baseUrl: access.platform.baseUrl,
-              websiteUrl: access.platform.websiteUrl,
-              defaultModel: access.platform.defaultModel,
-            }
-          : null,
-      },
-    });
-    // #endregion
 
     if (access.status === "brand-context-missing") {
       throw new UnauthorizedException("当前账号没有可用品牌，无法检查第三方平台共享凭证");
@@ -4352,7 +4227,6 @@ export class OpenClawService {
         `平台：${access.platform.name}`,
         `当前遮罩：${access.effectiveApiKeyMasked || "已配置"}`,
         `来源：${access.resolvedFrom === "brand" ? "个人中心品牌共享配置" : "本地开发环境"}`,
-        "注意：这里检查的是平台共享凭证，不等于设计工作台图片模型是否可见；作图模型请再看 get_design_workspace_options -> moduleOptions.image.models",
       ],
       data: {
         status: access.status,
@@ -4362,10 +4236,6 @@ export class OpenClawService {
         effectiveApiKeyMasked: access.effectiveApiKeyMasked,
         apiKeyVisibleToOpenClawModel: false,
         accessMode: "server-side-delegated",
-        notes: {
-          scope: "third-party-platform-runtime-access",
-          designWorkspaceImageModelsTool: "get_design_workspace_options",
-        },
       },
       links: [{ label: "打开第三方接口配置", url: "/personal-center/third-party-platforms" }],
       resourceKind: "third_party_platform",
@@ -6004,34 +5874,7 @@ export class OpenClawService {
     const brandId = await this.requireCurrentBrandId(auth);
     await this.authService.assertBrandPermission(brandId, "personalCenter.works", "view", auth);
 
-    // #region debug-point C:duoyuanx-design-options-enter
-    await reportDuoyuanxPlatformMatchDebugEvent({
-      sessionId: "duoyuanx-platform-match",
-      runId: "pre-fix",
-      hypothesisId: "C",
-      location: "openclaw.service.ts:getDesignWorkspaceOptions:enter",
-      msg: "[DEBUG] OpenClaw get_design_workspace_options entered",
-      data: {
-        brandId,
-      },
-    });
-    // #endregion
-
     const workspace = await this.worksService.getDesignWorkspaceOptions(brandId);
-    // #region debug-point C:duoyuanx-design-options-result
-    await reportDuoyuanxPlatformMatchDebugEvent({
-      sessionId: "duoyuanx-platform-match",
-      runId: "pre-fix",
-      hypothesisId: "C",
-      location: "openclaw.service.ts:getDesignWorkspaceOptions:result",
-      msg: "[DEBUG] OpenClaw get_design_workspace_options resolved",
-      data: {
-        brandId,
-        imageProviderLabels: workspace.moduleOptions.image?.providerLabels || [],
-        imageModelCount: workspace.moduleOptions.image?.models?.length || 0,
-      },
-    });
-    // #endregion
     return this.buildSummaryResponse({
       title: "设计工作台可用选项",
       summary: `当前品牌支持 ${Object.keys(workspace.moduleOptions).length} 个设计模块，可直接在对话里确认模块、设计类型、产品、营销日历和模型 selectionKey 后发起任务。`,
@@ -6040,7 +5883,6 @@ export class OpenClawService {
         `产品选项：${workspace.productOptions.length}`,
         `推荐模块：${Object.entries(workspace.moduleOptions).map(([key, value]) => `${key}(${value.types.length})`).join("、")}`,
         `图片模型支持从 moduleOptions.image.models 里读取 selectionKey，并可直接传给 create_design_work.modelSelection`,
-        `如果用户明确指定多元探索等平台，必须优先筛选 providerName 对应平台的 selectionKey，不要仅按 Veo / Seedance / Kling 等模型家族猜测来源`,
       ],
       data: {
         brandId: workspace.brandId,
@@ -9223,7 +9065,6 @@ export class OpenClawService {
       action?: string;
       reportId?: string;
       selectedDate?: string;
-      calendarDate?: string;
       payload?: Record<string, unknown>;
     },
   ) {
@@ -9553,37 +9394,6 @@ export class OpenClawService {
           url: "/xiaohongshu",
           label: "打开小红书工作区",
           resourceKind: "report",
-        });
-      }
-      case "upsert_xiaohongshu_marketing_calendar_item": {
-        await this.authService.assertBrandPermission(brandId, "xiaohongshu.calendar", "edit", auth);
-        const workspace = await this.reportsService.getXiaohongshuMarketingCalendarWorkspace(brandId);
-        const reportId = String(options?.reportId || workspace.latest?.id || "").trim();
-        const calendarDate = String(options?.calendarDate || payload.date || "").trim();
-        if (!reportId) {
-          throw new BadRequestException("请先提供 reportId，或保证当前品牌已有最新营销日历");
-        }
-        if (!calendarDate) {
-          throw new BadRequestException("请提供 calendarDate，格式为 YYYY-MM-DD");
-        }
-        const result = await this.reportsService.upsertXiaohongshuMarketingCalendarItem(
-          brandId,
-          reportId,
-          calendarDate,
-          payload as Parameters<ReportsService["upsertXiaohongshuMarketingCalendarItem"]>[3],
-        );
-        return this.buildManagedOperationResponse({
-          title: `营销日历 ${calendarDate} 已更新`,
-          action,
-          data: result,
-          url: "/brand-growth",
-          label: "打开品牌增长策略",
-          resourceKind: "report",
-          highlights: [
-            `日期：${calendarDate}`,
-            `报告：${reportId}`,
-            "可继续打开营销日历查看当天内容，或把当天选题衔接到后续内容生产工具链。",
-          ],
         });
       }
       default:
@@ -10592,22 +10402,6 @@ export class OpenClawService {
       case "runninghub:list_works": {
         await this.authService.assertBrandPermission(brandId, "douyin.runningHub", "view", auth);
         const result = await this.worksService.listDouyinRunningHubWorks(brandId);
-        // #region debug-point RHS-B:openclaw-runninghub-list-works
-        void reportRunningHubStatusStuckDebugEvent({
-          sessionId: "runninghub-status-stuck",
-          runId: "pre-fix",
-          hypothesisId: "B",
-          location: "openclaw.service.ts:runninghub:list_works",
-          msg: "[DEBUG] OpenClaw runninghub:list_works executed",
-          data: {
-            brandId,
-            itemCount: Array.isArray(result?.items) ? result.items.length : 0,
-            pendingCount: Array.isArray(result?.items)
-              ? result.items.filter((item) => item?.status === "PENDING" || item?.status === "RUNNING").length
-              : 0,
-          },
-        });
-        // #endregion debug-point RHS-B:openclaw-runninghub-list-works
         return this.buildManagedOperationResponse({
           title: "RunningHub 作品列表",
           action: `${section}:${action}`,
@@ -10615,51 +10409,6 @@ export class OpenClawService {
           url: "/douyin",
           label: "打开 RunningHub 工作台",
           resourceKind: "douyin",
-        });
-      }
-      case "runninghub:get_work": {
-        const workId = String(options?.workId || "").trim();
-        if (!workId) {
-          throw new BadRequestException("请提供 workId");
-        }
-        await this.authService.assertBrandPermission(brandId, "douyin.runningHub", "view", auth);
-        const result = await this.worksService.getDouyinRunningHubWork(brandId, workId, { refresh: true });
-        const item = result.item;
-        const statusLabel = item.status === "SUCCESS"
-          ? "已完成"
-          : item.status === "FAILED"
-            ? "失败"
-            : item.status === "RUNNING"
-              ? "运行中"
-              : "排队中";
-        const resultStatus = item.status === "SUCCESS"
-          ? "COMPLETED"
-          : item.status === "FAILED"
-            ? "ACTION_REQUIRED"
-            : "IN_PROGRESS";
-        return this.buildSummaryResponse({
-          title: `RunningHub 任务状态：${statusLabel}`,
-          summary: item.status === "SUCCESS"
-            ? `任务 ${item.id} 已完成，站内状态已自动收敛。`
-            : item.status === "FAILED"
-              ? `任务 ${item.id} 已失败，请根据失败原因调整后重试。`
-              : `任务 ${item.id} 仍在处理中，系统会继续后台同步状态。`,
-          highlights: [
-            `作品 ID：${item.id}`,
-            item.providerTaskId ? `第三方任务 ID：${item.providerTaskId}` : "第三方任务 ID：等待提交完成后回填",
-            `当前状态：${statusLabel}`,
-            `当前进度：${item.progress}%`,
-            ...(item.errorReason ? [`失败原因：${item.errorReason}`] : []),
-          ],
-          data: result,
-          links: [{ label: "打开 RunningHub 工作台", url: "/douyin" }],
-          resultStatus,
-          resourceKind: "runninghub_work",
-          nextActions: [
-            ...(resultStatus === "IN_PROGRESS" ? [{ label: "继续查看任务状态", action: "check_status" as const, target: item.id }] : []),
-            ...(resultStatus === "ACTION_REQUIRED" ? [{ label: "根据失败原因重试", action: "retry" as const, target: item.id }] : []),
-            { label: "打开 RunningHub 工作台", action: "open_page" as const, target: "/douyin" },
-          ],
         });
       }
       case "runninghub:generate": {
@@ -10678,22 +10427,6 @@ export class OpenClawService {
           runningHubPayload,
           auth,
         );
-        // #region debug-point RHS-A:openclaw-runninghub-generate
-        void reportRunningHubStatusStuckDebugEvent({
-          sessionId: "runninghub-status-stuck",
-          runId: "pre-fix",
-          hypothesisId: "A",
-          location: "openclaw.service.ts:runninghub:generate",
-          msg: "[DEBUG] OpenClaw runninghub:generate returned IN_PROGRESS",
-          data: {
-            brandId,
-            appKey,
-            workId: (result as { item?: { id?: string } })?.item?.id || "",
-            providerTaskId: (result as { item?: { providerTaskId?: string } })?.item?.providerTaskId || "",
-            resultStatus: "IN_PROGRESS",
-          },
-        });
-        // #endregion debug-point RHS-A:openclaw-runninghub-generate
         return this.buildManagedOperationResponse({
           title: "RunningHub 任务已触发",
           action: `${section}:${action}`,
@@ -10702,19 +10435,6 @@ export class OpenClawService {
           label: "打开 RunningHub 工作台",
           resultStatus: "IN_PROGRESS",
           resourceKind: "douyin",
-          highlights: [
-            `作品 ID：${(result as { item?: { id?: string } })?.item?.id || "未返回"}`,
-            `第三方任务 ID：${(result as { item?: { providerTaskId?: string } })?.item?.providerTaskId || "等待后台提交完成后回填"}`,
-            "系统会在后台继续提交并自动同步 RunningHub 状态，不再依赖页面列表刷新才能收敛。",
-          ],
-          nextActions: [
-            {
-              label: "继续查看任务状态",
-              action: "check_status" as const,
-              target: (result as { item?: { id?: string } })?.item?.id || "",
-            },
-            { label: "打开 RunningHub 工作台", action: "open_page" as const, target: "/douyin" },
-          ].filter((item) => item.target),
         });
       }
       case "runninghub:delete": {
@@ -10881,7 +10601,6 @@ export class OpenClawService {
     resultStatus?: OpenClawResultStatus;
     resourceKind?: string;
     highlights?: string[];
-    nextActions?: OpenClawNextAction[];
   }) {
     return this.buildSummaryResponse({
       title: payload.title,
@@ -10891,7 +10610,6 @@ export class OpenClawService {
       links: [{ label: payload.label, url: payload.url }],
       resultStatus: payload.resultStatus,
       resourceKind: payload.resourceKind,
-      nextActions: payload.nextActions,
     });
   }
 
@@ -11986,7 +11704,6 @@ export class OpenClawService {
           action: typeof toolArgs.action === "string" ? toolArgs.action : undefined,
           reportId: typeof toolArgs.reportId === "string" ? toolArgs.reportId : undefined,
           selectedDate: typeof toolArgs.selectedDate === "string" ? toolArgs.selectedDate : undefined,
-          calendarDate: typeof toolArgs.calendarDate === "string" ? toolArgs.calendarDate : undefined,
           payload: toolArgs.payload && typeof toolArgs.payload === "object" && !Array.isArray(toolArgs.payload)
             ? toolArgs.payload as Record<string, unknown>
             : undefined,

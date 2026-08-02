@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { postRuntimeDebugEvent } from "../../../lib/runtime-debug";
 import { getStoredCurrentBrandId } from "../../../services/auth-session";
 import {
   brandArchiveSeed,
@@ -757,7 +758,7 @@ export function DouyinWorkspaceShell() {
         setDigitalHumanTemplateTagError("");
       } else {
         setDigitalHumanTemplateTags([]);
-        setDigitalHumanTemplateTagError("");
+        setDigitalHumanTemplateTagError(readRequestErrorMessage(tagGroups.reason, "数字人模板标签读取失败，请检查蝉镜配置或稍后重试。"));
       }
 
       if (favorites.status === "fulfilled") {
@@ -849,24 +850,21 @@ export function DouyinWorkspaceShell() {
       return templates.list || [];
     } catch (error) {
       // #region debug-point E:digital-human-template-ui-error
-      fetch("http://127.0.0.1:7777/event", {
-        method: "POST",
-        body: JSON.stringify({
-          sessionId: "digital-human-502-list",
-          runId: "pre-fix",
-          hypothesisId: "E",
-          location: "apps/web/src/app/(dashboard)/douyin/workspace-shell.tsx:loadDigitalHumanTemplates",
-          msg: "[DEBUG] 数字人模板错误写入 UI 状态",
-          data: {
-            brandId: activeBrandId,
-            page: nextPage,
-            size: nextSize,
-            tagId: nextTagId,
-            message: error instanceof Error ? error.message : String(error),
-          },
-          ts: Date.now(),
-        }),
-      }).catch(() => {});
+      postRuntimeDebugEvent({
+        sessionId: "digital-human-502-list",
+        runId: "pre-fix",
+        hypothesisId: "E",
+        location: "apps/web/src/app/(dashboard)/douyin/workspace-shell.tsx:loadDigitalHumanTemplates",
+        msg: "[DEBUG] 数字人模板错误写入 UI 状态",
+        data: {
+          brandId: activeBrandId,
+          page: nextPage,
+          size: nextSize,
+          tagId: nextTagId,
+          message: error instanceof Error ? error.message : String(error),
+        },
+        ts: Date.now(),
+      });
       // #endregion
       setDigitalHumanTemplateError(readRequestErrorMessage(error, "数字人模板读取失败，请检查蝉镜配置或稍后重试。"));
       throw error;
@@ -1411,27 +1409,23 @@ export function DouyinWorkspaceShell() {
       ? `当前板块接口读取失败：${formatFailedInterfaceNames(currentSectionFailedInterfaceNames) || "请按需刷新重试"}。当前仅保留已成功加载的数据。`
       : "";
     // #region debug-point G:douyin-workspace-load-summary
-    fetch("http://127.0.0.1:7777/event", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        sessionId: "douyin-workspace-false-502",
-        runId: "pre-fix",
-        hypothesisId: "G",
-        location: "apps/web/src/app/(dashboard)/douyin/workspace-shell.tsx:loadWorkspace",
-        msg: "[DEBUG] 抖音工作台完成加载并生成当前板块错误文案",
-        data: {
-          bundleMarker: debugBundleMarker,
-          brandId: activeBrandId,
-          activeSection: currentSectionKey,
-          hasFallback,
-          failedInterfaceNames,
-          currentSectionFailedInterfaceNames,
-          nextWorkspaceError,
-        },
-        ts: Date.now(),
-      }),
-    }).catch(() => {});
+    postRuntimeDebugEvent({
+      sessionId: "douyin-workspace-false-502",
+      runId: "pre-fix",
+      hypothesisId: "G",
+      location: "apps/web/src/app/(dashboard)/douyin/workspace-shell.tsx:loadWorkspace",
+      msg: "[DEBUG] 抖音工作台完成加载并生成当前板块错误文案",
+      data: {
+        bundleMarker: debugBundleMarker,
+        brandId: activeBrandId,
+        activeSection: currentSectionKey,
+        hasFallback,
+        failedInterfaceNames,
+        currentSectionFailedInterfaceNames,
+        nextWorkspaceError,
+      },
+      ts: Date.now(),
+    });
     // #endregion
     setHasLoadedSharedWorkspace((current) => current || sharedWorkspaceLoadedSuccessfully);
     setLoadedSections((current) => ({
@@ -1510,22 +1504,18 @@ export function DouyinWorkspaceShell() {
 
   useEffect(() => {
     // #region debug-point G:douyin-workspace-bundle-marker
-    fetch("http://127.0.0.1:7777/event", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        sessionId: "douyin-workspace-false-502",
-        runId: "pre-fix",
-        hypothesisId: "G",
-        location: "apps/web/src/app/(dashboard)/douyin/workspace-shell.tsx:mount",
-        msg: "[DEBUG] 抖音工作台前端 bundle 已挂载",
-        data: {
-          bundleMarker: debugBundleMarker,
-          brandId: activeBrandId,
-        },
-        ts: Date.now(),
-      }),
-    }).catch(() => {});
+    postRuntimeDebugEvent({
+      sessionId: "douyin-workspace-false-502",
+      runId: "pre-fix",
+      hypothesisId: "G",
+      location: "apps/web/src/app/(dashboard)/douyin/workspace-shell.tsx:mount",
+      msg: "[DEBUG] 抖音工作台前端 bundle 已挂载",
+      data: {
+        bundleMarker: debugBundleMarker,
+        brandId: activeBrandId,
+      },
+      ts: Date.now(),
+    });
     // #endregion
   }, [activeBrandId, debugBundleMarker]);
 
@@ -1542,25 +1532,21 @@ export function DouyinWorkspaceShell() {
 
   useEffect(() => {
     // #region debug-point G:douyin-workspace-error-message-change
-    fetch("http://127.0.0.1:7777/event", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        sessionId: "douyin-workspace-false-502",
-        runId: "pre-fix",
-        hypothesisId: "G",
-        location: "apps/web/src/app/(dashboard)/douyin/workspace-shell.tsx:errorMessage",
-        msg: "[DEBUG] 抖音工作台错误文案发生变化",
-        data: {
-          bundleMarker: debugBundleMarker,
-          brandId: activeBrandId,
-          activeSection,
-          loadState,
-          errorMessage,
-        },
-        ts: Date.now(),
-      }),
-    }).catch(() => {});
+    postRuntimeDebugEvent({
+      sessionId: "douyin-workspace-false-502",
+      runId: "pre-fix",
+      hypothesisId: "G",
+      location: "apps/web/src/app/(dashboard)/douyin/workspace-shell.tsx:errorMessage",
+      msg: "[DEBUG] 抖音工作台错误文案发生变化",
+      data: {
+        bundleMarker: debugBundleMarker,
+        brandId: activeBrandId,
+        activeSection,
+        loadState,
+        errorMessage,
+      },
+      ts: Date.now(),
+    });
     // #endregion
   }, [activeBrandId, activeSection, debugBundleMarker, errorMessage, loadState]);
 
@@ -2669,23 +2655,19 @@ export function DouyinWorkspaceShell() {
     providerTaskId?: string;
   }) => {
     // #region debug-point A:digital-human-recover-click
-    fetch("http://127.0.0.1:7777/event", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        sessionId: "digital-human-recover-result",
-        runId: "pre-fix",
-        hypothesisId: "A",
-        location: "apps/web/src/app/(dashboard)/douyin/workspace-shell.tsx:handleRecoverDigitalHuman",
-        msg: "[DEBUG] 用户触发数字人结果找回",
-        data: {
-          brandId: activeBrandId,
-          canEditDigitalHuman,
-          payload,
-        },
-        ts: Date.now(),
-      }),
-    }).catch(() => {});
+    postRuntimeDebugEvent({
+      sessionId: "digital-human-recover-result",
+      runId: "pre-fix",
+      hypothesisId: "A",
+      location: "apps/web/src/app/(dashboard)/douyin/workspace-shell.tsx:handleRecoverDigitalHuman",
+      msg: "[DEBUG] 用户触发数字人结果找回",
+      data: {
+        brandId: activeBrandId,
+        canEditDigitalHuman,
+        payload,
+      },
+      ts: Date.now(),
+    });
     // #endregion
     if (!canEditDigitalHuman) {
       setErrorMessage("当前账号只有查看权限，不能找回数字人视频结果。");
@@ -2697,23 +2679,19 @@ export function DouyinWorkspaceShell() {
     try {
       const recovered = await recoverDouyinDigitalHumanVideo(activeBrandId, payload);
       // #region debug-point B:digital-human-recover-response
-      fetch("http://127.0.0.1:7777/event", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sessionId: "digital-human-recover-result",
-          runId: "pre-fix",
-          hypothesisId: "B",
-          location: "apps/web/src/app/(dashboard)/douyin/workspace-shell.tsx:handleRecoverDigitalHuman",
-          msg: "[DEBUG] 前端收到数字人结果找回响应",
-          data: {
-            brandId: activeBrandId,
-            payload,
-            recovered,
-          },
-          ts: Date.now(),
-        }),
-      }).catch(() => {});
+      postRuntimeDebugEvent({
+        sessionId: "digital-human-recover-result",
+        runId: "pre-fix",
+        hypothesisId: "B",
+        location: "apps/web/src/app/(dashboard)/douyin/workspace-shell.tsx:handleRecoverDigitalHuman",
+        msg: "[DEBUG] 前端收到数字人结果找回响应",
+        data: {
+          brandId: activeBrandId,
+          payload,
+          recovered,
+        },
+        ts: Date.now(),
+      });
       // #endregion
       await refreshDigitalHumanWorkspace();
       if (recovered.recovered) {
@@ -2732,23 +2710,19 @@ export function DouyinWorkspaceShell() {
       return true;
     } catch (error) {
       // #region debug-point C:digital-human-recover-error
-      fetch("http://127.0.0.1:7777/event", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sessionId: "digital-human-recover-result",
-          runId: "pre-fix",
-          hypothesisId: "C",
-          location: "apps/web/src/app/(dashboard)/douyin/workspace-shell.tsx:handleRecoverDigitalHuman",
-          msg: "[DEBUG] 前端数字人结果找回失败",
-          data: {
-            brandId: activeBrandId,
-            payload,
-            message: error instanceof Error ? error.message : String(error),
-          },
-          ts: Date.now(),
-        }),
-      }).catch(() => {});
+      postRuntimeDebugEvent({
+        sessionId: "digital-human-recover-result",
+        runId: "pre-fix",
+        hypothesisId: "C",
+        location: "apps/web/src/app/(dashboard)/douyin/workspace-shell.tsx:handleRecoverDigitalHuman",
+        msg: "[DEBUG] 前端数字人结果找回失败",
+        data: {
+          brandId: activeBrandId,
+          payload,
+          message: error instanceof Error ? error.message : String(error),
+        },
+        ts: Date.now(),
+      });
       // #endregion
       setErrorMessage(error instanceof Error ? error.message : "找回数字人视频结果失败。");
       return false;

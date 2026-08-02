@@ -14,6 +14,8 @@ import {
 } from "../../../../services/personal-center";
 import { buildPersonalCenterLoginPath, formatDateTime, isAuthFailure, shouldShowVersionWorkspace } from "../route-helpers";
 
+const SYSTEM_UPDATE_STATUS_CACHE_KEY = "aiomniops-system-update-status-cache";
+
 export default function PersonalCenterVersionPage() {
   const router = useRouter();
   const [status, setStatus] = useState<SystemUpdateStatus | null>(null);
@@ -34,10 +36,32 @@ export default function PersonalCenterVersionPage() {
     void loadPage();
   }, [router]);
 
-  async function loadPage() {
-    setIsLoading(true);
-    setNotice("");
-    setErrorMessage("");
+  useEffect(() => {
+    const canRetry =
+      Boolean(status?.supported)
+      && (
+        status?.phase === "APPLYING"
+        || status?.phase === "DOWNLOADING"
+        || (Boolean(errorMessage) && Boolean(status?.current.canApplyUpdate))
+      );
+    if (!canRetry) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      void loadPage({ silent: true, keepFeedback: true });
+    }, 5000);
+    return () => window.clearTimeout(timer);
+  }, [errorMessage, status?.current.canApplyUpdate, status?.phase, status?.supported]);
+
+  async function loadPage(options?: { silent?: boolean; keepFeedback?: boolean }) {
+    if (!options?.silent) {
+      setIsLoading(true);
+    }
+    if (!options?.keepFeedback) {
+      setNotice("");
+      setErrorMessage("");
+    }
 
     const [meResult, statusResult] = await Promise.allSettled([getMe(), getSystemUpdateStatus()]);
 
@@ -55,9 +79,19 @@ export default function PersonalCenterVersionPage() {
         return;
       }
       setStatus(statusResult.value);
+      writeCachedStatus(statusResult.value);
+      if (options?.silent) {
+        setErrorMessage("");
+      }
     } else {
-      setStatus(null);
-      setErrorMessage(statusResult.reason instanceof Error ? statusResult.reason.message : "版本信息加载失败");
+      const cachedStatus = readCachedStatus();
+      if (cachedStatus && shouldShowVersionWorkspace(cachedStatus)) {
+        setStatus(cachedStatus);
+        setErrorMessage(resolveTransientLoadError(cachedStatus, statusResult.reason));
+      } else {
+        setStatus(null);
+        setErrorMessage(statusResult.reason instanceof Error ? statusResult.reason.message : "版本信息加载失败");
+      }
     }
 
     setIsLoading(false);
@@ -70,6 +104,7 @@ export default function PersonalCenterVersionPage() {
     try {
       const nextStatus = await checkSystemUpdate();
       setStatus(nextStatus);
+      writeCachedStatus(nextStatus);
       setNotice(nextStatus.message || "已完成最新版本检查。");
     } catch (error) {
       if (isAuthFailure(error)) {
@@ -89,6 +124,7 @@ export default function PersonalCenterVersionPage() {
     try {
       const nextStatus = await downloadSystemUpdate();
       setStatus(nextStatus);
+      writeCachedStatus(nextStatus);
       setNotice(nextStatus.message || "安装包已下载并校验完成。");
     } catch (error) {
       if (isAuthFailure(error)) {
@@ -122,7 +158,18 @@ export default function PersonalCenterVersionPage() {
         router.replace(buildPersonalCenterLoginPath("/personal-center/version"));
         return;
       }
-      setErrorMessage(error instanceof Error ? error.message : "执行升级失败");
+      const errorText = error instanceof Error ? error.message : "执行升级失败";
+      if (typeof errorText === "string" && errorText.includes("Failed to fetch")) {
+        applyPendingResult({
+          accepted: true,
+          phase: "APPLYING",
+          message: "升级进程可能已接管当前工作台，页面会自动重试最新状态。",
+          updaterRunPath: "",
+        });
+        setNotice("升级进程可能已启动，当前连接已断开，页面会自动重试状态。");
+        return;
+      }
+      setErrorMessage(errorText);
     } finally {
       setIsApplying(false);
     }
@@ -133,11 +180,13 @@ export default function PersonalCenterVersionPage() {
       if (!current) {
         return current;
       }
-      return {
+      const nextStatus = {
         ...current,
         phase: result.phase,
         message: result.message,
       };
+      writeCachedStatus(nextStatus);
+      return nextStatus;
     });
   }
 
@@ -173,9 +222,9 @@ export default function PersonalCenterVersionPage() {
         detail: currentBuild?.generatedAt ? "来自安装包 manifest" : "当前环境尚未携带 release manifest",
       },
       {
-        label: "最新 Release",
+        label: "最新版本",
         value: latestRelease?.tagName || "未获取",
-        detail: latestRelease ? formatDateTime(latestRelease.publishedAt) : "当前还没拿到 GitHub 最新发布信息",
+        detail: latestRelease ? formatDateTime(latestRelease.publishedAt) : "当前还没拿到 OSS 最新发布信息",
       },
       {
         label: "升级状态",
@@ -208,9 +257,9 @@ export default function PersonalCenterVersionPage() {
       <div className="panel-header">
         <div>
           <h2>版本与升级</h2>
-          <p className="panel-subtext">当前页专门承接 local-single-user 的版本检查、安装包预下载和一键升级，不再要求用户手工去 GitHub 解压覆盖。</p>
+          <p className="panel-subtext">当前页专门承接 local-single-user 的版本检查、安装包预下载和一键升级，不再要求用户手工下载后解压覆盖。</p>
         </div>
-        <span>{status?.githubRepo.owner || "allentry"}/{status?.githubRepo.repo || "local-ai-omni-ops-system"}</span>
+        <span>{status?.source?.label || "阿里云 OSS"}</span>
       </div>
 
       <div className="personal-actions personal-toolbar-cluster" style={{ marginBottom: 16 }}>
@@ -248,7 +297,7 @@ export default function PersonalCenterVersionPage() {
         <div>
           <strong>{resolveRecommendation(status)}</strong>
           <p>
-            当前升级源默认直接读取 GitHub Releases。点击“立即升级”后，系统会在后台下载或复用已校验的安装包，停止旧进程，替换安装目录，再自动重启本地工作台。
+            当前升级源默认直接读取 OSS 的 `latest.json` 与安装包校验文件。点击“立即升级”后，系统会在后台下载或复用已校验的安装包，停止旧进程，替换安装目录，再自动重启本地工作台。
           </p>
         </div>
         <div className="personal-context-actions">
@@ -257,7 +306,7 @@ export default function PersonalCenterVersionPage() {
           </Link>
           {latestRelease?.htmlUrl ? (
             <a href={latestRelease.htmlUrl} target="_blank" rel="noreferrer" className="secondary-button">
-              打开 GitHub Release
+              打开安装包链接
             </a>
           ) : null}
         </div>
@@ -295,12 +344,12 @@ export default function PersonalCenterVersionPage() {
           <div className="entity-card-head">
             <div>
               <strong>最新发布信息</strong>
-              <p className="panel-subtext">默认读取 GitHub 最新 Release，并优先识别标准安装包与对应 SHA256 校验文件。</p>
+              <p className="panel-subtext">默认读取 OSS 最新元数据，并优先识别标准安装包与对应 SHA256 校验文件。</p>
             </div>
           </div>
           <dl className="detail-list">
             <div>
-              <dt>Release 标题</dt>
+              <dt>版本标题</dt>
               <dd>{latestRelease?.name || "未获取"}</dd>
             </div>
             <div>
@@ -338,12 +387,12 @@ export default function PersonalCenterVersionPage() {
         <article className="entity-card" style={{ marginTop: 16 }}>
           <div className="entity-card-head">
             <div>
-              <strong>Release 说明</strong>
-              <p className="panel-subtext">下面展示的是 GitHub 最新 Release 原始说明，便于在升级前快速确认本次更新内容。</p>
+              <strong>更新说明</strong>
+              <p className="panel-subtext">下面展示的是 OSS 最新版本说明，便于在升级前快速确认本次更新内容。</p>
             </div>
           </div>
           <details>
-            <summary style={{ cursor: "pointer" }}>展开查看最新 Release 说明</summary>
+            <summary style={{ cursor: "pointer" }}>展开查看最新更新说明</summary>
             <pre style={{ whiteSpace: "pre-wrap", wordBreak: "break-word", marginTop: 12 }}>{latestRelease.body}</pre>
           </details>
         </article>
@@ -375,7 +424,7 @@ function formatPhaseLabel(phase?: string | null) {
 
 function resolveRecommendation(status: SystemUpdateStatus | null) {
   if (!status) {
-    return "先刷新当前页，确认最新 Release 与当前安装态信息。";
+    return "先刷新当前页，确认最新版本与当前安装态信息。";
   }
   if (!status.supported) {
     return "当前环境不是 local-single-user 安装态，先检查版本信息，升级仍建议走正式安装包。";
@@ -389,7 +438,7 @@ function resolveRecommendation(status: SystemUpdateStatus | null) {
   if (status.updateAvailable) {
     return "已经检测到新版本，建议先预下载校验，再在方便的时点一键升级。";
   }
-  return "当前安装态已经和最新 Release 对齐，可继续正常使用。";
+  return "当前安装态已经和最新版本对齐，可继续正常使用。";
 }
 
 function formatBytes(value?: number | null) {
@@ -407,4 +456,40 @@ function formatBytes(value?: number | null) {
     return `${(size / (1024 * 1024)).toFixed(1)} MB`;
   }
   return `${(size / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
+
+function readCachedStatus() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  try {
+    const raw = window.localStorage.getItem(SYSTEM_UPDATE_STATUS_CACHE_KEY);
+    if (!raw) {
+      return null;
+    }
+    return JSON.parse(raw) as SystemUpdateStatus;
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedStatus(status: SystemUpdateStatus) {
+  if (typeof window === "undefined") {
+    return;
+  }
+  try {
+    window.localStorage.setItem(SYSTEM_UPDATE_STATUS_CACHE_KEY, JSON.stringify(status));
+  } catch {
+    // Ignore cache write failures; page can still rely on live API.
+  }
+}
+
+function resolveTransientLoadError(status: SystemUpdateStatus, error: unknown) {
+  if (status.phase === "APPLYING") {
+    return "本地工作台正在重启，已先展示最近一次升级状态，页面会自动重试。";
+  }
+  if (status.phase === "DOWNLOADING") {
+    return "安装包仍在后台下载，已先展示最近一次升级状态，页面会自动重试。";
+  }
+  return error instanceof Error ? error.message : "版本信息暂时不可达，已先展示最近一次记录。";
 }

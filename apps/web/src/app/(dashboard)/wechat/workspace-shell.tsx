@@ -140,6 +140,18 @@ function parseWhitelistText(value: string) {
     .filter(Boolean);
 }
 
+function hasWechatMaskedSecret(value?: string | null) {
+  return Boolean(String(value || "").trim());
+}
+
+function isWechatChecklistItemReady(item: string) {
+  const normalized = String(item || "").trim();
+  if (!normalized) {
+    return false;
+  }
+  return !/^(缺少|未填写|未绑定|未配置|请先)/.test(normalized);
+}
+
 function resolveMarketingCalendarTopic(item?: XiaohongshuMarketingCalendarItem | null) {
   return (
     item?.topicName
@@ -581,6 +593,34 @@ export function WechatWorkspaceShell() {
   const hasRunningWechatImageTask = useMemo(
     () => sessions.some((item) => item.imageBundle?.status === "RUNNING"),
     [sessions],
+  );
+  const draftWhitelistIps = useMemo(() => parseWhitelistText(whitelistText), [whitelistText]);
+  const setupRequirementItems = useMemo(() => {
+    const hasAppId = Boolean(String(appId || "").trim() || config?.appId);
+    const hasAppSecret = Boolean(String(appSecret || "").trim()) || hasWechatMaskedSecret(config?.appSecretMasked);
+    const hasWhitelist = draftWhitelistIps.length > 0 || Boolean(config?.whitelistIps?.length);
+    return [
+      { key: "appId", label: "AppID", ready: hasAppId },
+      { key: "appSecret", label: "AppSecret", ready: hasAppSecret },
+      { key: "whitelist", label: "IP 白名单", ready: hasWhitelist },
+      { key: "account", label: "默认公众号账号", ready: accounts.length > 0 },
+    ];
+  }, [accounts.length, appId, appSecret, config?.appId, config?.appSecretMasked, config?.whitelistIps, draftWhitelistIps]);
+  const missingSetupRequirementLabels = useMemo(
+    () => setupRequirementItems.filter((item) => !item.ready).map((item) => item.label),
+    [setupRequirementItems],
+  );
+  const publishChecklistItems = useMemo(
+    () =>
+      (selectedWorkflow?.publishConfig?.checklist || []).map((item) => ({
+        label: item,
+        ready: isWechatChecklistItemReady(item),
+      })),
+    [selectedWorkflow],
+  );
+  const missingPublishChecklistLabels = useMemo(
+    () => publishChecklistItems.filter((item) => !item.ready).map((item) => item.label),
+    [publishChecklistItems],
   );
 
   async function reloadPublishHistory(nextBrandId: string) {
@@ -1346,6 +1386,28 @@ export function WechatWorkspaceShell() {
                         />
                       </label>
                     </div>
+                    <div className="wechat-setup-status-card">
+                      <div className="wechat-panel-head">
+                        <div>
+                          <strong>当前初始化缺口</strong>
+                          <p className="wechat-inline-tip">公众号正式发布走独立 `POST /wechat/config`，不会复用个人中心第三方接口配置。</p>
+                        </div>
+                      </div>
+                      <div className="wechat-pill-row">
+                        {setupRequirementItems.map((item) => (
+                          <span key={item.key} className={`archive-pill ${item.ready ? "status-ready" : "status-pending"}`}>
+                            {item.ready ? `已补齐 ${item.label}` : `待补 ${item.label}`}
+                          </span>
+                        ))}
+                      </div>
+                      {missingSetupRequirementLabels.length ? (
+                        <div className="wechat-banner wechat-banner--warning">
+                          当前还缺：{missingSetupRequirementLabels.join("、")}。保存成功后会自动登记默认公众号账号。
+                        </div>
+                      ) : (
+                        <div className="wechat-banner wechat-banner--notice">当前配置项已齐，可以保存 API 配置并继续执行正式发布链路。</div>
+                      )}
+                    </div>
                   </section>
                 </div>
 
@@ -1372,7 +1434,7 @@ export function WechatWorkspaceShell() {
                         </article>
                       ))
                     ) : (
-                      <div className="empty-state">当前还没有公众号账号，请先保存 API 配置。</div>
+                      <div className="empty-state">当前还没有公众号账号。保存 API 配置成功后，这里会自动生成默认公众号账号。</div>
                     )}
                   </div>
                 </section>
@@ -1930,10 +1992,17 @@ export function WechatWorkspaceShell() {
                                     <span className="archive-pill status-ready">media_id：{selectedWorkflow.publishConfig.mediaId}</span>
                                   ) : null}
                                 </div>
+                                {missingPublishChecklistLabels.length ? (
+                                  <div className="wechat-banner wechat-banner--warning">
+                                    当前仍缺：{missingPublishChecklistLabels.join("、")}。先回到“配置初始化”补齐凭据，再重新保存发布确认。
+                                  </div>
+                                ) : (
+                                  <div className="wechat-banner wechat-banner--notice">发布校验已通过，可以直接执行 API 发布。</div>
+                                )}
                                 <div className="wechat-checklist">
-                                  {selectedWorkflow.publishConfig.checklist.map((item) => (
-                                    <span key={item} className="archive-pill status-ready">
-                                      {item}
+                                  {publishChecklistItems.map((item) => (
+                                    <span key={item.label} className={`archive-pill ${item.ready ? "status-ready" : "status-pending"}`}>
+                                      {item.label}
                                     </span>
                                   ))}
                                 </div>
@@ -2535,6 +2604,7 @@ export function WechatWorkspaceShell() {
         .wechat-image-stage,
         .wechat-publish-summary,
         .wechat-checklist,
+        .wechat-setup-status-card,
         .wechat-history-detail-grid {
           display: grid;
           gap: 12px;

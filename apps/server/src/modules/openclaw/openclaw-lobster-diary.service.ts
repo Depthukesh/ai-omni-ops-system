@@ -281,23 +281,42 @@ export class OpenClawLobsterDiaryService {
     if (!(await this.prismaService.canUseDatabase())) {
       return;
     }
-    await this.prismaService.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS "OpenClawLobsterDiary" (
-        "id" TEXT PRIMARY KEY,
-        "brandId" TEXT NOT NULL,
-        "workspaceScope" TEXT NOT NULL DEFAULT '${DEFAULT_OPENCLAW_WORKSPACE_SCOPE}',
-        "createdByUserId" TEXT NOT NULL,
-        "diaryDate" TEXT NOT NULL,
-        "title" TEXT NOT NULL DEFAULT '',
-        "content" TEXT NOT NULL DEFAULT '',
-        "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-    await this.prismaService.$executeRawUnsafe(`
-      ALTER TABLE "OpenClawLobsterDiary"
-      ADD COLUMN IF NOT EXISTS "workspaceScope" TEXT NOT NULL DEFAULT '${DEFAULT_OPENCLAW_WORKSPACE_SCOPE}'
-    `);
+    if (this.prismaService.isLocalSqliteMode()) {
+      await this.prismaService.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "OpenClawLobsterDiary" (
+          "id" TEXT PRIMARY KEY,
+          "brandId" TEXT NOT NULL,
+          "workspaceScope" TEXT NOT NULL DEFAULT '${DEFAULT_OPENCLAW_WORKSPACE_SCOPE}',
+          "createdByUserId" TEXT NOT NULL,
+          "diaryDate" TEXT NOT NULL,
+          "title" TEXT NOT NULL DEFAULT '',
+          "content" TEXT NOT NULL DEFAULT '',
+          "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      await this.prismaService.ensureTableColumns("OpenClawLobsterDiary", [
+        { name: "workspaceScope", definition: `TEXT NOT NULL DEFAULT '${DEFAULT_OPENCLAW_WORKSPACE_SCOPE}'` },
+      ]);
+    } else {
+      await this.prismaService.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "OpenClawLobsterDiary" (
+          "id" TEXT PRIMARY KEY,
+          "brandId" TEXT NOT NULL,
+          "workspaceScope" TEXT NOT NULL DEFAULT '${DEFAULT_OPENCLAW_WORKSPACE_SCOPE}',
+          "createdByUserId" TEXT NOT NULL,
+          "diaryDate" TEXT NOT NULL,
+          "title" TEXT NOT NULL DEFAULT '',
+          "content" TEXT NOT NULL DEFAULT '',
+          "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      await this.prismaService.$executeRawUnsafe(`
+        ALTER TABLE "OpenClawLobsterDiary"
+        ADD COLUMN IF NOT EXISTS "workspaceScope" TEXT NOT NULL DEFAULT '${DEFAULT_OPENCLAW_WORKSPACE_SCOPE}'
+      `);
+    }
     await this.prismaService.$executeRawUnsafe(`
       UPDATE "OpenClawLobsterDiary"
       SET "workspaceScope" = '${DEFAULT_OPENCLAW_WORKSPACE_SCOPE}'

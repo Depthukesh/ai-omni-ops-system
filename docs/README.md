@@ -115,7 +115,7 @@
 ## 最近应优先关注的文档
 
 - `docs/changes/2026-07-28-personal-center-version-update.md`
-  - 个人中心新增“版本与升级”页：后端通过 `system/update/*` 检查 GitHub Releases、预下载并校验 `AiOmniOps-local-single-user-win-x64.zip`，安装态再通过独立 updater 执行本地替换与重启
+  - 个人中心新增“版本与升级”页：后端通过 `system/update/*` 检查 OSS `latest.json`、预下载并校验 `AiOmniOps-local-single-user-win-x64.zip`，安装态再通过独立 updater 执行本地替换与重启
 - `docs/changes/2026-07-27-readme-install-guide-and-repo-slimming.md`
   - 把根 `README.md` 重写为安装和使用教程，明确说明当前仓库为什么没有 `.exe`，并清理根目录调试笔记、`.dbg/` 旧排障文件与误生成命令输出文件
 - `docs/changes/2026-07-27-system-quote-workbook-script.md`

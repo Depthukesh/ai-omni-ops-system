@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { createReadStream, createWriteStream, existsSync, openSync, readFileSync } from "node:fs";
 import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { spawn } from "node:child_process";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
@@ -51,11 +51,23 @@ type RemoteReleaseInfo = {
   checksumValue: string | null;
 };
 
+type OssLatestManifest = {
+  version?: string;
+  name?: string;
+  publishedAt?: string;
+  zipUrl?: string;
+  sha256Url?: string;
+  checksumValue?: string;
+  notes?: string;
+  source?: string;
+};
+
 type CurrentBuildInfo = {
   version: string;
   runtimeMode: "standard" | "local-single-user";
   generatedAt: string | null;
   buildName: string | null;
+  releaseTag: string | null;
   installRoot: string | null;
   projectRoot: string;
   canApplyUpdate: boolean;
@@ -66,6 +78,13 @@ type LatestReleaseResult = {
   release: RemoteReleaseInfo | null;
   errorMessage: string | null;
   checkedAt: string;
+};
+
+type UpdateSourceInfo = {
+  kind: "oss";
+  label: string;
+  manifestUrl: string;
+  publicBaseUrl: string;
 };
 
 type GitHubReleaseApiResponse = {
@@ -98,6 +117,7 @@ type DownloadReleaseResult = {
 const LATEST_RELEASE_CACHE_TTL_MS = 30_000;
 const LOCAL_SINGLE_USER_ZIP_NAME = "AiOmniOps-local-single-user-win-x64.zip";
 const LOCAL_SINGLE_USER_CHECKSUM_NAME = `${LOCAL_SINGLE_USER_ZIP_NAME}.sha256`;
+const DEFAULT_LOCAL_SINGLE_USER_UPDATE_MANIFEST_URL = "https://bucketwangxiaodong.oss-cn-beijing.aliyuncs.com/ai-omni-ops/local-single-user/win-x64/latest.json";
 
 async function writeUtf8BomFile(filePath: string, content: string) {
   const normalizedContent = content.startsWith("\uFEFF") ? content.slice(1) : content;
@@ -142,6 +162,34 @@ function readErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error || "未知错误");
 }
 
+function readFileNameFromUrl(value: string | null | undefined) {
+  if (!value) {
+    return null;
+  }
+  try {
+    const url = new URL(value);
+    const name = basename(url.pathname);
+    return name || null;
+  } catch {
+    return null;
+  }
+}
+
+function findNearestPackageJsonRoot(startPath: string) {
+  let current = resolve(startPath);
+  for (let depth = 0; depth < 8; depth += 1) {
+    if (existsSync(join(current, "package.json"))) {
+      return current;
+    }
+    const parent = dirname(current);
+    if (parent === current) {
+      break;
+    }
+    current = parent;
+  }
+  return resolve(startPath);
+}
+
 @Injectable()
 export class SystemUpdateService {
   private latestReleaseCache:
@@ -175,15 +223,15 @@ export class SystemUpdateService {
       supported: current.runtimeMode === "local-single-user",
       current,
       latest,
+      source: this.getUpdateSourceInfo(),
       phase,
       updateAvailable,
-      message: this.resolveMessage(current, persistedState, latestResult.errorMessage, updateAvailable),
+      message: this.resolveMessage(current, persistedState, latestResult.errorMessage, updateAvailable, latest),
       checkedAt: latestResult.checkedAt,
       downloadedReleaseTag: persistedState?.downloadedReleaseTag || null,
       downloadedAt: persistedState?.downloadedAt || null,
       appliedAt: persistedState?.appliedAt || null,
       failedAt: persistedState?.failedAt || null,
-      githubRepo: this.getReleaseRepository(),
     };
   }
 
@@ -351,7 +399,7 @@ export class SystemUpdateService {
   }
 
   private getCurrentBuildInfo(): CurrentBuildInfo {
-    const projectRoot = resolve(process.cwd(), "..", "..");
+    const projectRoot = findNearestPackageJsonRoot(process.cwd());
     const installRootCandidate = resolve(projectRoot, "..");
     const packageJsonPath = join(projectRoot, "package.json");
     const manifestPath = join(installRootCandidate, "meta", "release-manifest.json");
@@ -360,7 +408,7 @@ export class SystemUpdateService {
     const runtimeMode = this.appConfigService.getRuntimeMode();
 
     const packageJson = safeReadJson<{ version?: string }>(packageJsonPath);
-    const manifest = safeReadJson<{ generatedAt?: string; name?: string }>(manifestPath);
+    const manifest = safeReadJson<{ generatedAt?: string; name?: string; releaseTag?: string }>(manifestPath);
     const canApplyUpdate =
       process.platform === "win32"
       && runtimeMode === "local-single-user"
@@ -381,6 +429,7 @@ export class SystemUpdateService {
       runtimeMode,
       generatedAt: normalizeIsoDate(manifest?.generatedAt),
       buildName: String(manifest?.name || "").trim() || null,
+      releaseTag: String(manifest?.releaseTag || "").trim() || null,
       installRoot: canApplyUpdate ? installRootCandidate : null,
       projectRoot,
       canApplyUpdate,
@@ -396,16 +445,28 @@ export class SystemUpdateService {
 
     const checkedAt = new Date().toISOString();
     try {
-      const { owner, repo } = this.getReleaseRepository();
-      const response = await this.fetchLatestReleasePayload(owner, repo);
-
-      const assets = Array.isArray(response.assets) ? response.assets : [];
-      const zipAsset = this.normalizeAsset(assets.find((item) => item?.name === LOCAL_SINGLE_USER_ZIP_NAME));
-      const checksumAsset = this.normalizeAsset(assets.find((item) => item?.name === LOCAL_SINGLE_USER_CHECKSUM_NAME));
-      const releaseBody = String(response.body || "");
-      let checksumValue: string | null = parseChecksumValue(releaseBody);
+      const source = this.getUpdateSourceInfo();
+      const response = await this.fetchOssLatestManifestPayload(source.manifestUrl);
+      const zipUrl = String(response.zipUrl || "").trim();
+      const sha256Url = String(response.sha256Url || "").trim();
+      const zipAsset = zipUrl
+        ? {
+            name: readFileNameFromUrl(zipUrl) || LOCAL_SINGLE_USER_ZIP_NAME,
+            size: 0,
+            downloadUrl: zipUrl,
+          }
+        : null;
+      const checksumAsset = sha256Url
+        ? {
+            name: readFileNameFromUrl(sha256Url) || LOCAL_SINGLE_USER_CHECKSUM_NAME,
+            size: 0,
+            downloadUrl: sha256Url,
+          }
+        : null;
+      const releaseBody = String(response.notes || "");
+      let checksumValue: string | null = String(response.checksumValue || "").trim().toLowerCase() || null;
       if (!checksumValue && checksumAsset?.downloadUrl) {
-        const checksumText = await this.fetchText(checksumAsset.downloadUrl);
+        const checksumText = await this.fetchText(checksumAsset.downloadUrl, "text/plain");
         checksumValue = parseChecksumValue(checksumText);
       }
 
@@ -413,10 +474,10 @@ export class SystemUpdateService {
         checkedAt,
         errorMessage: null,
         release: {
-          tagName: String(response.tag_name || "").trim(),
-          name: String(response.name || response.tag_name || "").trim(),
-          htmlUrl: String(response.html_url || "").trim(),
-          publishedAt: normalizeIsoDate(response.published_at) || checkedAt,
+          tagName: String(response.version || "").trim(),
+          name: String(response.name || response.version || "").trim(),
+          htmlUrl: zipUrl || source.manifestUrl,
+          publishedAt: normalizeIsoDate(response.publishedAt) || checkedAt,
           body: releaseBody,
           zipAsset,
           checksumAsset,
@@ -433,7 +494,7 @@ export class SystemUpdateService {
       const result: LatestReleaseResult = {
         checkedAt,
         release: null,
-        errorMessage: `检查 GitHub Release 失败：${readErrorMessage(error)}`,
+        errorMessage: `检查 OSS 升级源失败：${readErrorMessage(error)}`,
       };
       this.latestReleaseCache = {
         expiresAt: now + 5_000,
@@ -512,10 +573,26 @@ export class SystemUpdateService {
     if (!latest) {
       return false;
     }
+    if (current.releaseTag) {
+      return current.releaseTag !== latest.tagName;
+    }
     if (!current.generatedAt) {
       return true;
     }
     return resolveDateTime(latest.publishedAt) > resolveDateTime(current.generatedAt) + 60_000;
+  }
+
+  private isCurrentBuildAligned(current: CurrentBuildInfo, latest: RemoteReleaseInfo | null) {
+    if (!latest) {
+      return false;
+    }
+    if (current.releaseTag) {
+      return current.releaseTag === latest.tagName;
+    }
+    if (!current.generatedAt) {
+      return false;
+    }
+    return resolveDateTime(current.generatedAt) >= resolveDateTime(latest.publishedAt) - 60_000;
   }
 
   private resolvePhase(
@@ -526,6 +603,9 @@ export class SystemUpdateService {
   ): PersistedUpdatePhase {
     if (current.runtimeMode !== "local-single-user") {
       return "UNSUPPORTED";
+    }
+    if (persistedState?.phase === "APPLYING" && this.isCurrentBuildAligned(current, latest) && !updateAvailable) {
+      return "SUCCEEDED";
     }
     if (persistedState?.phase === "DOWNLOADING") {
       return "DOWNLOADING";
@@ -553,12 +633,16 @@ export class SystemUpdateService {
     persistedState: PersistedUpdateState | null,
     latestErrorMessage: string | null,
     updateAvailable: boolean,
+    latest?: RemoteReleaseInfo | null,
   ) {
     if (current.applyBlockedReason) {
       return current.applyBlockedReason;
     }
     if (latestErrorMessage) {
       return latestErrorMessage;
+    }
+    if (persistedState?.phase === "APPLYING" && this.isCurrentBuildAligned(current, latest || null) && !updateAvailable) {
+      return "当前已经完成升级并和最新版本对齐。";
     }
     if (persistedState?.phase === "DOWNLOADING") {
       return persistedState.message || "正在下载最新安装包并校验完整性。";
@@ -594,11 +678,25 @@ export class SystemUpdateService {
     return join(this.appConfigService.getLocalUpdatesRoot(), "system-update-status.json");
   }
 
-  private getReleaseRepository() {
+  private getUpdateSourceInfo(): UpdateSourceInfo {
+    const manifestUrl = String(process.env.LOCAL_SINGLE_USER_UPDATE_MANIFEST_URL || DEFAULT_LOCAL_SINGLE_USER_UPDATE_MANIFEST_URL).trim();
+    let publicBaseUrl = manifestUrl;
+    try {
+      const parsed = new URL(manifestUrl);
+      publicBaseUrl = `${parsed.protocol}//${parsed.host}${parsed.pathname.replace(/\/latest\.json$/i, "")}`;
+    } catch {
+      publicBaseUrl = manifestUrl.replace(/\/latest\.json$/i, "");
+    }
     return {
-      owner: String(process.env.LOCAL_SINGLE_USER_UPDATE_REPO_OWNER || "allentry").trim(),
-      repo: String(process.env.LOCAL_SINGLE_USER_UPDATE_REPO_NAME || "local-ai-omni-ops-system").trim(),
+      kind: "oss",
+      label: "阿里云 OSS",
+      manifestUrl,
+      publicBaseUrl,
     };
+  }
+
+  private async fetchOssLatestManifestPayload(manifestUrl: string): Promise<OssLatestManifest> {
+    return this.fetchJson<OssLatestManifest>(manifestUrl, "application/json");
   }
 
   private ensureLocalSingleUserMode() {
@@ -613,34 +711,34 @@ export class SystemUpdateService {
     }
   }
 
-  private async fetchJson<T>(url: string) {
+  private async fetchJson<T>(url: string, accept = "application/json") {
     if (process.platform === "win32") {
       try {
-        const responseText = await this.fetchTextWithWindowsCurl(url, "application/vnd.github+json");
+        const responseText = await this.fetchTextWithWindowsCurl(url, accept);
         return JSON.parse(responseText) as T;
       } catch {
-        // Fall back to Node fetch when curl cannot reach GitHub in the current network path.
+        // Fall back to Node fetch when curl cannot reach the update source in the current network path.
       }
     }
     const response = await this.fetch(url, {
       headers: {
-        Accept: "application/vnd.github+json",
+        Accept: accept,
       },
     });
     return response.json() as Promise<T>;
   }
 
-  private async fetchText(url: string) {
+  private async fetchText(url: string, accept = "text/plain") {
     if (process.platform === "win32") {
       try {
-        return await this.fetchTextWithWindowsCurl(url, "text/plain");
+        return await this.fetchTextWithWindowsCurl(url, accept);
       } catch {
-        // Fall back to Node fetch when curl cannot reach GitHub in the current network path.
+        // Fall back to Node fetch when curl cannot reach the update source in the current network path.
       }
     }
     const response = await this.fetch(url, {
       headers: {
-        Accept: "text/plain",
+        Accept: accept,
       },
     });
     return response.text();

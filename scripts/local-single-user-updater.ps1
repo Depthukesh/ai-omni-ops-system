@@ -165,6 +165,8 @@ try {
   }
 
   Write-Status -Phase "APPLYING" -Message "升级包校验通过，正在停止当前本地运行时。"
+  # Give the API request a brief window to flush its JSON response before we stop the current runtime.
+  Start-Sleep -Seconds 3
   Stop-RuntimeFromMetadata
 
   $extractRoot = Join-Path $script:Config.updatesRoot ("extract-" + ((Get-Date).ToString("yyyyMMdd-HHmmss")) + "-" + $script:Config.releaseTag)

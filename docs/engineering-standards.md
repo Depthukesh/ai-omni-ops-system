@@ -35,7 +35,7 @@
 - 公众号工作台：配置、原创创作、HTML 草稿、一键发布
 - 设计工作台：图片、HTML、PPT、视频等设计任务
 - 个人中心：概览、任务、订单、作品、技能、第三方接口、OpenClaw、安全、团队、邀请
-- `local-single-user` 安装态个人中心已开始承接“版本与升级”，默认通过 GitHub Releases 检查新包，并由后端受控触发独立 updater 执行本地替换；网站版或源码运行态个人中心默认不展示该入口
+- `local-single-user` 安装态个人中心已开始承接“版本与升级”，默认通过 OSS `latest.json` 检查新包，并由后端受控触发独立 updater 执行本地替换；网站版或源码运行态个人中心默认不展示该入口
 - 后台：用户管理、接口供应商、知识库、技能中心、能力包、模块注册中心、模型用量、计费规则
 
 ### 3.3 当前技术选择
@@ -96,7 +96,7 @@
 - 面向用户交付 `local-single-user` 时，默认不能要求用户机器预装 Node；发布物至少要提供随包 `node.exe`、可双击启动的 `.cmd` 入口，以及与 launcher 相匹配的 `app/` 运行目录
 - 面向用户分发 `local-single-user` 时，不能只停留在裸 `.release/local-single-user-win-x64` 目录；至少还要提供安装入口和可校验的压缩包产物，例如 `install-local-single-user.cmd`、`.zip` 与配套 `.sha256`
 - 面向新用户交付的 `local-single-user` 安装脚本，默认要在安装完成时为当前用户配置开机自启动；不能把“安装后还得自己再手动执行 `install-autostart.cmd`”当成交付基线，用户若要关闭自启再通过 `remove-autostart.cmd` 显式移除
-- `local-single-user` 的“检查更新 / 立即升级”入口默认放在个人中心，由后端统一检查 GitHub Releases；前端只负责展示版本状态和触发动作，不在浏览器里直接替换安装目录
+- `local-single-user` 的“检查更新 / 立即升级”入口默认放在个人中心，由后端统一检查 OSS `latest.json` 与安装包 SHA256；前端只负责展示版本状态和触发动作，不在浏览器里直接替换安装目录
 - “版本与升级”这类安装态专属入口，不允许再串回网站版个人中心；后续新增相关入口时，必须同步覆盖概览页、导航和直达路由的三层门禁
 - 自动升级必须通过独立 updater 在安装目录外执行；升级前必须先校验 `.zip` 对应的 `.sha256`，升级时只替换程序目录，不动 `LOCAL_APP_DATA_ROOT` 下的 `data/`、`storage/`、`logs/`、`cache/`、`backup/`、`updates/`
 - 凡是 `local-single-user` 交付链里会被 Windows PowerShell 5 直接执行的 `.ps1`，包括独立 updater 和安装脚本，都必须以 `UTF-8 BOM` 写入；Node 侧生成或复制脚本时不能只落无 BOM 的 `utf8` 文本
@@ -105,6 +105,7 @@
 - Windows 下构建 `local-single-user` 发布物时，大目录复制优先走 `robocopy` 这类系统级工具，不要继续直接依赖 Node `fs.cpSync()` 去整包复制 `node_modules`、standalone 等大目录；否则既可能把进程直接打崩，也没有足够的进度日志可用于排障
 - 如果 launcher 在安装态仍会调用 `npm-cli.js`、并且仍可能依据源码指纹决定是否重跑 `server build` / `web build`，那么发布物就不能只带 `node.exe + dist/standalone`；还必须随包带上 launcher 真正依赖的 npm 运行时和对应源码输入，至少覆盖 `bin/node_modules/npm`、`apps/server/src` 这类安装态首启会命中的输入
 - 面向用户分发的正式 `local-single-user` 发布物，默认应开启 `LOCAL_SINGLE_USER_PREBUILT_ONLY=true` 并按预构建运行时模式启动；除非明确要支持安装态现场重编诊断，否则不要再把 `apps/server/src`、`apps/web/src`、顶层 `next/@next/react` 等仅服务构建兜底的大体积输入继续打进升级包
+- 裁剪 `local-single-user` 发布物里的 `node_modules` 时，不能只按“看起来像开发依赖”做静态删包；凡是安装态首启会命中的链路，尤其 `prisma generate`、`@prisma/config`、`effect` 及其传递依赖，都必须先做真实启动验证后才能决定是否移除
 - launcher 中 `Prisma db push`、`server build`、`web build` 这类长耗时步骤不能只打印开始和结束；至少要有周期性报活日志，避免把正常慢构建误判为卡死
 - launcher 重启时，像 `Web build` 这种重步骤不能默认每次都全量重跑；如果源码与依赖输入未变化，必须优先复用已有产物并显式打印 `skip`，把本地启动时间从重复构建转成复用启动
 - `apps/web` 的 SWC / wasm 口径默认走“兼容优先”：真实本地机器不要一刀切强制 `useWasmBinary`；但在已知原生 SWC DLL 异常的沙箱环境里，可以自动强制 wasm，避免先尝试 native 再失败回退带来的额外耗时

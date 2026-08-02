@@ -13512,6 +13512,12 @@ button {
   gap: 16px;
 }
 
+.design-v3-preview-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .design-v3-preview-header strong {
   color: var(--site-hero-text);
   font-size: 20px;
@@ -13528,6 +13534,29 @@ button {
   width: 100%;
   height: auto;
   display: block;
+}
+
+.design-v3-preview-iframe {
+  width: 100%;
+  min-height: min(78vh, 960px);
+  display: block;
+  border: 0;
+  background: #fff;
+}
+
+.design-v3-preview-empty {
+  min-height: 320px;
+  padding: 32px;
+  display: grid;
+  place-items: center;
+  gap: 16px;
+  text-align: center;
+}
+
+.design-v3-preview-empty p {
+  margin: 0;
+  color: var(--site-hero-muted);
+  line-height: 1.8;
 }
 
 .design-v3-dialog {
