@@ -17,9 +17,15 @@ export type LoginPayload = {
 export type RegisterPayload = {
   mobile: string;
   email: string;
-  inviteCode: string;
+  inviteCode?: string;
   password: string;
   nickname?: string;
+};
+
+export type RegisterConfigResponse = {
+  runtimeMode: "standard" | "local-single-user";
+  inviteCodeRequired: boolean;
+  registrationMode: "invite" | "open";
 };
 
 export type UpdateProfilePayload = {
@@ -88,6 +94,10 @@ export async function register(payload: RegisterPayload) {
     user: response.user,
   });
   return response;
+}
+
+export async function getRegisterConfig() {
+  return request<RegisterConfigResponse>("/auth/register-config");
 }
 
 export async function getMe(options?: { force?: boolean }) {

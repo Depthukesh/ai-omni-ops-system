@@ -186,10 +186,17 @@ export type SystemUpdateAsset = {
 
 export type SystemUpdateLatestRelease = {
   tagName: string;
+  appVersion: string | null;
   name: string;
   htmlUrl: string;
   publishedAt: string;
   body: string;
+  changeLogs: Array<{
+    releaseTag: string | null;
+    appVersion: string | null;
+    publishedAt: string;
+    content: string;
+  }>;
   zipAsset: SystemUpdateAsset | null;
   checksumAsset: SystemUpdateAsset | null;
   checksumValue: string | null;
@@ -220,6 +227,29 @@ export type ApplySystemUpdateResult = {
   phase: SystemUpdatePhase;
   message: string;
   updaterRunPath: string;
+};
+
+export type LocalRuntimeSettings = {
+  supported: boolean;
+  runtimeMode: "standard" | "local-single-user";
+  inviteCodeRequired: boolean;
+  currentLocalAppRoot: string;
+  configuredLocalAppRoot: string;
+  defaultLocalAppRoot: string;
+  settingsFilePath: string;
+  pendingMigrationFrom: string | null;
+  restartRequired: boolean;
+  paths: {
+    appRoot: string;
+    dataRoot: string;
+    dbPath: string;
+    logsRoot: string;
+    runtimeRoot: string;
+    storageRoot: string;
+    cacheRoot: string;
+    backupRoot: string;
+    updatesRoot: string;
+  };
 };
 
 export const profileSeed: UserProfile = {
@@ -518,6 +548,17 @@ export async function downloadSystemUpdate() {
 
 export async function applySystemUpdate() {
   return jsonRequest<ApplySystemUpdateResult>("/system/update/apply", "POST", {});
+}
+
+export async function getLocalRuntimeSettings() {
+  return request<LocalRuntimeSettings>("/local-runtime/settings");
+}
+
+export async function updateLocalRuntimeSettings(payload: { localAppDataRoot?: string | null }) {
+  return request<LocalRuntimeSettings & { success: boolean; message: string }>("/local-runtime/settings", {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
 }
 
 export async function createMedia(payload: {

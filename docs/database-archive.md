@@ -519,8 +519,9 @@
   - 当前沿用账号密码登录，允许手机号 / 邮箱 / 昵称作为账号
 - 注册
   - 主表：`RegistrationInviteCode`、`User`、`Brand`、`BrandMember`
-  - 当前要求手机号和邀请码必填；邀请码验证通过且未消费时才创建用户与默认品牌，并回写消费人和消费时间
-  - 线上部署若只执行 `prisma db push` 不会自动导入预置邀请码；生产环境需额外执行目标化的邀请码 seed，确保 `RegistrationInviteCode` 表具备初始化数据
+  - 网站版和源码运行态当前仍要求手机号和邀请码；邀请码验证通过且未消费时才创建用户与默认品牌，并回写消费人和消费时间
+  - `local-single-user` 安装态当前允许直接注册，不再要求邀请码；但仍会创建用户、默认品牌和品牌成员关系，保持后续业务链路一致
+  - 线上部署若只执行 `prisma db push` 不会自动导入预置邀请码；生产环境需额外执行目标化的邀请码 seed，确保网站版 / 标准运行态的 `RegistrationInviteCode` 表具备初始化数据
 
 ## 5. 当前仍未完全入库的部分
 
@@ -529,6 +530,7 @@
   - 当前典型包括：`billingRules`、部分知识库配置，以及数据库不可用时的 `apiProviders` 兜底数据
   - 当前 mock 模式下的演示账号权限也必须沿用 `mock-data.users[].systemRole`，不能在认证链路中硬降级为普通用户，否则后台 Provider 配置中心无法联调
 - 注册邀请码在数据库不可用时会临时从 `prisma/seed-data/registration-invite-codes.txt` 加载到内存兜底，不写入 `mock-data`
+- `local-single-user` 的资料目录配置当前写在默认资料根下的 `launcher-settings.json`，不入数据库；当前用于承接 launcher 启动时的本地目录选择与待迁移来源路径
 - `提示词/` 与 `.trae/skills/`
   - 当前作为提示词文件基线与首次种子导入来源之一
   - 不再作为数据库可用时的平台级提示词读取真源

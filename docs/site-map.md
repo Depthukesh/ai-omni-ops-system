@@ -50,7 +50,7 @@
 - `/login`
   - 前台登录页
 - `/register`
-  - 前台注册页
+  - 前台注册页；网站版默认仍走邀请码注册，`local-single-user` 安装态改为按 `GET /auth/register-config` 动态切到“直接注册”
 - `/admin/login`
   - 后台管理员登录页
 - `/help/xhs-draft-publisher`
@@ -210,7 +210,7 @@
 - `/personal-center/version`
   - 版本与升级
 - `/personal-center/security`
-  - 安全设置
+  - 安全设置；`local-single-user` 安装态还会在这里展示注册准入规则和本地资料目录设置
 - `/personal-center/team`
   - 团队协作
 - `/personal-center/invites`
@@ -223,7 +223,10 @@
 - 后端通过 `system/update/*` 统一检查 OSS `latest.json`、识别 `AiOmniOps-local-single-user-win-x64.zip` 与 `.sha256`
 - 当前源码运行态允许查看最新发布信息，但会明确提示“不是安装态发布包，暂不支持一键升级”
 - 当前安装态会把升级包先落到 `LOCAL_APP_DATA_ROOT/updates`，完成 SHA256 校验后再由独立 updater 停机、替换安装目录并重启本地工作台
+- `local-single-user` 安装态下，前台注册入口不再要求邀请码；网站版和源码运行态继续沿用邀请码注册
+- `/personal-center/security` 现在会显示当前资料目录、下次启动将使用的资料目录、`launcher-settings.json` 路径，以及数据库 / 存储 / 日志等本地子目录；保存后需重启本地工作台生效
 - 参考变更：`docs/changes/2026-07-28-personal-center-version-update.md`
+- 参考变更：`docs/changes/2026-08-02-local-single-user-open-register-and-local-data-root.md`
 
 ### 4.7 后台管理台 `/admin`
 
@@ -277,6 +280,8 @@
 - `publishing`
 - `media`
 - `orders`
+- `local-runtime`
+  - `local-single-user` 安装态资料目录设置、注册准入信息与 launcher 配置读写入口
 - `system-update`
   - OSS `latest.json` 检查、本地升级包下载校验、独立 updater 启动入口
 - `third-party-platforms`

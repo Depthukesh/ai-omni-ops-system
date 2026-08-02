@@ -26,6 +26,11 @@ export class AuthController {
     return this.authService.register(payload);
   }
 
+  @Get("register-config")
+  getRegisterConfig() {
+    return this.authService.getRegisterConfig();
+  }
+
   @Post("refresh")
   refresh(@Body() payload: RefreshSessionPayload) {
     return this.authService.refreshSession(payload);

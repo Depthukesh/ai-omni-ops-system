@@ -42,10 +42,17 @@ type RemoteReleaseAsset = {
 
 type RemoteReleaseInfo = {
   tagName: string;
+  appVersion: string | null;
   name: string;
   htmlUrl: string;
   publishedAt: string;
   body: string;
+  changeLogs: Array<{
+    releaseTag: string | null;
+    appVersion: string | null;
+    publishedAt: string;
+    content: string;
+  }>;
   zipAsset: RemoteReleaseAsset | null;
   checksumAsset: RemoteReleaseAsset | null;
   checksumValue: string | null;
@@ -53,6 +60,7 @@ type RemoteReleaseInfo = {
 
 type OssLatestManifest = {
   version?: string;
+  appVersion?: string;
   name?: string;
   publishedAt?: string;
   zipUrl?: string;
@@ -60,6 +68,14 @@ type OssLatestManifest = {
   checksumValue?: string;
   notes?: string;
   source?: string;
+  history?: Array<{
+    releaseTag?: string;
+    version?: string;
+    appVersion?: string;
+    publishedAt?: string;
+    content?: string;
+    notes?: string;
+  }>;
 };
 
 type CurrentBuildInfo = {
@@ -152,6 +168,46 @@ function resolveDateTime(value: string | null | undefined) {
 function parseChecksumValue(content: string) {
   const match = String(content || "").match(/\b([a-fA-F0-9]{64})\b/);
   return match?.[1]?.toLowerCase() || null;
+}
+
+function normalizeChangeLogs(
+  manifest: OssLatestManifest,
+  fallbackPublishedAt: string,
+  fallbackTagName: string,
+) {
+  const normalized = Array.isArray(manifest.history)
+    ? manifest.history
+        .map((item) => {
+          const content = String(item?.content || item?.notes || "").trim();
+          if (!content) {
+            return null;
+          }
+          return {
+            releaseTag: String(item?.releaseTag || item?.version || "").trim() || null,
+            appVersion: String(item?.appVersion || "").trim() || null,
+            publishedAt: normalizeIsoDate(item?.publishedAt) || fallbackPublishedAt,
+            content,
+          };
+        })
+        .filter((item): item is NonNullable<typeof item> => Boolean(item))
+    : [];
+
+  if (normalized.length > 0) {
+    return normalized;
+  }
+
+  const fallbackContent = String(manifest.notes || "").trim();
+  if (!fallbackContent) {
+    return [];
+  }
+  return [
+    {
+      releaseTag: fallbackTagName || null,
+      appVersion: String(manifest.appVersion || "").trim() || null,
+      publishedAt: fallbackPublishedAt,
+      content: fallbackContent,
+    },
+  ];
 }
 
 function escapePowerShellSingleQuotedString(value: string) {
@@ -249,6 +305,9 @@ export class SystemUpdateService {
     if (!latest) {
       throw new BadGatewayException(latestResult.errorMessage || "当前无法获取最新发布信息");
     }
+    if (this.isCurrentBuildAligned(current, latest) && !this.computeUpdateAvailable(current, latest)) {
+      throw new BadRequestException("当前已经是最新版本，无需重复预下载安装包。");
+    }
     if (!latest.zipAsset || !latest.checksumValue) {
       throw new BadGatewayException("最新发布缺少可下载安装包或 SHA256 校验文件");
     }
@@ -302,6 +361,9 @@ export class SystemUpdateService {
     const latest = latestResult.release;
     if (!latest) {
       throw new BadGatewayException(latestResult.errorMessage || "当前无法获取最新发布信息");
+    }
+    if (this.isCurrentBuildAligned(current, latest) && !this.computeUpdateAvailable(current, latest)) {
+      throw new BadRequestException("当前安装版本已经和最新版本对齐，无需再次执行升级。");
     }
 
     const downloadedReady =
@@ -469,16 +531,21 @@ export class SystemUpdateService {
         const checksumText = await this.fetchText(checksumAsset.downloadUrl, "text/plain");
         checksumValue = parseChecksumValue(checksumText);
       }
+      const publishedAt = normalizeIsoDate(response.publishedAt) || checkedAt;
+      const tagName = String(response.version || "").trim();
+      const changeLogs = normalizeChangeLogs(response, publishedAt, tagName);
 
       const result: LatestReleaseResult = {
         checkedAt,
         errorMessage: null,
         release: {
-          tagName: String(response.version || "").trim(),
+          tagName,
+          appVersion: String(response.appVersion || "").trim() || null,
           name: String(response.name || response.version || "").trim(),
           htmlUrl: zipUrl || source.manifestUrl,
-          publishedAt: normalizeIsoDate(response.publishedAt) || checkedAt,
+          publishedAt,
           body: releaseBody,
+          changeLogs,
           zipAsset,
           checksumAsset,
           checksumValue,
@@ -604,7 +671,7 @@ export class SystemUpdateService {
     if (current.runtimeMode !== "local-single-user") {
       return "UNSUPPORTED";
     }
-    if (persistedState?.phase === "APPLYING" && this.isCurrentBuildAligned(current, latest) && !updateAvailable) {
+    if (this.isCurrentBuildAligned(current, latest) && !updateAvailable) {
       return "SUCCEEDED";
     }
     if (persistedState?.phase === "DOWNLOADING") {
@@ -641,8 +708,8 @@ export class SystemUpdateService {
     if (latestErrorMessage) {
       return latestErrorMessage;
     }
-    if (persistedState?.phase === "APPLYING" && this.isCurrentBuildAligned(current, latest || null) && !updateAvailable) {
-      return "当前已经完成升级并和最新版本对齐。";
+    if (this.isCurrentBuildAligned(current, latest || null) && !updateAvailable) {
+      return "当前安装版本已经和最新版本对齐。";
     }
     if (persistedState?.phase === "DOWNLOADING") {
       return persistedState.message || "正在下载最新安装包并校验完整性。";

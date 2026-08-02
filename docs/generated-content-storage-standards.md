@@ -67,6 +67,7 @@
 - `/api/auth/users/:userId/avatar/:fileName`
 - 站内接口负责按 `storageKey` 从 OSS 读取，不再把 `.runtime/generated-works/` 或其他本地目录当作正式真源
 - 仅在本地开发且未配置 OSS 时，允许暂时回退到 `.runtime/local-oss/<storageKey>` 作为联调副本；但站内接口、`storageKey` 前缀与业务记录结构必须保持和正式 OSS 链路一致
+- `local-single-user` 安装态新增“本地资料目录”设置后，`LOCAL_APP_DATA_ROOT/storage` 主要承接安装态本地运行资料与副本目录；这项设置本身不等于把作品、报告、媒体正式真源从 OSS 切成本地目录
 - 若已配置 OSS 但当前运行环境不在阿里云内网，`OSS_INTERNAL` 应保持关闭或不配置；只有明确需要走阿里云内网 endpoint 时才开启 `OSS_INTERNAL=true`
 
 ## 5. 三类作品存储要求

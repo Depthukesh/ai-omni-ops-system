@@ -1,9 +1,10 @@
-﻿﻿﻿﻿﻿﻿"use client";
+﻿﻿﻿﻿﻿"use client";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { changePassword, getMe, logout as logoutSession, readAuthSession, switchBrand, updateProfile, uploadProfileAvatar, type MeResponse } from "../../../../services/auth";
+import { getLocalRuntimeSettings, updateLocalRuntimeSettings, type LocalRuntimeSettings } from "../../../../services/personal-center";
 import { buildPersonalCenterLoginPath, formatCollaboratorRoleLabel, formatDateTime, isAuthFailure } from "../route-helpers";
 
 type SecurityStatus = "SAFE" | "ATTENTION";
@@ -30,9 +31,12 @@ export default function PersonalCenterSecurityPage() {
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [isSavingLocalRuntime, setIsSavingLocalRuntime] = useState(false);
   const [notice, setNotice] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [dataSource, setDataSource] = useState<"api" | "session">("session");
+  const [localRuntimeSettings, setLocalRuntimeSettings] = useState<LocalRuntimeSettings | null>(null);
+  const [localAppDataRootDraft, setLocalAppDataRootDraft] = useState("");
   const [formNickname, setFormNickname] = useState("");
   const [formMobile, setFormMobile] = useState("");
   const [formAvatarUrl, setFormAvatarUrl] = useState("");
@@ -106,6 +110,16 @@ export default function PersonalCenterSecurityPage() {
       setCurrentBrandId(session?.currentBrandId || session?.brands?.[0]?.id || "");
       setDataSource("session");
       setErrorMessage("安全中心当前无法刷新账号信息，页面先展示浏览器中已保存的登录状态快照。");
+    }
+
+    const localRuntimeResult = await Promise.resolve(getLocalRuntimeSettings()).then(
+      (value) => ({ status: "fulfilled" as const, value }),
+      (reason) => ({ status: "rejected" as const, reason }),
+    );
+
+    if (localRuntimeResult.status === "fulfilled") {
+      setLocalRuntimeSettings(localRuntimeResult.value);
+      setLocalAppDataRootDraft(localRuntimeResult.value.configuredLocalAppRoot);
     }
 
     setIsLoading(false);
@@ -265,6 +279,34 @@ export default function PersonalCenterSecurityPage() {
       setErrorMessage(`修改密码失败：${message}`);
     } finally {
       setIsChangingPassword(false);
+    }
+  }
+
+  async function handleSaveLocalRuntime(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!localRuntimeSettings?.supported) {
+      return;
+    }
+
+    setIsSavingLocalRuntime(true);
+    setNotice("");
+    setErrorMessage("");
+    try {
+      const nextSettings = await updateLocalRuntimeSettings({
+        localAppDataRoot: localAppDataRootDraft.trim() || null,
+      });
+      setLocalRuntimeSettings(nextSettings);
+      setLocalAppDataRootDraft(nextSettings.configuredLocalAppRoot);
+      setNotice(nextSettings.message);
+    } catch (error) {
+      if (isAuthFailure(error)) {
+        await handleSessionExpired();
+        return;
+      }
+      const message = error instanceof Error ? error.message : "保存本地资料目录失败";
+      setErrorMessage(`保存本地资料目录失败：${message}`);
+    } finally {
+      setIsSavingLocalRuntime(false);
     }
   }
 
@@ -550,6 +592,87 @@ export default function PersonalCenterSecurityPage() {
         <article className="entity-card personal-card">
           <div className="entity-card-head">
             <div>
+              <strong>本地单机版注册与资料目录</strong>
+              <p className="personal-meta">这里统一查看当前安装态的注册准入规则和资料目录设置。目录改动会在下次重启本地工作台时生效。</p>
+            </div>
+            <span className="archive-pill status-ready">安装态设置</span>
+          </div>
+          <div className="personal-grid">
+            <div>
+              <span>当前运行模式</span>
+              <strong>{localRuntimeSettings?.runtimeMode || "未获取"}</strong>
+            </div>
+            <div>
+              <span>注册准入</span>
+              <strong>{localRuntimeSettings?.inviteCodeRequired ? "仍需邀请码" : "允许直接注册"}</strong>
+            </div>
+            <div className="field-full">
+              <span>当前资料目录</span>
+              <strong className="mono-text">{localRuntimeSettings?.currentLocalAppRoot || "未获取"}</strong>
+            </div>
+            <div className="field-full">
+              <span>下次启动将使用</span>
+              <strong className="mono-text">{localRuntimeSettings?.configuredLocalAppRoot || "未获取"}</strong>
+            </div>
+            <div className="field-full">
+              <span>设置文件</span>
+              <strong className="mono-text">{localRuntimeSettings?.settingsFilePath || "未获取"}</strong>
+            </div>
+            <div>
+              <span>数据库</span>
+              <strong className="mono-text">{localRuntimeSettings?.paths.dbPath || "未获取"}</strong>
+            </div>
+            <div>
+              <span>存储目录</span>
+              <strong className="mono-text">{localRuntimeSettings?.paths.storageRoot || "未获取"}</strong>
+            </div>
+            <div>
+              <span>日志目录</span>
+              <strong className="mono-text">{localRuntimeSettings?.paths.logsRoot || "未获取"}</strong>
+            </div>
+            <div>
+              <span>重启要求</span>
+              <strong>{localRuntimeSettings?.restartRequired ? "需要重启生效" : "当前已生效"}</strong>
+            </div>
+          </div>
+          {localRuntimeSettings?.supported ? (
+            <form className="form-grid" onSubmit={handleSaveLocalRuntime} style={{ marginTop: 16 }}>
+              <label className="field field-full">
+                <span>本地资料目录</span>
+                <input
+                  value={localAppDataRootDraft}
+                  onChange={(event) => setLocalAppDataRootDraft(event.target.value)}
+                  placeholder="例如 D:\\AiOmniOpsData"
+                />
+              </label>
+              <p className="field-hint">
+                保存后不会立刻中断当前会话；下次重启本地工作台时，会把数据库、存储、日志、缓存和升级目录统一切到新根目录。
+              </p>
+              {localRuntimeSettings.pendingMigrationFrom ? (
+                <p className="field-hint">待迁移旧目录：`{localRuntimeSettings.pendingMigrationFrom}`</p>
+              ) : null}
+              <div className="personal-actions personal-actions--tight field-full">
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => setLocalAppDataRootDraft(localRuntimeSettings.defaultLocalAppRoot)}
+                  disabled={isSavingLocalRuntime}
+                >
+                  恢复默认目录
+                </button>
+                <button type="submit" className="primary-button" disabled={isSavingLocalRuntime}>
+                  {isSavingLocalRuntime ? "保存中..." : "保存资料目录设置"}
+                </button>
+              </div>
+            </form>
+          ) : (
+            <p className="field-hint">当前不是 local-single-user 安装态，这里只展示本地资料目录设置说明，不开放修改。</p>
+          )}
+        </article>
+
+        <article className="entity-card personal-card">
+          <div className="entity-card-head">
+            <div>
               <strong>下一阶段安全能力</strong>
               <p className="personal-meta">密码修改已经就绪，下面这些能力会在后续迭代里继续补齐。</p>
             </div>
@@ -596,4 +719,3 @@ function maskToken(value?: string) {
   }
   return `${value.slice(0, 6)}...${value.slice(-6)}`;
 }
-

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { login, readAuthSession, register } from "../services/auth";
+import { getRegisterConfig, login, readAuthSession, register } from "../services/auth";
 
 type AuthMode = "register" | "login";
 
@@ -26,6 +26,7 @@ export function HomePageClient(props: HomePageClientProps) {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [inviteCodeRequired, setInviteCodeRequired] = useState(true);
   const normalizedEmail = useMemo(() => email.trim().toLowerCase(), [email]);
 
   useEffect(() => {
@@ -33,6 +34,14 @@ export function HomePageClient(props: HomePageClientProps) {
       router.replace(nextPath);
     }
   }, [nextPath, router]);
+
+  useEffect(() => {
+    void getRegisterConfig().then((config) => {
+      setInviteCodeRequired(config.inviteCodeRequired);
+    }).catch(() => {
+      setInviteCodeRequired(true);
+    });
+  }, []);
 
   useEffect(() => {
     setErrorMessage("");
@@ -70,7 +79,7 @@ export function HomePageClient(props: HomePageClientProps) {
       setErrorMessage("请输入邮箱");
       return;
     }
-    if (!inviteCode.trim()) {
+    if (inviteCodeRequired && !inviteCode.trim()) {
       setErrorMessage("请输入邀请码");
       return;
     }
@@ -89,7 +98,7 @@ export function HomePageClient(props: HomePageClientProps) {
       await register({
         mobile: mobile.trim(),
         email: normalizedEmail,
-        inviteCode: inviteCode.trim(),
+        inviteCode: inviteCode.trim() || undefined,
         password: registerPassword,
         nickname: nickname.trim() || undefined,
       });
@@ -110,10 +119,12 @@ export function HomePageClient(props: HomePageClientProps) {
         <div className="panel-header">
           <div>
             <span className="hero-badge">AI 全域运营系统</span>
-            <h1>{mode === "register" ? "邀请制注册" : "统一账号登录"}</h1>
+            <h1>{mode === "register" ? (inviteCodeRequired ? "邀请制注册" : "本地直接注册") : "统一账号登录"}</h1>
             <p className="panel-subtext">
               {mode === "register"
-                ? "前台页面统一要求登录后访问。当前注册采用邀请码准入，邀请码验证通过后自动创建账号和默认品牌。"
+                ? (inviteCodeRequired
+                  ? "前台页面统一要求登录后访问。当前注册采用邀请码准入，邀请码验证通过后自动创建账号和默认品牌。"
+                  : "当前 local-single-user 安装态允许直接注册，注册成功后会自动创建默认品牌并进入工作台。")
                 : "前台工作台统一使用同一套普通账号登录；后台管理台请使用管理员账号单独登录。"}
             </p>
           </div>
@@ -148,16 +159,18 @@ export function HomePageClient(props: HomePageClientProps) {
                 autoComplete="email"
               />
             </label>
-            <label className="field">
-              <span>邀请码</span>
-              <input
-                value={inviteCode}
-                onChange={(event) => setInviteCode(event.target.value)}
-                placeholder="请输入 6 位邀请码"
-                autoComplete="off"
-                spellCheck={false}
-              />
-            </label>
+            {inviteCodeRequired ? (
+              <label className="field">
+                <span>邀请码</span>
+                <input
+                  value={inviteCode}
+                  onChange={(event) => setInviteCode(event.target.value)}
+                  placeholder="请输入 6 位邀请码"
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+              </label>
+            ) : null}
             <label className="field">
               <span>昵称</span>
               <input
@@ -187,7 +200,9 @@ export function HomePageClient(props: HomePageClientProps) {
                 autoComplete="new-password"
               />
             </label>
-            <p className="field-hint">没有邀请码的用户无法注册；邀请码一次性使用，注册成功后下次可直接登录。</p>
+            <p className="field-hint">
+              {inviteCodeRequired ? "没有邀请码的用户无法注册；邀请码一次性使用，注册成功后下次可直接登录。" : "当前本地单机版允许当前用户直接注册，不再要求邀请码。"}
+            </p>
             {errorMessage ? <p className="error-text">{errorMessage}</p> : null}
             <button type="submit" className="primary-button" disabled={isSubmitting}>
               {isSubmitting ? "注册中..." : "完成注册并进入工作台"}

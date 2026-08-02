@@ -114,6 +114,10 @@
 
 ## 最近应优先关注的文档
 
+- `docs/changes/2026-08-03-version-page-log-focused-layout-and-oss-history.md`
+  - 版本与升级页收口为“当前版本 / 最新版本”两张版本卡 + “系统更新日志”；OSS `latest.json` 同步补入 `appVersion` 与 `history`，后续更新记录可持续累积
+- `docs/changes/2026-08-02-local-single-user-open-register-and-local-data-root.md`
+  - `local-single-user` 安装态注册改为免邀请码，并在个人中心安全页补入本地资料目录设置；目录配置写入 `launcher-settings.json`，下次重启时迁移并切换到新的本地资料根
 - `docs/changes/2026-07-28-personal-center-version-update.md`
   - 个人中心新增“版本与升级”页：后端通过 `system/update/*` 检查 OSS `latest.json`、预下载并校验 `AiOmniOps-local-single-user-win-x64.zip`，安装态再通过独立 updater 执行本地替换与重启
 - `docs/changes/2026-07-27-readme-install-guide-and-repo-slimming.md`

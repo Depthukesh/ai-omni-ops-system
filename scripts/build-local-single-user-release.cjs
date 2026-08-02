@@ -13,6 +13,7 @@ const releaseMetaRoot = path.join(releaseRoot, "meta");
 
 const forwardedArgs = new Set(process.argv.slice(2).map((value) => String(value || "").trim().toLowerCase()));
 const dryRun = forwardedArgs.has("--dry-run");
+const skipPrebuild = forwardedArgs.has("--skip-prebuild");
 const releaseTag = String(process.env.LOCAL_SINGLE_USER_RELEASE_TAG || "").trim();
 
 function ensureExists(targetPath) {
@@ -101,6 +102,37 @@ function writeUtf8BomFile(filePath, content) {
 function writeJsonFile(filePath, value) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+}
+
+function resolveHostNpmCliPath() {
+  const explicit = String(process.env.npm_execpath || "").trim();
+  if (explicit && fs.existsSync(explicit)) {
+    return explicit;
+  }
+
+  const candidates = [
+    path.join(path.dirname(process.execPath), "node_modules", "npm", "bin", "npm-cli.js"),
+    path.join(path.dirname(path.dirname(process.execPath)), "node_modules", "npm", "bin", "npm-cli.js"),
+  ];
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+  throw new Error(`未找到当前环境可用的 npm-cli.js：${process.execPath}`);
+}
+
+function runCommand(command, args, label) {
+  console.log(`[step] ${label}`);
+  const result = spawnSync(command, args, {
+    cwd: projectRoot,
+    stdio: "inherit",
+    windowsHide: true,
+  });
+  if (result.status !== 0) {
+    throw new Error(`${label} 失败，退出码：${result.status || 1}`);
+  }
+  console.log(`[done] ${label}`);
 }
 
 function updateHashWithPathEntry(hash, rootBase, targetPath) {
@@ -202,7 +234,30 @@ function buildLauncherCmd() {
     '  set "NODE_EXE=node"',
     '  set "NODE_SOURCE=path"',
     ")",
-    'set "LOG_DIR=%APPDATA%\\AiOmniOps\\logs"',
+    'pushd "%APP_DIR%" >nul 2>&1',
+    "if errorlevel 1 (",
+    "  exit /b 1",
+    ")",
+    'set "RESOLVED_LOCAL_ROOT="',
+    'set "RESOLVE_ROOT_FILE=%TEMP%\\ai-omni-local-root-%RANDOM%%RANDOM%.txt"',
+    'if exist "scripts\\local-single-user-launch-settings.cjs" (',
+    '  if exist "%RESOLVE_ROOT_FILE%" del /f /q "%RESOLVE_ROOT_FILE%" >nul 2>&1',
+    '  "%NODE_EXE%" "scripts\\local-single-user-launch-settings.cjs" resolve-root > "%RESOLVE_ROOT_FILE%" 2>nul',
+    '  if exist "%RESOLVE_ROOT_FILE%" (',
+    '    set /p RESOLVED_LOCAL_ROOT=<"%RESOLVE_ROOT_FILE%"',
+    '    del /f /q "%RESOLVE_ROOT_FILE%" >nul 2>&1',
+    "  )",
+    ")",
+    "popd",
+    'if defined RESOLVED_LOCAL_ROOT (',
+    '  set "LOCAL_APP_DATA_ROOT=%RESOLVED_LOCAL_ROOT%"',
+    '  set "AI_OMNI_LOCAL_ROOT=%RESOLVED_LOCAL_ROOT%"',
+    ")",
+    'if defined LOCAL_APP_DATA_ROOT (',
+    '  set "LOG_DIR=%LOCAL_APP_DATA_ROOT%\\logs"',
+    ") else (",
+    '  set "LOG_DIR=%APPDATA%\\AiOmniOps\\logs"',
+    ")",
     'if not exist "%LOG_DIR%" mkdir "%LOG_DIR%" >nul 2>&1',
     'set "START_LOG=%LOG_DIR%\\start-local-single-user.log"',
     'echo ==== [%date% %time%] start-local-single-user.cmd ==== >> "%START_LOG%"',
@@ -210,6 +265,7 @@ function buildLauncherCmd() {
     'echo APP_DIR=%APP_DIR% >> "%START_LOG%"',
     'echo NODE_SOURCE=%NODE_SOURCE% >> "%START_LOG%"',
     'echo NODE_EXE=%NODE_EXE% >> "%START_LOG%"',
+    'echo LOCAL_APP_DATA_ROOT=%LOCAL_APP_DATA_ROOT% >> "%START_LOG%"',
     'if not exist "%APP_DIR%\\scripts\\local-single-user-launcher.cjs" (',
     '  echo Missing launcher script: %APP_DIR%\\scripts\\local-single-user-launcher.cjs >> "%START_LOG%"',
     "  exit /b 1",
@@ -506,6 +562,12 @@ function pruneReleaseNodeModules() {
 function main() {
   generateLocalSchema();
 
+  if (!dryRun && !skipPrebuild) {
+    const npmCliPath = resolveHostNpmCliPath();
+    runCommand(process.execPath, [npmCliPath, "run", "build:server"], "Build server dist");
+    runCommand(process.execPath, [npmCliPath, "run", "build:web"], "Build web standalone");
+  }
+
   const requiredRelativePaths = [
     "package.json",
     "prisma\\schema.prisma",
@@ -517,6 +579,7 @@ function main() {
     "apps\\web\\.next\\static",
     "scripts\\generate-local-prisma-schema.cjs",
     "scripts\\local-single-user-launcher.cjs",
+    "scripts\\local-single-user-launch-settings.cjs",
     "scripts\\local-single-user-runtime.cjs",
     "scripts\\local-single-user-prisma.cjs",
     "scripts\\local-single-user-autostart.cjs",

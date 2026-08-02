@@ -23,6 +23,7 @@ import { OpenClawModule } from "./modules/openclaw/openclaw.module";
 import { PublishingModule } from "./modules/publishing/publishing.module";
 import { ReportsModule } from "./modules/reports/reports.module";
 import { TasksModule } from "./modules/tasks/tasks.module";
+import { LocalRuntimeModule } from "./modules/local-runtime/local-runtime.module";
 import { SystemUpdateModule } from "./modules/system-update/system-update.module";
 import { ThirdPartyPlatformsModule } from "./modules/third-party-platforms/third-party-platforms.module";
 import { UserSkillsModule } from "./modules/user-skills/user-skills.module";
@@ -50,6 +51,7 @@ import { PrismaModule } from "./prisma/prisma.module";
     CollectorsModule,
     FeedbackModule,
     TasksModule,
+    LocalRuntimeModule,
     SystemUpdateModule,
     ThirdPartyPlatformsModule,
     UserSkillsModule,

@@ -35,7 +35,7 @@ export type RegisterPayload = {
   mobile: string;
   password: string;
   email: string;
-  inviteCode: string;
+  inviteCode?: string;
   nickname?: string;
 };
 
@@ -237,7 +237,7 @@ export class AuthService {
       email: this.normalizeEmail(payload.email),
       mobile: payload.mobile.trim(),
       nickname: payload.nickname?.trim() || undefined,
-      inviteCode: payload.inviteCode.trim(),
+      inviteCode: payload.inviteCode?.trim() || "",
     };
     this.assertRegisterPayload(normalizedPayload);
 
@@ -256,15 +256,17 @@ export class AuthService {
       }
 
       const created = await this.prismaService.$transaction(async (tx) => {
-        const invite = await tx.registrationInviteCode.findUnique({
-          where: { code: normalizedPayload.inviteCode },
-          select: {
-            id: true,
-            consumedAt: true,
-          },
-        });
+        const invite = this.shouldRequireRegistrationInviteCode()
+          ? await tx.registrationInviteCode.findUnique({
+              where: { code: normalizedPayload.inviteCode },
+              select: {
+                id: true,
+                consumedAt: true,
+              },
+            })
+          : null;
 
-        if (!invite || invite.consumedAt) {
+        if (this.shouldRequireRegistrationInviteCode() && (!invite || invite.consumedAt)) {
           throw new BadRequestException("邀请码不存在、已失效或已被使用");
         }
 
@@ -301,13 +303,15 @@ export class AuthService {
           },
         });
 
-        await tx.registrationInviteCode.update({
-          where: { id: invite.id },
-          data: {
-            consumedAt: new Date(),
-            consumedByUserId: user.id,
-          },
-        });
+        if (invite?.id) {
+          await tx.registrationInviteCode.update({
+            where: { id: invite.id },
+            data: {
+              consumedAt: new Date(),
+              consumedByUserId: user.id,
+            },
+          });
+        }
 
         return {
           user,
@@ -334,7 +338,9 @@ export class AuthService {
     if (exists) {
       throw new ConflictException("该手机号或邮箱已存在");
     }
-    this.consumeMockRegistrationInviteCode(normalizedPayload.inviteCode);
+    if (this.shouldRequireRegistrationInviteCode()) {
+      this.consumeMockRegistrationInviteCode(normalizedPayload.inviteCode);
+    }
 
     const user = {
       id: createId("usr"),
@@ -362,7 +368,9 @@ export class AuthService {
 
     database.users.unshift(user);
     database.brands.unshift(brand);
-    this.markMockRegistrationInviteCodeConsumed(normalizedPayload.inviteCode, user.id);
+    if (this.shouldRequireRegistrationInviteCode()) {
+      this.markMockRegistrationInviteCodeConsumed(normalizedPayload.inviteCode, user.id);
+    }
 
     return {
       accessToken: this.signToken({ sub: user.id, typ: "access", exp: this.getUnixTime() + this.getAccessTokenTtlSeconds(), bid: brand.id }),
@@ -423,6 +431,15 @@ export class AuthService {
       currentBrandId,
       brands,
       user: this.toPublicDatabaseUser(session.user),
+    };
+  }
+
+  getRegisterConfig() {
+    const inviteCodeRequired = this.shouldRequireRegistrationInviteCode();
+    return {
+      runtimeMode: this.appConfigService.getRuntimeMode(),
+      inviteCodeRequired,
+      registrationMode: inviteCodeRequired ? "invite" : "open",
     };
   }
 
@@ -930,9 +947,13 @@ export class AuthService {
     if (!payload.password || payload.password.length < 6) {
       throw new BadRequestException("密码至少 6 位");
     }
-    if (!payload.inviteCode || !/^[!-~]{6}$/.test(payload.inviteCode)) {
+    if (this.shouldRequireRegistrationInviteCode() && (!payload.inviteCode || !/^[!-~]{6}$/.test(payload.inviteCode))) {
       throw new BadRequestException("请输入 6 位邀请码");
     }
+  }
+
+  private shouldRequireRegistrationInviteCode() {
+    return !this.appConfigService.isLocalSingleUserMode();
   }
 
   private assertUpdateProfilePayload(payload: UpdateProfilePayload) {

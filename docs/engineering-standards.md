@@ -22,7 +22,7 @@
 ### 3.1 入口事实
 
 - `/` 是官网首页，不再承担登录入口职责
-- `/login`、`/register` 是前台账号入口
+- `/login`、`/register` 是前台账号入口；其中 `/register` 必须按运行模式区分是否需要邀请码，不能再把网站版和 `local-single-user` 安装态写成同一套固定表单
 - `/admin/login` 是后台管理员入口
 - `/brand-growth`、`/xiaohongshu`、`/douyin`、`/wechat`、`/more-features/design`、`/personal-center/*` 是受保护页面，未登录统一跳转 `/login?next=...`
 - `/admin` 只允许后台角色进入
@@ -97,8 +97,12 @@
 - 面向用户分发 `local-single-user` 时，不能只停留在裸 `.release/local-single-user-win-x64` 目录；至少还要提供安装入口和可校验的压缩包产物，例如 `install-local-single-user.cmd`、`.zip` 与配套 `.sha256`
 - 面向新用户交付的 `local-single-user` 安装脚本，默认要在安装完成时为当前用户配置开机自启动；不能把“安装后还得自己再手动执行 `install-autostart.cmd`”当成交付基线，用户若要关闭自启再通过 `remove-autostart.cmd` 显式移除
 - `local-single-user` 的“检查更新 / 立即升级”入口默认放在个人中心，由后端统一检查 OSS `latest.json` 与安装包 SHA256；前端只负责展示版本状态和触发动作，不在浏览器里直接替换安装目录
+- `local-single-user` 安装态的注册入口默认允许直接注册，不再要求邀请码；网站版和源码运行态继续保留邀请码校验，不能把安装态免邀请码逻辑外溢到线上多用户环境
 - “版本与升级”这类安装态专属入口，不允许再串回网站版个人中心；后续新增相关入口时，必须同步覆盖概览页、导航和直达路由的三层门禁
 - 自动升级必须通过独立 updater 在安装目录外执行；升级前必须先校验 `.zip` 对应的 `.sha256`，升级时只替换程序目录，不动 `LOCAL_APP_DATA_ROOT` 下的 `data/`、`storage/`、`logs/`、`cache/`、`backup/`、`updates/`
+- `local-single-user` 的资料目录允许由用户在个人中心安全页配置，但配置文件必须独立保存在默认资料根下的 `launcher-settings.json`，不能写回程序安装目录；目录切换默认在下次重启时迁移并生效
+- 本地资料目录不能指向程序安装目录，也不能把“更换资料目录”做成即时热切换；默认要求“保存配置 -> 重启 -> launcher 迁移 -> 新目录生效”的受控闭环
+- 打 `local-single-user` 安装包时，不能直接复用可能过期的 `apps/server/dist` 或 `apps/web/.next/standalone`；打包前必须先做一次真实预构建，再把最新产物装进 release bundle
 - 凡是 `local-single-user` 交付链里会被 Windows PowerShell 5 直接执行的 `.ps1`，包括独立 updater 和安装脚本，都必须以 `UTF-8 BOM` 写入；Node 侧生成或复制脚本时不能只落无 BOM 的 `utf8` 文本
 - 如果 `local-single-user` 的独立 updater 要在安装前整体移动或替换安装根，停机阶段不能只杀 runtime metadata 中记录的 launcher / server / worker / web PID；还必须额外清理命令行仍引用 `start-local-single-user.cmd` 的 `cmd.exe` wrapper 进程，否则 `Move-Item` 会因为文件占用留下“半替换”安装根
 - 如果 `local-single-user` 升级链里存在由 PowerShell 写出的本地 JSON（例如 `system-update-status.json`），Node 侧读取时必须先剥掉 UTF-8 BOM 再做 `JSON.parse`，不能假设持久化状态文件一定是纯无 BOM 文本

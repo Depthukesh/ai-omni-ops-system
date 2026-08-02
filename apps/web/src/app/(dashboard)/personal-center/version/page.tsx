@@ -1,8 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { getMe, readAuthSession } from "../../../../services/auth";
 import {
   applySystemUpdate,
@@ -192,72 +191,55 @@ export default function PersonalCenterVersionPage() {
 
   const latestRelease = status?.latest || null;
   const currentBuild = status?.current || null;
+  const isCurrentAlignedWithLatest =
+    Boolean(currentBuild && latestRelease)
+    && (
+      (Boolean(currentBuild?.releaseTag) && currentBuild?.releaseTag === latestRelease?.tagName)
+      || (!status?.updateAvailable && status?.phase === "SUCCEEDED")
+    );
   const hasPreparedPackage =
     Boolean(status?.downloadedReleaseTag)
     && status?.downloadedReleaseTag === latestRelease?.tagName
-    && status?.phase === "READY_TO_APPLY";
+    && status?.phase === "READY_TO_APPLY"
+    && !isCurrentAlignedWithLatest;
   const canDownload =
     Boolean(status?.supported)
     && Boolean(currentBuild?.canApplyUpdate)
     && Boolean(latestRelease?.zipAsset)
     && Boolean(latestRelease?.checksumValue)
+    && !isCurrentAlignedWithLatest
     && Boolean(status?.updateAvailable || hasPreparedPackage);
   const canApply =
     Boolean(status?.supported)
     && Boolean(currentBuild?.canApplyUpdate)
     && Boolean(latestRelease?.zipAsset)
     && Boolean(latestRelease?.checksumValue)
+    && !isCurrentAlignedWithLatest
     && Boolean(status?.updateAvailable || hasPreparedPackage);
 
-  const summaryCards = useMemo(
-    () => [
-      {
-        label: "当前版本",
-        value: currentBuild?.version || "-",
-        detail: currentBuild?.buildName || "未识别发布包信息",
-      },
-      {
-        label: "当前构建时间",
-        value: formatDateTime(currentBuild?.generatedAt || undefined),
-        detail: currentBuild?.generatedAt ? "来自安装包 manifest" : "当前环境尚未携带 release manifest",
-      },
-      {
-        label: "最新版本",
-        value: latestRelease?.tagName || "未获取",
-        detail: latestRelease ? formatDateTime(latestRelease.publishedAt) : "当前还没拿到 OSS 最新发布信息",
-      },
-      {
-        label: "升级状态",
-        value: formatPhaseLabel(status?.phase),
-        detail: status?.message || "当前没有新的升级状态",
-      },
-    ],
-    [currentBuild?.buildName, currentBuild?.generatedAt, currentBuild?.version, latestRelease, status?.message, status?.phase],
-  );
-
-  const statusPillClass = useMemo(() => {
-    switch (status?.phase) {
-      case "READY_TO_APPLY":
-      case "SUCCEEDED":
-        return "status-ready";
-      case "AVAILABLE":
-      case "DOWNLOADING":
-      case "APPLYING":
-        return "status-in_progress";
-      case "FAILED":
-      case "UNSUPPORTED":
-        return "status-pending";
-      default:
-        return "status-paused";
-    }
-  }, [status?.phase]);
+  const statusPillClass = resolveStatusPillClass(status?.phase);
+  const currentPackageName = currentBuild?.releaseTag || currentBuild?.buildName || "未识别打包名称";
+  const latestVersionNumber = latestRelease?.appVersion || currentBuild?.version || "-";
+  const latestPackageName = latestRelease?.tagName || "未获取打包名称";
+  const changeLogs = latestRelease?.changeLogs?.length
+    ? latestRelease.changeLogs
+    : latestRelease?.body?.trim()
+      ? [
+          {
+            releaseTag: latestRelease.tagName,
+            appVersion: latestRelease.appVersion,
+            publishedAt: latestRelease.publishedAt,
+            content: latestRelease.body.trim(),
+          },
+        ]
+      : [];
 
   return (
     <section className="panel personal-center-panel">
       <div className="panel-header">
         <div>
           <h2>版本与升级</h2>
-          <p className="panel-subtext">当前页专门承接 local-single-user 的版本检查、安装包预下载和一键升级，不再要求用户手工下载后解压覆盖。</p>
+          <p className="panel-subtext">这里统一查看当前版本、最新版本，并直接完成检查、下载和升级。</p>
         </div>
         <span>{status?.source?.label || "阿里云 OSS"}</span>
       </div>
@@ -284,119 +266,68 @@ export default function PersonalCenterVersionPage() {
       </div>
 
       <div className="card-grid" style={{ marginBottom: 16 }}>
-        {summaryCards.map((item) => (
-          <article key={item.label} className="metric-card">
-            <span>{item.label}</span>
-            <strong>{item.value}</strong>
-            <p>{item.detail}</p>
-          </article>
-        ))}
-      </div>
-
-      <div className="personal-context-banner">
-        <div>
-          <strong>{resolveRecommendation(status)}</strong>
-          <p>
-            当前升级源默认直接读取 OSS 的 `latest.json` 与安装包校验文件。点击“立即升级”后，系统会在后台下载或复用已校验的安装包，停止旧进程，替换安装目录，再自动重启本地工作台。
-          </p>
-        </div>
-        <div className="personal-context-actions">
-          <Link href="/personal-center" className="secondary-button">
-            返回个人中心概览
-          </Link>
-          {latestRelease?.htmlUrl ? (
-            <a href={latestRelease.htmlUrl} target="_blank" rel="noreferrer" className="secondary-button">
-              打开安装包链接
-            </a>
-          ) : null}
-        </div>
-      </div>
-
-      <div className="card-grid" style={{ marginTop: 16, marginBottom: 16 }}>
-        <article className="entity-card">
-          <div className="entity-card-head">
+        <article className="entity-card" style={{ padding: 20 }}>
+          <div className="entity-card-head" style={{ marginBottom: 12 }}>
             <div>
-              <strong>当前安装态</strong>
-              <p className="panel-subtext">这里展示当前运行时是否具备自动升级所需的安装目录和发布包元信息。</p>
+              <strong>当前版本</strong>
             </div>
           </div>
-          <dl className="detail-list">
-            <div>
-              <dt>运行模式</dt>
-              <dd>{currentBuild?.runtimeMode || "-"}</dd>
-            </div>
-            <div>
-              <dt>安装目录</dt>
-              <dd style={{ wordBreak: "break-all" }}>{currentBuild?.installRoot || "当前不是安装态"}</dd>
-            </div>
-            <div>
-              <dt>是否可一键升级</dt>
-              <dd>{currentBuild?.canApplyUpdate ? "可以" : "暂不支持"}</dd>
-            </div>
-            <div>
-              <dt>阻塞原因</dt>
-              <dd>{currentBuild?.applyBlockedReason || "当前环境满足升级前置条件"}</dd>
-            </div>
-          </dl>
+          <div style={{ display: "grid", gap: 8 }}>
+            <strong style={{ fontSize: 30, lineHeight: 1.1 }}>{currentBuild?.version || "-"}</strong>
+            <p className="panel-subtext" style={{ margin: 0, wordBreak: "break-all" }}>
+              {currentPackageName}
+            </p>
+            <span className="panel-subtext">{formatDateTime(currentBuild?.generatedAt || undefined)}</span>
+          </div>
         </article>
 
-        <article className="entity-card">
-          <div className="entity-card-head">
+        <article className="entity-card" style={{ padding: 20 }}>
+          <div className="entity-card-head" style={{ marginBottom: 12 }}>
             <div>
-              <strong>最新发布信息</strong>
-              <p className="panel-subtext">默认读取 OSS 最新元数据，并优先识别标准安装包与对应 SHA256 校验文件。</p>
+              <strong>最新版本</strong>
             </div>
           </div>
-          <dl className="detail-list">
-            <div>
-              <dt>版本标题</dt>
-              <dd>{latestRelease?.name || "未获取"}</dd>
-            </div>
-            <div>
-              <dt>安装包</dt>
-              <dd>{latestRelease?.zipAsset?.name || "未找到安装包资源"}</dd>
-            </div>
-            <div>
-              <dt>安装包大小</dt>
-              <dd>{formatBytes(latestRelease?.zipAsset?.size)}</dd>
-            </div>
-            <div>
-              <dt>SHA256</dt>
-              <dd style={{ wordBreak: "break-all" }}>{latestRelease?.checksumValue || "未获取到校验值"}</dd>
-            </div>
-          </dl>
+          <div style={{ display: "grid", gap: 8 }}>
+            <strong style={{ fontSize: 30, lineHeight: 1.1 }}>{latestVersionNumber}</strong>
+            <p className="panel-subtext" style={{ margin: 0, wordBreak: "break-all" }}>
+              {latestPackageName}
+            </p>
+            <span className="panel-subtext">{formatDateTime(latestRelease?.publishedAt)}</span>
+          </div>
         </article>
       </div>
 
       <article className="entity-card">
         <div className="entity-card-head">
           <div>
-            <strong>升级说明</strong>
-            <p className="panel-subtext">预下载只会把安装包落到本地 `updates` 目录，并完成 SHA256 校验；真正替换安装目录只会在点击“立即升级”后发生。</p>
+            <strong>系统更新日志</strong>
           </div>
         </div>
-        <ul className="entity-card-list">
-          <li>预下载完成后，会把状态切到“已准备安装”，此时再次点击“立即升级”会直接进入安装阶段。</li>
-          <li>升级时会优先停止当前 launcher、API、worker 和 Web 进程，再执行安装脚本覆盖安装目录。</li>
-          <li>升级完成后会自动重新拉起 `start-local-single-user.cmd`，无需用户手工回到 GitHub 重新解压。</li>
-          <li>如果当前运行的是源码开发态，而不是安装态发布包，页面仍可检查新版本，但不会允许直接一键升级。</li>
-        </ul>
-      </article>
-
-      {latestRelease?.body?.trim() ? (
-        <article className="entity-card" style={{ marginTop: 16 }}>
-          <div className="entity-card-head">
-            <div>
-              <strong>更新说明</strong>
-              <p className="panel-subtext">下面展示的是 OSS 最新版本说明，便于在升级前快速确认本次更新内容。</p>
-            </div>
+        {changeLogs.length ? (
+          <div style={{ display: "grid", gap: 12 }}>
+            {changeLogs.map((item, index) => (
+              <article
+                key={`${item.releaseTag || "log"}-${item.publishedAt}-${index}`}
+                style={{
+                  padding: "14px 16px",
+                  borderRadius: 16,
+                  border: "1px solid rgba(15, 23, 42, 0.08)",
+                  background: "rgba(248, 250, 252, 0.9)",
+                }}
+              >
+                <div style={{ fontSize: 13, color: "#64748b", marginBottom: 8 }}>{formatDateTime(item.publishedAt)}</div>
+                <pre style={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word", fontFamily: "inherit", lineHeight: 1.7 }}>
+                  {item.content}
+                </pre>
+              </article>
+            ))}
           </div>
-          <details>
-            <summary style={{ cursor: "pointer" }}>展开查看最新更新说明</summary>
-            <pre style={{ whiteSpace: "pre-wrap", wordBreak: "break-word", marginTop: 12 }}>{latestRelease.body}</pre>
-          </details>
-        </article>
-      ) : null}
+        ) : (
+          <p className="panel-subtext" style={{ margin: 0 }}>
+            暂无系统更新日志
+          </p>
+        )}
+      </article>
     </section>
   );
 }
@@ -422,40 +353,21 @@ function formatPhaseLabel(phase?: string | null) {
   }
 }
 
-function resolveRecommendation(status: SystemUpdateStatus | null) {
-  if (!status) {
-    return "先刷新当前页，确认最新版本与当前安装态信息。";
+function resolveStatusPillClass(phase?: string | null) {
+  switch (phase) {
+    case "READY_TO_APPLY":
+    case "SUCCEEDED":
+      return "status-ready";
+    case "AVAILABLE":
+    case "DOWNLOADING":
+    case "APPLYING":
+      return "status-in_progress";
+    case "FAILED":
+    case "UNSUPPORTED":
+      return "status-pending";
+    default:
+      return "status-paused";
   }
-  if (!status.supported) {
-    return "当前环境不是 local-single-user 安装态，先检查版本信息，升级仍建议走正式安装包。";
-  }
-  if (!status.current.canApplyUpdate) {
-    return status.current.applyBlockedReason || "当前环境暂不满足一键升级条件。";
-  }
-  if (status.phase === "READY_TO_APPLY") {
-    return "安装包已经校验完成，可以直接点击“立即升级”。";
-  }
-  if (status.updateAvailable) {
-    return "已经检测到新版本，建议先预下载校验，再在方便的时点一键升级。";
-  }
-  return "当前安装态已经和最新版本对齐，可继续正常使用。";
-}
-
-function formatBytes(value?: number | null) {
-  const size = Number(value || 0);
-  if (!Number.isFinite(size) || size <= 0) {
-    return "未记录";
-  }
-  if (size < 1024) {
-    return `${size} B`;
-  }
-  if (size < 1024 * 1024) {
-    return `${(size / 1024).toFixed(1)} KB`;
-  }
-  if (size < 1024 * 1024 * 1024) {
-    return `${(size / (1024 * 1024)).toFixed(1)} MB`;
-  }
-  return `${(size / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
 
 function readCachedStatus() {

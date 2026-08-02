@@ -11,6 +11,7 @@ const latestJsonPath = path.join(artifactsRoot, "latest.json");
 const MULTIPART_UPLOAD_THRESHOLD_BYTES = 64 * 1024 * 1024;
 const MULTIPART_UPLOAD_PART_SIZE_BYTES = 8 * 1024 * 1024;
 const OSS_TIMEOUT_MS = 15 * 60 * 1000;
+const DEFAULT_RELEASE_NOTES = "版本页改为合并展示当前版本与最新版本，并收口为系统更新日志视图";
 
 function parseArgs(argv) {
   const result = {
@@ -76,17 +77,83 @@ function buildPublicBaseUrl(bucket, region, explicit) {
   return `https://${bucket}.${region}.aliyuncs.com`;
 }
 
-function buildLatestJson(version, publicBaseUrl, prefix, notes) {
+function readAppVersion() {
+  const packageJsonPath = path.join(projectRoot, "package.json");
+  const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
+  return String(packageJson.version || "").trim() || "0.1.0";
+}
+
+async function readExistingLatestJson(publicBaseUrl, prefix) {
+  const latestUrl = `${publicBaseUrl}/${prefix}/latest.json`;
+  try {
+    const response = await fetch(latestUrl, {
+      headers: {
+        Accept: "application/json",
+        "User-Agent": "ai-omni-ops-system-release-uploader",
+      },
+    });
+    if (!response.ok) {
+      return null;
+    }
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
+
+function normalizeHistoryEntries(existingLatestJson) {
+  const entries = [];
+  const history = Array.isArray(existingLatestJson?.history) ? existingLatestJson.history : [];
+  for (const item of history) {
+    const content = String(item?.content || item?.notes || "").trim();
+    if (!content) {
+      continue;
+    }
+    entries.push({
+      releaseTag: String(item?.releaseTag || item?.version || "").trim() || "",
+      appVersion: String(item?.appVersion || "").trim() || "",
+      publishedAt: String(item?.publishedAt || "").trim() || "",
+      content,
+    });
+  }
+
+  if (entries.length === 0) {
+    const legacyContent = String(existingLatestJson?.notes || "").trim();
+    const legacyVersion = String(existingLatestJson?.version || "").trim();
+    if (legacyContent && legacyVersion) {
+      entries.push({
+        releaseTag: legacyVersion,
+        appVersion: String(existingLatestJson?.appVersion || "").trim() || "",
+        publishedAt: String(existingLatestJson?.publishedAt || "").trim() || "",
+        content: legacyContent,
+      });
+    }
+  }
+  return entries;
+}
+
+function buildLatestJson(version, appVersion, publicBaseUrl, prefix, notes, existingLatestJson) {
   const versionRoot = `${prefix}/${version}`;
+  const publishedAt = new Date().toISOString();
+  const content = notes || DEFAULT_RELEASE_NOTES;
+  const currentEntry = {
+    releaseTag: version,
+    appVersion,
+    publishedAt,
+    content,
+  };
+  const existingEntries = normalizeHistoryEntries(existingLatestJson).filter((item) => item.releaseTag !== version);
   return {
     version,
+    appVersion,
     name: version,
-    publishedAt: new Date().toISOString(),
+    publishedAt,
     zipUrl: `${publicBaseUrl}/${versionRoot}/AiOmniOps-local-single-user-win-x64.zip`,
     sha256Url: `${publicBaseUrl}/${versionRoot}/AiOmniOps-local-single-user-win-x64.zip.sha256`,
     checksumValue: hashFile(zipFilePath),
     source: "oss",
-    notes: notes || "补充安装后启动链早期日志，便于定位页面打不开的真实失败点",
+    notes: content,
+    history: [currentEntry, ...existingEntries].slice(0, 20),
   };
 }
 
@@ -125,7 +192,9 @@ async function main() {
   const bucket = readRequiredEnv("OSS_BUCKET");
   const region = readRequiredEnv("OSS_REGION");
   const publicBaseUrl = buildPublicBaseUrl(bucket, region, args.publicBaseUrl);
-  const latestJson = buildLatestJson(args.version, publicBaseUrl, args.prefix, args.notes);
+  const appVersion = readAppVersion();
+  const existingLatestJson = await readExistingLatestJson(publicBaseUrl, args.prefix);
+  const latestJson = buildLatestJson(args.version, appVersion, publicBaseUrl, args.prefix, args.notes, existingLatestJson);
   const versionRoot = `${args.prefix}/${args.version}`;
 
   const expectedSha256 = hashFile(zipFilePath);

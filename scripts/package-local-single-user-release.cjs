@@ -87,8 +87,9 @@ function main() {
   const archiveScript = [
     `$releaseRoot = ${JSON.stringify(releaseRoot)}`,
     `$zipFile = ${JSON.stringify(zipFilePath)}`,
+    "Add-Type -AssemblyName System.IO.Compression.FileSystem",
     "if (Test-Path $zipFile) { Remove-Item -LiteralPath $zipFile -Force }",
-    "Compress-Archive -LiteralPath $releaseRoot -DestinationPath $zipFile -CompressionLevel Optimal",
+    '[System.IO.Compression.ZipFile]::CreateFromDirectory($releaseRoot, $zipFile, [System.IO.Compression.CompressionLevel]::Optimal, $false)',
   ].join("; ");
 
   runPowerShell(archiveScript);

@@ -33,6 +33,10 @@ export class AppConfigService {
       return resolve(explicit);
     }
 
+    return this.getDefaultLocalAppRoot();
+  }
+
+  getDefaultLocalAppRoot() {
     if (process.platform === "win32") {
       const appData = this.readFirst("APPDATA");
       if (appData) {
@@ -45,6 +49,25 @@ export class AppConfigService {
     }
 
     return resolve(homedir(), ".local", "share", "ai-omni-ops");
+  }
+
+  getLocalLauncherSettingsPath() {
+    return join(this.getDefaultLocalAppRoot(), "launcher-settings.json");
+  }
+
+  getLocalPathsForRoot(rootPath: string) {
+    const appRoot = resolve(rootPath);
+    return {
+      appRoot,
+      dataRoot: join(appRoot, "data"),
+      dbPath: join(appRoot, "db", "local-single-user.sqlite"),
+      logsRoot: join(appRoot, "logs"),
+      runtimeRoot: join(appRoot, "runtime"),
+      storageRoot: join(appRoot, "storage"),
+      cacheRoot: join(appRoot, "cache"),
+      backupRoot: join(appRoot, "backup"),
+      updatesRoot: join(appRoot, "updates"),
+    };
   }
 
   getLocalDataRoot() {

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { readAuthSession, register } from "../../../services/auth";
+import { getRegisterConfig, readAuthSession, register } from "../../../services/auth";
 import { AuthShell } from "../../../components/auth-shell";
 
 export default function RegisterPage() {
@@ -18,6 +18,7 @@ export default function RegisterPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [inviteCodeRequired, setInviteCodeRequired] = useState(true);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -25,6 +26,11 @@ export default function RegisterPage() {
       setNextPath(resolveNextPath(next));
     }
     setIsRouteReady(true);
+    void getRegisterConfig().then((config) => {
+      setInviteCodeRequired(config.inviteCodeRequired);
+    }).catch(() => {
+      setInviteCodeRequired(true);
+    });
   }, []);
 
   useEffect(() => {
@@ -48,7 +54,7 @@ export default function RegisterPage() {
       setErrorMessage("请输入邮箱");
       return;
     }
-    if (!inviteCode.trim()) {
+    if (inviteCodeRequired && !inviteCode.trim()) {
       setErrorMessage("请输入邀请码");
       return;
     }
@@ -67,7 +73,7 @@ export default function RegisterPage() {
       await register({
         mobile: mobile.trim(),
         email: normalizedEmail,
-        inviteCode: inviteCode.trim(),
+        inviteCode: inviteCode.trim() || undefined,
         password,
         nickname: nickname.trim() || undefined,
       });
@@ -81,11 +87,11 @@ export default function RegisterPage() {
 
   return (
     <AuthShell
-      badge="邀请码注册"
+      badge={inviteCodeRequired ? "邀请码注册" : "本地直接注册"}
       title="把品牌协作、任务与资产统一接入一个账号体系"
-      description="注册页沿用首页的品牌语言，但收口为更清晰的准入流程，保证用户第一次进入系统就知道规则。"
+      description={inviteCodeRequired ? "注册页沿用首页的品牌语言，但收口为更清晰的准入流程，保证用户第一次进入系统就知道规则。" : "当前本地单机版允许直接注册，不再要求邀请码，注册后会自动创建默认品牌并进入个人中心。"}
       highlights={[
-        { title: "邀请码准入", description: "当前账号体系按邀请码开放，先保证品牌成员和协作边界明确。" },
+        { title: inviteCodeRequired ? "邀请码准入" : "直接注册", description: inviteCodeRequired ? "当前账号体系按邀请码开放，先保证品牌成员和协作边界明确。" : "当前安装态本地单机版默认允许当前用户直接完成注册。" },
         { title: "一次注册直达", description: "通过校验后直接进入工作台，不需要再重复登录。" },
         { title: "账号可持续扩展", description: "后续会员、积分、任务和团队页都会继续使用同一账户体系。" },
       ]}
@@ -98,7 +104,9 @@ export default function RegisterPage() {
       <div className="panel-header">
         <div>
           <h1>注册</h1>
-          <p className="panel-subtext">手机号和邀请码必填。邀请码验证通过后即可完成注册并直接进入个人中心工作区。</p>
+          <p className="panel-subtext">
+            {inviteCodeRequired ? "手机号和邀请码必填。邀请码验证通过后即可完成注册并直接进入个人中心工作区。" : "手机号、邮箱和密码必填。注册成功后会直接进入个人中心工作区。"}
+          </p>
         </div>
       </div>
       <form className="form-grid" onSubmit={handleSubmit}>
@@ -123,16 +131,18 @@ export default function RegisterPage() {
             autoComplete="email"
           />
         </label>
-        <label className="field">
-          <span>邀请码</span>
-          <input
-            value={inviteCode}
-            onChange={(event) => setInviteCode(event.target.value)}
-            placeholder="请输入 6 位邀请码"
-            autoComplete="off"
-            spellCheck={false}
-          />
-        </label>
+        {inviteCodeRequired ? (
+          <label className="field">
+            <span>邀请码</span>
+            <input
+              value={inviteCode}
+              onChange={(event) => setInviteCode(event.target.value)}
+              placeholder="请输入 6 位邀请码"
+              autoComplete="off"
+              spellCheck={false}
+            />
+          </label>
+        ) : null}
         <label className="field">
           <span>昵称</span>
           <input
@@ -162,7 +172,9 @@ export default function RegisterPage() {
             autoComplete="new-password"
           />
         </label>
-        <p className="field-hint">当前注册采用邀请码准入，邀请码一次性使用；没有邀请码的账号无法注册。</p>
+        <p className="field-hint">
+          {inviteCodeRequired ? "当前注册采用邀请码准入，邀请码一次性使用；没有邀请码的账号无法注册。" : "当前是 local-single-user 安装态，允许当前用户直接注册；后续若需要团队协作，再通过品牌邀请补成员。"}
+        </p>
         {errorMessage ? <p className="error-text">{errorMessage}</p> : null}
         <button type="submit" className="primary-button auth-panel-submit" disabled={isSubmitting}>
           {isSubmitting ? "注册中..." : "完成注册并进入工作台"}
