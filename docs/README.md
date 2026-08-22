@@ -78,6 +78,8 @@
     - 修复品牌增长策略里抖音采集视频在本地受控存储模式下长期“缓存中”的问题，补齐启动恢复、自愈补挂和浏览器式下载头
   - `docs/changes/2026-08-22-wechat-publish-local-asset-loopback-fix.md`
     - 修复公众号 Step 5 API 发布在 Docker 容器内回读站内封面图 / 正文图时误用宿主机 `13011` 端口、最终统一报 `fetch failed` 的问题
+  - `docs/changes/2026-08-22-root-readme-refresh.md`
+    - 重写仓库根目录 `README.md`，把首页说明从旧阶段单机链路收口为当前系统总览，并明确 Docker 标准运行态、OpenClaw 文档入口和当前真实能力边界
   - `docs/changes/2026-08-22-video-remix-archive-scope-and-project-list-expansion.md`
     - 视频混剪工作区默认把成片回流到统一的“某音/某号作品列表”，并把 mixedcut 页面里剩余的 `limit=5 / limit=20` 前端项目数截断一并放开
   - `docs/changes/2026-08-22-mixedcut-http-mcp-local-filepath-compat.md`

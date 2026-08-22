@@ -1,288 +1,246 @@
 # AI全域运营系统
 
-## 项目结构
+一套已经进入真实业务阶段的品牌运营系统，不再是早期骨架仓库。当前主线同时覆盖：
 
-- `apps/web`: 用户前台与管理后台前端
-- `apps/server`: NestJS 风格后端服务
-- `packages/shared`: 前后端共享类型与常量
-- `packages/prompt-runtime`: 技能与提示词运行时
-- `packages/ui`: 可复用 UI 组件预留
-- `prisma`: 数据库模型与迁移
-- `docs`: 项目补充文档
-- `infra`: 部署与基础设施配置预留
+- 品牌增长策略
+- 内容获客（某书 / 某音/某号 / 公众号）
+- GEO 获客
+- 全网获客
+- 设计工作台
+- OpenClaw / MCP / Skill 对接
+- Docker 标准运行态与 `local-single-user` 单机交付
 
-## 当前状态
-
-当前仓库已经不是“第一版骨架”，而是一个已接通前后台主链路的业务系统，当前已落地的核心能力包括：
-
-1. 邀请码注册、登录、品牌切换与多用户协作基础能力
-2. 品牌增长策略工作台：品牌资料库、收集数据、品牌增长报告、半年营销规划、营销日历
-3. 小红书工作台：营销策划方案、素材库、原创笔记、二创笔记、视频笔记
-4. 抖音工作台：营销策划方案、素材库、热点找选题、选题库、原创文案、二创文案、复刻短视频、AI生视频（故事板）、AI生视频、数字人、广告预审
-5. 后台与前台技能中心、提示词注册表、品牌级共享覆盖
-6. 任务中心、作品中心、第三方平台配置与 OSS 资源持久化
-
-其中抖音“复刻短视频”当前已经独立为单独板块：创建时优先从抖音素材库选择带视频链接的素材，第一阶段按每 15 秒一段输出复刻分析、角色卡、分镜脚本、角色图和分镜图，第二阶段逐段生成视频并自动拼接完整成片。
-
-更完整的页面、模块和主链路说明请查看：
+更完整的系统结构请直接看：
 
 - `docs/site-map.md`
+- `docs/site-map-mermaid.md`
 - `docs/README.md`
 
-## 数据库初始化
+## 当前已落地能力
 
-1. 复制 `.env.example` 为 `.env`，补上 `DATABASE_URL`
-2. 生成 Prisma Client:
-   - `npm run prisma:generate`
-3. 推送数据库结构:
-   - `npm run prisma:db:push`
-4. 写入演示数据:
-   - `npm run prisma:seed`
+- 品牌账号、邀请码注册、登录、品牌切换、多用户协作
+- 品牌增长策略：品牌资料、收集数据、增长报告、半年营销规划、营销日历
+- 内容获客工作台：
+  - 某书：营销策划、创作素材、每日计划、每日复盘、作品列表
+  - 某音/某号：营销策划、数字人、RunningHub、视频混剪、创作素材、作品列表
+  - 公众号：配置初始化、创作工作流、发布历史、创作素材、作品列表
+- 设计工作台：图片、HTML、PPT、视频方案
+- GEO 获客与全网获客工作台
+- 个人中心：技能、团队、第三方接口、OpenClaw、版本与升级
+- OpenClaw 安装中心、正式安装令牌、MCP 地址、Skill ZIP 导出
 
-如果想一步完成，可直接执行：
+## 当前推荐部署方式
 
-- `npm run db:init`
+### 1. Docker 标准运行态
 
-## 当前 demo 数据
+这是当前最适合给别人部署、也最接近“长期可维护”的方案。
 
-- 演示账号手机号: `13800000000`
-- 演示品牌: `武汉仟吉`
-- 已写入品牌背景、产品资料、品牌调研、品牌账号、竞品账号、行业资料、经营资料
+当前仓库已提供：
 
-## 本地前端稳定启动
+- PostgreSQL
+- 主站 `server`
+- 主站 `web`
+- 可选 `mixedcut`
+- 可选 `mixedcut-mcp`
 
-- 常规启动: `npm run dev:web`
-- 稳定启动: `npm run dev:web:stable`
-- `dev:web:stable` 会直接使用 `node + next bin` 拉起 `3001`，避免 `npx` 偶发退出
-- 启动成功后会输出页面地址 `http://localhost:3001/brand-growth`
-- 日志写入 `.runtime/web-3001.out.log` 和 `.runtime/web-3001.err.log`
-
-## 当前交付形态
-
-也就是说，**当前是“zip + cmd 安装入口”交付，不是“仓库内直接放 exe”**。  
-如果后面要做真正的 `.exe` 安装器，需要再补一层 NSIS / Inno Setup / WiX 之类的打包流程；当前仓库基线里还没有这一步。
-
-### 2. 最推荐怎么用
-
-如果你是要给别人安装，优先走：
-
-1. 在源码仓库里生成 release 包
-2. 拿 `.release/artifacts/AiOmniOps-local-single-user-win-x64.zip`
-3. 解压后运行 `install-local-single-user.cmd`
-
-如果你是开发或调试，直接走源码启动。
-
-## 环境要求
-
-### 源码运行 / 打包
-
-- Windows
-- Node.js 20
-- npm
-
-### 本地单机安装包使用
-
-- Windows
-- 不要求用户机器预装 Node
-
-## 安装教程
-
-### 方式 A：生成本地单机安装包并安装
-
-这是当前最接近“交付给用户”的方式。
-
-1. 安装依赖
-
-```powershell
-npm ci
-```
-
-2. 生成 release 分发包
-
-```powershell
-npm run local:release:package
-```
-
-3. 生成完成后，拿这个文件：
+对应 compose 文件：
 
 ```text
-.release/artifacts/AiOmniOps-local-single-user-win-x64.zip
+docker/docker-compose.local-postgres-mixedcut.yml
 ```
 
-4. 解压 zip
+默认端口：
 
-5. 运行解压目录里的：
+- 主站前端：`13001`
+- 主站后端：`13011`
+- PostgreSQL：`15432`
+- mixedcut：`15000`
+- mixedcut MCP：`15501`
 
-```text
-install-local-single-user.cmd
-```
+当前标准运行态的重要特点：
 
-6. 安装脚本会在完成后自动启动本地工作台；如果后续需要手动再开，可通过下面任一方式启动：
+- 素材、受控存储、mixedcut 数据可统一挂到宿主机目录
+- 个人中心 `版本与升级` 支持“更新通知 + 操作引导”
+- 配置 `STANDARD_RUNTIME_UPDATE_MANIFEST_URL` 后，可在页面看到更新说明、容器重建命令和 Skill 重导提醒
+- mixedcut 已接通主站素材桥接、任务创建、进度轮询和成片回流
 
-- 桌面快捷方式
-- 安装目录里的 `start-local-single-user.cmd`
+### 2. local-single-user 单机安装态
 
-7. 安装脚本会默认帮当前用户配置开机自启动；如果后续想查看或移除，可执行：
+适合本地单机交付，不要求用户机器预装 Node。
 
-- `status-autostart.cmd`
-- `remove-autostart.cmd`
-
-8. 双击 `install-local-single-user.cmd` 后，安装输出会直接显示在窗口里，同时完整日志固定写到：
-
-```text
-%LOCALAPPDATA%\AiOmniOps\logs\install-local-single-user.log
-```
-
-9. 如果安装日志已经显示 `Install completed.`，但浏览器还是打不开，继续查看启动链日志：
-
-```text
-%APPDATA%\AiOmniOps\logs\start-local-single-user.log
-%APPDATA%\AiOmniOps\logs\launcher.log
-%APPDATA%\AiOmniOps\runtime\local-single-user-runtime.json
-```
-
-其中：
-
-- `start-local-single-user.log` 用来判断 `start-local-single-user.cmd`、`node.exe`、工作目录本身是否异常
-- `launcher.log` 用来判断 launcher 卡在端口分配、Prisma、server/web 拉起还是 runtime metadata 写入
-
-10. 进入系统后，如需升级新版本，优先在个人中心里的 `版本与升级` 页面执行：
-
-- `检查更新`
-- `预下载安装包`
-- `立即升级`
-
-默认安装目录：
-
-```text
-%LOCALAPPDATA%\Programs\AiOmniOps
-```
-
-### 方式 B：直接从源码运行
-
-适合开发、联调、排障。
-
-1. 安装依赖
-
-```powershell
-npm ci
-```
-
-2. 如果是正式数据库链路，先准备 `.env`
-
-```powershell
-Copy-Item .env.example .env
-```
-
-3. 初始化数据库
-
-```powershell
-npm run db:init
-```
-
-4. 启动本地单机模式
-
-```powershell
-npm run local:launcher
-```
-
-或者只开前端 / 后端开发链路：
-
-```powershell
-npm run dev:web:stable
-npm run dev:server:stable
-```
-
-## 使用教程
-
-### 本地单机模式启动后做什么
-
-1. 打开本地工作台
-2. 进入：
-   - `/brand-growth`
-   - `/xiaohongshu`
-   - `/douyin`
-   - `/wechat`
-   - `/more-features/design`
-   - `/personal-center`
-3. 按需要继续做内容生成、工作流验证或后台配置
-4. 安装态升级优先走个人中心 `版本与升级`，不再要求每次手工回 GitHub 解压覆盖
-
-### 常用命令
-
-```powershell
-# 本地单机启动
-npm run local:launcher
-
-# 生成 release 目录
-npm run local:release:build
-
-# 生成可分发 zip
-npm run local:release:package
-
-# 安装开机自启动
-npm run local:autostart:install
-
-# 移除开机自启动
-npm run local:autostart:remove
-
-# 查看开机自启动状态
-npm run local:autostart:status
-```
-
-## 目录说明
-
-- `apps/web`：前端站点
-- `apps/server`：后端 API
-- `packages/*`：共享能力
-- `prisma`：数据库 schema
-- `scripts/local-single-user-*.cjs`：本地单机启动链
-- `scripts/build-local-single-user-release.cjs`：生成 release 目录
-- `scripts/package-local-single-user-release.cjs`：生成 zip 分发包
-- `scripts/upload-local-single-user-release-to-oss.cjs`：把 zip、sha256 与 `latest.json` 同步到 OSS
-- `docs`：系统基线、专题方案和变更记录
-
-## 常见问题
-
-### 1. 我已经克隆仓库了，为什么还是没有安装包
-
-因为安装包不会直接提交进源码仓库。  
-需要你自己执行：
-
-```powershell
-npm run local:release:package
-```
-
-### 2. 为什么不是直接双击一个 exe
-
-当前仓库的交付基线是：
+当前交付基线仍然是：
 
 - `zip`
 - `install-local-single-user.cmd`
 - `start-local-single-user.cmd`
 - 随包 `node.exe`
 
-还没有额外做 `.exe` 安装器封装。
+不是仓库内直接放 `.exe` 安装器。
 
-### 3. release 包生成后在哪里
+## 快速开始
+
+### 方式 A：Docker 标准运行态
+
+1. 安装依赖与 Docker Desktop
+2. 准备环境变量
+3. 启动主站
+
+```powershell
+docker compose -f docker/docker-compose.local-postgres-mixedcut.yml up -d --build postgres server web
+```
+
+4. 如果需要 mixedcut，再启动：
+
+```powershell
+docker compose -f docker/docker-compose.local-postgres-mixedcut.yml --profile mixedcut up -d --build mixedcut mixedcut-mcp
+```
+
+5. 打开：
+
+```text
+http://127.0.0.1:13001
+```
+
+如果只需要主站，不需要 mixedcut，可以不启用 `mixedcut` profile。
+
+### 方式 B：源码开发运行
+
+1. 安装依赖
+
+```powershell
+pnpm install
+```
+
+2. 准备数据库与环境变量
+
+```powershell
+Copy-Item .env.example .env
+pnpm db:init
+```
+
+3. 启动前后端
+
+```powershell
+pnpm dev:server:stable
+pnpm dev:web:stable
+```
+
+常用构建命令：
+
+```powershell
+pnpm build:server
+pnpm build:web
+```
+
+### 方式 C：生成 local-single-user 安装包
+
+1. 安装依赖
+
+```powershell
+pnpm install
+```
+
+2. 生成 release 目录
+
+```powershell
+pnpm local:release:build
+```
+
+3. 生成 zip 分发包
+
+```powershell
+pnpm local:release:package
+```
+
+4. 产物位置：
 
 ```text
 .release/artifacts/AiOmniOps-local-single-user-win-x64.zip
 ```
 
-### 4. 为什么我重启电脑后页面打不开
-
-如果是通过安装包正常安装的新用户，安装脚本现在会默认配置当前用户开机自启动。
-
-如果你是旧安装，或曾手工拷贝目录但没执行安装脚本，可以在安装目录里手工执行：
+5. 解压后运行：
 
 ```text
-install-autostart.cmd
+install-local-single-user.cmd
 ```
 
-### 5. 更多系统结构和变更记录去哪里看
+## OpenClaw / MCP / Skill
 
-- `docs/README.md`
-- `docs/site-map.md`
-- `docs/site-map-mermaid.md`
-- `docs/changes/*.md`
+当前仓库已经不是“未来再接 OpenClaw”，而是已经有正式接入链路。
+
+当前已覆盖：
+
+- OpenClaw 安装中心
+- 安装令牌
+- MCP 服务入口
+- Skill ZIP 导出
+- Skill 文档 fallback
+- mixedcut 相关 MCP 与 Skill 路由同步
+
+推荐直接阅读：
+
+- `docs/openclaw/README.md`
+- `docs/openclaw/OpenClaw正式安装与网站对接说明.md`
+- `docs/openclaw/OpenClaw渠道、Skill与MCP对接说明.md`
+
+相关命令：
+
+```powershell
+pnpm openclaw:mcp:server
+pnpm smoke:openclaw:mcp
+pnpm smoke:openclaw:adapter
+```
+
+## 仓库结构
+
+- `apps/web`
+  - 官网首页、认证、各工作台、个人中心、后台管理台
+- `apps/server`
+  - Auth、Brands、Collectors、Works、Publishing、OpenClaw、ThirdPartyPlatforms 等后端模块
+- `packages/config`
+  - 配置相关共享包
+- `packages/prompt-runtime`
+  - 提示词与运行时能力
+- `packages/shared`
+  - 前后端共享类型与常量
+- `packages/ui`
+  - UI 共享层
+- `docs`
+  - 当前真相文档、变更记录、OpenClaw 文档、历史规划
+- `docker`
+  - Docker 部署相关文件
+- `scripts`
+  - 构建、启动、OpenClaw、单机交付脚本
+
+## 常用入口
+
+- 官网首页：`/`
+- 登录页：`/login`
+- 品牌增长：`/brand-growth`
+- 内容获客：`/xiaohongshu`
+- GEO 获客：`/geo`
+- 全网获客：`/all-network-growth`
+- 设计工作台：`/more-features/design`
+- 个人中心：`/personal-center`
+- 后台：`/admin`
+
+## 当前测试账号
+
+- 演示账号手机号：`13800000000`
+- 演示品牌：`武汉仟吉`
+
+## 文档入口
+
+- 系统总地图：`docs/site-map.md`
+- Mermaid 结构图：`docs/site-map-mermaid.md`
+- 文档总入口：`docs/README.md`
+- 工程规范：`docs/engineering-standards.md`
+- OpenClaw 文档入口：`docs/openclaw/README.md`
+- 变更记录：`docs/changes/*.md`
+
+## 说明
+
+- 这个仓库当前以 Windows 开发环境为主，但 Docker 标准运行态是优先推荐的对外交付方式
+- 如果你是给别人部署，请优先走 Docker + PostgreSQL + 可选 mixedcut
+- 如果你是做 OpenClaw 对接，不要只看根目录 README，直接进入 `docs/openclaw/`
+- 如果你要确认页面、模块和主链路，以 `docs/site-map.md` 为准，不要以历史截图或旧 README 为准
