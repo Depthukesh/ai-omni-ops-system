@@ -230,6 +230,39 @@ export default function PersonalCenterVersionPage() {
   const currentPackageName = currentBuild?.releaseTag || currentBuild?.buildName || "未识别打包名称";
   const latestVersionNumber = latestRelease?.appVersion || currentBuild?.version || "-";
   const latestPackageName = latestRelease?.tagName || "未获取打包名称";
+  const methodGuideSummary = guideOnlyMode
+    ? latestRelease?.summary || (status?.updateAvailable
+      ? "检测到 Docker 标准运行态新版本，请按下面的 git pull、容器重建和 Skill 同步步骤完成更新。"
+      : "当前版本已同步；后续有新版本时，这里会继续展示 git pull、容器重建和 Skill 同步方法。")
+    : status?.updateAvailable
+      ? "建议先检查更新，再预下载安装包并执行一键升级。升级完成后，系统会自动重启本地工作台。"
+      : "当前已经是最新版本；后续检测到新版本时，仍按“检查更新 -> 预下载安装包 -> 立即升级”完成更新。";
+  const methodGuideCommands = guideOnlyMode
+    ? (updateGuide?.commands.length
+      ? updateGuide.commands
+      : [
+          "git pull",
+          "docker compose -f docker/docker-compose.local-postgres-mixedcut.yml up -d --build server web",
+          "若本次更新涉及 mixedcut，再执行：docker compose -f docker/docker-compose.local-postgres-mixedcut.yml --profile mixedcut up -d --build mixedcut",
+          "若本次更新涉及 Skill ZIP，请从 OpenClaw 安装中心重新下载最新 skill-package.zip 并重新导入客户端",
+        ])
+    : [
+        "点击“检查更新”读取最新发布信息。",
+        "点击“预下载安装包”完成下载和 SHA256 校验。",
+        "点击“立即升级”后，系统会自动停止当前本地工作台、替换安装目录并重启。",
+        "等待页面恢复后，再回来确认当前版本号已经更新。",
+      ];
+  const methodGuideNotices = guideOnlyMode
+    ? (updateGuide?.notices.length
+      ? updateGuide.notices
+      : [
+          "Docker 标准运行态只负责通知和引导，不会直接替你升级容器。",
+          "如果本次更新涉及 mixedcut 或 Skill ZIP，请按页面提示完成额外同步，避免主站与 OpenClaw 版本不一致。",
+        ])
+    : [
+        "升级期间不要重复点击按钮；页面短暂断开通常表示升级进程已经接管。",
+        "如果页面进入自动重试状态，等待本地工作台重启完成后再刷新确认即可。",
+      ];
   const changeLogs = latestRelease?.changeLogs?.length
     ? latestRelease.changeLogs
     : latestRelease?.body?.trim()
@@ -322,20 +355,18 @@ export default function PersonalCenterVersionPage() {
         </article>
       </div>
 
-      {guideOnlyMode && updateGuide ? (
-        <article className="entity-card" style={{ marginBottom: 16 }}>
-          <div className="entity-card-head">
-            <div>
-              <strong>Docker 更新指引</strong>
-            </div>
+      <article className="entity-card" style={{ marginBottom: 16 }}>
+        <div className="entity-card-head">
+          <div>
+            <strong>{guideOnlyMode ? "Docker 更新方法" : "安装态更新方法"}</strong>
           </div>
-          <div style={{ display: "grid", gap: 14 }}>
-            {latestRelease?.summary ? (
-              <p className="panel-subtext" style={{ margin: 0 }}>
-                {latestRelease.summary}
-              </p>
-            ) : null}
+        </div>
+        <div style={{ display: "grid", gap: 14 }}>
+          <p className="panel-subtext" style={{ margin: 0 }}>
+            {methodGuideSummary}
+          </p>
 
+          {guideOnlyMode && updateGuide ? (
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
               {updateGuide.requires.server ? <span className="archive-pill status-in_progress">需重建 server</span> : null}
               {updateGuide.requires.web ? <span className="archive-pill status-in_progress">需重建 web</span> : null}
@@ -346,44 +377,40 @@ export default function PersonalCenterVersionPage() {
                 <span className="archive-pill status-paused">本次未声明额外动作</span>
               ) : null}
             </div>
+          ) : null}
 
-            {updateGuide.commands.length ? (
-              <div style={{ display: "grid", gap: 8 }}>
-                <strong style={{ fontSize: 15 }}>建议操作步骤</strong>
-                <pre style={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word", lineHeight: 1.7 }}>
-                  {updateGuide.commands.map((item, index) => `${index + 1}. ${item}`).join("\n")}
-                </pre>
-              </div>
-            ) : null}
-
-            {updateGuide.notices.length ? (
-              <div style={{ display: "grid", gap: 8 }}>
-                <strong style={{ fontSize: 15 }}>更新提醒</strong>
-                <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7 }}>
-                  {updateGuide.notices.map((item, index) => (
-                    <li key={`${item}-${index}`}>{item}</li>
-                  ))}
-                </ul>
-              </div>
-            ) : null}
-
-            {updateGuide.changeLogUrl || updateGuide.skillPackageUrl ? (
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
-                {updateGuide.changeLogUrl ? (
-                  <a href={updateGuide.changeLogUrl} target="_blank" rel="noreferrer" className="secondary-button" style={{ textDecoration: "none" }}>
-                    查看更新说明
-                  </a>
-                ) : null}
-                {updateGuide.skillPackageUrl ? (
-                  <a href={updateGuide.skillPackageUrl} target="_blank" rel="noreferrer" className="secondary-button" style={{ textDecoration: "none" }}>
-                    下载最新 Skill ZIP
-                  </a>
-                ) : null}
-              </div>
-            ) : null}
+          <div style={{ display: "grid", gap: 8 }}>
+            <strong style={{ fontSize: 15 }}>建议操作步骤</strong>
+            <pre style={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word", lineHeight: 1.7 }}>
+              {methodGuideCommands.map((item, index) => `${index + 1}. ${item}`).join("\n")}
+            </pre>
           </div>
-        </article>
-      ) : null}
+
+          <div style={{ display: "grid", gap: 8 }}>
+            <strong style={{ fontSize: 15 }}>更新提醒</strong>
+            <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7 }}>
+              {methodGuideNotices.map((item, index) => (
+                <li key={`${item}-${index}`}>{item}</li>
+              ))}
+            </ul>
+          </div>
+
+          {guideOnlyMode && (updateGuide?.changeLogUrl || updateGuide?.skillPackageUrl) ? (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+              {updateGuide.changeLogUrl ? (
+                <a href={updateGuide.changeLogUrl} target="_blank" rel="noreferrer" className="secondary-button" style={{ textDecoration: "none" }}>
+                  查看更新说明
+                </a>
+              ) : null}
+              {updateGuide.skillPackageUrl ? (
+                <a href={updateGuide.skillPackageUrl} target="_blank" rel="noreferrer" className="secondary-button" style={{ textDecoration: "none" }}>
+                  下载最新 Skill ZIP
+                </a>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      </article>
 
       <article className="entity-card">
         <div className="entity-card-head">

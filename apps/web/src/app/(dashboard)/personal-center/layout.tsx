@@ -4,8 +4,15 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { getMe, logout as logoutSession, readAuthSession, switchBrand, type MeResponse } from "../../../services/auth";
-import { getSystemUpdateStatus } from "../../../services/personal-center";
-import { buildPersonalCenterLoginPath, formatCollaboratorRoleLabel, getBrandDisplayName, isAuthFailure, shouldShowVersionWorkspace } from "./route-helpers";
+import { getSystemUpdateStatus, type SystemUpdateStatus } from "../../../services/personal-center";
+import {
+  buildPersonalCenterLoginPath,
+  formatCollaboratorRoleLabel,
+  getBrandDisplayName,
+  isAuthFailure,
+  resolveVersionWorkspaceBadge,
+  shouldShowVersionWorkspace,
+} from "./route-helpers";
 
 const routeItems = [
   { href: "/personal-center", label: "概览", description: "查看个人信息、订单、点数与作品摘要" },
@@ -33,6 +40,7 @@ export default function PersonalCenterLayout({ children }: { children: ReactNode
   const [errorMessage, setErrorMessage] = useState("");
   const [dataSource, setDataSource] = useState<"api" | "session">("session");
   const [showVersionWorkspace, setShowVersionWorkspace] = useState(false);
+  const [updateStatus, setUpdateStatus] = useState<SystemUpdateStatus | null>(null);
 
   useEffect(() => {
     const session = readAuthSession();
@@ -75,6 +83,7 @@ export default function PersonalCenterLayout({ children }: { children: ReactNode
     setShowVersionWorkspace(
       shouldShowVersionWorkspace(updateStatusResult.status === "fulfilled" ? updateStatusResult.value : null),
     );
+    setUpdateStatus(updateStatusResult.status === "fulfilled" ? updateStatusResult.value : null);
 
     setIsLoading(false);
   }
@@ -130,6 +139,10 @@ export default function PersonalCenterLayout({ children }: { children: ReactNode
     () => routeItems.filter((item) => item.href !== "/personal-center/version" || showVersionWorkspace),
     [showVersionWorkspace],
   );
+  const versionBadge = useMemo(
+    () => resolveVersionWorkspaceBadge(updateStatus),
+    [updateStatus],
+  );
 
   return (
     <div className="dashboard-shell">
@@ -180,8 +193,18 @@ export default function PersonalCenterLayout({ children }: { children: ReactNode
           {visibleRouteItems.map((item) => {
             const isActive = item.href === "/personal-center" ? pathname === item.href : pathname.startsWith(item.href);
             return (
-              <Link key={item.href} href={item.href} className={`tab-button ${isActive ? "is-active" : ""}`}>
-                {item.label}
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`tab-button ${isActive ? "is-active" : ""}`}
+                    style={item.href === "/personal-center/version" && versionBadge ? { display: "inline-flex", alignItems: "center", gap: 8 } : undefined}
+                  >
+                    <span>{item.label}</span>
+                    {item.href === "/personal-center/version" && versionBadge ? (
+                      <span className={`archive-pill ${versionBadge.className}`} style={{ minHeight: "auto", padding: "2px 8px" }}>
+                        {versionBadge.label}
+                      </span>
+                    ) : null}
               </Link>
             );
           })}

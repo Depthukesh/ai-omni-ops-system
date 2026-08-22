@@ -276,19 +276,30 @@ export class WechatOfficialAccountApiService {
     if (!/^https?:\/\//i.test(normalizedUrl)) {
       throw new ServiceUnavailableException("公众号封面图地址无效，必须是可访问的 http/https URL。");
     }
-    const response = await fetch(normalizedUrl, {
-      method: "GET",
-      headers: {
-        Accept: "image/*,application/octet-stream;q=0.8,*/*;q=0.2",
-      },
-    });
+    const requestUrl = this.resolveInternallyReachableAssetUrl(normalizedUrl);
+    let response: Response;
+    try {
+      response = await fetch(requestUrl, {
+        method: "GET",
+        headers: {
+          Accept: "image/*,application/octet-stream;q=0.8,*/*;q=0.2",
+        },
+      });
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error || "未知错误");
+      throw new ServiceUnavailableException(
+        `下载公众号图片失败：${detail}（源地址：${normalizedUrl}，实际请求：${requestUrl}）`,
+      );
+    }
     if (!response.ok) {
-      throw new ServiceUnavailableException(`下载公众号封面图失败：${response.status} ${response.statusText}`);
+      throw new ServiceUnavailableException(
+        `下载公众号图片失败：${response.status} ${response.statusText}（请求地址：${requestUrl}）`,
+      );
     }
     const arrayBuffer = await response.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
     if (!buffer.length) {
-      throw new ServiceUnavailableException("下载公众号封面图失败：返回内容为空");
+      throw new ServiceUnavailableException(`下载公众号图片失败：返回内容为空（请求地址：${requestUrl}）`);
     }
     const contentType = this.normalizeContentType(response.headers.get("content-type"));
     return {
@@ -296,6 +307,34 @@ export class WechatOfficialAccountApiService {
       contentType,
       fileName: this.resolveFileName(normalizedUrl, contentType),
     };
+  }
+
+  private resolveInternallyReachableAssetUrl(url: string) {
+    try {
+      const parsed = new URL(url);
+      if (!this.isLoopbackHost(parsed.hostname)) {
+        return url;
+      }
+      if (!this.isWorksGeneratedAssetPath(parsed.pathname)) {
+        return url;
+      }
+      parsed.protocol = "http:";
+      parsed.hostname = "127.0.0.1";
+      parsed.port = String(this.appConfigService.getServerPort());
+      return parsed.toString();
+    } catch {
+      return url;
+    }
+  }
+
+  private isLoopbackHost(hostname: string) {
+    const normalized = String(hostname || "").trim().toLowerCase();
+    return normalized === "127.0.0.1" || normalized === "localhost" || normalized === "0.0.0.0";
+  }
+
+  private isWorksGeneratedAssetPath(pathname: string) {
+    const normalized = String(pathname || "").trim();
+    return /^\/api\/works\/brands\/[^/]+\/assets(?:\/|$)/i.test(normalized);
   }
 
   private normalizeContentType(value: string | null) {

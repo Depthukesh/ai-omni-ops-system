@@ -258,6 +258,7 @@ export class OpenClawInstallationService {
     if (!token || !token.startsWith("ocp_")) {
       return undefined;
     }
+        const requestedBrandId = this.readHeaderValue(headers, "x-brand-id");
 
     const tokenHash = this.hashToken(token);
     const cached = this.resolvedTokenCache.get(tokenHash);
@@ -269,6 +270,11 @@ export class OpenClawInstallationService {
         this.clearTokenCachesForToken(current);
         throw new UnauthorizedException("OpenClaw 安装令牌已过期");
       } else {
+            if (requestedBrandId && requestedBrandId !== cached.auth.brandId) {
+              throw new UnauthorizedException(
+                `当前安装令牌绑定品牌为 ${cached.auth.brandId}，但请求头 x-brand-id 为 ${requestedBrandId}。请回到网站重新生成对应品牌的 OpenClaw 安装令牌，或把客户端里的 x-brand-id 改成与令牌一致后再试。`,
+              );
+            }
         if (cached.auth.brandId) {
           await this.touchTokenIfNeeded(cached.tokenId, cached.auth.brandId);
         }
@@ -283,6 +289,11 @@ export class OpenClawInstallationService {
     if (record.expiresAt && new Date(record.expiresAt).getTime() <= Date.now()) {
       throw new UnauthorizedException("OpenClaw 安装令牌已过期");
     }
+        if (requestedBrandId && requestedBrandId !== record.brandId) {
+          throw new UnauthorizedException(
+            `当前安装令牌绑定品牌为 ${record.brandId}，但请求头 x-brand-id 为 ${requestedBrandId}。请回到网站重新生成对应品牌的 OpenClaw 安装令牌，或把客户端里的 x-brand-id 改成与令牌一致后再试。`,
+          );
+        }
 
     const brandAccess = await this.authService.assertBrandAccess(record.brandId, {
       userId: record.createdByUserId,

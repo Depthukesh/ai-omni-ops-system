@@ -81,8 +81,64 @@ export function emitBrandInviteReadStateChanged() {
 }
 
 export function shouldShowVersionWorkspace(status?: SystemUpdateStatus | null) {
-  if (getRuntimeMode() === "local-single-user") {
+  const runtimeMode = getRuntimeMode();
+  if (runtimeMode === "local-single-user" || runtimeMode === "standard") {
     return true;
   }
   return Boolean(status?.supported);
+}
+
+export function resolveVersionWorkspaceBadge(status?: SystemUpdateStatus | null) {
+  if (!status?.supported) {
+    return null;
+  }
+  if (status.phase === "APPLYING") {
+    return { label: "升级中", className: "status-in_progress" };
+  }
+  if (status.phase === "FAILED") {
+    return { label: "需处理", className: "status-pending" };
+  }
+  if (status.updateAvailable) {
+    return { label: "有新版本", className: "status-in_progress" };
+  }
+  return { label: "已同步", className: "status-ready" };
+}
+
+export function resolveVersionWorkspaceSummary(status?: SystemUpdateStatus | null) {
+  const latestVersion = status?.latest?.appVersion || status?.latest?.tagName || status?.current?.version || "未获取";
+  const guideOnlyMode = status?.source?.executionMode === "guide-only";
+  if (!status?.supported) {
+    return {
+      value: "更新通知",
+      description: "查看当前版本、更新方法和同步说明。",
+    };
+  }
+  if (status.phase === "APPLYING") {
+    return {
+      value: "升级进行中",
+      description: guideOnlyMode
+        ? "更新步骤已经确认，请等待容器重建或页面刷新最终状态。"
+        : "安装态升级已启动，请等待本地工作台自动重启后再确认版本。",
+    };
+  }
+  if (status.phase === "FAILED") {
+    return {
+      value: "上次更新失败",
+      description: status.message || "进入版本与升级查看失败原因，并按当前运行模式重试。",
+    };
+  }
+  if (status.updateAvailable) {
+    return {
+      value: `最新 ${latestVersion}`,
+      description: guideOnlyMode
+        ? "检测到新版本，进入版本与升级查看 git pull、容器重建和 Skill 同步步骤。"
+        : "检测到新版本，进入版本与升级完成下载校验和一键升级。",
+    };
+  }
+  return {
+    value: "已是最新",
+    description: guideOnlyMode
+      ? "当前版本已同步；后续有新版本时，这里会提醒 git pull 和容器重建方法。"
+      : "当前版本已同步；后续有新版本时，这里会提醒下载安装并执行升级。",
+  };
 }

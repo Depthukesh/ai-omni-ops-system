@@ -1845,7 +1845,8 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
         modelSelection: { type: "string", description: "可选：使用 get_design_workspace_options 返回的模型 selectionKey，例如 providerId::modelName。" },
         imageSize: { type: "string", description: "可选：图片尺寸，格式为 宽x高，例如 1200x628、1080x1920。未指定时 image 模块默认使用 1242x1660。" },
         spec: { type: "string", description: "可选：兼容旧链路的规格字段；如果是图片设计，也可以继续传 宽x高，等价于 imageSize。" },
-        additionalInstruction: { type: "string" },
+        additionalInstruction: { type: "string", description: "可选：补充设计要求，适合填写完整的文案、风格、主体、版式和禁忌项。" },
+        styleHint: { type: "string", description: "可选：兼容旧写法，等同于 additionalInstruction。" },
       },
       required: ["module"],
       additionalProperties: false,
@@ -7032,6 +7033,7 @@ export class OpenClawService {
       imageSize?: string;
       spec?: string;
       additionalInstruction?: string;
+      styleHint?: string;
     },
   ) {
     const auth = await this.requireAuth(headers);
@@ -7089,7 +7091,10 @@ export class OpenClawService {
         referenceImageUrl: resolvedReferenceImageUrl || undefined,
         modelSelection: String(options?.modelSelection || "").trim() || undefined,
         spec: resolvedSpec,
-        additionalInstruction: this.normalizeSafeInstruction(options?.additionalInstruction, "设计补充要求") || undefined,
+        additionalInstruction: this.normalizeSafeInstruction(
+          options?.additionalInstruction || options?.styleHint,
+          "设计补充要求",
+        ) || undefined,
         debugTraceId: debugTraceId || undefined,
       }, auth);
 
@@ -7114,6 +7119,7 @@ export class OpenClawService {
         summary: `已在网站设计工作台中完成 ${module} 设计任务。`,
         highlights: [
           `任务 ID：${result.taskId}`,
+          `执行品牌：${brandId}`,
           `模块：${module}`,
           options?.designType ? `设计类型：${options.designType}` : "设计类型：按默认技能生成",
           module === "image"
@@ -13495,6 +13501,7 @@ export class OpenClawService {
           imageSize: typeof toolArgs.imageSize === "string" ? toolArgs.imageSize : undefined,
           spec: typeof toolArgs.spec === "string" ? toolArgs.spec : undefined,
           additionalInstruction: typeof toolArgs.additionalInstruction === "string" ? toolArgs.additionalInstruction : undefined,
+          styleHint: typeof toolArgs.styleHint === "string" ? toolArgs.styleHint : undefined,
         });
       case "get_douyin_original_copy_options":
         return this.getDouyinOriginalCopyOptions(headers);

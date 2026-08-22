@@ -4367,7 +4367,7 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
   ): Promise<DesignGeneratedWorkRecord> {
     const archive = await this.brandsService.getArchive(brandId);
     const calendarWorkspace = await this.reportsService.getXiaohongshuMarketingCalendarWorkspace(brandId);
-    const skillProfile = this.resolveDesignSkillProfile(payload.module, payload.skillSlug);
+    const skillProfile = this.resolveDesignSkillProfile(payload.module, payload.skillSlug, payload.designType);
     const selectedCalendarItem = calendarWorkspace.latest?.items.find((item) => item.id === payload.calendarItemId);
     const selectedProduct = archive.products.find((item) => item.id === payload.productId);
     const scopedSelection = this.parseScopedModelSelection(payload.modelSelection || "");
@@ -7090,13 +7090,13 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
     );
   }
 
-  private resolveDesignSkillProfile(module: DesignWorkModuleKey, skillSlug?: string) {
+  private resolveDesignSkillProfile(module: DesignWorkModuleKey, skillSlug?: string, designType?: string) {
     const normalizedSkillSlug = String(skillSlug || "").trim();
     const profile = DESIGN_SKILL_PROFILES[normalizedSkillSlug as keyof typeof DESIGN_SKILL_PROFILES];
     if (!profile || profile.module !== module) {
       return {
-        skillSlug: this.getDefaultDesignSkillSlug(module),
-        ...DESIGN_SKILL_PROFILES[this.getDefaultDesignSkillSlug(module)],
+        skillSlug: this.getDefaultDesignSkillSlug(module, designType),
+        ...DESIGN_SKILL_PROFILES[this.getDefaultDesignSkillSlug(module, designType)],
       };
     }
     return {
@@ -7105,8 +7105,18 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
-  private getDefaultDesignSkillSlug(module: DesignWorkModuleKey) {
+  private getDefaultDesignSkillSlug(module: DesignWorkModuleKey, designType?: string) {
     if (module === "image") {
+      const normalizedDesignType = String(designType || "").trim();
+      if (normalizedDesignType === "杂志风海报" || normalizedDesignType === "品牌封面图" || normalizedDesignType === "信息图海报" || normalizedDesignType === "电商主视觉") {
+        return "design-magazine-poster";
+      }
+      if (normalizedDesignType === "动效首帧") {
+        return "design-motion-frames";
+      }
+      if (normalizedDesignType === "像素动画首帧") {
+        return "design-sprite-animation";
+      }
       return "design-social-carousel";
     }
     if (module === "html") {

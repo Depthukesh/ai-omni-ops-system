@@ -844,6 +844,7 @@ export class OpenClawController {
       imageSize?: string;
       spec?: string;
       additionalInstruction?: string;
+      styleHint?: string;
     },
   ) {
     return this.openClawService.createDesignWork(headers, payload);

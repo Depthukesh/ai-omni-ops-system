@@ -712,6 +712,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(CollectorsService.name);
   private douyinVideoCacheQueue = Promise.resolve();
   private douyinTranscriptQueue = Promise.resolve();
+  private readonly douyinVideoCacheInFlight = new Set<string>();
   private douyinContentTagCache: { expiresAt: number; items: DouyinContentTagOption[] } | null = null;
   private douyinCityOptionCache: { expiresAt: number; items: DouyinCityOption[] } | null = null;
   private readonly collectorSyncConcurrency = this.readPositiveIntegerEnv(
@@ -761,6 +762,17 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       return false;
     }
     return process.env.NODE_ENV !== "production";
+  }
+
+  private shouldResumeDouyinVideoCachesOnStartup() {
+    const configured = String(process.env.COLLECTORS_STARTUP_RESUME_DOUYIN_VIDEO_CACHE || "").trim().toLowerCase();
+    if (configured === "true" || configured === "1" || configured === "yes" || configured === "on") {
+      return true;
+    }
+    if (configured === "false" || configured === "0" || configured === "no" || configured === "off") {
+      return false;
+    }
+    return process.env.NODE_ENV !== "production" || this.ossStorageService.isUsingLocalFallback();
   }
 
   private readPositiveIntegerEnv(name: string, fallback: number) {
@@ -835,7 +847,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
   onModuleInit() {
     const enableDailyHotspotStartupCatchUp = this.isProductionStartupThrottleEnabled("COLLECTORS_STARTUP_DAILY_HOTSPOT_CATCHUP");
     const enableVideoCacheCleanupStartupCatchUp = this.isProductionStartupThrottleEnabled("COLLECTORS_STARTUP_VIDEO_CACHE_CLEANUP_CATCHUP");
-    const enableResumeDouyinVideoCaches = this.isProductionStartupThrottleEnabled("COLLECTORS_STARTUP_RESUME_DOUYIN_VIDEO_CACHE");
+    const enableResumeDouyinVideoCaches = this.shouldResumeDouyinVideoCachesOnStartup();
     const enableResumeDouyinTranscripts = this.isProductionStartupThrottleEnabled("COLLECTORS_STARTUP_RESUME_DOUYIN_TRANSCRIPTS");
 
     if (this.globalDailyHotspotSyncEnabled) {
@@ -888,7 +900,9 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       this.getDouyinCityOptionsSafe(brandId),
     ]);
     if (await this.prismaService.canUseDatabase()) {
-      return this.buildDouyinWorkspaceFromAssets(await this.listCollectorAssets(brandId), contentTags, cityOptions);
+      const assets = await this.listCollectorAssets(brandId);
+      this.schedulePendingDouyinVideoCaches(assets);
+      return this.buildDouyinWorkspaceFromAssets(assets, contentTags, cityOptions);
     }
 
     return this.getDouyinWorkspaceFromMock(brandId, contentTags, cityOptions);
@@ -2618,6 +2632,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
         label: "抖音视频缓存",
         timeoutMs: CollectorsService.REMOTE_VIDEO_DOWNLOAD_TIMEOUT_MS,
         retryCount: 1,
+          headers: this.buildDouyinVideoDownloadHeaders(normalizedUrl),
       });
       const contentType = response.headers.get("content-type") || this.guessDouyinVideoContentType(normalizedUrl);
       const storageKey = this.buildDouyinVideoStorageKey(brandId, workId, contentType, normalizedUrl);
@@ -2631,7 +2646,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       };
     } catch (error) {
       const detail = error instanceof Error ? error.message : "未知错误";
-      throw new ServiceUnavailableException(`抖音视频缓存到 OSS 失败：${detail}`);
+        throw new ServiceUnavailableException(`抖音视频缓存到受控存储失败：${detail}`);
     }
   }
 
@@ -2641,6 +2656,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       label: string;
       timeoutMs: number;
       retryCount?: number;
+      headers?: Record<string, string>;
     },
   ) {
     const attempts = Math.max(1, (options.retryCount || 0) + 1);
@@ -2651,6 +2667,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       try {
         const response = await fetch(url, {
           method: "GET",
+            headers: options.headers,
           signal: controller.signal,
         });
         if (!response.ok) {
@@ -2682,15 +2699,37 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     throw new ServiceUnavailableException(`${options.label}失败：${message}`);
   }
 
+  private buildDouyinVideoDownloadHeaders(sourceUrl: string) {
+    let referer = "https://www.douyin.com/";
+    let origin = "https://www.douyin.com";
+    try {
+      const url = new URL(sourceUrl);
+      if (/\.iesdouyin\.com$/i.test(url.hostname)) {
+        referer = "https://www.iesdouyin.com/";
+        origin = "https://www.iesdouyin.com";
+      }
+    } catch {
+      // Ignore invalid URL parsing and keep default headers.
+    }
+    return {
+      Accept: "video/webm,video/mp4,video/*;q=0.9,*/*;q=0.8",
+      Origin: origin,
+      Referer: referer,
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36",
+    };
+  }
+
   private enqueueDouyinVideoCache(asset: AssetRecord) {
     const meta = this.asMeta(asset.metadataJson);
     const sourceUrl = this.readMetaString(meta, "videoSourceUrl") || this.readMetaString(meta, "videoUrl");
     const workId = this.readMetaString(meta, "workId");
     const kind = this.readMetaString(meta, "kind");
-    if (!sourceUrl || !workId || !this.isDouyinWorkKind(kind)) {
+    if (!sourceUrl || !workId || !this.isDouyinWorkKind(kind) || this.douyinVideoCacheInFlight.has(asset.id)) {
       return;
     }
 
+    this.douyinVideoCacheInFlight.add(asset.id);
     this.douyinVideoCacheQueue = this.douyinVideoCacheQueue
       .then(async () => {
         await this.updateCollectorAssetMeta(asset.brandId, asset.id, {
@@ -2713,13 +2752,21 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
             videoCacheStatus: "FAILED",
             videoCacheLastError: detail,
           });
+        } finally {
+          this.douyinVideoCacheInFlight.delete(asset.id);
         }
       })
-      .catch(() => undefined);
+      .catch(() => {
+        this.douyinVideoCacheInFlight.delete(asset.id);
+        return undefined;
+      });
   }
 
   private async resumePendingDouyinVideoCaches() {
-    const assets = await this.listAllCollectorAssets();
+    this.schedulePendingDouyinVideoCaches(await this.listAllCollectorAssets());
+  }
+
+  private schedulePendingDouyinVideoCaches(assets: AssetRecord[]) {
     for (const asset of assets) {
       const meta = this.asMeta(asset.metadataJson);
       const kind = this.readMetaString(meta, "kind");
@@ -2730,6 +2777,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
         && sourceUrl
         && (!this.readMetaString(meta, "videoStorageKey") || status === "PENDING")
         && status !== "EXPIRED"
+        && status !== "FAILED"
       ) {
         this.enqueueDouyinVideoCache(asset);
       }

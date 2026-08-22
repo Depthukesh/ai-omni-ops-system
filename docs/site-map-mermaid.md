@@ -125,6 +125,7 @@ flowchart TD
     G["设计工作台"]
     H["个人中心"]
     H --> H1["版本与升级（local-single-user 自动升级 / standard 更新引导）"]
+    H --> H19["概览卡片 + 二级导航前置显示版本提醒（有新版本 / 升级中 / 需处理 / 已同步）"]
     H1 --> H11["检查 OSS latest.json 最新发布"]
     H1 --> H12["预下载 zip + sha256 校验"]
     H1 --> H13["触发独立 updater 替换安装目录"]

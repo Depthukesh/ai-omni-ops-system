@@ -19,6 +19,7 @@ import {
   type MediaRecord,
   type OrderRecord,
   type PointLedgerRecord,
+  type SystemUpdateStatus,
   type TaskRecord,
   type UserProfile,
 } from "../../../services/personal-center";
@@ -29,6 +30,8 @@ import {
   isAuthFailure,
   personalOrderStatusClassMap,
   personalTaskStatusClassMap,
+  resolveVersionWorkspaceBadge,
+  resolveVersionWorkspaceSummary,
   shouldShowVersionWorkspace,
 } from "./route-helpers";
 
@@ -49,6 +52,7 @@ export default function PersonalCenterPage() {
   const [currentBrandId, setCurrentBrandId] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [showVersionWorkspace, setShowVersionWorkspace] = useState(false);
+  const [updateStatus, setUpdateStatus] = useState<SystemUpdateStatus | null>(null);
 
   useEffect(() => {
     const session = readAuthSession();
@@ -99,6 +103,7 @@ export default function PersonalCenterPage() {
     setShowVersionWorkspace(
       shouldShowVersionWorkspace(updateStatusResult.status === "fulfilled" ? updateStatusResult.value : null),
     );
+    setUpdateStatus(updateStatusResult.status === "fulfilled" ? updateStatusResult.value : null);
 
     setIsLoading(false);
   }
@@ -126,6 +131,8 @@ export default function PersonalCenterPage() {
   const latestOrder = useMemo(() => [...orders].sort(sortByOrderUpdatedAtDesc)[0], [orders]);
   const latestWork = useMemo(() => [...media].sort(sortByMediaCreatedAtDesc)[0], [media]);
   const latestPointLedger = useMemo(() => [...pointLedgers].sort(sortByPointLedgerCreatedAtDesc)[0], [pointLedgers]);
+  const versionSummary = useMemo(() => resolveVersionWorkspaceSummary(updateStatus), [updateStatus]);
+  const versionBadge = useMemo(() => resolveVersionWorkspaceBadge(updateStatus), [updateStatus]);
   const totalOrderCount = summary.membershipOrderCount + summary.rechargeOrderCount;
   const overviewPills = useMemo(
     () => [
@@ -377,6 +384,24 @@ export default function PersonalCenterPage() {
               <p className="bento-desc" style={{ marginTop: 'auto' }}>Configure third-party models and sync keys.</p>
             </Link>
           </article>
+
+              {showVersionWorkspace ? (
+                <article className="bento-cell bento-cell--col-4">
+                  <Link href="/personal-center/version" className="bento-link">
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                      <span className="bento-eyebrow">Updates</span>
+                      {versionBadge ? (
+                        <span className={`archive-pill ${versionBadge.className}`} style={{ minHeight: "auto", padding: "2px 8px" }}>
+                          {versionBadge.label}
+                        </span>
+                      ) : null}
+                    </div>
+                    <h3 className="bento-title">Version & Updates</h3>
+                    <div className="bento-value bento-value-small">{versionSummary.value}</div>
+                    <p className="bento-desc">{versionSummary.description}</p>
+                  </Link>
+                </article>
+              ) : null}
 
         </div>
       </div>

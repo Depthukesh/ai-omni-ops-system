@@ -72,12 +72,20 @@
     - 修复 `更多功能 -> 设计` 首屏因历史列表携带完整 HTML 内容并批量渲染 iframe 卡片而触发的浏览器内存崩溃
   - `docs/changes/2026-08-22-openclaw-design-work-image-size-entry-clarification.md`
     - 给 OpenClaw `create_design_work` 显式补齐 `imageSize` 入参，并把旧 `spec: 宽x高` 的兼容关系与错误格式拦截规则写清楚，避免外部误以为只能生成默认竖版图
+  - `docs/changes/2026-08-22-openclaw-design-work-default-skill-alignment.md`
+    - 收口 OpenClaw 图片设计默认模板选择：`品牌封面图 / 信息图海报 / 电商主视觉` 不再无脑掉回 `design-social-carousel`，同时 `create_design_work` 兼容旧写法 `styleHint`
+  - `docs/changes/2026-08-22-douyin-video-cache-local-preview-recovery.md`
+    - 修复品牌增长策略里抖音采集视频在本地受控存储模式下长期“缓存中”的问题，补齐启动恢复、自愈补挂和浏览器式下载头
+  - `docs/changes/2026-08-22-wechat-publish-local-asset-loopback-fix.md`
+    - 修复公众号 Step 5 API 发布在 Docker 容器内回读站内封面图 / 正文图时误用宿主机 `13011` 端口、最终统一报 `fetch failed` 的问题
   - `docs/changes/2026-08-22-video-remix-archive-scope-and-project-list-expansion.md`
     - 视频混剪工作区默认把成片回流到统一的“某音/某号作品列表”，并把 mixedcut 页面里剩余的 `limit=5 / limit=20` 前端项目数截断一并放开
   - `docs/changes/2026-08-22-mixedcut-http-mcp-local-filepath-compat.md`
     - 收口 mixedcut 的 HTTP MCP 本地路径兼容问题：`create_mixedcut_remix_task` schema 正式声明 `localFilePath / localFilePaths`，并把 streamableHttp 下的服务端路径解析边界和 `uploadItems.dataBase64` 回退方式写清楚
   - `docs/changes/2026-08-22-docker-standard-version-update-guide-page.md`
     - 把个人中心 `版本与升级` 从“仅 local-single-user 自动升级”扩展为双模式：安装态继续一键升级；Docker 标准运行态在配置远端更新清单后，可显示最新版本、容器重建命令、mixedcut/Skill 同步提醒和更新说明链接
+  - `docs/changes/2026-08-22-personal-center-version-update-reminder.md`
+    - 把个人中心里的版本提醒继续前置到概览卡片和二级导航，并让版本页固定展示更新方法，避免用户必须先点进版本页才知道有没有更新、该怎么更新
   - `docs/changes/2026-08-22-openclaw-mixedcut-skill-sync.md`
     - 把 mixedcut 从“仅 MCP 可调用”继续同步到 OpenClaw Skill ZIP：补齐主 Skill、工具矩阵、任务路由与安装中心 fallback，对 `视频混剪 / mixedcut / 本机 localFilePath` 给出统一语义
   - `docs/changes/2026-08-22-openclaw-mixedcut-mcp-local-file-bridge.md`
@@ -98,6 +106,8 @@
     - 启动 Docker + PostgreSQL + mixedcut 本地部署第一阶段，补标准运行态本地存储配置、宿主机路径展示映射和 compose 脚手架
   - `docs/changes/2026-08-21-openclaw-design-work-reference-material-id.md`
     - OpenClaw 设计工作台新增 `referenceMaterialId`，允许直接复用站内创作素材作为参考图，减少手动转公网 URL 或重复上传
+  - `docs/changes/2026-08-22-openclaw-install-token-brand-mismatch-guard.md`
+    - OpenClaw 正式安装令牌新增品牌错配拦截；当 `Authorization` 绑定品牌与请求头 `x-brand-id` 不一致时直接报错，避免 `create_design_work` 静默跑到错误品牌上下文
   - `docs/changes/2026-08-21-local-single-user-root-route-redirect-fix.md`
     - 修复 local-single-user 安装态访问根路径 `/` 直接掉进 Next.js `/error` 的问题；当前安装态会把 `/` 直接收口到 `/brand-growth`，不再尝试渲染只服务官网场景的营销首页模板
   - `docs/changes/2026-08-19-local-single-user-install-elevation-exit-code-and-direct-ps1-fix.md`
