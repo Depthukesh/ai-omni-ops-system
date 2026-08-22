@@ -119,12 +119,12 @@ export function HomePageClient(props: HomePageClientProps) {
         <div className="panel-header">
           <div>
             <span className="hero-badge">AI 全域运营系统</span>
-            <h1>{mode === "register" ? (inviteCodeRequired ? "邀请制注册" : "本地直接注册") : "统一账号登录"}</h1>
+            <h1>{mode === "register" ? (inviteCodeRequired ? "邀请制注册" : "开放注册") : "统一账号登录"}</h1>
             <p className="panel-subtext">
               {mode === "register"
                 ? (inviteCodeRequired
                   ? "前台页面统一要求登录后访问。当前注册采用邀请码准入，邀请码验证通过后自动创建账号和默认品牌。"
-                  : "当前 local-single-user 安装态允许直接注册，注册成功后会自动创建默认品牌并进入工作台。")
+                  : "当前运行态使用开放注册流程，注册成功后会自动创建默认品牌并进入工作台。")
                 : "前台工作台统一使用同一套普通账号登录；后台管理台请使用管理员账号单独登录。"}
             </p>
           </div>
@@ -201,7 +201,7 @@ export function HomePageClient(props: HomePageClientProps) {
               />
             </label>
             <p className="field-hint">
-              {inviteCodeRequired ? "没有邀请码的用户无法注册；邀请码一次性使用，注册成功后下次可直接登录。" : "当前本地单机版允许当前用户直接注册，不再要求邀请码。"}
+              {inviteCodeRequired ? "没有邀请码的用户无法注册；邀请码一次性使用，注册成功后下次可直接登录。" : "当前运行态使用开放注册流程。"}
             </p>
             {errorMessage ? <p className="error-text">{errorMessage}</p> : null}
             <button type="submit" className="primary-button" disabled={isSubmitting}>

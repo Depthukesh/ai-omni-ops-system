@@ -51,8 +51,12 @@
 
 ### 4.3 受控资源副本
 
-- 当前以下资源均统一持久化到 OSS：
+- 当前以下资源统一持久化到受控副本，具体真源按运行模式决定：
+  - 网站版 / 源码标准运行态：默认 OSS
+  - Docker 本地标准运行态：可通过 `STORAGE_PROVIDER_MODE=local` 强制切到宿主机挂载目录
+  - `local-single-user` 安装态：默认本地受控存储
 - `works` 生成资源：`works/<brandId>/<fileName>`
+- 个人中心网站上传素材：`works/<brandId>/material-library/<category>/<YYYY>/<YYYY-MM>/<timestamp>-<title>.<ext>`
 - `reports` HTML 产物：`reports/<brandId>/<fileName>`
 - 原创参考模板素材：`reference-templates/xiaohongshu/original/<categoryId>/<fileName>`
 - 品牌产品图片：`brands/<brandId>/product-images/<fileName>`
@@ -65,10 +69,17 @@
 - `/api/brands/:id/product-images/:fileName`
 - `/api/brands/:id/asset-files/:fileName`
 - `/api/auth/users/:userId/avatar/:fileName`
-- 站内接口负责按 `storageKey` 从 OSS 读取，不再把 `.runtime/generated-works/` 或其他本地目录当作正式真源
-- 仅在本地开发且未配置 OSS 时，允许暂时回退到 `.runtime/local-oss/<storageKey>` 作为联调副本；但站内接口、`storageKey` 前缀与业务记录结构必须保持和正式 OSS 链路一致
-- `local-single-user` 安装态新增“本地资料目录”设置后，`LOCAL_APP_DATA_ROOT/storage` 主要承接安装态本地运行资料与副本目录；这项设置本身不等于把作品、报告、媒体正式真源从 OSS 切成本地目录
+- 站内接口统一按 `storageKey` 从当前运行模式对应的受控真源读取，不再把 `.runtime/generated-works/` 或其他散落目录当作正式真源
+- 仅在本地开发且未配置 OSS 时，允许暂时回退到 `.runtime/local-oss/<storageKey>` 作为联调副本；但站内接口、`storageKey` 前缀与业务记录结构必须保持和正式链路一致
+- `local-single-user` 安装态下，作品、报告、媒体等受控副本现在正式写入 `LOCAL_APP_DATA_ROOT/storage/oss/<storageKey>`，不再因为机器上存在 OSS 凭据而继续写 OSS
+- `local-single-user` 安装态下，个人中心设置的本地存储目录同时承接两类本地受控副本：
+  - 命中 `works/<brandId>/material-library/<category>/...` 的存储键时，映射到用户设置目录下的 `素材库/<分类>/<brandId>/...`
+  - 其它 `works/*`、`reports/*`、`brands/*`、`users/*` 等受控副本，统一映射到用户设置目录下的 `站内存储/<storageKey>`
+- Docker 本地标准运行态下，如果要继续让用户在宿主机直接管理素材，必须同时配置：
+  - `MATERIAL_LIBRARY_BASE_ROOT` / `MANAGED_STORAGE_ROOT`：容器内真实挂载路径
+  - `MATERIAL_LIBRARY_DISPLAY_ROOT` / `MANAGED_STORAGE_DISPLAY_ROOT`：页面和 OpenClaw 返回给用户看的宿主机路径
 - 若已配置 OSS 但当前运行环境不在阿里云内网，`OSS_INTERNAL` 应保持关闭或不配置；只有明确需要走阿里云内网 endpoint 时才开启 `OSS_INTERNAL=true`
+- 品牌增长策略中的抖音采集视频预览也必须遵守同一规则：缓存副本优先写受控 `storageKey`，标准运行态可回 OSS 读取，`local-single-user` 与缺 OSS 的本地运行态要通过站内受控媒体接口读取本地副本，不能继续直接依赖第三方短链
 
 ## 5. 三类作品存储要求
 
@@ -118,10 +129,10 @@
 
 ## 7. 删除与更新规则
 
-- 删除作品或附件时，同时删除对应 OSS 对象副本
-- 更新作品文案或报告 HTML 时，同时更新 OSS 中的 HTML 副本与 `metadataJson`
-- 更新头像、产品图、资料附件等上传资源时，新对象必须直接写入 OSS，不回退本地目录
-- 更新资源引用时，优先覆盖 OSS 副本关系，不直接改回第三方外链
+- 删除作品或附件时，同时删除对应运行模式下的受控副本
+- 更新作品文案或报告 HTML 时，同时更新受控副本与 `metadataJson`
+- 更新头像、产品图、资料附件等上传资源时，新对象必须直接写入当前运行模式的受控真源，不回退第三方外链
+- 更新资源引用时，优先覆盖受控副本关系，不直接改回第三方外链
 - 原创参考模板素材不进入前端静态目录；新增或替换模板时，统一通过导入脚本批量写入 `reference-templates/xiaohongshu/original/...`，再更新模板清单
 
 ## 8. 发布前校验规则
@@ -142,12 +153,13 @@
 ## 10. 当前执行结论
 
 - 文案已基本进入规范化存储
-- `works` 主链路现已改为纯 OSS 存储，站内保留统一资产读取入口
-- `reports` 的品牌增长报告、可视化报告、半年营销规划、小红书营销策划方案 HTML 产物已真实写入 OSS
-- 本地开发若缺失 OSS 配置，`OssStorageService` 现可回退到 `.runtime/local-oss`，避免报告生成在“保存 HTML 附件”阶段直接 500；生产态仍坚持 OSS 真源
-- 品牌产品图与品牌资料附件已改为 OSS 真源，站内读取接口直接代理 OSS 对象
-- 用户头像已支持真实上传到 OSS，并通过站内头像接口读取
-- 原创参考模板库也已纳入相同存储边界：导入脚本会优先写 OSS，开发态缺失 OSS 时回退 `.runtime/local-oss`，前端始终只认站内模板资产接口
+- `works`、`reports`、品牌上传资源、OpenClaw 素材副本都已统一收口到受控 `storageKey`
+- 网站版 / 源码标准运行态继续以 OSS 为正式真源
+- `local-single-user` 安装态已改为本地真源，正式写入 `LOCAL_APP_DATA_ROOT/storage/oss`
+- 本地开发若缺失 OSS 配置，`OssStorageService` 仍可回退到 `.runtime/local-oss`，避免报告生成在“保存 HTML 附件”阶段直接 500
+- 品牌产品图与品牌资料附件已进入同一受控存储边界，站内读取接口统一代理当前真源
+- 用户头像已支持真实上传到受控副本，并通过站内头像接口读取
+- 原创参考模板库也已纳入相同存储边界：标准运行态优先写 OSS，开发态缺失 OSS 时回退 `.runtime/local-oss`，本地安装态写 `LOCAL_APP_DATA_ROOT/storage/oss`，前端始终只认站内模板资产接口
 - 原创/二创图片已进入受控副本链路
 - 视频成片与视频封面已开始补齐受控副本链路
 - 下一阶段继续收口历史外链资源、演示种子占位链接和更多作品类型

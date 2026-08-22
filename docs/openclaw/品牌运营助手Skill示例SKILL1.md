@@ -78,7 +78,7 @@
 - 查看我的待处理品牌邀请和邀请通知
 - 查看第三方接口配置摘要
 - 查看多元探索平台是否已经接入并能否覆盖文本、图像、视频、音频、音乐
-- 查看最近订单情况
+- 查看素材管理里的各类创作素材
 - 查看知识库和最近新增资料
 - 看当前技能配置摘要
 
@@ -496,6 +496,25 @@
   - `reportId=<报告ID>`
 - 这个板块只负责归档和查看 HTML 诊断报告，不负责在站内重新生成 GEO 诊断内容
 
+### 保存并管理 GEO 其它工作流内容
+
+- 当 OpenClaw 已经生成关键词挖掘、网站诊断、知识库搭建、GEO优化方案、自媒体内容、第三方媒体或品牌网站结果时，统一保存到独立的 `GEO` 板块
+- 查看这些内容列表时，使用：
+  - `get_openclaw_geo_contents`
+  - 可按 `contentType` 筛选某个板块
+- 保存这些内容时，使用：
+  - `create_openclaw_geo_content`
+  - 必填：`contentType`、`title`、`htmlContent`
+  - 可补充：`description`
+  - 非 HTML 附件可通过 `attachmentFileUrl / attachmentFileName / attachmentMimeType / attachmentStorageKey`，或 `attachmentUpload` 一并写入
+- 删除时，使用：
+  - `delete_openclaw_geo_content`
+  - `contentId=<内容ID>`
+- 这些板块默认负责：
+  - HTML 站内预览
+  - 非 HTML 附件受控副本
+  - `存储地址` 回显
+
 ### 新建知识库
 
 - 优先使用：`create_knowledge_base`
@@ -504,9 +523,9 @@
 
 - 优先使用：`upload_knowledge_base_files`
 
-### 查看最近订单情况
+### 查看素材管理里的各类创作素材
 
-- 优先使用：`list_my_orders`
+- 优先使用：`list_personal_material_assets`
 
 ## 七、行为边界
 

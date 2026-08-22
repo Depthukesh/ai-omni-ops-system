@@ -255,29 +255,55 @@ function resolvePreviewAspectRatio(spec?: string) {
   return `${match[1]} / ${match[2]}`;
 }
 
-function renderWorkPreview(module: DesignModuleMeta, work: DesignWork) {
-  if (module.key === "image" && work.assetUrl) {
-    return <img src={work.assetUrl} alt={work.title} className="design-v3-card-media design-v3-card-media--image" />;
-  }
-
-  if (module.key === "html" && (work.htmlContent || work.assetUrl)) {
-    return (
-      <iframe
-        title={`${work.title} 预览`}
-        srcDoc={work.htmlContent}
-        src={work.htmlContent ? undefined : work.assetUrl}
-        className="design-v3-card-iframe"
-      />
-    );
+function renderWorkPreview(module: DesignModuleMeta, work: DesignWork, showImagePreview: boolean) {
+  if (module.key === "image" && work.assetUrl && showImagePreview) {
+    return <img src={work.assetUrl} alt={work.title} className="design-v3-card-media design-v3-card-media--image" loading="lazy" decoding="async" />;
   }
 
   return (
     <div className="design-v3-card-placeholder">
       <span>{work.skillLabel || module.label}</span>
       <strong>{work.tags[0] ?? work.title}</strong>
-      <p>{work.summary}</p>
+      <p>
+        {module.key === "image" && work.assetUrl
+          ? (showImagePreview
+            ? "当前缩略图已按需加载。"
+            : "列表默认不自动加载成品图，点击下方“加载图”时再单独请求，避免首屏占用过多内存。")
+          : work.summary}
+      </p>
     </div>
   );
+}
+
+function getDesignLoadedPreviewStorageKey(moduleKey: DesignModuleKey) {
+  return `design-workspace-loaded-previews:${moduleKey}`;
+}
+
+function readLoadedImagePreviewIds(moduleKey: DesignModuleKey) {
+  if (typeof window === "undefined") {
+    return [];
+  }
+  try {
+    const raw = window.sessionStorage.getItem(getDesignLoadedPreviewStorageKey(moduleKey));
+    if (!raw) {
+      return [];
+    }
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string" && item.trim().length > 0) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeLoadedImagePreviewIds(moduleKey: DesignModuleKey, workIds: string[]) {
+  if (typeof window === "undefined") {
+    return;
+  }
+  try {
+    window.sessionStorage.setItem(getDesignLoadedPreviewStorageKey(moduleKey), JSON.stringify(workIds));
+  } catch {
+    // Ignore sessionStorage write failures and fall back to in-memory state only.
+  }
 }
 
 function isHtmlPreviewWork(work: DesignWork | null) {
@@ -569,6 +595,7 @@ function ModuleWorks({
   onViewWork: (work: DesignWork) => void;
 }) {
   const [page, setPage] = useState(1);
+  const [loadedImagePreviewIds, setLoadedImagePreviewIds] = useState<string[]>(() => readLoadedImagePreviewIds(module.key));
   const totalPages = Math.max(1, Math.ceil(works.length / DESIGN_WORKS_PER_PAGE));
   const visibleWorks = useMemo(() => {
     const startIndex = (page - 1) * DESIGN_WORKS_PER_PAGE;
@@ -582,6 +609,25 @@ function ModuleWorks({
   useEffect(() => {
     setPage((current) => Math.min(current, totalPages));
   }, [totalPages]);
+
+  useEffect(() => {
+    setLoadedImagePreviewIds((current) => {
+      const availableWorkIds = new Set(works.map((item) => getWorkId(item)));
+      const persistedIds = readLoadedImagePreviewIds(module.key);
+      const nextIds = Array.from(new Set([...current, ...persistedIds])).filter((item) => availableWorkIds.has(item));
+      writeLoadedImagePreviewIds(module.key, nextIds);
+      return nextIds;
+    });
+  }, [module.key, works]);
+
+  useEffect(() => {
+    writeLoadedImagePreviewIds(module.key, loadedImagePreviewIds);
+  }, [loadedImagePreviewIds, module.key]);
+
+  const toggleImagePreview = (workId: string) => {
+    setLoadedImagePreviewIds((current) =>
+      current.includes(workId) ? current.filter((item) => item !== workId) : [...current, workId]);
+  };
 
   return (
     <section className="design-v3-works">
@@ -604,13 +650,18 @@ function ModuleWorks({
             key={`${module.key}-${getWorkId(work)}`}
             className={`design-v3-work-card ${selectedWorkId === getWorkId(work) ? "is-selected" : ""}`}
           >
+            {(() => {
+              const workId = getWorkId(work);
+              const showImagePreview = module.key === "image" && loadedImagePreviewIds.includes(workId);
+              return (
+                <>
             <button
               type="button"
               className="design-v3-work-preview design-v3-work-preview-button"
               style={module.key === "image" ? { aspectRatio: resolvePreviewAspectRatio(work.spec) || "4 / 5" } : undefined}
               onClick={() => onViewWork(work)}
             >
-              {renderWorkPreview(module, work)}
+              {renderWorkPreview(module, work, showImagePreview)}
               <div className="design-v3-work-floating-tags">
                 <span className="archive-pill status-pending">{module.label}</span>
                 <span className={`archive-pill ${getWorkStatusTone(work.status)}`}>{work.status}</span>
@@ -632,6 +683,15 @@ function ModuleWorks({
               </div>
               {work.errorDetail ? <div className="design-v3-work-error">{work.errorDetail}</div> : null}
               <div className="design-v3-work-actions">
+                {module.key === "image" && work.assetUrl ? (
+                  <button
+                    type="button"
+                    className="tiny-action-button"
+                    onClick={() => toggleImagePreview(workId)}
+                  >
+                    {showImagePreview ? "隐藏图" : "加载图"}
+                  </button>
+                ) : null}
                 <button type="button" className="tiny-action-button is-primary" onClick={() => onViewWork(work)}>
                   查看
                 </button>
@@ -645,6 +705,9 @@ function ModuleWorks({
                 </button>
               </div>
             </div>
+                </>
+              );
+            })()}
           </article>
         ))}
       </div>
@@ -687,7 +750,8 @@ export function DesignWorkspaceShell({ section }: DesignWorkspaceShellProps) {
   const [activeModule, setActiveModule] = useState<DesignModuleKey>("image");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [options, setOptions] = useState<DesignWorkspaceOptionsRecord | null>(null);
-  const [loadingOptions, setLoadingOptions] = useState(true);
+  const [loadingOptions, setLoadingOptions] = useState(false);
+  const [loadingHistory, setLoadingHistory] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [worksByModule, setWorksByModule] = useState<Record<DesignModuleKey, DesignWork[]>>(createEmptyWorksByModule);
   const [lastRefreshByModule, setLastRefreshByModule] = useState<Record<DesignModuleKey, string>>(createInitialRefreshByModule);
@@ -762,21 +826,17 @@ export function DesignWorkspaceShell({ section }: DesignWorkspaceShellProps) {
   useEffect(() => {
     let cancelled = false;
 
-    async function loadInitialOptions() {
-      setLoadingOptions(true);
+    async function loadInitialHistory() {
+      setLoadingHistory(true);
       setLoadError("");
 
       try {
-        const [nextOptions, history] = await Promise.all([
-          getDesignWorkspaceOptions(brandId),
-          getDesignWorkspaceHistory(brandId),
-        ]);
+        const history = await getDesignWorkspaceHistory(brandId);
         if (cancelled) {
           return;
         }
 
         const refreshedAt = formatTimestamp(new Date());
-        setOptions(nextOptions);
         applyHistorySnapshot(history.items);
         setLastRefreshByModule({
           image: refreshedAt,
@@ -792,12 +852,12 @@ export function DesignWorkspaceShell({ section }: DesignWorkspaceShellProps) {
         setLoadError(normalizeErrorMessage(error));
       } finally {
         if (!cancelled) {
-          setLoadingOptions(false);
+          setLoadingHistory(false);
         }
       }
     }
 
-    void loadInitialOptions();
+    void loadInitialHistory();
 
     return () => {
       cancelled = true;
@@ -805,14 +865,34 @@ export function DesignWorkspaceShell({ section }: DesignWorkspaceShellProps) {
   }, [brandId]);
 
   const handleOpenDialog = () => {
-    if (loadingOptions || !options) {
+    if (loadingOptions || loadingHistory) {
       return;
     }
 
-    setForm(createDefaultFormState(activeModule, options));
-    setReferenceFile(null);
-    setSubmitError("");
-    setDialogOpen(true);
+    const openDialog = async () => {
+      if (!options) {
+        setLoadingOptions(true);
+        setLoadError("");
+        try {
+          const nextOptions = await getDesignWorkspaceOptions(brandId);
+          setOptions(nextOptions);
+          setForm(createDefaultFormState(activeModule, nextOptions));
+        } catch (error) {
+          setLoadError(normalizeErrorMessage(error));
+          return;
+        } finally {
+          setLoadingOptions(false);
+        }
+      } else {
+        setForm(createDefaultFormState(activeModule, options));
+      }
+
+      setReferenceFile(null);
+      setSubmitError("");
+      setDialogOpen(true);
+    };
+
+    void openDialog();
   };
 
   const handleCloseDialog = () => {
@@ -843,16 +923,12 @@ export function DesignWorkspaceShell({ section }: DesignWorkspaceShellProps) {
   };
 
   const handleRefresh = async () => {
-    setLoadingOptions(true);
+    setLoadingHistory(true);
     setLoadError("");
 
     try {
-      const [nextOptions, history] = await Promise.all([
-        getDesignWorkspaceOptions(brandId),
-        getDesignWorkspaceHistory(brandId),
-      ]);
+      const history = await getDesignWorkspaceHistory(brandId);
       const refreshedAt = formatTimestamp(new Date());
-      setOptions(nextOptions);
       applyHistorySnapshot(history.items);
       setLastRefreshByModule({
         image: refreshedAt,
@@ -863,7 +939,7 @@ export function DesignWorkspaceShell({ section }: DesignWorkspaceShellProps) {
     } catch (error) {
       setLoadError(normalizeErrorMessage(error));
     } finally {
-      setLoadingOptions(false);
+      setLoadingHistory(false);
     }
   };
 
@@ -1014,8 +1090,8 @@ export function DesignWorkspaceShell({ section }: DesignWorkspaceShellProps) {
                 </span>
               </div>
               <div className="strategy-inline-actions">
-                <button type="button" className="secondary-button" onClick={handleRefresh} disabled={loadingOptions}>
-                  {loadingOptions ? "刷新中..." : "刷新数据"}
+                <button type="button" className="secondary-button" onClick={handleRefresh} disabled={loadingHistory}>
+                  {loadingHistory ? "刷新中..." : "刷新数据"}
                 </button>
               </div>
             </div>
@@ -1044,11 +1120,11 @@ export function DesignWorkspaceShell({ section }: DesignWorkspaceShellProps) {
                 <p>{activeMeta.description}</p>
               </div>
               <div className="design-v3-module-actions">
-                <button type="button" className="secondary-button" onClick={handleRefresh} disabled={loadingOptions}>
-                  {loadingOptions ? "刷新中..." : "刷新列表"}
+                <button type="button" className="secondary-button" onClick={handleRefresh} disabled={loadingHistory}>
+                  {loadingHistory ? "刷新中..." : "刷新列表"}
                 </button>
-                <button type="button" className="primary-button" onClick={handleOpenDialog} disabled={loadingOptions || !options}>
-                  {activeMeta.createLabel}
+                <button type="button" className="primary-button" onClick={handleOpenDialog} disabled={loadingHistory || loadingOptions}>
+                  {loadingOptions ? "加载创建配置..." : activeMeta.createLabel}
                 </button>
               </div>
             </div>

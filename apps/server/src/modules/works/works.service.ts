@@ -91,6 +91,7 @@ const VOLCENGINE_VOD_OPENAPI_DEFAULT_HOST = "vod.volcengineapi.com";
 const VOLCENGINE_VOD_OPENAPI_VERSION = "2023-01-01";
 const VOLCENGINE_VOD_UPLOAD_OPENAPI_VERSION = "2020-08-01";
 const DEFAULT_LIST_SNAPSHOT_BACKGROUND_REFRESH_LIMIT = 2;
+const DESIGN_IMAGE_HARD_FAILURE_COOLDOWN_MS = 2 * 60 * 1000;
 
 type OperationsPromptTemplateStoreRecord = OperationsPromptSeedRecord & {
   status: string;
@@ -299,6 +300,20 @@ const RUNNING_HUB_WEBAPP_KEYS = {
   scail2CharacterMotionReplace: "scail2-character-motion-replace",
   scail2CharacterSwap: "scail2-character-swap",
   ltx23LiconMsrVideo: "ltx23-licon-msr-video",
+  minimaxH3Fl2vaTextToVideo: "minimax-h3-fl2va-text-to-video",
+  minimaxH3Fl2vaFirstFrameVideo: "minimax-h3-fl2va-first-frame-video",
+  minimaxH3Fl2vaFirstLastFrameVideo: "minimax-h3-fl2va-first-last-frame-video",
+  minimaxH3EightStepImageToVideo: "minimax-h3-8step-image-to-video",
+  minimaxH3FourStepFirstLastFrameVideo: "minimax-h3-4step-first-last-frame-video",
+  seedance25MultimodalVideo: "seedance25-multimodal-video",
+  minimaxH3AcceleratedAllReferenceVideo: "minimax-h3-accelerated-all-reference-video",
+  minimaxH3Fl2vaMultiImageVideo: "minimax-h3-fl2va-multi-image-video",
+  minimaxH3DigitalHumanAuto: "minimax-h3-digital-human-auto",
+  seedance20ViralVideoRemix: "seedance20-viral-video-remix",
+  seedance20FastAllReferenceVideo: "seedance20-fast-all-reference-video",
+  seedance20FastRh: "seedance20-fast-rh",
+  qwenImageChineseFontDesign: "qwen-image-chinese-font-design",
+  qwenFontDesignEightStep: "qwen-font-design-8step",
   ltx23DigitalHumanLipSync: "ltx23-digital-human-lip-sync",
   ecommerceTripleMainImage: "ecommerce-triple-main-image",
   ecommerceDetailPage: "ecommerce-detail-page",
@@ -348,6 +363,160 @@ const DOUYIN_RUNNING_HUB_APPS: DouyinRunningHubAppCardRecord[] = [
     tags: ["参考生视频", "图生视频", "创意视频", "RunningHub"],
     statusHint: "适合参考图驱动的视频生成；建议输入图主体明确、风格统一。",
     estimatedDuration: "通常 6-12 分钟",
+  },
+  {
+    key: RUNNING_HUB_WEBAPP_KEYS.minimaxH3Fl2vaTextToVideo,
+    name: "MiniMax H3 FL2VA开源版-文生视频",
+    summary: "通过文本提示词直接生成视频，适合创意概念验证、分镜试跑和从零开始的视频草稿生成。",
+    description: "对应 RunningHub 应用 `MiniMax H3 FL2VA开源版-文生视频`。适合用纯提示词快速启动视频生成，再继续沉淀到作品中心或后续创作链路。",
+    tutorialUrl: "https://www.runninghub.cn/call-api/api-detail/2084109189609246721?apiType=4",
+    webappId: "2084109189609246721",
+    tags: ["文生视频", "MiniMax H3", "FL2VA", "RunningHub"],
+    statusHint: "适合从提示词直接起视频草稿；结果链接有效期 24 小时，建议生成完成后尽快转存。",
+    estimatedDuration: "通常 8-12 分钟",
+  },
+  {
+    key: RUNNING_HUB_WEBAPP_KEYS.minimaxH3Fl2vaFirstFrameVideo,
+    name: "MiniMax H3 FL2VA开源版-首帧参考生视频",
+    summary: "用首帧参考图约束人物和画面风格后生成视频，适合角色定妆、视觉统一和首帧控场场景。",
+    description: "对应 RunningHub 应用 `MiniMax H3 FL2VA开源版-首帧参考生视频`。更适合需要稳住人物形象、场景氛围和镜头起始状态的图生视频任务。",
+    tutorialUrl: "https://www.runninghub.cn/call-api/api-detail/2084087262228336642?apiType=4",
+    webappId: "2084087262228336642",
+    tags: ["首帧参考", "图生视频", "MiniMax H3", "RunningHub"],
+    statusHint: "官方说明 832×480、5 秒时长通常需要约 10 分钟；结果链接有效期 24 小时。",
+    estimatedDuration: "通常 8-12 分钟",
+  },
+  {
+    key: RUNNING_HUB_WEBAPP_KEYS.minimaxH3Fl2vaFirstLastFrameVideo,
+    name: "MiniMax H3 FL2VA开源版-首尾帧参考生视频",
+    summary: "通过首帧和尾帧共同约束过渡过程，适合镜头衔接、动作变化和起承转合更明确的视频生成。",
+    description: "对应 RunningHub 应用 `MiniMax H3 FL2VA开源版-首尾帧参考生视频`。适合需要同时控制起始画面和结束画面的图生视频任务。",
+    tutorialUrl: "https://www.runninghub.cn/call-api/api-detail/2084086089706459137?apiType=4",
+    webappId: "2084086089706459137",
+    tags: ["首尾帧参考", "图生视频", "MiniMax H3", "RunningHub"],
+    statusHint: "官方说明 832×480、5 秒时长通常需要约 10 分钟；适合做镜头转场和首尾呼应画面控制。",
+    estimatedDuration: "通常 8-12 分钟",
+  },
+  {
+    key: RUNNING_HUB_WEBAPP_KEYS.minimaxH3EightStepImageToVideo,
+    name: "8步加速Mini Max H3图生视频",
+    summary: "面向单图起视频场景的 MiniMax H3 加速版，适合快速做角色演绎、镜头草稿和图生视频初版。",
+    description: "对应 RunningHub 应用 `8步加速Mini Max H3图生视频`。更适合希望在较短链路内完成 MiniMax H3 图生视频生成的场景。",
+    tutorialUrl: "https://www.runninghub.cn/call-api/api-detail/2085581419040034818?apiType=4",
+    webappId: "2085581419040034818",
+    tags: ["图生视频", "MiniMax H3", "加速版", "RunningHub"],
+    statusHint: "适合单图驱动的视频草稿生成；结果链接有效期 24 小时，建议生成完成后及时转存。",
+    estimatedDuration: "通常 6-10 分钟",
+  },
+  {
+    key: RUNNING_HUB_WEBAPP_KEYS.minimaxH3FourStepFirstLastFrameVideo,
+    name: "MiniMax H3 4步加速 图生视频 首尾帧生视频",
+    summary: "用首尾帧共同控制视频起承转合，并通过更短链路加速生成，适合镜头过渡与首尾呼应场景。",
+    description: "对应 RunningHub 应用 `MiniMax H3 4步加速 图生视频 首尾帧生视频`。适合对首尾帧控制要求更高的加速版图生视频任务。",
+    tutorialUrl: "https://www.runninghub.cn/call-api/api-detail/2086885188755349505?apiType=4",
+    webappId: "2086885188755349505",
+    tags: ["首尾帧参考", "图生视频", "MiniMax H3", "加速版", "RunningHub"],
+    statusHint: "适合想同时锁定起始与结束画面的镜头过渡场景；如生成超时可适当降低分辨率或时长。",
+    estimatedDuration: "通常 6-10 分钟",
+  },
+  {
+    key: RUNNING_HUB_WEBAPP_KEYS.seedance25MultimodalVideo,
+    name: "Seedance2.5多模态视频",
+    summary: "支持多模态输入的视频生成应用，适合结合图片、视频和提示词做更灵活的视频创作。",
+    description: "对应 RunningHub 应用 `Seedance2.5多模态视频`。适合希望同时利用多种输入素材进行视频生成的场景。",
+    tutorialUrl: "https://www.runninghub.cn/call-api/api-detail/2085890677094834178?apiType=4",
+    webappId: "2085890677094834178",
+    tags: ["Seedance", "多模态视频", "图生视频", "视频生视频", "RunningHub"],
+    statusHint: "适合组合多种输入素材进行视频生成；生成结果链接有效期 24 小时。",
+    estimatedDuration: "通常 8-15 分钟",
+  },
+  {
+    key: RUNNING_HUB_WEBAPP_KEYS.minimaxH3AcceleratedAllReferenceVideo,
+    name: "Minimax H3（加速版）全能参考视频",
+    summary: "支持输入视频、图片等多类参考素材生成视频，适合参考素材较多、希望统一到一条链路里处理的场景。",
+    description: "对应 RunningHub 应用 `Minimax H3（加速版）全能参考视频`。适合多参考输入的视频生成与风格控制。",
+    tutorialUrl: "https://www.runninghub.cn/call-api/api-detail/2087128881869451265?apiType=4",
+    webappId: "2087128881869451265",
+    tags: ["MiniMax H3", "全能参考", "图生视频", "视频生视频", "RunningHub"],
+    statusHint: "适合同时带入图片、视频等参考素材；如输入较多，生成耗时会相应增加。",
+    estimatedDuration: "通常 8-15 分钟",
+  },
+  {
+    key: RUNNING_HUB_WEBAPP_KEYS.minimaxH3Fl2vaMultiImageVideo,
+    name: "MiniMax H3 FL2VA-多图参考生视频",
+    summary: "通过多张参考图共同约束人物、场景和镜头变化，适合多角度定妆、分镜过渡和连续动作生成。",
+    description: "对应 RunningHub 应用 `MiniMax H3 FL2VA-多图参考生视频`。适合需要多张参考图共同控制画面一致性的视频任务。",
+    tutorialUrl: "https://www.runninghub.cn/call-api/api-detail/2089298247885086722?apiType=4",
+    webappId: "2089298247885086722",
+    tags: ["多图参考", "图生视频", "MiniMax H3", "FL2VA", "RunningHub"],
+    statusHint: "官方建议按 Z 字形顺序导入多张图片；如超时可适当降低分辨率或时长。",
+    estimatedDuration: "通常 8-12 分钟",
+  },
+  {
+    key: RUNNING_HUB_WEBAPP_KEYS.minimaxH3DigitalHumanAuto,
+    name: "MiniMax-H3-数字人-唱歌 说唱 口播 虚拟主播 电商产品讲解【自动版】",
+    summary: "面向数字人口播、唱歌、说唱和电商讲解场景，适合把角色图快速转成更完整的自动化数字人演绎视频。",
+    description: "对应 RunningHub 应用 `MiniMax-H3-数字人-唱歌 说唱 口播 虚拟主播 电商产品讲解【自动版】`。适合虚拟主播、电商讲解和角色表演类视频任务。",
+    tutorialUrl: "https://www.runninghub.cn/call-api/api-detail/2089048490512052225?apiType=4",
+    webappId: "2089048490512052225",
+    tags: ["数字人", "口播", "唱歌", "虚拟主播", "RunningHub"],
+    statusHint: "适合角色表演与数字人口播场景；建议准备主体清晰的角色图和稳定音频素材。",
+    estimatedDuration: "通常 8-15 分钟",
+  },
+  {
+    key: RUNNING_HUB_WEBAPP_KEYS.seedance20ViralVideoRemix,
+    name: "Seedance 2.0 复刻爆款视频 (反推+图生视频）",
+    summary: "偏向爆款视频复刻与反推场景，适合参考现有视频风格、镜头与节奏后再生成相似表达。",
+    description: "对应 RunningHub 应用 `Seedance 2.0 复刻爆款视频 (反推+图生视频）`。适合短视频复刻、爆款拆解和二创演绎。",
+    tutorialUrl: "https://www.runninghub.cn/call-api/api-detail/2085575865559248897?apiType=4",
+    webappId: "2085575865559248897",
+    tags: ["Seedance", "爆款复刻", "反推", "图生视频", "RunningHub"],
+    statusHint: "适合做爆款视频复刻与镜头风格模仿；建议准备主体明确的参考素材。",
+    estimatedDuration: "通常 8-15 分钟",
+  },
+  {
+    key: RUNNING_HUB_WEBAPP_KEYS.seedance20FastAllReferenceVideo,
+    name: "Seedance 2.0 Fast 全能生视频",
+    summary: "面向图生视频的 Seedance 2.0 Fast 应用，适合在参考图较灵活的场景里快速起视频成片。",
+    description: "对应 RunningHub 应用 `Seedance 2.0 Fast 全能生视频`。适合需要快速迭代的 Seedance 图生视频场景。",
+    tutorialUrl: "https://www.runninghub.cn/call-api/api-detail/2065722002014564353?apiType=4",
+    webappId: "2065722002014564353",
+    tags: ["Seedance", "Fast", "全能生视频", "图生视频", "RunningHub"],
+    statusHint: "多余参考图可以留空，更适合快速试稿与多轮尝试。",
+    estimatedDuration: "通常 6-12 分钟",
+  },
+  {
+    key: RUNNING_HUB_WEBAPP_KEYS.seedance20FastRh,
+    name: "seedance2.0-fast（RH版）",
+    summary: "支持文生视频和图生视频的 Seedance 2.0 Fast 版本，适合需要快速验证创意方向的短视频生成场景。",
+    description: "对应 RunningHub 应用 `seedance2.0-fast（RH版）`。可用于文生视频与图生视频的快速试跑。",
+    tutorialUrl: "https://www.runninghub.cn/call-api/api-detail/2061472073171689473?apiType=4",
+    webappId: "2061472073171689473",
+    tags: ["Seedance", "Fast", "文生视频", "图生视频", "RunningHub"],
+    statusHint: "适合快速验证视频创意方向；结果链接有效期 24 小时，建议生成完成后尽快转存。",
+    estimatedDuration: "通常 6-12 分钟",
+  },
+  {
+    key: RUNNING_HUB_WEBAPP_KEYS.qwenImageChineseFontDesign,
+    name: "中文字体设计 - 媲美即梦 - Qwen-Image图生图",
+    summary: "面向中文字体与字效视觉设计，适合节日标题、活动主视觉和品牌字体创意出图。",
+    description: "对应 RunningHub 应用 `中文字体设计 - 媲美即梦 - Qwen-Image图生图`。适合中文字体、字效和品牌标题视觉设计。",
+    tutorialUrl: "https://www.runninghub.cn/call-api/api-detail/1953073163158622209?apiType=4",
+    webappId: "1953073163158622209",
+    tags: ["字体设计", "Qwen Image", "图生图", "品牌视觉", "RunningHub"],
+    statusHint: "适合标题字效、节日字体和品牌视觉出图；结果图片链接有效期 24 小时。",
+    estimatedDuration: "通常 2-6 分钟",
+  },
+  {
+    key: RUNNING_HUB_WEBAPP_KEYS.qwenFontDesignEightStep,
+    name: "【超全字体设计】Qwen文生图-8步加速（持续加更）",
+    summary: "提供大量字体风格模板，适合品牌标题、活动海报、字体 logo 和不同风格字效的批量尝试。",
+    description: "对应 RunningHub 应用 `【超全字体设计】Qwen文生图-8步加速（持续加更）`。适合多风格字体、字效和 logo 设计场景。",
+    tutorialUrl: "https://www.runninghub.cn/call-api/api-detail/1954920175764213761?apiType=4",
+    webappId: "1954920175764213761",
+    tags: ["字体设计", "Qwen", "文生图", "字效", "RunningHub"],
+    statusHint: "适合做多风格字体与 logo 方案探索；内置较多风格编号可快速试稿。",
+    estimatedDuration: "通常 2-6 分钟",
   },
   {
     key: RUNNING_HUB_WEBAPP_KEYS.ltx23DigitalHumanLipSync,
@@ -909,6 +1078,7 @@ export type GenerateDesignWorkPayload = {
   modelSelection?: string;
   spec?: string;
   additionalInstruction?: string;
+  debugTraceId?: string;
 };
 
 export type DesignModelOptionRecord = {
@@ -3130,6 +3300,26 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
     private readonly wechatOfficialAccountApiService: WechatOfficialAccountApiService,
   ) {}
 
+  private reportOpenClaw502DebugEvent(payload: Record<string, unknown>) {
+    let debugServerUrl = "http://127.0.0.1:7777/event";
+    let sessionId = "openclaw-502";
+    try {
+      const envContent = readFileSync(join(process.cwd(), ".dbg", "openclaw-502.env"), "utf8");
+      debugServerUrl = envContent.match(/DEBUG_SERVER_URL=(.+)/)?.[1]?.trim() || debugServerUrl;
+      sessionId = envContent.match(/DEBUG_SESSION_ID=(.+)/)?.[1]?.trim() || sessionId;
+    } catch {}
+    void fetch(debugServerUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sessionId,
+        runId: "pre-fix",
+        ts: Date.now(),
+        ...payload,
+      }),
+    }).catch(() => {});
+  }
+
   private shouldRunLocalHeavyRecoveryPolling() {
     return !this.appConfigService.isLocalSingleUserMode() || this.appConfigService.isWorkerBootMode();
   }
@@ -4109,7 +4299,7 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
           },
         },
         orderBy: { updatedAt: "desc" },
-        take: 80,
+        take: 24,
       });
 
       return {
@@ -4123,7 +4313,7 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       items: database.tasks
         .filter((task) => task.brandId === brandId && String(task.taskType || "").startsWith("DESIGN_"))
         .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime())
-        .slice(0, 80)
+        .slice(0, 24)
         .map((task) => this.mapDesignTaskToHistoryRecord(task, brandId))
         .filter((item): item is DesignGeneratedWorkRecord => Boolean(item)),
     };
@@ -4183,13 +4373,44 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
     const scopedSelection = this.parseScopedModelSelection(payload.modelSelection || "");
     const title = String(payload.title || "").trim() || `${payload.designType || DESIGN_MODULE_TYPES[payload.module][0]}方案`;
     const userId = await this.resolveTaskUserId(brandId, auth);
+    const requestFingerprint = this.buildDesignTaskRequestFingerprint(payload, title, scopedSelection.modelName);
+    if (payload.module === "image") {
+      const recentDuplicateFailure = await this.findRecentDuplicateHardFailedDesignImageTask({
+        userId,
+        brandId,
+        taskTitle: title,
+        modelName: scopedSelection.modelName,
+        requestFingerprint,
+      });
+      if (recentDuplicateFailure) {
+        throw new ServiceUnavailableException(
+          `检测到最近 ${Math.round(DESIGN_IMAGE_HARD_FAILURE_COOLDOWN_MS / 1000)} 秒内已有相同生图请求失败，已拦截重复提交。`
+          + `最近任务 ID：${recentDuplicateFailure.id}；真实原因：${recentDuplicateFailure.errorMessage}`,
+        );
+      }
+    }
     const task = await this.createDesignTask({
       userId,
       brandId,
       taskTitle: title,
       taskType: `DESIGN_${payload.module.toUpperCase()}`,
       modelName: scopedSelection.modelName,
+      inputJson: {
+        requestFingerprint,
+        module: payload.module,
+        designType: payload.designType || skillProfile.label,
+        title,
+        calendarItemId: payload.calendarItemId || "",
+        productId: payload.productId || "",
+        injectBrandProfile: payload.injectBrandProfile !== false,
+        referenceImageUrl: payload.referenceImageUrl || "",
+        referenceImageSignature: this.buildReferenceImageSignature(payload.referenceImage),
+        modelSelection: payload.modelSelection || "",
+        spec: payload.spec || "",
+        additionalInstruction: payload.additionalInstruction || "",
+      },
     });
+    const debugTraceId = String(payload.debugTraceId || "").trim() || task.id;
     const designContext = {
       brandName: archive.brand.brandName || "当前品牌",
       brandProfileSummary: payload.injectBrandProfile === false ? "" : this.buildDesignBrandProfileSummary(archive),
@@ -4199,6 +4420,22 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       spec: String(payload.spec || "").trim(),
       additionalInstruction: String(payload.additionalInstruction || "").trim(),
     };
+
+    // #region debug-point A:design-task-created
+    this.reportOpenClaw502DebugEvent({
+      hypothesisId: "A",
+      location: "works.service.ts:generateDesignWork:task-created",
+      msg: "[DEBUG] design work task created",
+      traceId: debugTraceId,
+      data: {
+        brandId,
+        taskId: task.id,
+        module: payload.module,
+        modelSelection: String(payload.modelSelection || "").trim(),
+        resolvedModelName: scopedSelection.modelName || "",
+      },
+    });
+    // #endregion
 
     try {
       await this.markTaskRunning(task.id);
@@ -4280,6 +4517,21 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
           tags: result.tags,
           assetUrl: imageAsset.url,
         }, { modelName: imageAsset.modelName });
+        // #region debug-point B:design-image-success
+        this.reportOpenClaw502DebugEvent({
+          hypothesisId: "B",
+          location: "works.service.ts:generateDesignWork:image-success",
+          msg: "[DEBUG] design image generation completed",
+          traceId: debugTraceId,
+          data: {
+            brandId,
+            taskId: task.id,
+            module: payload.module,
+            modelName: imageAsset.modelName,
+            providerName: imageAsset.providerName,
+          },
+        });
+        // #endregion
         return result;
       }
 
@@ -4320,9 +4572,37 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
         tags: result.tags,
         assetUrl: textResult.assetUrl,
       }, { modelName: textResult.modelName });
+      // #region debug-point B:design-text-success
+      this.reportOpenClaw502DebugEvent({
+        hypothesisId: "B",
+        location: "works.service.ts:generateDesignWork:text-success",
+        msg: "[DEBUG] design text artifact completed",
+        traceId: debugTraceId,
+        data: {
+          brandId,
+          taskId: task.id,
+          module: payload.module,
+          modelName: textResult.modelName,
+        },
+      });
+      // #endregion
       return result;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "设计任务执行失败";
+      // #region debug-point D:design-failure
+      this.reportOpenClaw502DebugEvent({
+        hypothesisId: "D",
+        location: "works.service.ts:generateDesignWork:catch",
+        msg: "[DEBUG] design work failed inside WorksService",
+        traceId: debugTraceId,
+        data: {
+          brandId,
+          taskId: task.id,
+          module: payload.module,
+          errorMessage,
+        },
+      });
+      // #endregion
       await this.markTaskFailed(task.id, errorMessage);
       await this.updateTaskOutputJson(task.id, {
         module: payload.module,
@@ -6375,14 +6655,15 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
     const skillSlug = this.readOptionalString(output?.skillSlug);
     const profile = this.resolveDesignSkillProfile(module, skillSlug);
     const skillLabel = this.readOptionalString(output?.skillLabel) || profile.label;
-    const summary = this.readOptionalString(output?.summary)
+    const summary = this.truncateText(this.readOptionalString(output?.summary)
       || (task.taskStatus === "FAILED"
         ? String(task.errorMessage || "设计任务执行失败")
         : task.taskStatus === "SUCCESS"
           ? `${skillLabel} 已生成，可继续查看结果。`
-          : `正在调用 ${skillLabel}，请稍后刷新查看最新结果。`);
-    const errorDetail = this.readOptionalString(output?.errorDetail)
+          : `正在调用 ${skillLabel}，请稍后刷新查看最新结果。`), 180);
+    const rawErrorDetail = this.readOptionalString(output?.errorDetail)
       || (task.taskStatus === "FAILED" ? this.readOptionalString(task.errorMessage) : undefined);
+    const errorDetail = rawErrorDetail ? this.truncateText(rawErrorDetail, 360) : undefined;
     const updatedAt = this.normalizeHistoryTimestamp(task.updatedAt)
       || this.normalizeHistoryTimestamp(task.finishedAt)
       || this.normalizeHistoryTimestamp(task.createdAt)
@@ -6407,7 +6688,6 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
         this.readOptionalString(output?.productLabel) || "不植入产品",
       ]),
       assetUrl: this.normalizeLocalAssetUrl(this.readOptionalString(output?.assetUrl), brandId),
-      htmlContent: this.readOptionalString(output?.htmlContent),
     };
   }
 
@@ -13037,12 +13317,11 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
                       params.normalizeImageAspectRatio ?? true,
                     );
                   } catch (error) {
-                    const canFallbackToRemoteUrl = /^https?:\/\//i.test(asset.url)
-                      && !params.imageSizeOverride
-                      && promptMode !== "video_storyboard";
+                    const canFallbackToRemoteUrl = /^https?:\/\//i.test(asset.url);
                     if (canFallbackToRemoteUrl) {
-                      // If third-party generation already succeeded, fall back to the original remote URL
-                      // instead of silently retrying another model/provider and leaving the UI hanging.
+                      // If third-party generation already succeeded, always prefer returning the original
+                      // remote URL over surfacing a sync failure to callers. Local caching/normalization can
+                      // degrade, but a paid upstream success should not be reclassified as a full task failure.
                       finalUrl = asset.url;
                     } else {
                       throw error;
@@ -13157,6 +13436,7 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
     taskTitle: string;
     taskType: string;
     modelName?: string;
+    inputJson?: Record<string, unknown>;
   }) {
     const modelName = params.modelName || "gpt-5.4";
     if (await this.prismaService.canUseDatabase()) {
@@ -13169,6 +13449,7 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
           taskStatus: TaskStatus.QUEUED,
           modelName,
           pointsCost: 220,
+          ...(params.inputJson ? { inputJson: params.inputJson as Prisma.InputJsonValue } : {}),
         },
       });
     }
@@ -13183,11 +13464,125 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       taskStatus: "QUEUED" as const,
       modelName,
       pointsCost: 220,
+      inputJson: params.inputJson,
       createdAt: now,
       updatedAt: now,
     };
     database.tasks.unshift(task);
     return task;
+  }
+
+  private buildReferenceImageSignature(referenceImage?: UploadFilePayload) {
+    if (!referenceImage?.dataBase64) {
+      return "";
+    }
+    return createHash("sha1")
+      .update([
+        String(referenceImage.fileName || "").trim(),
+        String(referenceImage.contentType || "").trim(),
+        String(referenceImage.dataBase64 || "").trim().slice(0, 256),
+        String(referenceImage.dataBase64 || "").trim().length,
+      ].join("|"))
+      .digest("hex")
+      .slice(0, 16);
+  }
+
+  private buildDesignTaskRequestFingerprint(
+    payload: GenerateDesignWorkPayload,
+    title: string,
+    modelName?: string,
+  ) {
+    return createHash("sha1")
+      .update(JSON.stringify({
+        module: payload.module,
+        designType: payload.designType || "",
+        title,
+        calendarItemId: payload.calendarItemId || "",
+        productId: payload.productId || "",
+        injectBrandProfile: payload.injectBrandProfile !== false,
+        referenceImageUrl: payload.referenceImageUrl || "",
+        referenceImageSignature: this.buildReferenceImageSignature(payload.referenceImage),
+        modelSelection: payload.modelSelection || "",
+        resolvedModelName: modelName || "",
+        spec: payload.spec || "",
+        additionalInstruction: payload.additionalInstruction || "",
+      }))
+      .digest("hex")
+      .slice(0, 24);
+  }
+
+  private async findRecentDuplicateHardFailedDesignImageTask(params: {
+    userId: string;
+    brandId: string;
+    taskTitle: string;
+    modelName?: string;
+    requestFingerprint: string;
+  }) {
+    if (await this.prismaService.canUseDatabase()) {
+      const recentTask = await this.prismaService.task.findFirst({
+        where: {
+          userId: params.userId,
+          brandId: params.brandId,
+          taskType: "DESIGN_IMAGE",
+          taskTitle: params.taskTitle,
+          ...(params.modelName ? { modelName: params.modelName } : {}),
+          taskStatus: TaskStatus.FAILED,
+          createdAt: {
+            gte: new Date(Date.now() - DESIGN_IMAGE_HARD_FAILURE_COOLDOWN_MS),
+          },
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+        select: {
+          id: true,
+          errorMessage: true,
+          inputJson: true,
+        },
+      });
+      const errorMessage = String(recentTask?.errorMessage || "").trim();
+      const recentFingerprint = this.readOptionalString(this.asRecord(recentTask?.inputJson)?.requestFingerprint);
+      if (
+        recentTask
+        && errorMessage
+        && this.isHardImageProviderFailure(errorMessage)
+        && (!recentFingerprint || recentFingerprint === params.requestFingerprint)
+      ) {
+        return {
+          id: recentTask.id,
+          errorMessage,
+        };
+      }
+      return null;
+    }
+
+    const recentTask = database.tasks.find((item) => {
+      if (item.userId !== params.userId || item.brandId !== params.brandId) {
+        return false;
+      }
+      if (item.taskType !== "DESIGN_IMAGE" || item.taskStatus !== "FAILED" || item.taskTitle !== params.taskTitle) {
+        return false;
+      }
+      if (params.modelName && item.modelName !== params.modelName) {
+        return false;
+      }
+      const createdAtMs = new Date(String(item.createdAt || "")).getTime();
+      if (!Number.isFinite(createdAtMs) || createdAtMs < Date.now() - DESIGN_IMAGE_HARD_FAILURE_COOLDOWN_MS) {
+        return false;
+      }
+      const recentFingerprint = this.readOptionalString(this.asRecord(item.inputJson)?.requestFingerprint);
+      const errorMessage = String(item.errorMessage || "").trim();
+      return Boolean(errorMessage)
+        && this.isHardImageProviderFailure(errorMessage)
+        && (!recentFingerprint || recentFingerprint === params.requestFingerprint);
+    });
+    if (!recentTask) {
+      return null;
+    }
+    return {
+      id: recentTask.id,
+      errorMessage: String(recentTask.errorMessage || "").trim(),
+    };
   }
 
   private requireAuthenticatedUserId(auth?: RequestAuthContext) {
@@ -26585,6 +26980,12 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
     if (!normalized) {
       return "未获取到有效图片";
     }
+    if (/\b403\b|forbidden|insufficient_user_|预扣费额度失败|额度不足|剩余额度|credit|余额不足/i.test(normalized)) {
+      return `上游图片接口拒绝执行（403/额度不足），这不是 502/504。请先补足 provider 额度或切换可用图片供应商。原始信息：${normalized}`;
+    }
+    if (/\b400\b|status_code=400|content policy|content_policy|内容政策|违规|invalid_request/i.test(normalized)) {
+      return `上游图片接口拒绝执行（400/请求或内容不被接受），这不是 502/504。请调整提示词、参考图或切换供应商。原始信息：${normalized}`;
+    }
     if (/\brate_limit_exceeded\b|\b429\b|too many requests|rate limit|quota|insufficient_quota/i.test(normalized)) {
       return `上游图片模型已触发限流或额度上限，请自动切换其他候选模型/供应商，或稍后重试。原始信息：${normalized}`;
     }
@@ -26606,9 +27007,14 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
     return normalized;
   }
 
+  private isHardImageProviderFailure(message: string) {
+    const normalized = String(message || "").toLowerCase();
+    return /\b403\b|forbidden|insufficient_user_|预扣费额度失败|额度不足|剩余额度|credit|余额不足|\b400\b|status_code=400|content policy|content_policy|内容政策|违规|invalid_request/.test(normalized);
+  }
+
   private shouldShortCircuitImagePromptRetries(message: string) {
     const normalized = String(message || "").toLowerCase();
-    return /rate_limit_exceeded|\b429\b|too many requests|rate limit|quota|insufficient_quota|余额不足|credit/i.test(normalized);
+    return /rate_limit_exceeded|\b429\b|too many requests|rate limit|quota|insufficient_quota|余额不足|credit|\b403\b|forbidden|insufficient_user_|预扣费额度失败|额度不足|剩余额度|\b400\b|status_code=400|content policy|content_policy|内容政策|违规|invalid_request/i.test(normalized);
   }
 
   private buildReferenceImageFailureContext(referenceImageUrls: string[], referenceImagePayloads?: UploadFilePayload[]) {
@@ -30515,6 +30921,27 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), params.fetchTimeoutMs ?? 120000);
     try {
+      const embeddedImage = this.parseEmbeddedGeneratedImage(params.remoteUrl);
+      if (embeddedImage) {
+        const extension = params.resolveExtension(embeddedImage.contentType, params.fileName);
+        const targetName = params.fileName.endsWith(extension)
+          ? params.fileName
+          : `${params.fileName.replace(/\.[^.]+$/, "")}${extension}`;
+        const normalizedBuffer = params.normalizeImageAspectRatio
+          ? await this.normalizeGeneratedImageBuffer(
+            embeddedImage.buffer,
+            embeddedImage.contentType,
+            targetName,
+            params.normalizeImageSpec,
+          )
+          : embeddedImage.buffer;
+        return (await this.writeGeneratedBinaryFile(
+          params.brandId,
+          targetName,
+          normalizedBuffer.toString("base64"),
+          embeddedImage.contentType,
+        )).url;
+      }
       if (!/^https?:\/\//i.test(params.remoteUrl)) {
         throw new ServiceUnavailableException(`${params.requestLabel}失败：未返回有效图片地址`);
       }
@@ -30539,6 +30966,33 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       throw this.describeFetchError(error, params.requestLabel);
     } finally {
       clearTimeout(timer);
+    }
+  }
+
+  private parseEmbeddedGeneratedImage(value: string) {
+    const normalized = String(value || "").trim();
+    const match = normalized.match(/^data:([^;,]+)?(?:;charset=[^;,]+)?(;base64)?,(.*)$/i);
+    if (!match) {
+      return null;
+    }
+
+    const contentType = String(match[1] || "image/png").trim() || "image/png";
+    const isBase64 = Boolean(match[2]);
+    const payload = match[3] || "";
+
+    try {
+      const buffer = isBase64
+        ? Buffer.from(payload, "base64")
+        : Buffer.from(decodeURIComponent(payload), "utf8");
+      if (!buffer.length) {
+        return null;
+      }
+      return {
+        contentType,
+        buffer,
+      };
+    } catch {
+      return null;
     }
   }
 

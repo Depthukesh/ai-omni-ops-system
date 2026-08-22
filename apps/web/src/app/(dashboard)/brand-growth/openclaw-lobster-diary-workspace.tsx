@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { type OpenClawLobsterDiaryRecord } from "../../../services/openclaw";
+import { OpenClawCommentThread } from "./openclaw-comment-thread";
 
 type OptionalDateFormatter = (value?: string) => string;
 
@@ -120,6 +121,13 @@ export function OpenClawLobsterDiaryWorkspace(props: OpenClawLobsterDiaryWorkspa
             <div className="openclaw-diary-dialog__content">
               {selectedDiary.content || "暂无内容"}
             </div>
+            <OpenClawCommentThread
+              brandId={selectedDiary.brandId}
+              workspaceScope={selectedDiary.workspaceScope}
+              resourceType="lobster_diary"
+              resourceId={selectedDiary.id}
+              formatDateTime={props.formatDateTime}
+            />
           </div>
         </div>
       ) : null}

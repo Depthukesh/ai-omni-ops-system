@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { redirect } from "next/navigation";
 import Script from "next/script";
 
 export const metadata = {
@@ -93,7 +94,68 @@ const revealScript = `
 `;
 
 export default async function HomePage() {
+  const serverRuntimeMode = readServerRuntimeMode();
+  // #region debug-point A:root-page-entry
+  await fetch("http://127.0.0.1:7777/event", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      sessionId: "local-root-500",
+      runId: "pre-fix",
+      hypothesisId: "A",
+      location: "apps/web/src/app/page.tsx:HomePage",
+      msg: "[DEBUG] root page entered",
+      data: {
+        cwd: process.cwd(),
+        appRuntimeMode: String(process.env.APP_RUNTIME_MODE || ""),
+        nextPublicAppRuntimeMode: String(process.env.NEXT_PUBLIC_APP_RUNTIME_MODE || ""),
+        serverRuntimeMode,
+      },
+      ts: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
+  if (serverRuntimeMode === "local-single-user") {
+    // #region debug-point A:root-page-redirect
+    await fetch("http://127.0.0.1:7777/event", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sessionId: "local-root-500",
+        runId: "pre-fix",
+        hypothesisId: "A",
+        location: "apps/web/src/app/page.tsx:HomePage",
+        msg: "[DEBUG] root page redirecting to workspace",
+        data: {
+          target: "/brand-growth",
+          serverRuntimeMode,
+        },
+        ts: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
+    redirect("/brand-growth");
+  }
+
   const landing = await readLandingPageSource();
+  // #region debug-point B:root-page-landing
+  await fetch("http://127.0.0.1:7777/event", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      sessionId: "local-root-500",
+      runId: "pre-fix",
+      hypothesisId: "B",
+      location: "apps/web/src/app/page.tsx:HomePage",
+      msg: "[DEBUG] root page rendered landing template",
+      data: {
+        serverRuntimeMode,
+        bodyClass: landing.bodyClass,
+      },
+      ts: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
 
   return (
     <>
@@ -114,6 +176,11 @@ export default async function HomePage() {
       </Script>
     </>
   );
+}
+
+function readServerRuntimeMode() {
+  const value = String(process.env.APP_RUNTIME_MODE || process.env.NEXT_PUBLIC_APP_RUNTIME_MODE || "").trim().toLowerCase();
+  return value === "local-single-user" ? "local-single-user" : "standard";
 }
 
 async function readLandingPageSource() {

@@ -32,9 +32,11 @@ export class OpenClawCreativeMaterialController {
     @Param("brandId") brandId: string,
     @Body() payload?: {
       workspaceScope?: string;
+      sourceKind?: string;
       title?: string;
       description?: string;
       materialType?: string;
+      materialTags?: string[] | string;
       fileUrl?: string;
       fileName?: string;
       mimeType?: string;
@@ -54,10 +56,12 @@ export class OpenClawCreativeMaterialController {
     const item = await this.openClawCreativeMaterialService.createMaterial({
       brandId,
       workspaceScope: payload?.workspaceScope,
+      sourceKind: payload?.sourceKind,
       createdByUserId: auth.userId,
       title: payload?.title,
       description: payload?.description,
       materialType: payload?.materialType,
+      materialTags: payload?.materialTags,
       fileUrl: payload?.fileUrl,
       fileName: payload?.fileName,
       mimeType: payload?.mimeType,

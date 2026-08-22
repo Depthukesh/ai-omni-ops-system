@@ -1,4 +1,4 @@
-export const OPENCLAW_WORKSPACE_SCOPES = ["brand_growth", "xiaohongshu", "douyin", "wechat", "geo"] as const;
+export const OPENCLAW_WORKSPACE_SCOPES = ["brand_growth", "xiaohongshu", "douyin", "wechat", "geo", "all_network_growth"] as const;
 
 export type OpenClawWorkspaceScope = (typeof OPENCLAW_WORKSPACE_SCOPES)[number];
 
@@ -21,7 +21,9 @@ export function getOpenClawWorkspaceDisplayName(scope: OpenClawWorkspaceScope) {
     case "wechat":
       return "公众号";
     case "geo":
-      return "GEO";
+      return "GEO获客";
+    case "all_network_growth":
+      return "全网获客";
     case "brand_growth":
     default:
       return "品牌增长";
@@ -38,6 +40,8 @@ export function getOpenClawWorkspaceDashboardPath(scope: OpenClawWorkspaceScope)
       return "/wechat";
     case "geo":
       return "/geo";
+    case "all_network_growth":
+      return "/all-network-growth";
     case "brand_growth":
     default:
       return "/brand-growth";

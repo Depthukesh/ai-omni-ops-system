@@ -5,12 +5,20 @@ import { clearStoredAuthSession, getStoredAuthSession, setStoredAuthSession, typ
 export const API_BASE_URL = resolveApiBaseUrl();
 
 let refreshPromise: Promise<boolean> | undefined;
+let localSingleUserResumePromise: Promise<boolean> | undefined;
 const DOUYIN_WORKSPACE_DEBUG_SESSION_ID = "douyin-workspace-false-502";
+const DEFAULT_LOCAL_USER_ID = "local_default_user";
+const DEFAULT_LOCAL_BRAND_ID = "local_default_brand";
 
 export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await performRequest(path, init);
 
   if (response.status === 401 && path !== "/auth/refresh" && await refreshAccessToken()) {
+    const retried = await performRequest(path, init);
+    return readJsonResponse<T>(retried);
+  }
+
+  if (response.status === 401 && path !== "/auth/local-single-user/resume" && await resumeLocalSingleUserSession()) {
     const retried = await performRequest(path, init);
     return readJsonResponse<T>(retried);
   }
@@ -38,9 +46,13 @@ async function performRequest(path: string, init?: RequestInit) {
 }
 
 async function performRequestUrl(url: string, init?: RequestInit) {
-  const session = getStoredAuthSession();
-  const headers = new Headers(init?.headers);
   const resolvedPathname = readPathname(url);
+  let session = getStoredAuthSession();
+  if (await shouldResumeLocalSingleUserSession(resolvedPathname, session)) {
+    await resumeLocalSingleUserSession();
+    session = getStoredAuthSession();
+  }
+  const headers = new Headers(init?.headers);
   const isAuthRoute = resolvedPathname.startsWith("/auth/");
   const isFormDataBody = typeof FormData !== "undefined" && init?.body instanceof FormData;
   if (!headers.has("Content-Type") && !isFormDataBody) {
@@ -51,6 +63,9 @@ async function performRequestUrl(url: string, init?: RequestInit) {
   }
   if (!isAuthRoute && !headers.has("x-brand-id") && session?.currentBrandId) {
     headers.set("x-brand-id", session.currentBrandId);
+  }
+  if (typeof window !== "undefined" && !headers.has("x-app-path")) {
+    headers.set("x-app-path", window.location.pathname || "/");
   }
 
   // #region debug-point H:http-request-start
@@ -107,6 +122,16 @@ async function refreshAccessToken() {
   return refreshPromise;
 }
 
+async function resumeLocalSingleUserSession() {
+  if (!localSingleUserResumePromise) {
+    localSingleUserResumePromise = resumeLocalSingleUserSessionOnce().finally(() => {
+      localSingleUserResumePromise = undefined;
+    });
+  }
+
+  return localSingleUserResumePromise;
+}
+
 async function refreshAccessTokenOnce() {
   const session = getStoredAuthSession();
   if (!session?.refreshToken) {
@@ -147,6 +172,76 @@ async function refreshAccessTokenOnce() {
     user: payload.user ?? session.user,
   });
   return true;
+}
+
+async function resumeLocalSingleUserSessionOnce() {
+  if (getRuntimeMode() !== "local-single-user") {
+    return false;
+  }
+
+  const response = await fetch(`${API_BASE_URL}/auth/local-single-user/resume`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    return false;
+  }
+
+  const payload = (await response.json()) as {
+    accessToken: string;
+    refreshToken: string;
+    currentBrandId?: string;
+    brands?: Array<{ id: string; brandName: string; industry: string; role: string }>;
+    user?: AuthUser;
+  };
+
+  setStoredAuthSession({
+    accessToken: payload.accessToken,
+    refreshToken: payload.refreshToken,
+    currentBrandId: payload.currentBrandId,
+    brands: payload.brands ?? [],
+    user: payload.user,
+  });
+  return true;
+}
+
+async function shouldResumeLocalSingleUserSession(
+  resolvedPathname: string,
+  session: ReturnType<typeof getStoredAuthSession>,
+) {
+  if (getRuntimeMode() !== "local-single-user") {
+    return false;
+  }
+  if (resolvedPathname === "/auth/local-single-user/resume") {
+    return false;
+  }
+  if (resolvedPathname.startsWith("/auth/")) {
+    return false;
+  }
+  if (typeof window !== "undefined") {
+    const currentPathname = window.location.pathname || "/";
+    if (
+      currentPathname.startsWith("/login")
+      || currentPathname.startsWith("/register")
+      || currentPathname.startsWith("/admin/login")
+    ) {
+      return false;
+    }
+  }
+  if (!session?.accessToken || !session?.refreshToken) {
+    return true;
+  }
+  if (session.user?.id === DEFAULT_LOCAL_USER_ID) {
+    return true;
+  }
+  if (session.currentBrandId === DEFAULT_LOCAL_BRAND_ID) {
+    return true;
+  }
+  return (session.brands || []).some((item) => item.id === DEFAULT_LOCAL_BRAND_ID);
 }
 
 async function readJsonResponse<T>(response: Response) {

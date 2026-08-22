@@ -1,4 +1,5 @@
 import { Buffer } from "node:buffer";
+import { existsSync } from "node:fs";
 import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { Inject, Injectable, ServiceUnavailableException } from "@nestjs/common";
@@ -26,7 +27,11 @@ export class OssStorageService {
   ) {}
 
   isEnabled() {
-    return Boolean(this.appConfigService.getOssConfig());
+    return !this.shouldUseLocalFallback() && Boolean(this.appConfigService.getOssConfig());
+  }
+
+  isUsingLocalFallback() {
+    return this.shouldUseLocalFallback();
   }
 
   async putObject(storageKey: string, buffer: Buffer, contentType: string) {
@@ -118,6 +123,28 @@ export class OssStorageService {
     }
   }
 
+  getLocalObjectPath(storageKey: string) {
+    if (!this.shouldUseLocalFallback()) {
+      return "";
+    }
+    const candidates = this.listLocalFallbackPathCandidates(storageKey);
+    const existing = candidates.find((item) => existsSync(item.filePath));
+    return (existing || candidates[0])?.filePath || "";
+  }
+
+  getLocalObjectDisplayPath(storageKey: string) {
+    if (!this.shouldUseLocalFallback()) {
+      return "";
+    }
+    const runtimeCandidates = this.listLocalFallbackPathCandidates(storageKey);
+    const displayCandidates = this.listLocalDisplayPathCandidates(storageKey);
+    const existingIndex = runtimeCandidates.findIndex((item) => existsSync(item.filePath));
+    if (existingIndex >= 0 && displayCandidates[existingIndex]) {
+      return displayCandidates[existingIndex]?.filePath || "";
+    }
+    return displayCandidates[0]?.filePath || "";
+  }
+
   private getClient() {
     const config = this.appConfigService.getOssConfig();
     if (!config) {
@@ -139,18 +166,48 @@ export class OssStorageService {
   }
 
   private shouldUseLocalFallback() {
+    if (this.appConfigService.shouldForceLocalManagedStorage()) {
+      return true;
+    }
+    if (this.appConfigService.shouldForceOssStorage()) {
+      return false;
+    }
     return !this.appConfigService.getOssConfig() && process.env.NODE_ENV !== "production";
   }
 
   private getLocalFallbackRoot() {
+    if (this.appConfigService.shouldForceLocalManagedStorage()) {
+      return resolve(this.appConfigService.getConfiguredLocalManagedStorageRoot());
+    }
     return resolve(process.cwd(), ".runtime", "local-oss");
   }
 
-  private resolveLocalFallbackPaths(storageKey: string) {
-    const normalizedKey = storageKey.replace(/\\/g, "/").replace(/^\/+/, "");
-    const baseDir = this.getLocalFallbackRoot();
-    const filePath = resolve(baseDir, normalizedKey);
-    if (!filePath.startsWith(baseDir)) {
+  private getLegacyLocalFallbackRoot() {
+    if (this.appConfigService.isLocalSingleUserMode()) {
+      return resolve(this.appConfigService.getLocalStorageRoot(), "oss");
+    }
+    return this.getLocalFallbackRoot();
+  }
+
+  private getLocalDisplayRoot() {
+    if (this.appConfigService.shouldForceLocalManagedStorage()) {
+      return resolve(this.appConfigService.getConfiguredLocalManagedStorageDisplayRoot());
+    }
+    return this.getLocalFallbackRoot();
+  }
+
+  private getLegacyLocalDisplayRoot() {
+    if (this.appConfigService.isLocalSingleUserMode()) {
+      return resolve(this.appConfigService.getLocalStorageRoot(), "oss");
+    }
+    return this.getLocalDisplayRoot();
+  }
+
+  private resolveLocalFallbackPaths(baseDir: string, relativePath: string, storageKey: string) {
+    const normalizedBaseDir = resolve(baseDir);
+    const normalizedRelativePath = relativePath.replace(/\\/g, "/").replace(/^\/+/, "");
+    const filePath = resolve(normalizedBaseDir, normalizedRelativePath);
+    if (!filePath.startsWith(normalizedBaseDir)) {
       throw new ServiceUnavailableException(`本地存储路径非法：${storageKey}`);
     }
     return {
@@ -159,8 +216,37 @@ export class OssStorageService {
     };
   }
 
+  private listLocalFallbackPathCandidates(storageKey: string) {
+    return this.listLocalPathCandidates(storageKey, false);
+  }
+
+  private listLocalDisplayPathCandidates(storageKey: string) {
+    return this.listLocalPathCandidates(storageKey, true);
+  }
+
+  private listLocalPathCandidates(storageKey: string, displayOnly: boolean) {
+    const normalizedKey = storageKey.replace(/\\/g, "/").replace(/^\/+/, "");
+    const materialLibraryMatch = this.matchMaterialLibraryStorageKey(normalizedKey, displayOnly);
+    const relativePath = materialLibraryMatch ? materialLibraryMatch.relativePath : normalizedKey;
+    const candidates = [
+      this.resolveLocalFallbackPaths(
+        materialLibraryMatch ? materialLibraryMatch.baseDir : (displayOnly ? this.getLocalDisplayRoot() : this.getLocalFallbackRoot()),
+        relativePath,
+        storageKey,
+      ),
+    ];
+    if (!materialLibraryMatch) {
+      const legacyRoot = displayOnly ? this.getLegacyLocalDisplayRoot() : this.getLegacyLocalFallbackRoot();
+      const currentRoot = displayOnly ? this.getLocalDisplayRoot() : this.getLocalFallbackRoot();
+      if (legacyRoot.toLowerCase() !== currentRoot.toLowerCase()) {
+        candidates.push(this.resolveLocalFallbackPaths(legacyRoot, relativePath, storageKey));
+      }
+    }
+    return candidates.filter((item, index, array) => array.findIndex((candidate) => candidate.filePath === item.filePath) === index);
+  }
+
   private async putLocalObject(storageKey: string, buffer: Buffer, contentType: string) {
-    const { filePath, metaPath } = this.resolveLocalFallbackPaths(storageKey);
+    const { filePath, metaPath } = this.listLocalFallbackPathCandidates(storageKey)[0];
     await mkdir(dirname(filePath), { recursive: true });
     await writeFile(filePath, buffer);
     await writeFile(metaPath, JSON.stringify({ contentType }, null, 2), "utf8");
@@ -168,40 +254,46 @@ export class OssStorageService {
   }
 
   private async getLocalObject(storageKey: string): Promise<StoredObject | null> {
-    const { filePath, metaPath } = this.resolveLocalFallbackPaths(storageKey);
-    try {
-      await stat(filePath);
-    } catch {
-      return null;
-    }
-    const [buffer, metaText] = await Promise.all([
-      readFile(filePath),
-      readFile(metaPath, "utf8").catch(() => ""),
-    ]);
-    let contentType = "application/octet-stream";
-    if (metaText) {
+    for (const { filePath, metaPath } of this.listLocalFallbackPathCandidates(storageKey)) {
       try {
-        const parsed = JSON.parse(metaText) as { contentType?: string };
-        if (parsed?.contentType?.trim()) {
-          contentType = parsed.contentType.trim();
-        }
+        await stat(filePath);
       } catch {
-        contentType = "application/octet-stream";
+        continue;
       }
+      const [buffer, metaText] = await Promise.all([
+        readFile(filePath),
+        readFile(metaPath, "utf8").catch(() => ""),
+      ]);
+      let contentType = "application/octet-stream";
+      if (metaText) {
+        try {
+          const parsed = JSON.parse(metaText) as { contentType?: string };
+          if (parsed?.contentType?.trim()) {
+            contentType = parsed.contentType.trim();
+          }
+        } catch {
+          contentType = "application/octet-stream";
+        }
+      }
+      return {
+        buffer,
+        contentType,
+      };
     }
-    return {
-      buffer,
-      contentType,
-    };
+    return null;
   }
 
   private async deleteLocalObject(storageKey: string) {
-    const { filePath, metaPath } = this.resolveLocalFallbackPaths(storageKey);
-    const [fileDeleted] = await Promise.all([
-      rm(filePath, { force: true }).then(() => true).catch(() => false),
-      rm(metaPath, { force: true }).catch(() => false),
-    ]);
-    return fileDeleted;
+    const deleteResults = await Promise.all(
+      this.listLocalFallbackPathCandidates(storageKey).map(async ({ filePath, metaPath }) => {
+        const [fileDeleted] = await Promise.all([
+          rm(filePath, { force: true }).then(() => true).catch(() => false),
+          rm(metaPath, { force: true }).catch(() => false),
+        ]);
+        return fileDeleted;
+      }),
+    );
+    return deleteResults.some(Boolean);
   }
 
   private readHeader(headers: object | undefined, key: string) {
@@ -243,5 +335,29 @@ export class OssStorageService {
   private toStorageError(error: unknown, fallbackMessage: string) {
     const detail = error instanceof Error ? error.message : "";
     return new ServiceUnavailableException(detail ? `${fallbackMessage}：${detail}` : fallbackMessage);
+  }
+
+  private matchMaterialLibraryStorageKey(normalizedKey: string, displayOnly = false) {
+    const matched = /^works\/([^/]+)\/material-library\/(text|image|audio|video)\/(.+)$/i.exec(normalizedKey);
+    if (!matched) {
+      return null;
+    }
+    const [, brandId, category, rest] = matched;
+    const normalizedCategory = this.normalizeMaterialCategory(category);
+    const baseDir = displayOnly
+      ? this.appConfigService.getLocalMaterialLibraryDisplayCategoryRoot(normalizedCategory)
+      : this.appConfigService.getLocalMaterialLibraryCategoryRoot(normalizedCategory);
+    return {
+      baseDir,
+      relativePath: `${brandId}/${rest}`.replace(/\\/g, "/").replace(/^\/+/, ""),
+    };
+  }
+
+  private normalizeMaterialCategory(category: string): "text" | "image" | "audio" | "video" {
+    const normalized = String(category || "").trim().toLowerCase();
+    if (normalized === "image" || normalized === "audio" || normalized === "video") {
+      return normalized;
+    }
+    return "text";
   }
 }

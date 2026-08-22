@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>方案 C - 流程地图型</title>
+  <style>
+    :root {
+      --bg: #f4f6fb;
+      --card: rgba(255, 255, 255, 0.94);
+      --line: #e2e8f0;
+      --text: #162032;
+      --muted: #64748b;
+      --soft: #94a3b8;
+      --accent: #1d4ed8;
+      --accent-soft: rgba(29, 78, 216, 0.1);
+      --accent-2: #0f766e;
+      --accent-2-soft: rgba(15, 118, 110, 0.1);
+      --warn: #d97706;
+      --shadow: 0 24px 60px rgba(15, 23, 42, 0.08);
+      --radius-xl: 30px;
+      --radius-lg: 24px;
+      --radius-md: 18px;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Inter", "PingFang SC", "Microsoft YaHei", sans-serif;
+      background:
+        radial-gradient(circle at top right, rgba(219, 234, 254, 0.85), transparent 30%),
+        linear-gradient(180deg, #fcfdff 0%, var(--bg) 100%);
+      color: var(--text);
+    }
+
+    .page {
+      width: min(1320px, calc(100% - 40px));
+      margin: 0 auto;
+      padding: 28px 0 54px;
+    }
+
+    .topbar,
+    .hero,
+    .flow-card,
+    .detail-card,
+    .side-card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow);
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 18px 22px;
+      margin-bottom: 20px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .mark {
+      width: 46px;
+      height: 46px;
+      border-radius: 16px;
+      display: grid;
+      place-items: center;
+      background: #0f172a;
+      color: #fff;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+    }
+
+    .top-links {
+      display: flex;
+      gap: 18px;
+      color: var(--muted);
+      font-size: 14px;
+      flex-wrap: wrap;
+    }
+
+    h1, h2, h3, p { margin: 0; }
+
+    .hero {
+      display: grid;
+      grid-template-columns: 1.2fr 0.8fr;
+      gap: 0;
+      overflow: hidden;
+      margin-bottom: 20px;
+    }
+
+    .hero-main,
+    .hero-side {
+      padding: 28px;
+    }
+
+    .hero-main {
+      border-right: 1px solid var(--line);
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      padding: 7px 12px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 700;
+      margin-bottom: 16px;
+    }
+
+    h1 {
+      font-size: 40px;
+      line-height: 1.08;
+      letter-spacing: -0.04em;
+      margin-bottom: 14px;
+    }
+
+    p {
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.75;
+    }
+
+    .hero-metrics {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 22px;
+    }
+
+    .metric {
+      padding: 15px 16px;
+      border-radius: var(--radius-md);
+      background: #f8fafc;
+      border: 1px solid var(--line);
+    }
+
+    .metric strong {
+      display: block;
+      color: var(--soft);
+      font-size: 12px;
+      margin-bottom: 6px;
+    }
+
+    .metric span {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+    }
+
+    .hero-side h2 {
+      font-size: 21px;
+      margin-bottom: 10px;
+      letter-spacing: -0.03em;
+    }
+
+    .hero-side .note-list,
+    .flow-list,
+    .detail-list,
+    .side-list {
+      display: grid;
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    .note,
+    .detail-item,
+    .side-item {
+      padding: 14px 15px;
+      border-radius: 16px;
+      border: 1px solid var(--line);
+      background: #fbfcfe;
+    }
+
+    .note strong,
+    .detail-item strong,
+    .side-item strong {
+      display: block;
+      font-size: 14px;
+      margin-bottom: 5px;
+    }
+
+    .note span,
+    .detail-item span,
+    .side-item span {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.65;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.28fr) 320px;
+      gap: 20px;
+    }
+
+    .flow-card {
+      padding: 24px;
+    }
+
+    .section-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 18px;
+      margin-bottom: 18px;
+    }
+
+    .section-head h2 {
+      font-size: 24px;
+      letter-spacing: -0.03em;
+      margin-bottom: 8px;
+    }
+
+    .chip {
+      padding: 7px 12px;
+      border-radius: 999px;
+      background: var(--accent-2-soft);
+      color: var(--accent-2);
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .flow-list {
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      align-items: stretch;
+    }
+
+    .flow-step {
+      padding: 18px 16px;
+      border-radius: 22px;
+      background: #f8fafc;
+      border: 1px solid var(--line);
+      position: relative;
+      min-height: 196px;
+    }
+
+    .flow-step.current {
+      background: linear-gradient(180deg, rgba(219, 234, 254, 0.7), rgba(255,255,255,0.96));
+      border-color: rgba(29, 78, 216, 0.26);
+    }
+
+    .flow-step.pending {
+      background: linear-gradient(180deg, rgba(255, 247, 237, 0.7), rgba(255,255,255,0.96));
+      border-color: rgba(217, 119, 6, 0.22);
+    }
+
+    .flow-step::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      right: -10px;
+      width: 20px;
+      height: 2px;
+      background: #cbd5e1;
+      transform: translateY(-50%);
+    }
+
+    .flow-step:last-child::after {
+      display: none;
+    }
+
+    .step-index {
+      display: inline-flex;
+      width: 34px;
+      height: 34px;
+      border-radius: 12px;
+      align-items: center;
+      justify-content: center;
+      background: #fff;
+      border: 1px solid var(--line);
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 14px;
+    }
+
+    .flow-step h3 {
+      font-size: 18px;
+      letter-spacing: -0.03em;
+      margin-bottom: 10px;
+    }
+
+    .flow-step p {
+      font-size: 13px;
+      line-height: 1.65;
+      margin-bottom: 14px;
+    }
+
+    .state {
+      display: inline-flex;
+      padding: 5px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+
+    .done-state {
+      color: var(--accent-2);
+      background: rgba(15, 118, 110, 0.1);
+    }
+
+    .current-state {
+      color: var(--accent);
+      background: rgba(29, 78, 216, 0.1);
+    }
+
+    .pending-state {
+      color: var(--warn);
+      background: rgba(217, 119, 6, 0.1);
+    }
+
+    .step-foot {
+      color: var(--soft);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .detail-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-top: 18px;
+    }
+
+    .detail-card {
+      padding: 20px;
+    }
+
+    .detail-card h3 {
+      font-size: 18px;
+      letter-spacing: -0.03em;
+      margin-bottom: 10px;
+    }
+
+    .side-card {
+      padding: 20px;
+    }
+
+    .side-card + .side-card {
+      margin-top: 14px;
+    }
+
+    .side-card h3 {
+      font-size: 18px;
+      letter-spacing: -0.03em;
+      margin-bottom: 10px;
+    }
+
+    @media (max-width: 1180px) {
+      .flow-list {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+      .flow-step::after {
+        display: none;
+      }
+    }
+
+    @media (max-width: 940px) {
+      .hero,
+      .layout,
+      .detail-grid,
+      .hero-metrics,
+      .flow-list {
+        grid-template-columns: 1fr;
+      }
+      .hero-main {
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+      .topbar {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <section class="topbar">
+      <div class="brand">
+        <div class="mark">C</div>
+        <div>
+          <strong>方案 C · 流程地图型</strong>
+          <div style="color: var(--muted); font-size: 14px;">按业务闭环组织系统，而不是按平台堆页面</div>
+        </div>
+      </div>
+      <div class="top-links">
+        <span>采集</span>
+        <span>洞察</span>
+        <span>规划</span>
+        <span>生产</span>
+        <span>发布</span>
+        <span>复盘</span>
+      </div>
+    </section>
+
+    <section class="hero">
+      <div class="hero-main">
+        <div class="eyebrow">Business Flow Map</div>
+        <h1>让用户先看懂这套系统怎么运转，再决定去哪个页面执行。</h1>
+        <p>这个方向把首页从“板块目录”重构为“业务流程地图”。首屏直接展示采集、洞察、规划、生产、发布、复盘六个阶段，让系统闭环一眼可见，再把小红书、抖音、公众号、设计页作为各阶段的执行面板挂进去。</p>
+        <div class="hero-metrics">
+          <div class="metric">
+            <strong>当前所处阶段</strong>
+            <span>规划</span>
+          </div>
+          <div class="metric">
+            <strong>已打通阶段</strong>
+            <span>02 / 06</span>
+          </div>
+          <div class="metric">
+            <strong>关键阻塞</strong>
+            <span>01</span>
+          </div>
+        </div>
+      </div>
+      <div class="hero-side">
+        <h2>适配什么页面</h2>
+        <p>最适合 `brand-growth` 这种跨平台总览页，也适合后续扩展更多平台和多团队协同，因为入口不再依赖平台名称，而依赖实际动作。</p>
+        <div class="note-list">
+          <div class="note">
+            <strong>对新用户更友好</strong>
+            <span>先理解业务闭环，再进入平台执行页，认知成本更低。</span>
+          </div>
+          <div class="note">
+            <strong>对未来扩展更稳</strong>
+            <span>新增平台时不必改顶层结构，只需挂接到某个阶段。</span>
+          </div>
+          <div class="note">
+            <strong>对当前问题更对症</strong>
+            <span>它直接解决“入口很多，但不知道先做什么”的问题。</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="layout">
+      <div>
+        <section class="flow-card">
+          <div class="section-head">
+            <div>
+              <h2>今日流程地图</h2>
+              <p>把系统主页面变成一张简洁的经营路径图，每个阶段只展示状态、下一步和关联执行页。</p>
+            </div>
+            <div class="chip">推荐给跨平台经营场景</div>
+          </div>
+
+          <div class="flow-list">
+            <article class="flow-step">
+              <div class="step-index">01</div>
+              <div class="state done-state">已完成</div>
+              <h3>采集</h3>
+              <p>品牌资料、热点数据、平台采集入口统一收口，避免多头录入。</p>
+              <div class="step-foot">执行页：品牌资料库、第三方数据、小红书/抖音/公众号采集</div>
+            </article>
+
+            <article class="flow-step">
+              <div class="step-index">02</div>
+              <div class="state done-state">已完成</div>
+              <h3>洞察</h3>
+              <p>机会洞察、增长报告和可视化结果只保留关键结论，服务下一步决策。</p>
+              <div class="step-foot">执行页：机会洞察、增长报告、可视化报告</div>
+            </article>
+
+            <article class="flow-step current">
+              <div class="step-index">03</div>
+              <div class="state current-state">当前阶段</div>
+              <h3>规划</h3>
+              <p>把半年规划、营销日历和选题池做成真正的决策阶段，不与执行页混排。</p>
+              <div class="step-foot">执行页：半年营销规划、营销日历、选题库</div>
+            </article>
+
+            <article class="flow-step pending">
+              <div class="step-index">04</div>
+              <div class="state pending-state">待推进</div>
+              <h3>生产</h3>
+              <p>小红书、抖音、公众号、设计工作台都作为生产面板出现，而不是顶层首页。</p>
+              <div class="step-foot">执行页：XHS / Douyin / Wechat / Design</div>
+            </article>
+
+            <article class="flow-step pending">
+              <div class="step-index">05</div>
+              <div class="state pending-state">待推进</div>
+              <h3>发布</h3>
+              <p>把确认、接力、订单与结果收口成轻量发布层，减少零散帮助页干扰。</p>
+              <div class="step-foot">执行页：发布确认、移动接力、订单详情、状态结果</div>
+            </article>
+
+            <article class="flow-step pending">
+              <div class="step-index">06</div>
+              <div class="state pending-state">待推进</div>
+              <h3>复盘</h3>
+              <p>每日复盘、素材沉淀和作品回流统一放到闭环尾部，真正形成回看能力。</p>
+              <div class="step-foot">执行页：OpenClaw 复盘、作品库、素材库、结果回看</div>
+            </article>
+          </div>
+
+          <div class="detail-grid">
+            <article class="detail-card">
+              <h3>为什么比传统后台更清楚</h3>
+              <div class="detail-list">
+                <div class="detail-item">
+                  <strong>先看到路径</strong>
+                  <span>不是先看到平台名称，而是先看到经营动作序列。</span>
+                </div>
+                <div class="detail-item">
+                  <strong>再进入执行页</strong>
+                  <span>平台页只负责把当前阶段做完，不再同时承担系统说明任务。</span>
+                </div>
+              </div>
+            </article>
+
+            <article class="detail-card">
+              <h3>最适合改哪些地方</h3>
+              <div class="detail-list">
+                <div class="detail-item">
+                  <strong>`/brand-growth`</strong>
+                  <span>直接提升为流程地图首页，作为全系统统一起点。</span>
+                </div>
+                <div class="detail-item">
+                  <strong>顶部导航</strong>
+                  <span>减少平台平铺，改成阶段性入口和少量关键跳转。</span>
+                </div>
+              </div>
+            </article>
+          </div>
+        </section>
+      </div>
+
+      <aside>
+        <article class="side-card">
+          <h3>当前重点</h3>
+          <div class="side-list">
+            <div class="side-item">
+              <strong>先完成“规划”阶段</strong>
+              <span>营销日历已生成，但 3 条核心选题还没有正式下发。</span>
+            </div>
+            <div class="side-item">
+              <strong>再进入“生产”阶段</strong>
+              <span>小红书和抖音都已有可直接执行的候选任务。</span>
+            </div>
+          </div>
+        </article>
+
+        <article class="side-card">
+          <h3>阻塞项</h3>
+          <div class="side-list">
+            <div class="side-item">
+              <strong>公众号默认账号待确认</strong>
+              <span>配置存在，但品牌切换后的默认发布账号还需要核验。</span>
+            </div>
+          </div>
+        </article>
+
+        <article class="side-card">
+          <h3>适合长期演进</h3>
+          <p>如果后面要接更多平台、更多角色、更多协同节点，这个方向的扩展成本最低，因为首页围绕的是流程，不是模块数量。</p>
+        </article>
+      </aside>
+    </div>
+  </div>
+</body>
+</html>

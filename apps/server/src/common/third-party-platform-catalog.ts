@@ -21,6 +21,10 @@ export const DECOMMISSIONED_PLATFORM_HOSTS = new Set([
   "openspeech.bytedance.com",
 ]);
 
+export const DECOMMISSIONED_PLATFORM_IDS = new Set([
+  "platform_http_127_0_0_1_5000_video_remix",
+]);
+
 const PLATFORM_NAME_BY_HOST: Record<string, string> = {
   "www.right.codes": "Right Codes 平台",
   "www.rightapi.ai": "Right Codes 平台",
@@ -36,13 +40,17 @@ const PLATFORM_NAME_BY_HOST: Record<string, string> = {
   "agent.mathmind.cn": "MathMind 平台",
   "api.mathmind.cn": "MathMind 平台",
   "www.runninghub.cn": "RunningHub 平台",
+  "api.kol.cn": "软文街平台",
   "apihub.agnes-ai.com": "Agnes 平台",
   "duoyuanx.com": "多元探索平台",
 };
 
 export const THIRD_PARTY_PLATFORM_SEEDS: ThirdPartyPlatformRecord[] = buildThirdPartyPlatformSeeds();
 
-export function isDecommissionedPlatformBaseUrl(baseUrl: string) {
+export function isDecommissionedPlatformBaseUrl(baseUrl: string, platformId?: string) {
+  if (platformId && DECOMMISSIONED_PLATFORM_IDS.has(String(platformId).trim())) {
+    return true;
+  }
   try {
     const url = new URL(String(baseUrl || "").trim());
     return DECOMMISSIONED_PLATFORM_HOSTS.has(url.host.toLowerCase());
@@ -197,6 +205,19 @@ function buildThirdPartyPlatformSeeds() {
         remark: "用于抖音 RunningHub 应用工作台。当前品牌 Owner 请在个人中心填写 RunningHub API Key，后续即可调用 AI 应用任务、查询结果并查看作品中心历史记录。",
         updatedAt: "2026-06-25T00:00:00.000Z",
       },
+      {
+        id: "platform_https_api_kol_cn",
+        name: "软文街平台",
+        providerType: "CUSTOM" as const,
+        status: "ACTIVE" as const,
+        baseUrl: "https://api.kol.cn",
+        websiteUrl: "https://www.ruanwenjie.com",
+        tutorialUrl: "",
+        modelIds: [],
+        defaultModel: "",
+        remark: "用于 GEO 第三方媒体投放。当前品牌 Owner 请在个人中心填写软文街 API Key、登录账号和登录密码；identity / captcha_token / captcha 将按文档示例默认补成 advertiser。",
+        updatedAt: "2026-08-16T00:00:00.000Z",
+      },
     ])
     .sort((a, b) => a.name.localeCompare(b.name, "zh-CN"));
 }
@@ -236,6 +257,7 @@ export function resolvePlatformWebsiteUrl(baseUrl: string) {
       "vod.volcengineapi.com": "https://console.volcengine.com/vod",
       "open-api.chanjing.cc": "https://www.chanjing.cc",
       "www.runninghub.cn": "https://www.runninghub.cn",
+      "api.kol.cn": "https://www.ruanwenjie.com",
       "apihub.agnes-ai.com": "https://agnes-ai.com/zh-Hans",
       "www.right.codes": "https://www.rightapi.ai",
       "www.rightapi.ai": "https://www.rightapi.ai",

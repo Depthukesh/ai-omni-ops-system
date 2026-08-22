@@ -44,6 +44,15 @@
 - `manage_brand_library`
 - `manage_growth_reports`
 - `get_unified_material_library_items`
+- `get_brand_growth_visual_report_workspace`
+- `generate_brand_growth_visual_report`
+- `get_brand_growth_marketing_calendar_workspace`
+- `generate_brand_growth_marketing_calendar`
+- `update_brand_growth_marketing_calendar`
+- `get_brand_growth_topic_library_workspace`
+- `generate_brand_growth_topic_candidates`
+- `update_brand_growth_topic_library`
+- `get_brand_growth_material_library_items`
 - `get_xiaohongshu_collection_workspace`
 - `get_douyin_collection_workspace`
 - `get_wechat_collection_workspace`
@@ -57,6 +66,13 @@
 - 先 `get_xiaohongshu_marketing_calendar_workspace` 获取最新一期营销日历与 `reportId`
 - 再 `upsert_xiaohongshu_marketing_calendar_item`
 - 通过 `calendarDate=YYYY-MM-DD` 精确更新某一天，而不是整版手工覆盖
+
+为避免页面左侧“品牌增长报告”分栏和 OpenClaw 工具命名脱节，当前额外补了一层品牌增长语义别名：
+
+- 可视化报告：`get_brand_growth_visual_report_workspace`、`generate_brand_growth_visual_report`
+- 营销日历：`get_brand_growth_marketing_calendar_workspace`、`generate_brand_growth_marketing_calendar`、`update_brand_growth_marketing_calendar`
+- 选题库：`get_brand_growth_topic_library_workspace`、`generate_brand_growth_topic_candidates`、`update_brand_growth_topic_library`
+- 素材库：`get_brand_growth_material_library_items`
 
 ### 3.2 小红书 `/xiaohongshu`
 
@@ -88,6 +104,7 @@
 - 原创文案
 - 二创文案
 - AI 生视频
+- 视频混剪
 - 数字人
 - 口型驱动
 - RunningHub
@@ -99,14 +116,41 @@
 - `create_douyin_original_copy`
 - `create_douyin_remix_copy`
 - `manage_douyin_video_production`
+- `get_mixedcut_media_assets`
+- `create_mixedcut_remix_task`
+- `get_mixedcut_remix_task_progress`
 - `create_douyin_mobile_publish_session`
 - `create_douyin_desktop_publish_session`
 
 处理原则：
 
 - 普通视频、直接视频、混剪短视频、数字人、口型驱动、RunningHub、广告预审都优先从 `manage_douyin_video_production` 进入
+- 当用户明确提到 `视频混剪`、`mixedcut`、`把站内视频拿去混剪`、`把本机视频拿去混剪` 时，不再走 `manage_douyin_video_production`，而是优先走：
+  - `get_mixedcut_media_assets`
+  - `create_mixedcut_remix_task`
+  - `get_mixedcut_remix_task_progress`
+- `create_mixedcut_remix_task` 当前支持三类来源：
+  - 站内视频素材 `mediaAssetIds`
+  - OpenClaw 创作素材 `creativeMaterialIds`
+  - stdio MCP 下的本机 `localFilePath / localFilePaths`
+- 本机视频不会直接绕过站内上传到 mixedcut，而是会先归档成 OpenClaw 创作素材，再复用主站 mixedcut bridge 发任务
 - 数字人语音试听属于 `section=digital_human`
 - RunningHub 属于 `section=runninghub`
+- 当前 RunningHub 已内置一组常见应用示例：
+  - `minimax-h3-fl2va-text-to-video`：文生视频
+  - `minimax-h3-fl2va-first-frame-video`：首帧参考生视频
+  - `minimax-h3-fl2va-first-last-frame-video`：首尾帧参考生视频
+  - `minimax-h3-fl2va-multi-image-video`：多图参考生视频
+  - `minimax-h3-8step-image-to-video`：8 步加速图生视频
+  - `minimax-h3-4step-first-last-frame-video`：4 步加速首尾帧生视频
+  - `minimax-h3-accelerated-all-reference-video`：全能参考视频
+  - `minimax-h3-digital-human-auto`：数字人口播 / 唱歌 / 电商讲解自动版
+  - `seedance25-multimodal-video`：Seedance 2.5 多模态视频
+  - `seedance20-viral-video-remix`：Seedance 2.0 复刻爆款视频
+  - `seedance20-fast-all-reference-video`：Seedance 2.0 Fast 全能生视频
+  - `seedance20-fast-rh`：Seedance 2.0 Fast RH 版
+  - `qwen-image-chinese-font-design`：中文字体设计图生图
+  - `qwen-font-design-8step`：Qwen 8 步加速字体设计
 - 广告预审属于 `section=ad_preaudit`
 
 ### 3.4 公众号 `/wechat`
@@ -171,7 +215,7 @@
 
 - 概览
 - 任务中心
-- 订单中心
+- 素材管理
 - 作品中心
 - 技能中心
 - 第三方接口配置
@@ -188,7 +232,9 @@
 - `get_task_detail`
 - `cancel_task`
 - `retry_task`
-- `list_my_orders`
+- `list_personal_material_assets`
+- `get_local_material_storage_settings`
+- `update_local_material_storage_settings`
 - `get_skill_config_summary`
 - `get_skill_config_detail`
 - `update_skill_config`
@@ -211,6 +257,31 @@
 - `安全设置`
 - `OpenClaw 安装中心`
 
+素材管理补充说明：
+
+- `素材管理` 当前统一聚合网站上传素材与 OpenClaw 入库素材
+- 左侧固定四类：
+  - 文本
+  - 图片
+  - 语音
+  - 视频
+- `local-single-user` 安装态下可直接查看和修改素材库存储目录：
+  - `get_local_material_storage_settings`
+  - `update_local_material_storage_settings`
+- 用户选择的是【素材库】外层根目录，系统会自动创建：
+  - `素材库/文本`
+  - `素材库/图片`
+  - `素材库/语音`
+  - `素材库/视频`
+- 网站上传素材会按 `素材库/<分类>/<brandId>/<YYYY>/<YYYY-MM>/<timestamp>-<title>.<ext>` 落盘
+- OpenClaw 上传素材不强制写入 `素材库`，但同样会进入四分类列表
+- 列表当前统一回显：
+  - 标题
+  - 素材标签
+  - 素材来源
+  - 入库时间
+  - 存储位置（本地文件夹地址）
+
 处理原则：
 
 - 如果用户问的是“账号安全”“密码”“登录保护”“安装中心”，先判断当前是否已有 MCP 能力直连
@@ -229,21 +300,44 @@
   - 海外网络下旧域名 `right.codes` 仍可能可访问，但默认应以 `rightapi.ai` 为准
   - API 路径与业务逻辑不变，只需把 Base URL 从 `right.codes` 替换成 `rightapi.ai`
 
-### 3.7 GEO `/geo`
+### 3.7 GEO获客 `/geo`
 
 当前承载：
 
-- GEO 可见度诊断 HTML 报告查看
-- 报告保存
-- 报告删除
+- GEO 可见度诊断 HTML 报告查看 / 保存 / 删除
+- 关键词挖掘、网站诊断、知识库搭建、GEO优化方案的一次性内容查看
+- 自媒体内容、第三方媒体、品牌网站的多次生成列表查看
+- 其它 GEO 工作流 HTML 预览与非 HTML `存储地址` 回显
 
 当前优先 MCP：
 
 - `get_openclaw_geo_visibility_reports`
 - `create_openclaw_geo_visibility_report`
 - `delete_openclaw_geo_visibility_report`
+- `get_openclaw_geo_contents`
+- `create_openclaw_geo_content`
+- `delete_openclaw_geo_content`
 
-### 3.8 后台管理 `/admin`
+### 3.8 全网获客 `/all-network-growth`
+
+当前承载：
+
+- 评论获客统一名单
+- 平台获客统一名单
+- 按平台查看评论获客列表
+- 由 OpenClaw 从品牌增长评论用户结果生成评论获客记录
+- 由 OpenClaw 直接写入平台获客记录
+
+当前优先 MCP：
+
+- `get_openclaw_comment_leads`
+- `create_openclaw_comment_leads`
+- `delete_openclaw_comment_lead`
+- `get_openclaw_platform_leads`
+- `create_openclaw_platform_leads`
+- `delete_openclaw_platform_lead`
+
+### 3.9 后台管理 `/admin`
 
 当前原则：
 
@@ -264,7 +358,8 @@
 - 设计工作台
 - 个人中心中的任务 / 订单 / 技能 / 第三方接口 / 团队协作
 - OpenClaw 数据归档
-- GEO
+- GEO获客
+- 全网获客
 
 ### 4.2 先读后写的域
 

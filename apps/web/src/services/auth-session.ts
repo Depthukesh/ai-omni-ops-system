@@ -1,3 +1,5 @@
+import type { UserAccessFeatureKey } from "../../../../packages/shared/src/user-access";
+
 export type AuthUser = {
   id: string;
   mobile: string;
@@ -8,6 +10,9 @@ export type AuthUser = {
   status: "ACTIVE" | "DISABLED";
   membership: "FREE" | "BASIC" | "PRO" | "ENTERPRISE";
   systemRole: "USER" | "SUPER_ADMIN" | "ADMIN_OPERATOR" | "FINANCE_OPERATOR" | "SUPPORT_OPERATOR";
+  accessExpiresAt: string | null;
+  allowedFeatureKeys: UserAccessFeatureKey[];
+  hasFullFeatureAccess: boolean;
   pointsBalance: number;
 };
 

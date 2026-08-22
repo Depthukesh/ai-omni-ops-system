@@ -70,6 +70,7 @@ import {
   removeDouyinKeywordRecommendation,
   removeDouyinBenchmarkWorkFromMaterialLibrary,
   syncDouyinCollectionWorkspace,
+  syncDouyinTargetUsers,
   syncXiaohongshuCommentData,
   syncXiaohongshuFromFeishu,
   syncXiaohongshuBenchmarkNotes,
@@ -77,6 +78,7 @@ import {
   syncXiaohongshuBrandNotes,
   syncXiaohongshuCompetitorAccounts,
   syncXiaohongshuSearchNotes,
+  syncXiaohongshuTargetUsers,
   type DouyinCollectedAccountRecord,
   type DouyinKeywordRecommendationRecord,
   type XhsAccountRole,
@@ -398,6 +400,7 @@ function createEmptyDouyinCollectionWorkspace(): DouyinCollectionWorkspace {
     searchWorks: [],
     keywordRecommendations: [],
     commentData: [],
+    targetUsers: [],
     lowFanExplosiveWorks: [],
     highCompletionRateWorks: [],
     highLikeRateWorks: [],
@@ -709,6 +712,7 @@ type DouyinSyncForm = {
   searchFilterDuration: string;
   searchContentType: string;
   commentSourceUrls: string;
+  targetUserMatchKeywords: string;
   keywordRecommendationEntries: Array<{
     id: string;
     keyword: string;
@@ -737,6 +741,7 @@ type XhsSyncForm = {
   benchmarkNoteLocators: string;
   searchKeyword: string;
   commentSourceUrls: string;
+  targetUserMatchKeywords: string;
 };
 
 function createEmptyXhsSyncForm(): XhsSyncForm {
@@ -747,6 +752,7 @@ function createEmptyXhsSyncForm(): XhsSyncForm {
     benchmarkNoteLocators: "",
     searchKeyword: "",
     commentSourceUrls: "",
+    targetUserMatchKeywords: "",
   };
 }
 
@@ -761,6 +767,7 @@ function createEmptyDouyinSyncForm(): DouyinSyncForm {
     searchFilterDuration: "0",
     searchContentType: "0",
     commentSourceUrls: "",
+    targetUserMatchKeywords: "",
     keywordRecommendationEntries: [],
     lowFanExplosiveWorks: {
       primaryTagId: "",
@@ -1261,6 +1268,10 @@ export function BrandGrowthWorkspace() {
     () => sortByCollectedAtDesc(collectionWorkspace.commentData as XhsCommentRecord[]),
     [collectionWorkspace.commentData],
   );
+  const sortedXhsTargetUsers = useMemo(
+    () => sortByCollectedAtDesc(collectionWorkspace.targetUsers),
+    [collectionWorkspace.targetUsers],
+  );
   const sortedDouyinBrandAccounts = useMemo(
     () => sortByCollectedAtDesc(douyinCollectionWorkspace.brandAccounts),
     [douyinCollectionWorkspace.brandAccounts],
@@ -1294,6 +1305,10 @@ export function BrandGrowthWorkspace() {
   const sortedDouyinCommentData = useMemo(
     () => sortByCollectedAtDesc(douyinCollectionWorkspace.commentData as DouyinCommentRecord[]),
     [douyinCollectionWorkspace.commentData],
+  );
+  const sortedDouyinTargetUsers = useMemo(
+    () => sortByCollectedAtDesc(douyinCollectionWorkspace.targetUsers),
+    [douyinCollectionWorkspace.targetUsers],
   );
   const sortedDouyinKeywordRecommendations = useMemo(
     () => sortByCollectedAtDesc(douyinCollectionWorkspace.keywordRecommendations),
@@ -3058,6 +3073,44 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     }
   }
 
+  async function handleSyncXhsTargetUsers() {
+    if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.collection.xiaohongshuCollection"]?.edit) {
+      setErrorMessage("当前账号没有同步小红书收集数据的编辑权限。");
+      return;
+    }
+
+    const sourceUrls = parseDouyinSyncLines(xhsSyncForm.commentSourceUrls);
+    if (!sourceUrls.length) {
+      setErrorMessage("请先输入至少一个小红书笔记链接或 note_id。");
+      return;
+    }
+
+    const matchKeywords = parseDouyinSyncLines(xhsSyncForm.targetUserMatchKeywords);
+    setIsSyncingXhsWorkspace(true);
+    clearMessages();
+
+    try {
+      const response = await syncXiaohongshuTargetUsers(
+        {
+          sourceUrls,
+          matchKeywords,
+          syncCommentsFirst: true,
+        },
+        activeBrandId || archive.brand.id,
+      );
+      setCollectionWorkspace(response.workspace);
+      const summary = `小红书评论用户账号提取完成，已更新 ${response.syncedCount} 条目标用户。`;
+      const keywordText = matchKeywords.length ? ` 关键词：${matchKeywords.join("、")}。` : " 未设置关键词，已提取全部评论用户。";
+      const warningText = response.warnings?.filter(Boolean).join("；");
+      setNotice(warningText ? `${summary}${keywordText} 部分请求未完全成功：${warningText}` : `${summary}${keywordText}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "提取失败";
+      setErrorMessage(`小红书评论用户账号提取失败：${message}`);
+    } finally {
+      setIsSyncingXhsWorkspace(false);
+    }
+  }
+
   function handleToggleXhsCommentReplies(commentId: string) {
     setExpandedXhsCommentIds((current) =>
       current.includes(commentId)
@@ -3648,6 +3701,44 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
       setErrorMessage(`评论数据加载更多失败：${message}`);
     } finally {
       setIsLoadingMoreDouyinComments(false);
+    }
+  }
+
+  async function handleSyncDouyinTargetUsers() {
+    if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.collection.douyinCollection"]?.edit) {
+      setErrorMessage("当前账号没有同步收集数据板块的编辑权限。");
+      return;
+    }
+
+    const sourceUrls = parseDouyinSyncLines(douyinSyncForm.commentSourceUrls);
+    if (!sourceUrls.length) {
+      setErrorMessage("请输入至少一个抖音作品链接后再提取账号链接。");
+      return;
+    }
+
+    const matchKeywords = parseDouyinSyncLines(douyinSyncForm.targetUserMatchKeywords);
+    setIsSyncingDouyinWorkspace(true);
+    clearMessages();
+
+    try {
+      const response = await syncDouyinTargetUsers(
+        {
+          sourceUrls,
+          matchKeywords,
+          syncCommentsFirst: true,
+        },
+        activeBrandId || archive.brand.id,
+      );
+      setDouyinCollectionWorkspace(response.workspace);
+      const summary = `抖音评论用户账号提取完成，已更新 ${response.syncedCount} 条目标用户。`;
+      const keywordText = matchKeywords.length ? ` 关键词：${matchKeywords.join("、")}。` : " 未设置关键词，已提取全部评论用户。";
+      const warningText = response.warnings?.filter(Boolean).join("；");
+      setNotice(warningText ? `${summary}${keywordText} 部分请求未完全成功：${warningText}` : `${summary}${keywordText}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "提取失败";
+      setErrorMessage(`抖音评论用户账号提取失败：${message}`);
+    } finally {
+      setIsSyncingDouyinWorkspace(false);
     }
   }
 
@@ -4255,6 +4346,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
         onSyncXhsWorkspace={handleSyncXhsWorkspace}
         onSyncXhsSearchNotes={handleSyncXhsSearchNotes}
         onSyncXhsCommentData={handleSyncXhsCommentData}
+        onSyncXhsTargetUsers={handleSyncXhsTargetUsers}
         onSyncAllXhsBrandAccounts={handleSyncAllXhsBrandAccounts}
         onSyncSingleXhsBrandAccount={handleSyncSingleXhsBrandAccount}
         onSyncSingleXhsCompetitorAccount={handleSyncSingleXhsCompetitorAccount}
@@ -4262,6 +4354,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
         onToggleXhsCommentReplies={handleToggleXhsCommentReplies}
         onLoadXhsCommentReplies={handleLoadXhsCommentReplies}
         onSyncDouyinWorkspace={handleSyncDouyinWorkspace}
+        onSyncDouyinTargetUsers={handleSyncDouyinTargetUsers}
         onSyncAllDouyinBrandAccounts={handleSyncAllDouyinBrandAccounts}
         onSyncAllDouyinCompetitorAccounts={handleSyncAllDouyinCompetitorAccounts}
         onSyncSingleDouyinBrandAccount={handleSyncSingleDouyinBrandAccount}
@@ -4276,6 +4369,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
         sortedBenchmarkNotes={sortedBenchmarkNotes}
         sortedSearchNotes={sortedSearchNotes}
         sortedXhsCommentData={sortedXhsCommentData}
+        sortedXhsTargetUsers={sortedXhsTargetUsers}
         xhsCommentPagination={xhsCommentPagination}
         isLoadingMoreXhsComments={isLoadingMoreXhsComments}
         expandedXhsCommentIds={expandedXhsCommentIds}
@@ -4290,6 +4384,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
         sortedDouyinBenchmarkWorks={sortedDouyinBenchmarkWorks}
         sortedDouyinSearchWorks={sortedDouyinSearchWorks}
         sortedDouyinCommentData={sortedDouyinCommentData}
+        sortedDouyinTargetUsers={sortedDouyinTargetUsers}
         douyinCommentPagination={douyinCommentPagination}
         isLoadingMoreDouyinComments={isLoadingMoreDouyinComments}
         sortedDouyinKeywordRecommendations={sortedDouyinKeywordRecommendations}

@@ -47,10 +47,11 @@
 
 - `/`
   - 官网首页，当前是营销型首页
+  - `local-single-user` 安装态下访问根路径时会直接跳到 `/brand-growth`，避免安装态去渲染仅面向官网的营销首页模板
 - `/login`
   - 前台登录页
 - `/register`
-  - 前台注册页；网站版默认仍走邀请码注册，`local-single-user` 安装态改为按 `GET /auth/register-config` 动态切到“直接注册”
+  - 前台注册页；当前网站版、源码运行态与 `local-single-user` 安装态统一都走邀请码注册，由 `GET /auth/register-config` 与 `POST /auth/register` 后端控制准入
 - `/admin/login`
   - 后台管理员登录页
 - `/help/xhs-draft-publisher`
@@ -69,11 +70,15 @@
 - `/brand-growth`
   - 品牌增长策略工作台
 - `/xiaohongshu`
-  - 小红书工作台
+  - 内容获客工作台；当前用统一左侧导航收口某书 / 某音/某号 / 公众号三类内容运营板块
 - `/douyin`
-  - 抖音工作台
+  - 抖音工作台兼容直达入口；顶栏已移除，主入口已并入 `/xiaohongshu`
 - `/wechat`
-  - 公众号工作台
+  - 公众号工作台兼容直达入口；顶栏已移除，主入口已并入 `/xiaohongshu`
+- `/geo`
+  - GEO获客工作台；承接 OpenClaw 保存的 GEO 诊断、关键词挖掘、网站诊断、知识库搭建、优化方案与多次生成内容
+- `/all-network-growth`
+  - 全网获客工作台；承接 OpenClaw 从品牌增长评论用户结果生成的评论获客名单
 - `/more-features`
   - 更多功能入口，当前重定向到 `/more-features/design`
 - `/more-features/design`
@@ -91,7 +96,7 @@
 
 ### 3.3 登录门卫规则
 
-- `/brand-growth`、`/xiaohongshu`、`/douyin`、`/wechat`、`/more-features/design`、`/personal-center/*` 默认要求登录
+- `/brand-growth`、`/xiaohongshu`、`/douyin`、`/wechat`、`/geo`、`/all-network-growth`、`/more-features/design`、`/personal-center/*` 默认要求登录
 - 未登录时统一跳转 `/login?next=...`
 - `/admin` 额外要求管理员身份
 
@@ -117,24 +122,66 @@
 - 知识绑定已进入部分报告运行时
 - 营销日历已收口在品牌增长策略，而不是继续挂在小红书首页
 - OpenClaw 专区与品牌增长共用左侧手风琴导航，龙虾日记数据由 `openclaw` 模块提供
+- 抖音采集作品的视频预览缓存现在统一走受控副本链路：网页态继续可读 OSS，缺 OSS 的本地运行态则通过 `collectors/douyin` 受控媒体接口读取本地副本，不再因为没有 OSS 而丢失预览
+- 小红书 / 抖音收集数据中的“评论数据”卡片现已补齐“从评论提取账号链接”动作，可直接把作品链接补拉为评论数据，再按关键词筛出评论用户并沉淀为目标用户账号链接结果，供 OpenClaw 与人工验证共用
+- 参考变更：`docs/changes/2026-08-15-brand-growth-comment-target-user-openclaw-chain.md`
 
-### 4.2 小红书工作台 `/xiaohongshu`
+### 4.2 内容获客工作台 `/xiaohongshu`
 
 包含：
 
-- 营销策划方案
-- 原创笔记
-- 二创笔记
-- 视频笔记
-- 发布工作流
+- 某书
+  - 营销策划方案
+  - 创作素材
+  - 每日计划
+  - 每日复盘
+  - 作品列表
+- 某音/某号
+  - 营销策划方案
+  - 数字人
+  - RunningHub应用
+  - 视频混剪
+  - 创作素材
+  - 每日计划
+  - 每日复盘
+  - 作品列表
+- 公众号
+  - 配置初始化
+  - 创作工作流
+  - 发布历史
+  - 创作素材
+  - 每日计划
+  - 每日复盘
+  - 作品列表
 
 当前特点：
 
-- 页面结构已拆成薄入口 + `workspace-shell`
-- 创作侧素材选择已统一切到品牌增长策略 → 品牌增长报告 → 素材库
-- 原创 / 二创 / 视频创建与编辑已经拆分为独立字段组件和模态组件
-- 受保护媒体预览已走鉴权 blob / 共享缓存
-- 账号角色已进入作品元数据
+- `/xiaohongshu` 已改为统一聚合壳层 `ContentAcquisitionWorkspace`
+- 外层导航只负责一级 / 二级切换，内层继续复用 `XiaohongshuWorkspaceShell`、`DouyinWorkspaceShell`、`WechatWorkspaceShell`
+- 某音/某号当前已在 `RunningHub应用` 下方补入独立 `视频混剪` 入口；该入口现在直接进入 mixedcut 主界面，不再停留在设置面板
+- mixedcut 的模型同步、`ai_config.json` 预览与一键下发，当前收口到 `个人中心 / 第三方接口配置 / 视频混剪设置`
+- `视频混剪` 工作区当前已补一条最小桥接：可手动勾选站内视频素材，由主站后端上传到 mixedcut 并直接创建混剪任务；任务完成后默认自动归档到统一的 `某音/某号` 作品列表
+- OpenClaw 当前已补 `get_mixedcut_media_assets`、`create_mixedcut_remix_task`、`get_mixedcut_remix_task_progress` 三个 MCP 工具；可直接复用站内视频、OpenClaw 创作素材，或把本机 `localFilePath / localFilePaths` 先归档到站内后再送 mixedcut
+- 这条链当前已同步到 OpenClaw MCP 与 Skill ZIP：Skill 已补 mixedcut 任务语义，能识别站内视频、本机 `localFilePath / localFilePaths` 与 OpenClaw 创作素材三类入口，并优先路由到 mixedcut 专用工具
+- 某书和公众号已补齐 OpenClaw 的创作素材、作品列表板块
+- OpenClaw 的创作素材、每日计划、每日复盘、作品列表现在都支持在内容详情下留言
+- 三个子板块下的 `创作素材` 现已统一补齐：
+  - 标题
+  - 素材标签
+  - 素材来源
+  - 入库时间
+  - 存储位置（本地文件夹地址）
+- `创作素材` 当前统一按 `OpenClawCreativeMaterial` 真源回显，并由后端直接返回 `materialTags / materialCategory / sourceLabel / storageKey / localFilePath`
+- 站内素材当前已支持“手动选择 -> 主站后端上传 -> mixedcut 创建任务”的最小桥接；但还不是素材库自动同步，也还没有双向素材管理
+- 兼容直达入口 `/douyin`、`/wechat` 仍保留，但不再出现在顶栏主导航
+- 参考变更：`docs/changes/2026-08-11-content-acquisition-workbench-and-local-storage.md`
+- 参考变更：`docs/changes/2026-08-12-material-management-and-content-acquisition-materials.md`
+- 参考变更：`docs/changes/2026-08-21-content-acquisition-video-remix-workspace-and-mixedcut-platform.md`
+- 参考变更：`docs/changes/2026-08-22-video-remix-direct-entry-and-settings-split.md`
+- 参考变更：`docs/changes/2026-08-22-video-remix-site-media-bridge.md`
+- 参考变更：`docs/changes/2026-08-22-video-remix-archive-scope-and-project-list-expansion.md`
+- 参考变更：`docs/changes/2026-08-22-openclaw-mixedcut-mcp-local-file-bridge.md`
+- 参考变更：`docs/changes/2026-08-22-openclaw-mixedcut-skill-sync.md`
 
 ### 4.3 抖音工作台 `/douyin`
 
@@ -158,11 +205,24 @@
 - 采集结果统一沉淀到品牌增长策略 → 品牌增长报告 → 素材库
 - 创作侧素材选择已统一切到品牌增长策略 → 品牌增长报告 → 素材库
 - 视频与数字人能力已经接入
+- RunningHub 工作区继续复用通用应用清单；当前已扩充 MiniMax H3、Seedance、Qwen 字体设计、数字人、电商设计等多类应用示例，并同步暴露给 OpenClaw / MCP 的 `runninghub:list_apps`
+- 视频混剪工作区当前优先按同机目录使用 mixedcut：内容获客直接承载 mixedcut `/remix` 主界面；模型同步与 `ai_config.json` 下发改收口到个人中心 `视频混剪设置`，首轮覆盖 `LLM + 视觉 + 生图`
+- 主站后端当前会额外提供 mixedcut 素材桥接接口：列出当前品牌可用站内视频、上传到 mixedcut `/api/upload/video`、发起 `/api/remix/generate` 并代理进度查询；同一条链路会把成片自动归档到 `douyin` scope 的 `OpenClawVideoWork`，前台统一展示为 `某音/某号` 作品列表
+- mixedcut 容器运行态当前把根路由 `/` 收口到 `/remix`，Docker 健康检查统一走 `/api/health`，避免样本仓库缺失 `home.html / 404.html / 500.html` 时把容器直接打成 `unhealthy`
+- mixedcut `/remix` 页面底部最近项目区已去掉前端模板中的 `limit=5 / limit=20` 截断，当前会尽量展示后端返回的全部项目
+- Docker 下 `server` 调 mixedcut 时会显式使用 `MIXEDCUT_INTERNAL_BASE_URL`，默认走容器内地址 `http://mixedcut:5000`
 - 复刻短视频已拆成独立板块，创建后先按每 15 秒一段输出拉片分析、角色卡、分镜脚本、角色图、分镜图和一致性质检结果
 - 复刻短视频支持第二阶段一键生成分段视频，并通过 `ffmpeg` 自动拼接完整视频
 - 广告预审已接入火山引擎 VOD 广告预审链路，支持品牌级默认配置
 - 广告预审可直接读取作品中心内的站内视频或带 `videoUrl` 的 HTML 作品，并通过 VOD `UploadMediaByUrl` 回填 `Vid / FileId`
 - 发布与视频号桥接能力位于同一工作台体系
+- 参考变更：`docs/changes/2026-08-07-douyin-runninghub-minimax-h3-fl2va-app-sync.md`
+- 参考变更：`docs/changes/2026-08-17-content-acquisition-runninghub-app-expansion.md`
+- 参考变更：`docs/changes/2026-08-21-content-acquisition-video-remix-workspace-and-mixedcut-platform.md`
+- 参考变更：`docs/changes/2026-08-21-mixedcut-ai-config-sync-from-third-party-models.md`
+- 参考变更：`docs/changes/2026-08-22-mixedcut-container-template-fallback-and-healthcheck-fix.md`
+- 参考变更：`docs/changes/2026-08-22-video-remix-archive-scope-and-project-list-expansion.md`
+- 当前主入口已并入 `/xiaohongshu` 的内容获客壳层
 
 ### 4.4 公众号工作台 `/wechat`
 
@@ -177,6 +237,7 @@
   - `WechatWorkflowCanonicalService`
   - `WechatWorkflowHtmlRendererService`
   - `WechatWorkflowPublishService`
+- 当前主入口已并入 `/xiaohongshu` 的内容获客壳层
 
 ### 4.5 设计工作台 `/more-features/design`
 
@@ -189,6 +250,95 @@
 
 当前已经接入真实品牌档案、营销日历和 Provider 配置。
 
+- OpenClaw `create_design_work` 当前除 `referenceImageUrl` / 直接上传外，也支持 `referenceMaterialId`，可直接复用站内创作素材作为参考图
+- 参考变更：`docs/changes/2026-08-21-openclaw-design-work-reference-material-id.md`
+
+### 4.5A GEO获客工作台 `/geo`
+
+包含：
+
+- GEO可见度诊断
+- 关键词挖掘
+- 网站诊断
+- 知识库搭建
+- GEO优化方案
+- 自媒体内容
+- 第三方媒体
+- 品牌网站
+
+当前特点：
+
+- `GEO可见度诊断` 继续复用既有 `OpenClawGeoVisibilityReport` 真源，只承接 HTML 报告查看与删除
+- 其它 7 个 GEO 板块统一收口到 `OpenClawGeoContent` 真源
+- 一次性内容板块：
+  - 关键词挖掘
+  - 网站诊断
+  - 知识库搭建
+  - GEO优化方案
+- 多次生成内容板块：
+  - 自媒体内容
+  - 第三方媒体
+  - 品牌网站
+- 新板块统一支持：
+  - HTML 站内预览
+  - 非 HTML 附件受控副本
+  - `存储地址` 展示
+- `第三方媒体` 当前在原文章列表下方继续补了 `第三方媒体投放`：
+  - 后端通过软文街平台实时拉取可投放媒体列表
+  - 每行支持 `立即投放`
+  - 投放时直接从当前品牌已保存的 `third_party_media` HTML 文章里选择并提交订单
+- 非 HTML 附件当前通过受控副本落到 `reports/<brandId>/openclaw/geo/...`，在 `local-single-user` 安装态下会映射为本地文件夹地址
+- OpenClaw / MCP / Skill 当前已同步暴露：
+  - `get_openclaw_geo_contents`
+  - `create_openclaw_geo_content`
+  - `delete_openclaw_geo_content`
+- 参考变更：`docs/changes/2026-08-12-geo-openclaw-content-workspace-expansion.md`
+- 参考变更：`docs/changes/2026-08-16-geo-third-party-media-delivery-and-ruanwenjie-integration.md`
+
+### 4.5B 全网获客工作台 `/all-network-growth`
+
+包含：
+
+- 评论获客
+- 平台获客
+
+当前特点：
+
+- 左侧目录当前包含 `评论获客` 与 `平台获客` 两个子板块，继续共用同一工作台
+- 评论获客列表统一由 `OpenClawCommentLead` 真源承接，字段固定为：
+  - 用户名
+  - 用户评论
+  - 入选理由
+  - 用户主页
+  - 入选时间
+  - 来源平台（小红书 / 抖音）
+- 平台获客列表统一由 `OpenClawPlatformLead` 真源承接，字段固定为：
+  - 名称
+  - 业务范围
+  - 入选理由
+  - 联系方式
+  - 地址
+  - 入选时间
+- 评论获客页面已去掉站内生成表单，只保留列表与分页查看；列表每页固定 20 条
+- 页面支持由 OpenClaw 直接从品牌增长策略中“小红书 / 抖音评论用户结果”生成评论获客名单
+- 页面支持由 OpenClaw 直接写入平台获客名单
+- 支持：
+  - 评论获客按平台筛选列表
+  - 评论获客按每页 20 条分页查看
+  - 删除单条评论获客记录
+  - 平台获客按每页 20 条分页查看
+  - 删除单条平台获客记录
+- OpenClaw / MCP / Skill 当前已同步暴露：
+  - `get_openclaw_comment_leads`
+  - `create_openclaw_comment_leads`
+  - `delete_openclaw_comment_lead`
+  - `get_openclaw_platform_leads`
+  - `create_openclaw_platform_leads`
+  - `delete_openclaw_platform_lead`
+- 评论获客与平台获客真源默认都写入 `all_network_growth` workspace scope，避免继续散落在其它工作台或采集结果里仅做临时验证
+- 参考变更：`docs/changes/2026-08-15-all-network-growth-comment-leads.md`
+- 参考变更：`docs/changes/2026-08-18-all-network-growth-platform-leads-and-comment-pagination.md`
+
 ### 4.6 个人中心 `/personal-center`
 
 子页面包括：
@@ -198,13 +348,15 @@
 - `/personal-center/tasks`
   - 任务中心
 - `/personal-center/orders`
-  - 订单中心
+  - 素材管理
 - `/personal-center/works`
   - 作品中心
 - `/personal-center/skills`
   - 技能中心
 - `/personal-center/third-party-platforms`
   - 第三方接口配置
+- `/personal-center/third-party-platforms/video-remix`
+  - 视频混剪设置
 - `/personal-center/openclaw`
   - OpenClaw 安装中心
 - `/personal-center/version`
@@ -219,14 +371,67 @@
 当前补充说明：
 
 - 个人中心已新增独立“版本与升级”页，不再要求用户每次手工下载后再判断如何覆盖安装
-- “版本与升级”入口默认只在 `local-single-user` 安装态个人中心显示；网站版和源码运行态不显示该入口，也不建议直接暴露升级页
+- `local-single-user` 安装态下，`版本与升级` 继续承接 OSS `latest.json` 检查、安装包下载校验和一键升级
+- Docker + PostgreSQL + mixedcut 标准运行态下，如果服务端配置了 `STANDARD_RUNTIME_UPDATE_MANIFEST_URL`，个人中心也会显示 `版本与升级`：该页面不会直接替用户升级容器，而是展示远端更新清单、建议命令、是否需重建 `server/web/mixedcut` 以及是否需重新导入 `skill-package.zip`
+- 网站版和普通源码运行态如果没有配置更新清单，则仍不显示该入口，避免出现无法执行的空壳升级页
 - 后端通过 `system/update/*` 统一检查 OSS `latest.json`、识别 `AiOmniOps-local-single-user-win-x64.zip` 与 `.sha256`
 - 当前源码运行态允许查看最新发布信息，但会明确提示“不是安装态发布包，暂不支持一键升级”
-- 当前安装态会把升级包先落到 `LOCAL_APP_DATA_ROOT/updates`，完成 SHA256 校验后再由独立 updater 停机、替换安装目录并重启本地工作台
-- `local-single-user` 安装态下，前台注册入口不再要求邀请码；网站版和源码运行态继续沿用邀请码注册
+- 当前安装态会把升级包先落到 `LOCAL_APP_DATA_ROOT/updates`，完成 SHA256 校验后再由独立 updater 停机、替换安装目录、重启本地工作台，并在 API / Web 都通过验活后才标记升级成功；apply-run 阶段执行的 updater 现在会优先从刚下载的目标发布包里提取，而不是继续复用当前安装版本自带脚本；若新版本起不来，updater 会自动回滚到安装前 backup 并恢复上一版本；为避免磁盘空间被历史垃圾目录耗尽，updater 会在安装前先预清理历史遗留的 `downloads/*`、`extract-*`、旧 `apply-runs/*` 临时目录，并在成功后再复清一次，同时回收安装目录旁遗留的 `AiOmniOps-backup-*` 备份目录；安装器日志已统一回到 `LOCAL_APP_DATA_ROOT/logs`，历史遗留的 `%LOCALAPPDATA%\AiOmniOps` 安装/升级痕迹也会一起回收，避免长期占满 C 盘
+- Docker 标准运行态当前约定的更新闭环是：
+  - 发布端更新远端 JSON 清单
+  - 用户端在 `版本与升级` 页面看到新版本
+  - 按页面给出的 `git pull`、`docker compose up -d --build ...` 和 Skill 重导说明完成同步
+- 参考变更：`docs/changes/2026-08-22-docker-standard-version-update-guide-page.md`
+- 安装、升级、自启与修复脚本当前统一以 `runtime/local-single-user-runtime.json` 里的 `browserUrl / previewUrl / apiHealthUrl` 作为页面入口与验活真值，不再把 `127.0.0.1:3001` 当成固定页面地址
+- `local-single-user` 安装态访问 `/` 时，前端会直接重定向到 `/brand-growth`；安装态不再把官网营销首页作为默认落地页，避免独立发布包里根路由因为首页模板读取失败而直接掉进 `/error`
+- `start-local-single-user.cmd` 现在按“健康实例复用 + 启动加锁”工作：如果当前本地工作台已经可用，重复双击只会复用现有实例；如果首次启动仍在拉起中，后续重复启动会等待当前启动完成，而不是并发重建运行时目录
+- 当前网站版、源码运行态和 `local-single-user` 安装态统一都要求邀请码注册；注册规则由后端配置接口返回，前端只按接口展示
+- 后台用户管理现在可直接维护账号使用期限与模块权限，后端鉴权层会统一拦截“账号到期”和“当前模块无权限”两类访问
+- 原 `/personal-center/orders` 已改为 `素材管理`：左侧按 `文本 / 图片 / 语音 / 视频` 四类聚合展示网站上传素材与 OpenClaw 入库素材
+- 素材管理页列表当前只保留紧凑字段：
+  - 标题
+  - 素材标签
+  - 素材来源
+  - 入库时间
+- `/personal-center/skills` 当前收口为双栏工作台：
+  - 左侧按技能 `category` 做可展开 / 收缩分组导航
+  - 右侧技能详情与提示词编辑区限制在固定内容框内滚动，不再把整页持续向下撑长
+- `/personal-center/third-party-platforms` 当前继续保留统一配置页，但支持平台专属字段：
+  - 软文街平台会额外展示 `API Key / 登录账号 / 登录密码`
+  - 其它平台仍保持原来的品牌共享单字段配置；视频混剪不再单独占一个平台项，而是直接复用这些品牌共享模型配置做 mixedcut 同步
+- `视频混剪设置` 之外，`内容获客 -> 视频混剪` 工作区会直接调用同模块下的 mixedcut 素材桥接接口，但这条链仍只负责任务发起，不承担素材库全量同步
+- `/personal-center/third-party-platforms/video-remix` 当前单独承接 mixedcut 的模型同步、`ai_config.json` 预览与一键下发
+- 参考变更：`docs/changes/2026-08-16-personal-center-skill-center-grouped-nav-and-shell.md`
+- 参考变更：`docs/changes/2026-08-16-geo-third-party-media-delivery-and-ruanwenjie-integration.md`
+- 参考变更：`docs/changes/2026-08-21-content-acquisition-video-remix-workspace-and-mixedcut-platform.md`
+- 参考变更：`docs/changes/2026-08-21-mixedcut-ai-config-sync-from-third-party-models.md`
+- 参考变更：`docs/changes/2026-08-22-video-remix-direct-entry-and-settings-split.md`
+  - 存储位置（本地文件夹地址）
+- `local-single-user` 安装态下，素材管理页顶部新增“素材库存储设置”：
+  - 用户选择的是【素材库】外层根目录
+  - 页面顶部当前只保留目录输入框、`选择文件夹`、`恢复默认目录`、`保存本地存储设置`
+  - 系统会自动创建 `素材库/文本`、`素材库/图片`、`素材库/语音`、`素材库/视频`
+  - 同一目录下还会统一承接 `GEO`、报告、附件、作品副本等其它本地受控内容
+  - 网站上传素材会按 `素材库/<分类>/<brandId>/<YYYY>/<YYYY-MM>/<timestamp>-<title>.<ext>` 规则落盘
+  - 其它非素材库类受控副本会按 `站内存储/<storageKey>` 规则落盘
+  - OpenClaw 上传到网站的素材不强制进入 `素材库`，但仍会统一进入素材管理四分类列表
+- `local-single-user` 下如果品牌资料库 / 产品资料库对应的 SQLite 暂时不可用，后端不再回退到临时 mock 数据，避免出现“页面看起来保存成功、重启后消失”的假持久化
 - `/personal-center/security` 现在会显示当前资料目录、下次启动将使用的资料目录、`launcher-settings.json` 路径，以及数据库 / 存储 / 日志等本地子目录；保存后需重启本地工作台生效
 - 参考变更：`docs/changes/2026-07-28-personal-center-version-update.md`
-- 参考变更：`docs/changes/2026-08-02-local-single-user-open-register-and-local-data-root.md`
+- 参考变更：`docs/changes/2026-08-10-local-register-invite-and-user-access-control.md`
+- 参考变更：`docs/changes/2026-08-12-material-management-and-content-acquisition-materials.md`
+- 参考变更：`docs/changes/2026-08-15-local-material-library-and-openclaw-material-sync.md`
+- 参考变更：`docs/changes/2026-08-04-local-single-user-update-health-check-and-auto-rollback.md`
+- 参考变更：`docs/changes/2026-08-07-local-single-user-install-backup-auto-cleanup.md`
+- 参考变更：`docs/changes/2026-08-07-local-single-user-update-artifact-auto-cleanup.md`
+- 参考变更：`docs/changes/2026-08-07-local-single-user-dual-appdata-cleanup-fix.md`
+- 参考变更：`docs/changes/2026-08-07-local-single-user-historical-update-artifacts-cleanup-fix.md`
+- 参考变更：`docs/changes/2026-08-08-local-single-user-updater-preflight-cleanup-fix.md`
+- 参考变更：`docs/changes/2026-08-08-local-single-user-apply-run-updater-source-fix.md`
+- 参考变更：`docs/changes/2026-08-19-local-single-user-runtime-browser-url-port-fallback-fix.md`
+- 参考变更：`docs/changes/2026-08-21-local-single-user-root-route-redirect-fix.md`
+- 参考变更：`docs/changes/2026-08-04-local-single-user-repeated-start-reuse-and-lock.md`
+- 参考变更：`docs/changes/2026-08-06-local-single-user-upgrade-runtime-verification-tightening.md`
 
 ### 4.7 后台管理台 `/admin`
 
@@ -243,6 +448,11 @@
 - 能力包与技能绑定
 - 知识库管理
 - 模型用量
+
+当前补充说明：
+
+- 用户管理已扩展账号使用期限与模块权限配置，支持直接在后台按用户收口到期时间和主模块可用范围
+- 上述限制不只是前端隐藏，后端鉴权层会结合登录态、请求路径与账号配置做统一拦截
 
 ## 5. 前端服务层
 
@@ -314,7 +524,7 @@
 3. 收集小红书 / 抖音 / 热点数据
 4. 生成品牌增长报告 / 半年营销规划 / 营销日历
 5. 将结果继续送往小红书、抖音、公众号、设计工作台
-6. 在个人中心查看任务、订单、作品
+6. 在个人中心查看任务、素材管理、作品
 
 ### 7.2 OpenClaw 链路
 

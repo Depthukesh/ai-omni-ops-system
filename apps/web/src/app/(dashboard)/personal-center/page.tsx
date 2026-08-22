@@ -97,7 +97,7 @@ export default function PersonalCenterPage() {
     setMedia(mediaResult.status === "fulfilled" ? mediaResult.value : mediaSeed);
     setMyPendingInvites(myInvitesResult.status === "fulfilled" ? myInvitesResult.value.items : []);
     setShowVersionWorkspace(
-      updateStatusResult.status === "fulfilled" ? shouldShowVersionWorkspace(updateStatusResult.value) : false,
+      shouldShowVersionWorkspace(updateStatusResult.status === "fulfilled" ? updateStatusResult.value : null),
     );
 
     setIsLoading(false);
@@ -177,10 +177,10 @@ export default function PersonalCenterPage() {
           : null,
         totalOrderCount
           ? {
-              title: `${totalOrderCount} 笔订单与充值待核对`,
-              detail: "订单中心已经统一收口支付状态、会员购买和点数充值，适合先确认最近是否到账。",
+              title: `${totalOrderCount} 条历史订单仍可追溯`,
+              detail: "订单记录仍会保留在系统里，但个人中心的主入口已经把原订单中心改成素材管理。",
               href: "/personal-center/orders",
-              action: "查看订单",
+              action: "查看素材",
             }
           : null,
         {
@@ -205,11 +205,11 @@ export default function PersonalCenterPage() {
       },
       {
         href: "/personal-center/orders",
-        label: "核对订单与充值",
-        value: totalOrderCount ? `${totalOrderCount} 笔记录` : "暂无新订单",
+        label: "查看素材管理",
+        value: `${summary.workCount} 条素材/作品`,
         description: totalOrderCount
-          ? "会员购买和点数充值都已经合并到一个入口，不需要来回切换。"
-          : "后续创建会员订单或点数充值后，会在这里统一回看支付状态。",
+          ? "内容获客里的创作素材会按文本、图片、语音、视频四类聚合到这里。"
+          : "当前还没有更多历史订单需要优先处理，可直接去素材管理看聚合素材。",
       },
       {
         href: "/personal-center/security",
@@ -225,9 +225,9 @@ export default function PersonalCenterPage() {
     () => [
       {
         href: "/personal-center/orders",
-        label: "订单中心",
-        value: `${summary.membershipOrderCount + summary.rechargeOrderCount} 条`,
-        description: "去核对支付状态、会员开通结果和点数到账情况。",
+        label: "素材管理",
+        value: `${summary.workCount} 条`,
+        description: "按文本、图片、语音、视频聚合查看内容获客创作素材与本地路径。",
       },
       {
         href: "/personal-center/works",
@@ -256,8 +256,8 @@ export default function PersonalCenterPage() {
       {
         href: "/personal-center/version",
         label: "版本与升级",
-        value: "local-single-user",
-        description: "去检查 GitHub Release，并在安装态下一键升级当前本地工作台。",
+        value: "更新通知",
+        description: "去查看当前版本、最新版本，以及安装态升级或 Docker 更新指引。",
       },
       {
         href: "/personal-center/team",
@@ -339,13 +339,13 @@ export default function PersonalCenterPage() {
             </Link>
           </article>
 
-          {/* Orders & Recharge */}
+          {/* Material Management */}
           <article className="bento-cell bento-cell--col-6">
             <Link href="/personal-center/orders" className="bento-link">
-              <span className="bento-eyebrow">Billing</span>
-              <h3 className="bento-title">Orders & Recharge</h3>
-              <div className="bento-value bento-value-small">{totalOrderCount}</div>
-              <p className="bento-desc">Check payment status and top-up records.</p>
+              <span className="bento-eyebrow">Materials</span>
+              <h3 className="bento-title">Material Management</h3>
+              <div className="bento-value bento-value-small">{summary.workCount}</div>
+              <p className="bento-desc">Browse compact material lists grouped by text, image, audio, and video.</p>
             </Link>
           </article>
 

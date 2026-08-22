@@ -18,6 +18,7 @@ import type {
   DouyinCommentRecord,
   DouyinContentTagOption,
   DouyinCollectionWorkspace,
+  DouyinCollectedTargetUserRecord,
   DouyinKeywordRecommendationRecord,
   DouyinCollectedWorkRecord,
   XhsAccountRole,
@@ -25,6 +26,7 @@ import type {
   XhsCommentPaginationState,
   XhsCommentRecord,
   XhsCollectedNoteRecord,
+  XhsCollectedTargetUserRecord,
   XhsSubCommentPaginationState,
   XhsSubCommentRecord,
 } from "../../../services/collectors";
@@ -313,6 +315,7 @@ export interface BrandGrowthCollectionWorkspaceProps {
     benchmarkNoteLocators: string;
     searchKeyword: string;
     commentSourceUrls: string;
+    targetUserMatchKeywords: string;
   };
   setXhsSyncForm: Dispatch<SetStateAction<{
     brandAccountEntries: XhsAccountBindingEntry[];
@@ -321,6 +324,7 @@ export interface BrandGrowthCollectionWorkspaceProps {
     benchmarkNoteLocators: string;
     searchKeyword: string;
     commentSourceUrls: string;
+    targetUserMatchKeywords: string;
   }>>;
   activeDouyinCollectionCard: DouyinCollectionCardKey;
   onDouyinCollectionCardChange: ValueAction<DouyinCollectionCardKey>;
@@ -349,6 +353,7 @@ export interface BrandGrowthCollectionWorkspaceProps {
     searchFilterDuration: string;
     searchContentType: string;
     commentSourceUrls: string;
+    targetUserMatchKeywords: string;
     keywordRecommendationEntries: KeywordRecommendationEntry[];
     lowFanExplosiveWorks: {
       primaryTagId: string;
@@ -376,6 +381,7 @@ export interface BrandGrowthCollectionWorkspaceProps {
     searchFilterDuration: string;
     searchContentType: string;
     commentSourceUrls: string;
+    targetUserMatchKeywords: string;
     keywordRecommendationEntries: KeywordRecommendationEntry[];
     lowFanExplosiveWorks: {
       primaryTagId: string;
@@ -400,6 +406,7 @@ export interface BrandGrowthCollectionWorkspaceProps {
   onSyncXhsWorkspace: AsyncAction;
   onSyncXhsSearchNotes: AsyncAction;
   onSyncXhsCommentData: AsyncAction;
+  onSyncXhsTargetUsers: AsyncAction;
   onSyncAllXhsBrandAccounts: AsyncAction;
   onSyncSingleXhsBrandAccount: ValueAction<XhsAccountBindingEntry>;
   onSyncSingleXhsCompetitorAccount: ValueAction<XhsAccountBindingEntry>;
@@ -407,6 +414,7 @@ export interface BrandGrowthCollectionWorkspaceProps {
   onToggleXhsCommentReplies: ValueAction<string>;
   onLoadXhsCommentReplies: (comment: XhsCommentRecord, loadMore?: boolean) => void | Promise<void>;
   onSyncDouyinWorkspace: AsyncAction;
+  onSyncDouyinTargetUsers: AsyncAction;
   onSyncAllDouyinBrandAccounts: AsyncAction;
   onSyncAllDouyinCompetitorAccounts: AsyncAction;
   onSyncSingleDouyinBrandAccount: ValueAction<XhsAccountBindingEntry>;
@@ -421,6 +429,7 @@ export interface BrandGrowthCollectionWorkspaceProps {
   sortedBenchmarkNotes: XhsCollectedNoteRecord[];
   sortedSearchNotes: XhsCollectedNoteRecord[];
   sortedXhsCommentData: XhsCommentRecord[];
+  sortedXhsTargetUsers: XhsCollectedTargetUserRecord[];
   xhsCommentPagination: XhsCommentPaginationState[];
   isLoadingMoreXhsComments: boolean;
   expandedXhsCommentIds: string[];
@@ -435,6 +444,7 @@ export interface BrandGrowthCollectionWorkspaceProps {
   sortedDouyinBenchmarkWorks: DouyinCollectedWorkRecord[];
   sortedDouyinSearchWorks: DouyinCollectedWorkRecord[];
   sortedDouyinCommentData: DouyinCommentRecord[];
+  sortedDouyinTargetUsers: DouyinCollectedTargetUserRecord[];
   douyinCommentPagination: DouyinCommentPaginationState[];
   isLoadingMoreDouyinComments: boolean;
   sortedDouyinKeywordRecommendations: DouyinKeywordRecommendationRecord[];
@@ -1943,6 +1953,39 @@ function DouyinSubmitPanel(props: {
   );
 }
 
+function CommentTargetUserExtractPanel(props: {
+  title: string;
+  description: string;
+  matchKeywords: string;
+  placeholder: string;
+  isSubmitting: boolean;
+  onChangeMatchKeywords: ValueAction<string>;
+  onSubmit: AsyncAction;
+}) {
+  return (
+    <article className="light-data-panel" style={{ marginBottom: 16 }}>
+      <div className="collection-result-head">
+        <div>
+          <h3>{props.title}</h3>
+          <p>{props.description}</p>
+        </div>
+        <button type="button" className="secondary-button" onClick={() => void props.onSubmit()} disabled={props.isSubmitting}>
+          {props.isSubmitting ? "提取中..." : "提取账号链接"}
+        </button>
+      </div>
+      <label className="field">
+        <span>匹配关键词（选填）</span>
+        <textarea
+          rows={3}
+          value={props.matchKeywords}
+          onChange={(event) => props.onChangeMatchKeywords(event.target.value)}
+          placeholder={props.placeholder}
+        />
+      </label>
+    </article>
+  );
+}
+
 function DouyinSearchSubmitPanel(props: {
   title: string;
   value: string;
@@ -2858,6 +2901,7 @@ function DouyinCommentTable(props: {
             <th>评论时间</th>
             <th>评论用户昵称</th>
             <th>评论用户 sec_user_id</th>
+            <th>评论用户主页</th>
             <th>评论点赞数</th>
             <th>评论回复数</th>
             <th>采集时间</th>
@@ -2883,8 +2927,73 @@ function DouyinCommentTable(props: {
                 <ExpandableTextCell value={item.commentUserName} emptyText="-" compactRows={2} />
               </td>
               <td><CopyableCell value={item.commentUserSecUserId} /></td>
+              <td>
+                {item.commentUserProfileUrl ? (
+                  <a href={item.commentUserProfileUrl} target="_blank" rel="noreferrer" className="note-data-link">
+                    打开主页
+                  </a>
+                ) : "-"}
+              </td>
               <td>{props.formatCount(item.likeCount)}</td>
               <td>{props.formatCount(item.replyCount)}</td>
+              <td>{props.formatDateTime(item.collectedAt)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </ScrollableTableShell>
+  );
+}
+
+function DouyinTargetUserTable(props: {
+  items: DouyinCollectedTargetUserRecord[];
+  formatDateTime: OptionalDateFormatter;
+}) {
+  return (
+    <ScrollableTableShell>
+      <table className="soft-table douyin-data-table">
+        <thead>
+          <tr>
+            <th>来源作品链接</th>
+            <th>目标用户昵称</th>
+            <th>sec_user_id</th>
+            <th>账号链接</th>
+            <th>匹配关键词</th>
+            <th>来源评论</th>
+            <th>来源评论 ID</th>
+            <th>作品标题</th>
+            <th>采集时间</th>
+          </tr>
+        </thead>
+        <tbody>
+          {props.items.map((item) => (
+            <tr key={item.id}>
+              <td>
+                {item.sourceUrl ? (
+                  <a href={item.sourceUrl} target="_blank" rel="noreferrer" className="note-data-link">
+                    打开作品
+                  </a>
+                ) : "-"}
+              </td>
+              <td className="table-cell-wide">
+                <ExpandableTextCell value={item.nickname} emptyText="-" compactRows={2} />
+              </td>
+              <td><CopyableCell value={item.secUserId} /></td>
+              <td>
+                {item.profileUrl ? (
+                  <a href={item.profileUrl} target="_blank" rel="noreferrer" className="note-data-link">
+                    打开主页
+                  </a>
+                ) : "-"}
+              </td>
+              <td><CopyableCell value={item.matchedKeyword} /></td>
+              <td className="table-cell-wide">
+                <ExpandableTextCell value={item.commentText} emptyText="-" compactRows={3} />
+              </td>
+              <td><CopyableCell value={item.sourceCommentId} /></td>
+              <td className="table-cell-wide">
+                <ExpandableTextCell value={item.workTitle} emptyText="-" compactRows={2} />
+              </td>
               <td>{props.formatDateTime(item.collectedAt)}</td>
             </tr>
           ))}
@@ -2918,6 +3027,7 @@ function XhsCommentTable(props: {
             <th>评论时间</th>
             <th>评论用户昵称</th>
             <th>评论用户 ID</th>
+            <th>评论用户主页</th>
             <th>评论点赞数</th>
             <th>二级评论数</th>
             <th>采集时间</th>
@@ -2959,6 +3069,13 @@ function XhsCommentTable(props: {
                     <ExpandableTextCell value={item.commentUserName} emptyText="-" compactRows={2} />
                   </td>
                   <td><CopyableCell value={item.commentUserId} /></td>
+                  <td>
+                    {item.commentUserProfileUrl ? (
+                      <a href={item.commentUserProfileUrl} target="_blank" rel="noreferrer" className="note-data-link">
+                        打开主页
+                      </a>
+                    ) : "-"}
+                  </td>
                   <td>{props.formatCount(item.likeCount)}</td>
                   <td>{props.formatCount(item.replyCount)}</td>
                   <td>{props.formatDateTime(item.collectedAt)}</td>
@@ -3061,6 +3178,64 @@ function XhsCommentTable(props: {
               </Fragment>
             );
           })}
+        </tbody>
+      </table>
+    </ScrollableTableShell>
+  );
+}
+
+function XhsTargetUserTable(props: {
+  items: XhsCollectedTargetUserRecord[];
+  formatDateTime: OptionalDateFormatter;
+}) {
+  return (
+    <ScrollableTableShell>
+      <table className="soft-table douyin-data-table">
+        <thead>
+          <tr>
+            <th>来源笔记链接</th>
+            <th>目标用户昵称</th>
+            <th>用户 ID</th>
+            <th>账号链接</th>
+            <th>匹配关键词</th>
+            <th>来源评论</th>
+            <th>来源评论 ID</th>
+            <th>笔记标题</th>
+            <th>采集时间</th>
+          </tr>
+        </thead>
+        <tbody>
+          {props.items.map((item) => (
+            <tr key={item.id}>
+              <td>
+                {item.sourceUrl ? (
+                  <a href={item.sourceUrl} target="_blank" rel="noreferrer" className="note-data-link">
+                    打开笔记
+                  </a>
+                ) : "-"}
+              </td>
+              <td className="table-cell-wide">
+                <ExpandableTextCell value={item.nickname} emptyText="-" compactRows={2} />
+              </td>
+              <td><CopyableCell value={item.userId} /></td>
+              <td>
+                {item.profileUrl ? (
+                  <a href={item.profileUrl} target="_blank" rel="noreferrer" className="note-data-link">
+                    打开主页
+                  </a>
+                ) : "-"}
+              </td>
+              <td><CopyableCell value={item.matchedKeyword} /></td>
+              <td className="table-cell-wide">
+                <ExpandableTextCell value={item.commentText} emptyText="-" compactRows={3} />
+              </td>
+              <td><CopyableCell value={item.sourceCommentId} /></td>
+              <td className="table-cell-wide">
+                <ExpandableTextCell value={item.noteTitle} emptyText="-" compactRows={2} />
+              </td>
+              <td>{props.formatDateTime(item.collectedAt)}</td>
+            </tr>
+          ))}
         </tbody>
       </table>
     </ScrollableTableShell>
@@ -4313,6 +4488,15 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                 isSubmitting={props.isHydrating || props.isSyncingXhsWorkspace}
                 onSubmit={props.onSyncXhsCommentData}
               />
+              <CommentTargetUserExtractPanel
+                title="从评论提取账号链接"
+                description="基于上面的笔记链接自动补拉评论，并按关键词筛选匹配评论用户；不填关键词时会提取全部评论用户。"
+                matchKeywords={props.xhsSyncForm.targetUserMatchKeywords}
+                onChangeMatchKeywords={(value) => props.setXhsSyncForm((current) => ({ ...current, targetUserMatchKeywords: value }))}
+                placeholder="每行一个关键词，例如：探店、加盟、装修、优惠"
+                isSubmitting={props.isHydrating || props.isSyncingXhsWorkspace}
+                onSubmit={props.onSyncXhsTargetUsers}
+              />
               <article className="light-data-panel">
                 <div className="collection-result-head">
                   <div>
@@ -4359,6 +4543,25 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                   />
                 ) : (
                   <div className="note-empty-state">当前还没有评论数据结果，请先输入小红书笔记链接并提交。</div>
+                )}
+              </article>
+              <article className="light-data-panel">
+                <div className="collection-result-head">
+                  <div>
+                    <h3>评论用户账号链接</h3>
+                    <p>基于评论数据提取匹配用户，并沉淀为可继续给 OpenClaw 使用的目标用户结果。</p>
+                  </div>
+                  <span className={`archive-pill ${props.sortedXhsTargetUsers.length ? "status-ready" : "status-pending"}`}>
+                    已提取 {props.sortedXhsTargetUsers.length} 条
+                  </span>
+                </div>
+                {props.sortedXhsTargetUsers.length ? (
+                  <XhsTargetUserTable
+                    items={props.sortedXhsTargetUsers}
+                    formatDateTime={props.formatDateTime}
+                  />
+                ) : (
+                  <div className="note-empty-state">当前还没有评论用户账号链接结果，请先执行评论用户提取。</div>
                 )}
               </article>
             </>
@@ -4836,6 +5039,15 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                 isSubmitting={props.isHydrating || props.isSyncingDouyinWorkspace}
                 onSubmit={props.onSyncDouyinWorkspace}
               />
+              <CommentTargetUserExtractPanel
+                title="从评论提取账号链接"
+                description="基于上面的作品链接自动补拉评论，并按关键词筛选匹配评论用户；不填关键词时会提取全部评论用户。"
+                matchKeywords={props.douyinSyncForm.targetUserMatchKeywords}
+                onChangeMatchKeywords={(value) => props.setDouyinSyncForm((current) => ({ ...current, targetUserMatchKeywords: value }))}
+                placeholder="每行一个关键词，例如：加盟、价格、探店、课程"
+                isSubmitting={props.isHydrating || props.isSyncingDouyinWorkspace}
+                onSubmit={props.onSyncDouyinTargetUsers}
+              />
               <article className="light-data-panel">
                 <div className="collection-result-head">
                   <div>
@@ -4875,6 +5087,25 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                   />
                 ) : (
                   <div className="note-empty-state">当前还没有评论数据结果，请先输入抖音作品链接并提交。</div>
+                )}
+              </article>
+              <article className="light-data-panel">
+                <div className="collection-result-head">
+                  <div>
+                    <h3>评论用户账号链接</h3>
+                    <p>基于评论数据提取匹配用户，并沉淀为可继续给 OpenClaw 使用的目标用户结果。</p>
+                  </div>
+                  <span className={`archive-pill ${props.sortedDouyinTargetUsers.length ? "status-ready" : "status-pending"}`}>
+                    已提取 {props.sortedDouyinTargetUsers.length} 条
+                  </span>
+                </div>
+                {props.sortedDouyinTargetUsers.length ? (
+                  <DouyinTargetUserTable
+                    items={props.sortedDouyinTargetUsers}
+                    formatDateTime={props.formatDateTime}
+                  />
+                ) : (
+                  <div className="note-empty-state">当前还没有评论用户账号链接结果，请先执行评论用户提取。</div>
                 )}
               </article>
             </>

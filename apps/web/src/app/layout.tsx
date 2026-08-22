@@ -67,7 +67,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
                   return String(candidate);
                 }
                 function shouldRecover(candidate) {
-                  return /ChunkLoadError|Loading chunk [0-9]+ failed|Failed to fetch dynamically imported module|\/_next\/static\/chunks\//i.test(
+                  return /ChunkLoadError|Loading chunk [0-9]+ failed|Failed to fetch dynamically imported module|\\/_next\\/static\\/chunks\\//i.test(
                     extractReason(candidate),
                   );
                 }

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, Patch } from "@nestjs/common";
+import { Body, Controller, Get, Headers, Patch, Post } from "@nestjs/common";
 import { AuthService } from "../auth/auth.service";
 import { type LocalRuntimeSettingsPayload, LocalRuntimeService } from "./local-runtime.service";
 
@@ -22,5 +22,11 @@ export class LocalRuntimeController {
   ) {
     await this.authService.resolveRequestAuthContext(headers, { fallbackToDefaultUser: true });
     return this.localRuntimeService.updateSettings(payload);
+  }
+
+  @Post("pick-material-library-base-root")
+  async pickMaterialLibraryBaseRoot(@Headers() headers: Record<string, string | string[] | undefined>) {
+    await this.authService.resolveRequestAuthContext(headers, { fallbackToDefaultUser: true });
+    return this.localRuntimeService.pickMaterialLibraryBaseRoot();
   }
 }

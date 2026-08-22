@@ -118,12 +118,12 @@ export class CollectorsController {
   @Post("brands/:brandId/target-users/sync")
   async syncTargetUsers(
     @Param("brandId") brandId: string,
-    @Body() payload: { sourceUrls?: string[] },
+    @Body() payload: { sourceUrls?: string[]; matchKeywords?: string[]; syncCommentsFirst?: boolean },
     @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
     await this.authService.assertBrandAccess(brandId, auth);
-    return this.collectorsService.syncTargetUsers(brandId, payload.sourceUrls ?? []);
+    return this.collectorsService.syncTargetUsers(brandId, payload ?? {});
   }
 
   @Post("brands/:brandId/feishu-sync")
@@ -192,6 +192,17 @@ export class DouyinCollectorsController {
     const auth = await this.authService.resolveRequestAuthContext(headers);
     await this.authService.assertBrandAccess(brandId, auth);
     return this.collectorsService.getDouyinWorkspace(brandId);
+  }
+
+  @Post("brands/:brandId/target-users/sync")
+  async syncTargetUsers(
+    @Param("brandId") brandId: string,
+    @Body() payload: { sourceUrls?: string[]; matchKeywords?: string[]; syncCommentsFirst?: boolean },
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(brandId, auth);
+    return this.collectorsService.syncDouyinTargetUsers(brandId, payload ?? {});
   }
 
   @Post("brands/:brandId/sync")
@@ -304,6 +315,29 @@ export class DouyinCollectorsController {
     const auth = await this.authService.resolveRequestAuthContext(headers);
     await this.authService.assertBrandAccess(brandId, auth);
     return this.collectorsService.extractDouyinWorkTranscript(brandId, payload.assetId);
+  }
+
+  @Get("brands/:brandId/media/:assetId")
+  async douyinStoredMedia(
+    @Param("brandId") brandId: string,
+    @Param("assetId") assetId: string,
+    @Query("download") download: string | undefined,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+    @Res() response: {
+      setHeader(name: string, value: string): unknown;
+      status(code: number): { send(body: Buffer): unknown };
+    },
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(brandId, auth);
+    const file = await this.collectorsService.fetchDouyinStoredMedia(brandId, assetId);
+    response.setHeader("Content-Type", file.contentType);
+    response.setHeader("Cache-Control", "private, max-age=300");
+    response.setHeader(
+      "Content-Disposition",
+      `${download === "1" ? "attachment" : "inline"}; filename*=UTF-8''${encodeURIComponent(file.fileName)}`,
+    );
+    return response.status(200).send(file.buffer);
   }
 
   @Delete("brands/:brandId/keyword-recommendations/:assetId")

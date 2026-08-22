@@ -15,6 +15,7 @@
 - 连接入口：`prisma/schema.prisma`
 - 运行时客户端：`apps/server/src/prisma/prisma.service.ts`
 - 环境变量：`.env` / `.env.example` 中的 `DATABASE_URL`
+- Docker 本地部署第一阶段默认也继续使用 `PostgreSQL`，通过 `docker/docker-compose.local-postgres-mixedcut.yml` 单独拉起 `postgres` 服务，并把数据库目录挂载到宿主机
 
 ### 2.2 初始化路径
 
@@ -24,6 +25,7 @@
   - `npm run prisma:db:push`
   - `npm run prisma:seed`
 - 已存在的结构化迁移位于：`prisma/migrations/`
+- Docker 本地部署时，应用容器默认连接 `postgres:5432`；若首次启动前数据库为空，仍需执行同一套 `Prisma generate / db push / seed` 初始化链
 
 ### 2.3 运行时可用性判断
 
@@ -217,7 +219,7 @@
 
 - `User`
   - 用途：账号、会员等级、点数余额、飞书绑定主实体
-  - 关键字段：`mobile`、`email`、`emailVerifiedAt`、`nickname`、`status`、`membership`、`systemRole`、`pointsBalance`、`lastLoginAt`
+  - 关键字段：`mobile`、`email`、`emailVerifiedAt`、`nickname`、`status`、`membership`、`systemRole`、`accessExpiresAt`、`allowedFeatureKeysJson`、`pointsBalance`、`lastLoginAt`
 - `EmailVerificationCode`
   - 用途：注册邮箱验证码持久化、过期控制与消费校验
   - 关键字段：`email`、`purpose`、`codeHash`、`expiresAt`、`consumedAt`
@@ -289,6 +291,43 @@
   - 当前 `works` 主链路约定：`sourceUrl` 走站内 `/api/works/brands/:brandId/assets/:fileName`，`storageKey` 指向 OSS 中的 `works/<brandId>/<fileName>`
   - 当前 `reports` 主链路约定：`sourceUrl` 走站内 `/api/reports/brands/:brandId/assets/:fileName`，`storageKey` 指向 OSS 中的 `reports/<brandId>/<fileName>`
   - 当前图片加载优化第一版只收口读取层：不改 `MediaAsset` 结构，也不新增图片规格字段；浏览器缓存与懒加载策略先在前端组件与读取接口层落地
+- `OpenClawCreativeMaterial`
+  - 用途：内容获客与个人中心素材管理共用的创作素材真源
+  - 关键字段：`workspaceScope`、`sourceKind`、`title`、`description`、`materialType`、`materialTags`、`fileUrl`、`mimeType`、`textContent`、`storageKey`
+  - 当前约定：
+    - `materialTags` 以 JSON 字符串形式持久化，前端读取后回显为标签列表
+    - `sourceKind=material_library_upload` 表示网站上传素材；`sourceKind=openclaw_upload` 表示 OpenClaw 上传到网站或外部归档素材
+    - 网站上传素材当前统一写入 `works/<brandId>/material-library/<category>/<YYYY>/<YYYY-MM>/<timestamp>-<title>.<ext>` 受控副本
+    - `local-single-user` 安装态下，这类 `material-library/*` 存储键会进一步映射到用户自定义的 `素材库/<分类>/<brandId>/...` 本地目录；其它 OpenClaw 上传素材仍可继续走默认本地受控存储
+    - 当前会额外在返回层派生 `materialCategory / sourceLabel / localFilePath`，供内容获客创作素材表与个人中心素材管理页直接展示
+- `OpenClawCommentLead`
+  - 用途：全网获客工作台中 `评论获客` 板块的持久化真源
+  - 关键字段：`workspaceScope`、`sourcePlatform`、`sourceUrl`、`sourceCommentId`、`userName`、`userComment`、`selectedReason`、`userProfileUrl`
+  - 当前约定：
+    - 默认固定写入 `workspaceScope=all_network_growth`
+    - 数据来源仍是品牌增长策略里既有的小红书 / 抖音评论用户结果；全网获客只负责收口展示与删除
+    - 页面端已去掉站内生成表单，只保留按平台筛选、分页查看和删除操作
+- `OpenClawPlatformLead`
+  - 用途：全网获客工作台中 `平台获客` 板块的持久化真源
+  - 关键字段：`workspaceScope`、`name`、`businessScope`、`selectedReason`、`contactInfo`、`address`、`selectedAt`
+  - 当前约定：
+    - 默认固定写入 `workspaceScope=all_network_growth`
+    - 由 OpenClaw 直接写入平台名单，不复用评论获客的派生链路
+    - `name + contactInfo + address` 可作为无显式 `id` 时的更新匹配键，避免重复落相同平台记录
+- `OpenClawGeoVisibilityReport`
+  - 用途：GEO 工作台中 `GEO可见度诊断` 板块的 HTML 报告真源
+  - 关键字段：`workspaceScope`、`title`、`description`、`htmlContent`
+  - 当前约定：
+    - 继续只承接 HTML 报告，不扩展非 HTML 附件
+    - 前端以 iframe 预览 `htmlContent`
+- `OpenClawGeoContent`
+  - 用途：GEO 工作台中除 `GEO可见度诊断` 以外的其它 OpenClaw 结果真源
+  - 关键字段：`workspaceScope`、`contentType`、`title`、`description`、`htmlContent`、`attachmentFileUrl`、`attachmentFileName`、`attachmentMimeType`、`attachmentStorageKey`
+  - 当前约定：
+    - 一次性内容使用 `keyword_research / site_diagnosis / knowledge_base_setup / geo_optimization_plan`
+    - 多次生成列表使用 `self_media_content / third_party_media / brand_website_content`
+    - 非 HTML 附件统一落受控副本；当前存储键前缀为 `reports/<brandId>/openclaw/geo/...`
+    - `local-single-user` 安装态下，返回层会把 `attachmentStorageKey` 进一步映射为本地 `storageAddress`
 
 ### 3.5 飞书集成域
 
@@ -469,6 +508,7 @@
 - 会员订单 / 充值明细：`MembershipOrder`
 - 任务记录：`Task`
 - 我的作品：`MediaAsset`
+- 素材管理：`OpenClawCreativeMaterial`
 - 邀请通知已读状态：`BrandInviteReadState`
 - 邀请站内消息：`BrandInviteNotification`
 - 第三方接口配置：
@@ -476,11 +516,25 @@
   - 当前品牌下平台共享 Key：`BrandThirdPartyPlatformSecret`
   - 若历史品牌下仍残留已下线平台的共享 Key，启动时会随平台基线一起清理
 
-### 4.4 后台管理 `/admin`
+### 4.4A GEO `/geo`
+
+- GEO可见度诊断：
+  - 主表：`OpenClawGeoVisibilityReport`
+  - 用途：保存和回显 HTML 诊断报告
+- 其它 GEO 一次性 / 多次生成内容：
+  - 主表：`OpenClawGeoContent`
+  - 用途：保存关键词挖掘、网站诊断、知识库搭建、GEO优化方案、自媒体内容、第三方媒体、品牌网站等结果
+- 附件存储：
+  - 非 HTML 附件统一走受控副本
+  - 当前存储键前缀：`reports/<brandId>/openclaw/geo/...`
+  - `local-single-user` 安装态下会映射为本地 `storageAddress`
+
+### 4.5 后台管理 `/admin`
 
 - 订单管理：`MembershipOrder`
 - 会员/积分规则：当前仍主要来自 `mock-data`
 - 用户管理：`User`、`UserSession`
+- 当前后台用户管理已直接维护 `User.accessExpiresAt` 与 `User.allowedFeatureKeysJson`，用于账号到期与主模块权限控制
 - 品牌成员与权限：`Brand`、`BrandMember`
 - API Provider 管理：当前已升级为数据库优先、`mock-data` 兜底；数据库可用时通过运行时表 `ApiProviderConfig` 持久化第三方接口供应商配置，字段覆盖 `name`、`providerType`、`status`、`baseUrl`、`tutorialUrl`、`apiKey`、`defaultModel`、`organization`、`project`、`timeoutMs`、`streamEnabled`、`customHeadersJson`、`extraParamsJson`、`modelWhitelistJson`、`remark`
   - 当前视频模型下拉、报告生成和小红书创作生成链路已开始直接读取 `ApiProviderConfig`
@@ -512,16 +566,17 @@
   - 正式表：`SkillPackageKnowledgeSpace`
   - 当前策略：数据库优先、`mock-data` 兜底；后台模块中心新增 `知识关系` 子页，集中维护能力包与知识空间的长期关系，不替换第一阶段详情页桥接区块
 
-### 4.5 认证 `/` + `/login` + `/register`
+### 4.6 认证 `/` + `/login` + `/register`
 
 - 登录
   - 主表：`User`、`UserSession`
   - 当前沿用账号密码登录，允许手机号 / 邮箱 / 昵称作为账号
 - 注册
   - 主表：`RegistrationInviteCode`、`User`、`Brand`、`BrandMember`
-  - 网站版和源码运行态当前仍要求手机号和邀请码；邀请码验证通过且未消费时才创建用户与默认品牌，并回写消费人和消费时间
-  - `local-single-user` 安装态当前允许直接注册，不再要求邀请码；但仍会创建用户、默认品牌和品牌成员关系，保持后续业务链路一致
+  - 当前网站版、源码运行态与 `local-single-user` 安装态统一都要求手机号和邀请码；邀请码验证通过且未消费时才创建用户与默认品牌，并回写消费人和消费时间
   - 线上部署若只执行 `prisma db push` 不会自动导入预置邀请码；生产环境需额外执行目标化的邀请码 seed，确保网站版 / 标准运行态的 `RegistrationInviteCode` 表具备初始化数据
+  - 用户登录、续期和请求鉴权阶段都会校验 `User.status` 与 `User.accessExpiresAt`；账号停用或已到期会直接被后端拒绝
+  - 用户模块权限通过 `User.allowedFeatureKeysJson` 存储，后端会结合请求路径统一拦截当前账号无权访问的主模块
 
 ## 5. 当前仍未完全入库的部分
 

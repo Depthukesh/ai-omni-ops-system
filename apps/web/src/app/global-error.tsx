@@ -18,6 +18,26 @@ function buildRecoveryUrl() {
 export default function GlobalError({ error, reset }: GlobalErrorProps) {
   useEffect(() => {
     const reason = String(error?.message || error?.stack || error || "");
+    // #region debug-point C:global-error-captured
+    fetch("http://127.0.0.1:7777/event", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sessionId: "local-root-500",
+        runId: "pre-fix",
+        hypothesisId: "C",
+        location: "apps/web/src/app/global-error.tsx:useEffect",
+        msg: "[DEBUG] global error rendered",
+        data: {
+          href: typeof window === "undefined" ? "" : window.location.href,
+          reason,
+          digest: error?.digest || "",
+          isChunkError: chunkErrorPattern.test(reason),
+        },
+        ts: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
     if (!chunkErrorPattern.test(reason)) {
       return;
     }

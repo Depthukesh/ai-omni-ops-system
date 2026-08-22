@@ -87,11 +87,11 @@ export default function RegisterPage() {
 
   return (
     <AuthShell
-      badge={inviteCodeRequired ? "邀请码注册" : "本地直接注册"}
+      badge={inviteCodeRequired ? "邀请码注册" : "开放注册"}
       title="把品牌协作、任务与资产统一接入一个账号体系"
-      description={inviteCodeRequired ? "注册页沿用首页的品牌语言，但收口为更清晰的准入流程，保证用户第一次进入系统就知道规则。" : "当前本地单机版允许直接注册，不再要求邀请码，注册后会自动创建默认品牌并进入个人中心。"}
+      description={inviteCodeRequired ? "注册页沿用首页的品牌语言，但收口为更清晰的准入流程，保证用户第一次进入系统就知道规则。" : "当前运行态使用开放注册流程，注册后会自动创建默认品牌并进入个人中心。"}
       highlights={[
-        { title: inviteCodeRequired ? "邀请码准入" : "直接注册", description: inviteCodeRequired ? "当前账号体系按邀请码开放，先保证品牌成员和协作边界明确。" : "当前安装态本地单机版默认允许当前用户直接完成注册。" },
+        { title: inviteCodeRequired ? "邀请码准入" : "开放注册", description: inviteCodeRequired ? "当前账号体系按邀请码开放，先保证品牌成员和协作边界明确。" : "当前运行态按开放注册流程完成准入。" },
         { title: "一次注册直达", description: "通过校验后直接进入工作台，不需要再重复登录。" },
         { title: "账号可持续扩展", description: "后续会员、积分、任务和团队页都会继续使用同一账户体系。" },
       ]}
@@ -173,7 +173,7 @@ export default function RegisterPage() {
           />
         </label>
         <p className="field-hint">
-          {inviteCodeRequired ? "当前注册采用邀请码准入，邀请码一次性使用；没有邀请码的账号无法注册。" : "当前是 local-single-user 安装态，允许当前用户直接注册；后续若需要团队协作，再通过品牌邀请补成员。"}
+          {inviteCodeRequired ? "当前注册采用邀请码准入，邀请码一次性使用；没有邀请码的账号无法注册。" : "当前运行态按开放注册流程处理；后续若需要团队协作，再通过品牌邀请补成员。"}
         </p>
         {errorMessage ? <p className="error-text">{errorMessage}</p> : null}
         <button type="submit" className="primary-button auth-panel-submit" disabled={isSubmitting}>

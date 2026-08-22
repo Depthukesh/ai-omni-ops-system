@@ -7,7 +7,7 @@
 ## 当前推荐阅读顺序
 
 1. `OpenClaw正式安装与网站对接说明.md`
-   - 当前安装中心、安装令牌、MCP 地址、Skill ZIP 的使用说明
+   - 当前安装中心、安装令牌、MCP 地址、Skill ZIP 的使用说明，以及长任务 MCP timeout 配置建议
 2. `OpenClaw渠道、Skill与MCP对接说明.md`
    - OpenClaw、Skill、MCP 与站内系统之间的分工关系
 3. `skill-package/00-品牌运营助手Skill网站功能域地图.md`

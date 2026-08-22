@@ -9,6 +9,28 @@ type HeadersMap = Record<string, string | string[] | undefined>;
 export class OpenClawController {
   constructor(private readonly openClawService: OpenClawService) {}
 
+  private async reportOpenClaw502DebugEvent(payload: Record<string, unknown>) {
+    let debugServerUrl = "http://127.0.0.1:7777/event";
+    let sessionId = "openclaw-502";
+    try {
+      const envContent = await readFile(join(process.cwd(), ".dbg", "openclaw-502.env"), "utf8");
+      debugServerUrl = envContent.match(/DEBUG_SERVER_URL=(.+)/)?.[1]?.trim() || debugServerUrl;
+      sessionId = envContent.match(/DEBUG_SESSION_ID=(.+)/)?.[1]?.trim() || sessionId;
+    } catch {}
+    try {
+      await fetch(debugServerUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId,
+          runId: "pre-fix",
+          ts: Date.now(),
+          ...payload,
+        }),
+      });
+    } catch {}
+  }
+
   private isOpenClawMcpLoadDebugEnabled() {
     const normalized = String(process.env.ENABLE_OPENCLAW_MCP_LOAD_DEBUG || "").trim().toLowerCase();
     if (normalized === "true" || normalized === "1" || normalized === "yes" || normalized === "on") {
@@ -84,6 +106,7 @@ export class OpenClawController {
     @Body() payload?: Record<string, unknown>,
   ) {
     const startedAt = Date.now();
+    const debugTraceId = `openclaw-502-${startedAt}-${Math.random().toString(36).slice(2, 8)}`;
     const method = typeof payload?.method === "string" ? payload.method.trim() : "";
     const toolName = this.readToolName(payload);
     const authorization = this.readHeaderValue(headers, "authorization");
@@ -96,9 +119,55 @@ export class OpenClawController {
       : authorization
         ? "bearer"
         : "session_or_anonymous";
+    const tracedHeaders: HeadersMap = {
+      ...headers,
+      "x-openclaw-debug-trace-id": debugTraceId,
+    };
+
+    // #region debug-point A:mcp-entry
+    void this.reportOpenClaw502DebugEvent({
+      hypothesisId: "A",
+      location: "openclaw.controller.ts:handleMcpRequest:entry",
+      msg: "[DEBUG] OpenClaw MCP request entered controller",
+      traceId: debugTraceId,
+      data: {
+        method,
+        toolName,
+        authSource,
+        brandId,
+        forwardedFor,
+        realIp,
+        userAgent,
+      },
+    });
+    // #endregion
 
     try {
-      const result = await this.openClawService.handleMcpRpcRequest(headers, payload);
+      const result = await this.openClawService.handleMcpRpcRequest(tracedHeaders, payload);
+      const rpcError = Boolean(result && typeof result === "object" && !Array.isArray(result) && "error" in result);
+      const toolIsError = Boolean(
+        result
+        && typeof result === "object"
+        && !Array.isArray(result)
+        && "result" in result
+        && (result as { result?: { isError?: boolean } }).result?.isError,
+      );
+      // #region debug-point B:mcp-exit
+      void this.reportOpenClaw502DebugEvent({
+        hypothesisId: toolIsError || rpcError ? "B" : "A",
+        location: "openclaw.controller.ts:handleMcpRequest:exit",
+        msg: "[DEBUG] OpenClaw MCP request completed in controller",
+        traceId: debugTraceId,
+        data: {
+          method,
+          toolName,
+          brandId,
+          durationMs: Date.now() - startedAt,
+          rpcError,
+          toolIsError,
+        },
+      });
+      // #endregion
       await this.appendOpenClawMcpLoadDebugEvent({
         phase: "pre-fix",
         method,
@@ -113,6 +182,21 @@ export class OpenClawController {
       });
       return result;
     } catch (error) {
+      // #region debug-point C:mcp-unexpected-throw
+      void this.reportOpenClaw502DebugEvent({
+        hypothesisId: "C",
+        location: "openclaw.controller.ts:handleMcpRequest:catch",
+        msg: "[DEBUG] OpenClaw MCP controller caught unexpected throw",
+        traceId: debugTraceId,
+        data: {
+          method,
+          toolName,
+          brandId,
+          durationMs: Date.now() - startedAt,
+          errorMessage: error instanceof Error ? error.message : String(error),
+        },
+      });
+      // #endregion
       await this.appendOpenClawMcpLoadDebugEvent({
         phase: "pre-fix",
         method,
@@ -749,7 +833,15 @@ export class OpenClawController {
       calendarItemId?: string;
       productId?: string;
       injectBrandProfile?: boolean;
+      referenceImage?: {
+        fileName?: string;
+        contentType?: string;
+        dataBase64?: string;
+      };
+      referenceImageUrl?: string;
+      referenceMaterialId?: string;
       modelSelection?: string;
+      imageSize?: string;
       spec?: string;
       additionalInstruction?: string;
     },

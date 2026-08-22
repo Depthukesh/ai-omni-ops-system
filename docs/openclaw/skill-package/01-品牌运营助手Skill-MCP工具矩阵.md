@@ -101,6 +101,15 @@
 - `create_brand_growth_report`
 - `create_half_year_marketing_plan`
 - `manage_growth_reports`
+- `get_brand_growth_visual_report_workspace`
+- `generate_brand_growth_visual_report`
+- `get_brand_growth_marketing_calendar_workspace`
+- `generate_brand_growth_marketing_calendar`
+- `update_brand_growth_marketing_calendar`
+- `get_brand_growth_topic_library_workspace`
+- `generate_brand_growth_topic_candidates`
+- `update_brand_growth_topic_library`
+- `get_brand_growth_material_library_items`
 
 适用场景：
 
@@ -110,12 +119,17 @@
 - 读取营销日历、选题库、统一素材库相关能力
 - 直接补某一天的营销日历内容，例如把 2026-07-15 的当天主题、各平台选题和朋友圈内容补进去
 
-营销日历相关动作补充：
+品牌增长报告分栏的推荐直连口径：
 
-- `get_xiaohongshu_marketing_calendar_workspace`
-- `generate_xiaohongshu_marketing_calendar`
-- `update_xiaohongshu_marketing_calendar`
-- `upsert_xiaohongshu_marketing_calendar_item`
+- 可视化报告：`get_brand_growth_visual_report_workspace`、`generate_brand_growth_visual_report`
+- 营销日历：`get_brand_growth_marketing_calendar_workspace`、`generate_brand_growth_marketing_calendar`、`update_brand_growth_marketing_calendar`
+- 选题库：`get_brand_growth_topic_library_workspace`、`generate_brand_growth_topic_candidates`、`update_brand_growth_topic_library`
+- 素材库：`get_brand_growth_material_library_items`
+
+兼容说明：
+
+- 以上新口径当前都只是对既有 `manage_growth_reports` / `get_unified_material_library_items` 的品牌增长语义别名
+- 旧工具仍保留，避免已有 Skill 与 MCP 调用中断
 
 ## 6. 任务与反馈
 
@@ -146,10 +160,31 @@
 - `get_task_detail`
 - `cancel_task`
 - `retry_task`
-- `list_my_orders`
+- `list_personal_material_assets`
+- `get_local_material_storage_settings`
+- `update_local_material_storage_settings`
 - `list_my_third_party_platforms`
 - `check_my_third_party_platform_runtime_access`
 - `update_my_third_party_platform_secret`
+
+素材管理补充：
+
+- `list_personal_material_assets`
+  - 读取个人中心素材管理聚合列表
+  - 可按：
+    - `text`
+    - `image`
+    - `audio`
+    - `video`
+    四类筛选
+  - 数据来源统一覆盖网站上传素材与 OpenClaw 入库素材
+- `get_local_material_storage_settings`
+  - 读取 `local-single-user` 安装态当前素材库存储目录
+  - 回显 `素材库` 根目录、四类子目录和命名规则
+- `update_local_material_storage_settings`
+  - 更新 `local-single-user` 安装态素材库存储根目录
+  - 保存后自动创建 `素材库/文本`、`素材库/图片`、`素材库/语音`、`素材库/视频`
+  - 该工具传入的是【素材库】外层根目录，不是最终子目录
 
 第三方平台重点说明：
 
@@ -250,7 +285,60 @@
 - `runninghub`
 - `ad_preaudit`
 
-### 10.3 发布会话
+RunningHub 当前常见 appKey 示例：
+
+- `minimax-h3-fl2va-text-to-video`
+- `minimax-h3-fl2va-first-frame-video`
+- `minimax-h3-fl2va-first-last-frame-video`
+- `minimax-h3-fl2va-multi-image-video`
+- `minimax-h3-8step-image-to-video`
+- `minimax-h3-4step-first-last-frame-video`
+- `minimax-h3-accelerated-all-reference-video`
+- `minimax-h3-digital-human-auto`
+- `seedance25-multimodal-video`
+- `seedance20-viral-video-remix`
+- `seedance20-fast-all-reference-video`
+- `seedance20-fast-rh`
+- `qwen-image-chinese-font-design`
+- `qwen-font-design-8step`
+
+### 10.3 视频混剪 mixedcut
+
+- `get_mixedcut_media_assets`
+- `create_mixedcut_remix_task`
+- `get_mixedcut_remix_task_progress`
+
+适用场景：
+
+- 看当前品牌有哪些站内视频能直接送 mixedcut
+- 直接发起 mixedcut 混剪任务
+- 查询 mixedcut 任务是否完成、成片多长、是否在时长容差内
+- 把本机电脑上的视频先经 OpenClaw 归档后送 mixedcut
+
+处理原则：
+
+- 用户明确提到 `视频混剪`、`mixedcut`、`混剪工作区` 时，优先走这组专用工具，不再误走 `manage_douyin_video_production`
+- `create_mixedcut_remix_task` 支持：
+  - `mediaAssetIds`
+  - `creativeMaterialIds`
+  - `uploadItems`
+- stdio MCP 下额外支持：
+  - `localFilePath`
+  - `localFilePaths`
+- streamableHttp 下也允许传：
+  - `localFilePath`
+  - `localFilePaths`
+  - 但这是由服务端读取当前运行环境里的路径；如果文件只在客户端本机、而服务端不可访问，请改用 `uploadItems` 的 `dataBase64`
+- 当传本机路径时，桥接层会先把文件归档成 OpenClaw 创作素材，再复用主站 mixedcut bridge 发任务
+- `get_mixedcut_remix_task_progress` 适合轮询：
+  - `status`
+  - `progress`
+  - `videoUrl`
+  - `targetDurationSeconds`
+  - `actualDurationSeconds`
+  - `durationWithinTolerance`
+
+### 10.4 发布会话
 
 - `create_douyin_mobile_publish_session`
 - `get_douyin_mobile_publish_session`
@@ -303,6 +391,11 @@
 - PPT 设计
 - 视频方案设计
 
+补充说明：
+
+- 图片设计支持显式 `imageSize`，格式固定为 `宽x高`，例如 `1200x628`、`1080x1920`
+- 兼容旧链路的 `spec: "宽x高"` 仍可继续使用
+
 ## 13. 统一素材库
 
 - `get_unified_material_library_items`
@@ -338,6 +431,24 @@
 - `create_openclaw_creative_material`
 - `delete_openclaw_creative_material`
 
+创作素材当前统一字段：
+
+- `title`
+- `sourceKind`
+- `materialTags`
+- `sourceLabel`
+- `createdAt`
+- `storageKey`
+- `localFilePath`
+
+创作素材补充：
+
+- `create_openclaw_creative_material`
+  - 支持 `sourceKind`
+    - `material_library_upload`：网站上传并写入本地素材库
+    - `openclaw_upload`：OpenClaw 上传到网站或外部归档素材
+  - 当 `sourceKind=material_library_upload` 且当前环境为 `local-single-user` 时，文件会按四分类写入用户配置的 `素材库`
+
 ### 14.5 视频作品
 
 - `get_openclaw_video_works`
@@ -345,15 +456,27 @@
 - `delete_openclaw_video_work`
 - `create_openclaw_video_work_douyin_desktop_publish_session`
 
-## 15. GEO
+## 15. GEO获客
 
 - `get_openclaw_geo_visibility_reports`
 - `create_openclaw_geo_visibility_report`
 - `delete_openclaw_geo_visibility_report`
+- `get_openclaw_geo_contents`
+- `create_openclaw_geo_content`
+- `delete_openclaw_geo_content`
 
-## 16. 统一优先级
+## 16. 全网获客
 
-### 16.1 优先使用的统一管理工具
+- `get_openclaw_comment_leads`
+- `create_openclaw_comment_leads`
+- `delete_openclaw_comment_lead`
+- `get_openclaw_platform_leads`
+- `create_openclaw_platform_leads`
+- `delete_openclaw_platform_lead`
+
+## 17. 统一优先级
+
+### 17.1 优先使用的统一管理工具
 
 优先顺序：
 
@@ -363,7 +486,7 @@
 4. `manage_xiaohongshu_video`
 5. `manage_douyin_video_production`
 
-### 16.2 什么时候用直连工具
+### 17.2 什么时候用直连工具
 
 - 用户目标非常明确
 - 不需要先走复杂工作流
@@ -371,7 +494,7 @@
 - 用户已经给出了完整输入，不必再经过多步工作流
 - 如果用户显式指定“用多元探索跑”，也不要先假设存在单独的 `duoyuanx_generate_*` 工具；应先在第三方接口配置域确认品牌共享 Key 和对应 runtime 是否可用，再路由到网站已有工作台或统一工具
 
-### 16.3 什么时候先做页面承接
+### 17.3 什么时候先做页面承接
 
 - 当前没有直连 MCP
 - 风险很高，且需要用户在网页里做最终人工确认

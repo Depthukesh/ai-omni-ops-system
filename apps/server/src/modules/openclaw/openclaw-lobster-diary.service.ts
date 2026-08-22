@@ -320,7 +320,8 @@ export class OpenClawLobsterDiaryService {
     await this.prismaService.$executeRawUnsafe(`
       UPDATE "OpenClawLobsterDiary"
       SET "workspaceScope" = '${DEFAULT_OPENCLAW_WORKSPACE_SCOPE}'
-      WHERE COALESCE(NULLIF(TRIM("workspaceScope"), ''), '') = ''
+      WHERE "workspaceScope" IS NULL
+         OR TRIM("workspaceScope") = ''
     `);
     await this.prismaService.$executeRawUnsafe(`
       CREATE INDEX IF NOT EXISTS "OpenClawLobsterDiary_brand_date_idx"

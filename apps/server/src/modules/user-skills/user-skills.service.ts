@@ -567,32 +567,65 @@ export class UserSkillsService {
         WHERE "brandId" = ${context.brandId}
           AND "baseSkillId" = ${skillId}
       `;
-      await this.prismaService.$executeRaw`
-        DELETE FROM "BrandPromptOverride"
-        WHERE "brandId" = ${context.brandId}
-          AND (
-            "baseSkillId" = ${skillId}
-            OR "basePromptId" = ANY (${promptIds}::text[])
+      if (this.prismaService.isLocalSqliteMode()) {
+        await this.prismaService.$executeRaw`
+          DELETE FROM "BrandPromptOverride"
+          WHERE "brandId" = ${context.brandId}
+            AND "baseSkillId" = ${skillId}
+        `;
+        for (const promptId of promptIds) {
+          await this.prismaService.$executeRaw`
+            DELETE FROM "BrandPromptOverride"
+            WHERE "brandId" = ${context.brandId}
+              AND "basePromptId" = ${promptId}
+          `;
+        }
+        await this.prismaService.$executeRaw`
+          INSERT INTO "BrandSkillResetLog" (
+            "id",
+            "brandId",
+            "baseSkillId",
+            "resetType",
+            "promptIdsJson",
+            "createdAt"
           )
-      `;
-      await this.prismaService.$executeRaw`
-        INSERT INTO "BrandSkillResetLog" (
-          "id",
-          "brandId",
-          "baseSkillId",
-          "resetType",
-          "promptIdsJson",
-          "createdAt"
-        )
-        VALUES (
-          ${createId("usrst")},
-          ${context.brandId},
-          ${skillId},
-          ${"RESET_TO_PLATFORM"},
-          ${JSON.stringify(promptIds)}::jsonb,
-          ${now}
-        )
-      `;
+          VALUES (
+            ${createId("usrst")},
+            ${context.brandId},
+            ${skillId},
+            ${"RESET_TO_PLATFORM"},
+            ${JSON.stringify(promptIds)},
+            ${now.toISOString()}
+          )
+        `;
+      } else {
+        await this.prismaService.$executeRaw`
+          DELETE FROM "BrandPromptOverride"
+          WHERE "brandId" = ${context.brandId}
+            AND (
+              "baseSkillId" = ${skillId}
+              OR "basePromptId" = ANY (${promptIds}::text[])
+            )
+        `;
+        await this.prismaService.$executeRaw`
+          INSERT INTO "BrandSkillResetLog" (
+            "id",
+            "brandId",
+            "baseSkillId",
+            "resetType",
+            "promptIdsJson",
+            "createdAt"
+          )
+          VALUES (
+            ${createId("usrst")},
+            ${context.brandId},
+            ${skillId},
+            ${"RESET_TO_PLATFORM"},
+            ${JSON.stringify(promptIds)}::jsonb,
+            ${now}
+          )
+        `;
+      }
     } else {
       for (let index = mockBrandSkillProfiles.length - 1; index >= 0; index -= 1) {
         const item = mockBrandSkillProfiles[index];
@@ -729,6 +762,11 @@ export class UserSkillsService {
   }
 
   private async ensureBrandSkillTablesReady() {
+    if (this.prismaService.isLocalSqliteMode()) {
+      await this.ensureBrandSkillTablesReadyForSqlite();
+      return;
+    }
+
     await this.prismaService.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS "BrandSkillProfile" (
         "id" TEXT PRIMARY KEY,
@@ -875,7 +913,127 @@ export class UserSkillsService {
     await this.backfillLegacyVideoNoteBrandOverrides();
   }
 
+  private async ensureBrandSkillTablesReadyForSqlite() {
+    await this.prismaService.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "BrandSkillProfile" (
+        "id" TEXT PRIMARY KEY,
+        "brandId" TEXT NOT NULL DEFAULT '',
+        "baseSkillId" TEXT NOT NULL DEFAULT '',
+        "displayName" TEXT NULL,
+        "defaultModel" TEXT NULL,
+        "description" TEXT NULL,
+        "lastResetAt" TEXT NULL,
+        "createdAt" TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await this.prismaService.ensureTableColumns("BrandSkillProfile", [
+      { name: "brandId", definition: `TEXT NOT NULL DEFAULT ''` },
+      { name: "baseSkillId", definition: `TEXT NOT NULL DEFAULT ''` },
+      { name: "displayName", definition: "TEXT NULL" },
+      { name: "defaultModel", definition: "TEXT NULL" },
+      { name: "description", definition: "TEXT NULL" },
+      { name: "lastResetAt", definition: "TEXT NULL" },
+      { name: "createdAt", definition: "TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP" },
+      { name: "updatedAt", definition: "TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP" },
+    ]);
+
+    await this.prismaService.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "BrandPromptOverride" (
+        "id" TEXT PRIMARY KEY,
+        "brandId" TEXT NOT NULL DEFAULT '',
+        "baseSkillId" TEXT NOT NULL DEFAULT '',
+        "basePromptId" TEXT NOT NULL DEFAULT '',
+        "content" TEXT NULL,
+        "modelName" TEXT NULL,
+        "temperature" REAL NULL,
+        "maxTokens" INTEGER NULL,
+        "createdAt" TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await this.prismaService.ensureTableColumns("BrandPromptOverride", [
+      { name: "brandId", definition: `TEXT NOT NULL DEFAULT ''` },
+      { name: "baseSkillId", definition: `TEXT NOT NULL DEFAULT ''` },
+      { name: "basePromptId", definition: `TEXT NOT NULL DEFAULT ''` },
+      { name: "content", definition: "TEXT NULL" },
+      { name: "modelName", definition: "TEXT NULL" },
+      { name: "temperature", definition: "REAL NULL" },
+      { name: "maxTokens", definition: "INTEGER NULL" },
+      { name: "createdAt", definition: "TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP" },
+      { name: "updatedAt", definition: "TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP" },
+    ]);
+
+    await this.prismaService.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "BrandSkillResetLog" (
+        "id" TEXT PRIMARY KEY,
+        "brandId" TEXT NOT NULL DEFAULT '',
+        "baseSkillId" TEXT NOT NULL DEFAULT '',
+        "resetType" TEXT NOT NULL DEFAULT 'RESET_TO_PLATFORM',
+        "promptIdsJson" TEXT NULL,
+        "createdAt" TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await this.prismaService.ensureTableColumns("BrandSkillResetLog", [
+      { name: "brandId", definition: `TEXT NOT NULL DEFAULT ''` },
+      { name: "baseSkillId", definition: `TEXT NOT NULL DEFAULT ''` },
+      { name: "resetType", definition: `TEXT NOT NULL DEFAULT 'RESET_TO_PLATFORM'` },
+      { name: "promptIdsJson", definition: "TEXT NULL" },
+      { name: "createdAt", definition: "TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP" },
+    ]);
+
+    await this.prismaService.$executeRawUnsafe(`
+      CREATE UNIQUE INDEX IF NOT EXISTS "BrandSkillProfile_brand_skill_uidx"
+      ON "BrandSkillProfile" ("brandId", "baseSkillId")
+    `);
+    await this.prismaService.$executeRawUnsafe(`
+      CREATE INDEX IF NOT EXISTS "BrandSkillProfile_brand_skill_idx"
+      ON "BrandSkillProfile" ("brandId", "baseSkillId")
+    `);
+    await this.prismaService.$executeRawUnsafe(`
+      CREATE UNIQUE INDEX IF NOT EXISTS "BrandPromptOverride_brand_prompt_uidx"
+      ON "BrandPromptOverride" ("brandId", "basePromptId")
+    `);
+    await this.prismaService.$executeRawUnsafe(`
+      CREATE INDEX IF NOT EXISTS "BrandPromptOverride_brand_skill_idx"
+      ON "BrandPromptOverride" ("brandId", "baseSkillId")
+    `);
+    await this.prismaService.$executeRawUnsafe(`
+      CREATE INDEX IF NOT EXISTS "BrandPromptOverride_brand_prompt_idx"
+      ON "BrandPromptOverride" ("brandId", "basePromptId")
+    `);
+    await this.prismaService.$executeRawUnsafe(`
+      CREATE INDEX IF NOT EXISTS "BrandSkillResetLog_brand_skill_idx"
+      ON "BrandSkillResetLog" ("brandId", "baseSkillId", "createdAt" DESC)
+    `);
+
+    await this.syncGlobalGpt54BrandOverrides();
+    await this.backfillLegacyImageGenerationBrandOverrides();
+    await this.backfillLegacyVideoNoteBrandOverrides();
+  }
+
   private async syncGlobalGpt54BrandOverrides() {
+    if (this.prismaService.isLocalSqliteMode()) {
+      await this.prismaService.$executeRawUnsafe(`
+        UPDATE "BrandSkillProfile"
+        SET
+          "defaultModel" = REPLACE("defaultModel", 'gpt-5.5', 'gpt-5.4'),
+          "updatedAt" = CURRENT_TIMESTAMP
+        WHERE "defaultModel" IS NOT NULL
+          AND "defaultModel" LIKE '%gpt-5.5%'
+      `);
+
+      await this.prismaService.$executeRawUnsafe(`
+        UPDATE "BrandPromptOverride"
+        SET
+          "modelName" = REPLACE("modelName", 'gpt-5.5', 'gpt-5.4'),
+          "updatedAt" = CURRENT_TIMESTAMP
+        WHERE "modelName" IS NOT NULL
+          AND "modelName" LIKE '%gpt-5.5%'
+      `);
+      return;
+    }
+
     await this.prismaService.$executeRawUnsafe(`
       UPDATE "BrandSkillProfile"
       SET

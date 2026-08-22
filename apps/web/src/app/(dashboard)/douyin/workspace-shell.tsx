@@ -153,6 +153,7 @@ import { type MediaLightboxState } from "../xiaohongshu/shared-types";
 import { DouyinAdPreAuditWorkspace } from "./ad-preaudit-workspace";
 import { DouyinDigitalHumanWorkspace } from "./digital-human-workspace";
 import { DouyinRunningHubWorkspace } from "./douyin-runninghub-workspace";
+import { DouyinVideoRemixWorkspace } from "./video-remix-workspace";
 import { formatDateTime } from "../xiaohongshu/datetime-helpers";
 import { renderMarkdownToHtml } from "../xiaohongshu/markdown-render";
 import { DouyinHotTopicCandidatesWorkspace as DouyinHotTopicCandidatesWorkspacePanel } from "./hot-topic-candidates-workspace";
@@ -172,7 +173,7 @@ import { OpenClawLobsterDiaryWorkspace } from "../brand-growth/openclaw-lobster-
 import { OpenClawVideoWorkspace } from "../brand-growth/openclaw-video-workspace";
 
 type LoadState = "loading" | "api" | "partial";
-type DouyinSectionKey =
+export type DouyinSectionKey =
   | "plan"
   | "hotTopics"
   | "topicLibrary"
@@ -183,11 +184,17 @@ type DouyinSectionKey =
   | "videoDirect"
   | "digitalHuman"
   | "runningHub"
+  | "videoRemix"
   | "adPreAudit"
   | "openclawCreativeMaterials"
   | "openclawDailyPlan"
   | "openclawLobsterDiary"
   | "openclawVideoWorks";
+
+export interface DouyinWorkspaceShellProps {
+  embedded?: boolean;
+  forcedSection?: DouyinSectionKey;
+}
 
 const MARKETING_PLAN_REQUIRED_INPUTS = ["品牌背景资料", "产品资料库", "机会洞察总报告", "品牌增长报告"] as const;
 const douyinPrimarySections: Array<{ key: DouyinSectionKey; label: string; description: string }> = [
@@ -199,13 +206,14 @@ const douyinPrimarySections: Array<{ key: DouyinSectionKey; label: string; descr
   { key: "videoDirect", label: "AI生视频", description: "基于营销日历、统一素材库、产品与营销策划方案直接生成 Seedance 2.0 生视频提示词，确认后继续生成短视频。" },
   { key: "digitalHuman", label: "数字人", description: "对接蝉镜 OpenAPI，支持公共模板库、数字人口播视频创建、结果找回和作品中心管理。" },
   { key: "runningHub", label: "RunningHub应用", description: "独立承载 RunningHub AI 应用卡片、参数弹窗与作品中心，当前先接入 Animate 动作迁移应用。" },
+  { key: "videoRemix", label: "视频混剪", description: "直接承载 mixedcut 混剪主界面；模型同步与配置下发收口到个人中心的视频混剪设置页。" },
   { key: "adPreAudit", label: "广告预审", description: "对接火山引擎 VOD 广告预审，对已上传到 VOD 的 Vid 发起审核并查看通过、驳回和原因。" },
 ];
 const douyinOpenClawSections: Array<{ key: DouyinSectionKey; label: string; description: string }> = [
   { key: "openclawCreativeMaterials", label: "创作素材", description: "展示由 OpenClaw 调用站内第三方平台能力后生成并保存的文本、图片、视频、语音和 BGM 等素材。" },
   { key: "openclawDailyPlan", label: "每日计划", description: "展示由 OpenClaw Agent 创建的每日计划记录，页面只支持查看与删除。" },
   { key: "openclawLobsterDiary", label: "每日复盘", description: "展示由 OpenClaw Agent 创建的每日复盘记录，页面只支持查看与删除。" },
-  { key: "openclawVideoWorks", label: "视频作品", description: "展示由 OpenClaw 最终整合生成的成片，可查看、删除，并接入抖音与视频号发布插件。" },
+  { key: "openclawVideoWorks", label: "作品列表", description: "展示由 OpenClaw 最终整合生成的成片，可查看、删除，并接入抖音与视频号发布插件。" },
 ];
 const douyinSections = [...douyinPrimarySections, ...douyinOpenClawSections];
 
@@ -220,6 +228,7 @@ const douyinSectionPermissionMap: Record<DouyinSectionKey, BrandPermissionKey> =
   videoDirect: "douyin.videoDirect",
   digitalHuman: "douyin.digitalHuman",
   runningHub: "douyin.runningHub",
+  videoRemix: "douyin.runningHub",
   adPreAudit: "douyin.adPreAudit",
   openclawCreativeMaterials: "brandGrowth.report.topicLibrary",
   openclawDailyPlan: "brandGrowth.report.topicLibrary",
@@ -258,6 +267,7 @@ function createInitialSectionLoadState(): Record<DouyinSectionKey, boolean> {
     videoDirect: false,
     digitalHuman: false,
     runningHub: false,
+    videoRemix: false,
     adPreAudit: false,
     openclawCreativeMaterials: false,
     openclawDailyPlan: false,
@@ -298,7 +308,7 @@ function getTaskStatusText(task?: DouyinMarketingPlanTaskRecord) {
   return task.taskStatus;
 }
 
-export function DouyinWorkspaceShell() {
+export function DouyinWorkspaceShell(props: DouyinWorkspaceShellProps) {
   const debugBundleMarker = "douyin-workspace-false-502-a8a51d5";
   const activeBrandId = useMemo(() => getStoredCurrentBrandId(DEMO_BRAND_ID) || DEMO_BRAND_ID, []);
   const [isLoading, setIsLoading] = useState(true);
@@ -306,8 +316,8 @@ export function DouyinWorkspaceShell() {
   const [hasLoadedSharedWorkspace, setHasLoadedSharedWorkspace] = useState(false);
   const [hasLoadedDigitalHumanEditorResources, setHasLoadedDigitalHumanEditorResources] = useState(false);
   const [loadedSections, setLoadedSections] = useState<Record<DouyinSectionKey, boolean>>(() => createInitialSectionLoadState());
-  const [activeSection, setActiveSection] = useState<DouyinSectionKey>("plan");
-  const activeSectionRef = useRef<DouyinSectionKey>("plan");
+  const [activeSection, setActiveSection] = useState<DouyinSectionKey>(props.forcedSection || "plan");
+  const activeSectionRef = useRef<DouyinSectionKey>(props.forcedSection || "plan");
   const digitalHumanEditorResourcesPromiseRef = useRef<Promise<void> | null>(null);
   const [notice, setNotice] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
@@ -461,6 +471,11 @@ export function DouyinWorkspaceShell() {
   useEffect(() => {
     activeSectionRef.current = activeSection;
   }, [activeSection]);
+  useEffect(() => {
+    if (props.forcedSection && props.forcedSection !== activeSection) {
+      setActiveSection(props.forcedSection);
+    }
+  }, [activeSection, props.forcedSection]);
   useEffect(() => {
     setHasLoadedSharedWorkspace(false);
     setHasLoadedDigitalHumanEditorResources(false);
@@ -1440,6 +1455,7 @@ export function DouyinWorkspaceShell() {
       videoDirect: current.videoDirect || currentSectionKey === "videoDirect",
       digitalHuman: current.digitalHuman || shouldLoadDigitalHumanSupportWorkspace,
       runningHub: current.runningHub || currentSectionKey === "runningHub",
+      videoRemix: current.videoRemix || currentSectionKey === "videoRemix",
       adPreAudit: current.adPreAudit || shouldLoadAdPreAuditWorkspace,
       openclawCreativeMaterials: current.openclawCreativeMaterials || shouldLoadOpenClawCreativeMaterialWorkspace,
       openclawDailyPlan: current.openclawDailyPlan || shouldLoadOpenClawDailyPlanWorkspace,
@@ -3294,11 +3310,11 @@ export function DouyinWorkspaceShell() {
   }, [activeBrandId, canEditCurrentSection]);
 
   return (
-    <main className="archive-shell strategy-shell">
-      <section className="strategy-layout">
+    <main className={`archive-shell strategy-shell ${props.embedded ? "strategy-shell--embedded" : ""}`}>
+      <section className={`strategy-layout ${props.embedded ? "strategy-layout--embedded" : ""}`}>
           {!hasWorkspaceAccess ? (
             <div className="strategy-content-panel">
-              <article className="workspace-panel strategy-page-header">
+              <article className={`workspace-panel strategy-page-header ${props.embedded ? "strategy-page-header--embedded" : ""}`}>
                 <div>
                   <strong>当前无权限进入抖音工作区</strong>
                   <p>当前账号未获得抖音板块的查看权限，请联系管理员在团队权限设置中为对应板块勾选可见权限。</p>
@@ -3313,6 +3329,7 @@ export function DouyinWorkspaceShell() {
             </div>
           ) : (
             <>
+              {props.embedded ? null : (
               <aside className="strategy-level-panel strategy-level-panel--directory">
                 <div className="strategy-level-button-list">
                   {visiblePrimarySections.map((item) => (
@@ -3344,8 +3361,10 @@ export function DouyinWorkspaceShell() {
                   </div>
                 ) : null}
               </aside>
+              )}
 
               <div className="strategy-content-panel">
+                {props.embedded ? null : (
                 <article className="workspace-panel strategy-page-header">
                   <div>
                     <strong>{heroTitle}</strong>
@@ -3375,6 +3394,7 @@ export function DouyinWorkspaceShell() {
                     </div>
                   </div>
                 </article>
+                )}
 
                 {activeSection === "openclawCreativeMaterials" ? (
                   <OpenClawCreativeMaterialWorkspace
@@ -3684,6 +3704,12 @@ export function DouyinWorkspaceShell() {
                     canEdit={Boolean(permissionMap?.["douyin.runningHub"]?.edit)}
                     formatDateTime={formatDateTime}
                     materialLibraryItems={materialLibraryItems}
+                  />
+                ) : activeSection === "videoRemix" ? (
+                  <DouyinVideoRemixWorkspace
+                    brandId={activeBrandId}
+                    sectionLabel={currentSection.label}
+                    sectionDescription={currentSection.description}
                   />
                 ) : activeSection === "adPreAudit" ? (
                   <DouyinAdPreAuditWorkspace

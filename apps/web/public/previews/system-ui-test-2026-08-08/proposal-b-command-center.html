@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>方案 B - 工作台指挥舱型</title>
+  <style>
+    :root {
+      --bg: #edf2f7;
+      --panel: rgba(248, 250, 252, 0.88);
+      --card: rgba(255, 255, 255, 0.94);
+      --line: rgba(148, 163, 184, 0.18);
+      --text: #0f172a;
+      --muted: #64748b;
+      --soft: #94a3b8;
+      --nav: #0f172a;
+      --nav-soft: rgba(255, 255, 255, 0.14);
+      --accent: #2563eb;
+      --accent-soft: rgba(37, 99, 235, 0.1);
+      --ok: #059669;
+      --warn: #d97706;
+      --shadow: 0 26px 60px rgba(15, 23, 42, 0.12);
+      --radius-xl: 28px;
+      --radius-lg: 22px;
+      --radius-md: 18px;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Inter", "PingFang SC", "Microsoft YaHei", sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(255,255,255,0.92), transparent 36%),
+        linear-gradient(180deg, #f7fafc 0%, var(--bg) 100%);
+      color: var(--text);
+    }
+
+    .shell {
+      width: min(1380px, calc(100% - 36px));
+      min-height: calc(100vh - 36px);
+      margin: 18px auto;
+      border-radius: 34px;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,0.8);
+      box-shadow: var(--shadow);
+      display: grid;
+      grid-template-columns: 260px minmax(0, 1fr) 320px;
+      background: rgba(255,255,255,0.5);
+      backdrop-filter: blur(18px);
+    }
+
+    .sidebar {
+      background: linear-gradient(180deg, #0f172a 0%, #111827 100%);
+      color: rgba(255,255,255,0.92);
+      padding: 26px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 22px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 4px 6px;
+    }
+
+    .brand-mark {
+      width: 44px;
+      height: 44px;
+      border-radius: 16px;
+      display: grid;
+      place-items: center;
+      background: rgba(255,255,255,0.1);
+      font-weight: 700;
+      letter-spacing: 0.08em;
+    }
+
+    .brand small,
+    .section-label,
+    .nav-item span,
+    .hint {
+      color: rgba(255,255,255,0.62);
+    }
+
+    .section-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      padding: 0 10px;
+    }
+
+    .nav {
+      display: grid;
+      gap: 8px;
+    }
+
+    .nav-item {
+      padding: 14px 14px 14px 16px;
+      border-radius: 18px;
+      background: transparent;
+      border: 1px solid transparent;
+    }
+
+    .nav-item.active {
+      background: rgba(255,255,255,0.08);
+      border-color: var(--nav-soft);
+    }
+
+    .nav-item strong {
+      display: block;
+      font-size: 14px;
+      margin-bottom: 4px;
+    }
+
+    .nav-item span {
+      display: block;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .sidebar-card {
+      margin-top: auto;
+      padding: 18px;
+      border-radius: 20px;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid var(--nav-soft);
+    }
+
+    .sidebar-card strong {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 14px;
+    }
+
+    .sidebar-card p {
+      margin: 0;
+      color: rgba(255,255,255,0.7);
+      line-height: 1.65;
+      font-size: 13px;
+    }
+
+    .main {
+      padding: 22px;
+      background: rgba(248, 250, 252, 0.72);
+      border-left: 1px solid rgba(255,255,255,0.7);
+      border-right: 1px solid rgba(255,255,255,0.7);
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+
+    .search,
+    .persona,
+    .card,
+    .focus-card,
+    .rail-card,
+    .mini-card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-lg);
+      box-shadow: 0 14px 32px rgba(15, 23, 42, 0.06);
+    }
+
+    .search {
+      flex: 1;
+      padding: 14px 18px;
+      color: var(--soft);
+      font-size: 14px;
+    }
+
+    .persona {
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 220px;
+      justify-content: flex-end;
+    }
+
+    .avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: #dbeafe;
+      display: grid;
+      place-items: center;
+      color: var(--accent);
+      font-weight: 700;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: 1.35fr 0.95fr;
+      gap: 18px;
+      margin-bottom: 18px;
+    }
+
+    .focus-card,
+    .mini-card,
+    .rail-card {
+      padding: 22px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 700;
+      margin-bottom: 16px;
+    }
+
+    h1, h2, h3, p { margin: 0; }
+
+    h1 {
+      font-size: 34px;
+      line-height: 1.12;
+      letter-spacing: -0.04em;
+      margin-bottom: 12px;
+    }
+
+    h2 {
+      font-size: 20px;
+      letter-spacing: -0.03em;
+      margin-bottom: 10px;
+    }
+
+    p {
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.7;
+    }
+
+    .metric-row,
+    .workspace-grid,
+    .agenda-list,
+    .rail-list {
+      display: grid;
+      gap: 14px;
+    }
+
+    .metric-row {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      margin-top: 22px;
+    }
+
+    .metric {
+      padding: 14px 16px;
+      border-radius: var(--radius-md);
+      background: #f8fafc;
+      border: 1px solid var(--line);
+    }
+
+    .metric strong {
+      display: block;
+      font-size: 12px;
+      color: var(--soft);
+      margin-bottom: 6px;
+    }
+
+    .metric span {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+    }
+
+    .workspace-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .card {
+      padding: 20px;
+    }
+
+    .card-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 14px;
+      margin-bottom: 14px;
+    }
+
+    .badge {
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: #f8fafc;
+      border: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .status-line {
+      margin-top: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .status-chip {
+      padding: 5px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .ok { background: rgba(5, 150, 105, 0.12); color: var(--ok); }
+    .warn { background: rgba(217, 119, 6, 0.12); color: var(--warn); }
+
+    .agenda-list .mini-card + .mini-card {
+      margin-top: 0;
+    }
+
+    .mini-card strong {
+      display: block;
+      font-size: 15px;
+      margin-bottom: 8px;
+    }
+
+    .mini-card .time {
+      color: var(--soft);
+      font-size: 12px;
+      margin-bottom: 8px;
+      display: block;
+    }
+
+    .rail {
+      padding: 22px 18px;
+      background: var(--panel);
+    }
+
+    .rail-card + .rail-card {
+      margin-top: 14px;
+    }
+
+    .rail-list {
+      margin-top: 14px;
+    }
+
+    .rail-item {
+      padding: 13px 14px;
+      border-radius: 16px;
+      background: #f8fafc;
+      border: 1px solid var(--line);
+    }
+
+    .rail-item strong {
+      display: block;
+      font-size: 14px;
+      margin-bottom: 4px;
+    }
+
+    .rail-item span {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    @media (max-width: 1180px) {
+      .shell {
+        grid-template-columns: 220px minmax(0, 1fr);
+      }
+      .rail {
+        grid-column: 1 / -1;
+        border-top: 1px solid rgba(255,255,255,0.7);
+      }
+    }
+
+    @media (max-width: 900px) {
+      .shell {
+        grid-template-columns: 1fr;
+      }
+      .sidebar,
+      .main,
+      .rail {
+        border: 0;
+      }
+      .hero,
+      .workspace-grid,
+      .metric-row {
+        grid-template-columns: 1fr;
+      }
+      .topbar {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .persona {
+        justify-content: flex-start;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">B</div>
+        <div>
+          <strong>方案 B · 工作台指挥舱型</strong>
+          <small>更适合高频用户的操作视角</small>
+        </div>
+      </div>
+
+      <div>
+        <div class="section-label">主导航</div>
+        <div class="nav">
+          <div class="nav-item active">
+            <strong>品牌增长总览</strong>
+            <span>只看当前任务、资源和阻塞，不再平铺介绍模块。</span>
+          </div>
+          <div class="nav-item">
+            <strong>小红书执行</strong>
+            <span>策划、原创、二创和视频笔记的创作工作区。</span>
+          </div>
+          <div class="nav-item">
+            <strong>抖音执行</strong>
+            <span>重型平台的两级入口，先看任务，再钻到能力页。</span>
+          </div>
+          <div class="nav-item">
+            <strong>公众号流程</strong>
+            <span>分步推进输入、文章、生图、HTML 和发布确认。</span>
+          </div>
+          <div class="nav-item">
+            <strong>账户与配置</strong>
+            <span>把个人中心、平台配置和团队权限收口管理。</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="sidebar-card">
+        <strong>这个方向的重点</strong>
+        <p>把首页做成指挥舱，而不是说明页。用户先看到要处理什么、哪里卡住、去哪个平台继续，而不是先读一堆能力介绍。</p>
+      </div>
+    </aside>
+
+    <main class="main">
+      <section class="topbar">
+        <div class="search">搜索品牌资料、报告、任务、作品或平台工作区</div>
+        <div class="persona">
+          <div>
+            <strong>当前品牌：同城增长实验室</strong>
+            <div class="hint">角色：经营负责人</div>
+          </div>
+          <div class="avatar">WX</div>
+        </div>
+      </section>
+
+      <section class="hero">
+        <article class="focus-card">
+          <div class="eyebrow">Command Center</div>
+          <h1>先处理本周内容节奏，再进入具体平台执行。</h1>
+          <p>这个方案把 `brand-growth` 首页变成真正的指挥舱。中间区域只承接当前重点、平台状态、任务入口和资源结果，减少“看得到很多，但不知道先点哪里”的问题。</p>
+          <div class="metric-row">
+            <div class="metric">
+              <strong>待确认事项</strong>
+              <span>03</span>
+            </div>
+            <div class="metric">
+              <strong>本周已排期</strong>
+              <span>18</span>
+            </div>
+            <div class="metric">
+              <strong>可直接执行</strong>
+              <span>07</span>
+            </div>
+          </div>
+        </article>
+
+        <article class="mini-card">
+          <h2>今天最值得推进的事</h2>
+          <p>竞品热点和品牌资料已经齐，当前真正影响效率的是把本周选题定稿，再分别推给小红书和抖音工作台。</p>
+          <div class="rail-list">
+            <div class="rail-item">
+              <strong>第一步</strong>
+              <span>确认机会洞察和营销日历的最新结论。</span>
+            </div>
+            <div class="rail-item">
+              <strong>第二步</strong>
+              <span>把 3 条高优先级选题同步给平台执行页。</span>
+            </div>
+            <div class="rail-item">
+              <strong>第三步</strong>
+              <span>回看发布结果和复盘建议，决定是否补素材。</span>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <section class="workspace-grid">
+        <article class="card">
+          <div class="card-head">
+            <div>
+              <h2>品牌增长总台</h2>
+              <p>保留经营判断、报告生成和日历推进，不再承载所有平台介绍。</p>
+            </div>
+            <div class="badge">系统首页</div>
+          </div>
+          <div class="status-line">
+            <span>品牌增长报告已刷新，营销日历待确认</span>
+            <span class="status-chip warn">有 1 个待办</span>
+          </div>
+        </article>
+
+        <article class="card">
+          <div class="card-head">
+            <div>
+              <h2>小红书执行</h2>
+              <p>围绕原创、二创和视频笔记推进内容生产，作为纯执行工作台存在。</p>
+            </div>
+            <div class="badge">执行页</div>
+          </div>
+          <div class="status-line">
+            <span>2 条原创选题可直接开做</span>
+            <span class="status-chip ok">准备完成</span>
+          </div>
+        </article>
+
+        <article class="card">
+          <div class="card-head">
+            <div>
+              <h2>抖音执行</h2>
+              <p>把复杂能力拆成浅层入口和深层资源页，首页只提示当前任务和状态。</p>
+            </div>
+            <div class="badge">重型平台</div>
+          </div>
+          <div class="status-line">
+            <span>原创文案与 AI 生视频都可继续</span>
+            <span class="status-chip ok">运行正常</span>
+          </div>
+        </article>
+
+        <article class="card">
+          <div class="card-head">
+            <div>
+              <h2>账户与配置</h2>
+              <p>把技能、第三方平台、团队、安全等配置统一纳入轻量驾驶舱。</p>
+            </div>
+            <div class="badge">配置层</div>
+          </div>
+          <div class="status-line">
+            <span>模型、平台凭据和团队协作入口统一收口</span>
+            <span class="status-chip warn">2 处需检查</span>
+          </div>
+        </article>
+      </section>
+    </main>
+
+    <aside class="rail">
+      <article class="rail-card">
+        <h2>待处理事项</h2>
+        <div class="rail-list">
+          <div class="rail-item">
+            <strong>确认本周选题池</strong>
+            <span>当前还有 3 条主题未分配到平台工作台。</span>
+          </div>
+          <div class="rail-item">
+            <strong>检查公众号配置</strong>
+            <span>发布链路可用，但默认账号还未做品牌切换核验。</span>
+          </div>
+          <div class="rail-item">
+            <strong>复盘昨日成片</strong>
+            <span>OpenClaw 已产出素材，等待经营侧判断是否留存到素材库。</span>
+          </div>
+        </div>
+      </article>
+
+      <article class="rail-card">
+        <h2>最近结果</h2>
+        <div class="rail-list">
+          <div class="rail-item">
+            <strong>增长报告 V12</strong>
+            <span>今天 09:18 更新，已写入最新竞品素材。</span>
+          </div>
+          <div class="rail-item">
+            <strong>营销日历</strong>
+            <span>已生成本周节奏，等待确认发布时间。</span>
+          </div>
+        </div>
+      </article>
+
+      <article class="rail-card">
+        <h2>为什么适合高频用户</h2>
+        <p>左侧负责稳定导航，中间处理当前任务，右侧只放状态和提醒。整个页面不再强调“系统有什么”，而是强调“现在要做什么”。</p>
+      </article>
+    </aside>
+  </div>
+</body>
+</html>

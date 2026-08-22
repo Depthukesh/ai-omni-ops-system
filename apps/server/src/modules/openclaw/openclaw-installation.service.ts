@@ -333,6 +333,7 @@ export class OpenClawInstallationService {
                 enabled: true,
                 url: mcpUrl,
                 transport: "streamable-http",
+                timeout: 600000,
                 headers: {
                   Authorization: headerValue,
                   "x-brand-id": input.brandId,
@@ -359,6 +360,7 @@ export class OpenClawInstallationService {
             [mcpServerName]: {
               url: mcpUrl,
               transport: "streamable-http",
+              timeout: 600000,
               headers: {
                 Authorization: headerValue,
                 "x-brand-id": input.brandId,
@@ -371,6 +373,7 @@ export class OpenClawInstallationService {
             [mcpServerName]: {
               url: mcpUrl,
               transport: "streamable-http",
+              timeout: 600000,
               headers: {
                 Authorization: headerValue,
                 "x-brand-id": input.brandId,
@@ -382,7 +385,7 @@ export class OpenClawInstallationService {
       },
       skillGuide: {
         title: "品牌运营助手 Skill",
-        summary: "安装 MCP 后，Skill 会先做网站功能路由，再生成执行计划，并按品牌权限调度个人中心、品牌资料库、增长报告、小红书、抖音、公众号、设计工作台、OpenClaw 与 GEO 等能力，而不是只覆盖少量固定场景。",
+        summary: "安装 MCP 后，Skill 会先做网站功能路由，再生成执行计划，并按品牌权限调度个人中心、品牌资料库、增长报告、小红书、抖音、公众号、设计工作台、OpenClaw、GEO获客与全网获客等能力，而不是只覆盖少量固定场景。",
         examples: [
           "帮我看一下个人中心总览和当前需要优先处理的事",
           "帮我看当前品牌最近的增长报告重点",
@@ -402,8 +405,11 @@ export class OpenClawInstallationService {
           "帮我创建一个品牌知识库，并把这份资料加入进去",
           "帮我看最近 30 天失败任务主要卡在哪些问题上",
           "帮我看当前品牌成员、邀请链接和权限配置",
-          "帮我看 OpenClaw 的每日计划、每日复盘、创作素材和视频作品",
+          "帮我看 OpenClaw 的每日计划、每日复盘、创作素材、视频作品、评论获客和平台获客名单",
           "帮我保存一份 GEO 可见度诊断报告，并告诉我现有报告列表",
+          "帮我保存关键词挖掘、网站诊断或 GEO优化方案，并把存储地址一起回给我",
+          "帮我把小红书和抖音评论用户生成评论获客列表，并同步到全网获客工作台",
+          "帮我把这批平台名单写入平台获客，并同步到全网获客工作台",
           "帮我查看并调整当前品牌的技能配置和网站功能使用方式",
         ],
       },
@@ -595,6 +601,7 @@ description: AI 全域智能体网站能力总入口 Skill。先做网站功能�
 - \`personal_center\`
 - \`openclaw\`
 - \`geo\`
+- \`all_network_growth\`
 
 对应的常见能力包括：
 
@@ -602,12 +609,14 @@ description: AI 全域智能体网站能力总入口 Skill。先做网站功能�
 - 品牌档案、产品资料、平台账号、竞品账号、行业资料、业务资产
 - 品牌资料库、知识库、统一素材库、机会洞察、增长报告、半年营销规划
 - 小红书原创 / 二创 / 视频笔记 / 草稿接力
-- 抖音原创 / 二创 / 视频生产 / 数字人 / RunningHub / 广告预审 / 发布会话
+- 抖音原创 / 二创 / 视频生产 / 视频混剪 mixedcut / 数字人 / RunningHub / 广告预审 / 发布会话
 - 公众号工作流、正文 / 配图 / HTML 生成、发布确认、正式发布、历史回看
 - 设计工作台图片、HTML、PPT、视频方案任务
 - 团队成员、邀请链接、权限模板、品牌协作
 - OpenClaw 每日计划、每日复盘、创作素材、视频作品、音乐任务
-- GEO 可见度诊断报告的保存、列表、删除
+- GEO获客可见度诊断，以及关键词挖掘、网站诊断、知识库搭建、GEO优化方案、自媒体内容、第三方媒体、品牌网站等内容的保存、列表、删除与存储地址回显
+- 全网获客评论获客列表，以及评论用户名单的生成、筛选、删除与主页回跳
+- 全网获客平台获客列表，以及平台名单的写入、查看与删除
 
 对于网站上已经开放到 MCP 的功能，不允许因为主 Skill 正文没逐条展开，就直接回答“做不了”。
 
@@ -647,6 +656,20 @@ description: AI 全域智能体网站能力总入口 Skill。先做网站功能�
   - \`runninghub\`
   - \`ad_preaudit\`
 
+当用户明确提到 \`视频混剪\`、\`mixedcut\`、\`把站内视频拿去混剪\`、\`把本机视频拿去混剪\` 时，不再走 \`manage_douyin_video_production\`，而是优先走：
+
+- \`get_mixedcut_media_assets\`
+- \`create_mixedcut_remix_task\`
+- \`get_mixedcut_remix_task_progress\`
+
+\`create_mixedcut_remix_task\` 当前支持三类来源：
+
+- 站内视频素材 \`mediaAssetIds\`
+- OpenClaw 创作素材 \`creativeMaterialIds\`
+- stdio MCP 下的本机 \`localFilePath / localFilePaths\`
+
+本机路径会先归档成 OpenClaw 创作素材，再复用主站 mixedcut bridge 发任务；不要把它理解成直接绕过网站后端上传到 mixedcut。
+
 #### RunningHub 固定顺序
 
 1. \`list_apps\`
@@ -660,6 +683,21 @@ description: AI 全域智能体网站能力总入口 Skill。先做网站功能�
 - 不猜 \`nodeId\`
 - 不手改 \`fieldData\`
 - stdio MCP 本地文件上传用独立字段 \`localFilePath\`
+- 当前常见 RunningHub appKey 示例：
+  - \`minimax-h3-fl2va-text-to-video\`：文生视频
+  - \`minimax-h3-fl2va-first-frame-video\`：首帧参考生视频
+  - \`minimax-h3-fl2va-first-last-frame-video\`：首尾帧参考生视频
+  - \`minimax-h3-fl2va-multi-image-video\`：多图参考生视频
+  - \`minimax-h3-8step-image-to-video\`：8 步加速图生视频
+  - \`minimax-h3-4step-first-last-frame-video\`：4 步加速首尾帧生视频
+  - \`minimax-h3-accelerated-all-reference-video\`：全能参考视频
+  - \`minimax-h3-digital-human-auto\`：数字人口播 / 唱歌 / 电商讲解自动版
+  - \`seedance25-multimodal-video\`：Seedance 2.5 多模态视频
+  - \`seedance20-viral-video-remix\`：Seedance 2.0 复刻爆款视频
+  - \`seedance20-fast-all-reference-video\`：Seedance 2.0 Fast 全能生视频
+  - \`seedance20-fast-rh\`：Seedance 2.0 Fast RH 版
+  - \`qwen-image-chinese-font-design\`：中文字体设计图生图
+  - \`qwen-font-design-8step\`：Qwen 8 步加速字体设计
 
 ### 4. 小红书视频笔记
 
@@ -693,7 +731,7 @@ description: AI 全域智能体网站能力总入口 Skill。先做网站功能�
 
 ### 8. OpenClaw 专区
 
-- 每日计划 / 每日复盘 / 创作素材 / 视频作品 / GEO 报告都属于站内独立持久化板块
+- 每日计划 / 每日复盘 / 创作素材 / 视频作品 / GEO获客内容 / 全网获客评论名单 / 平台名单都属于站内独立持久化板块
 - 创作素材不是生成引擎，而是结果归档区
 - 音乐任务创建成功不代表最终完成，必须继续轮询结果
 
@@ -722,6 +760,7 @@ description: AI 全域智能体网站能力总入口 Skill。先做网站功能�
 - 帮我先看设计工作台模型，再做海报 / 轮播图 / HTML / PPT
 - 帮我做一段纯音乐 BGM 或一首带人声歌曲，并把结果保存到 OpenClaw
 - 帮我保存 GEO 可见度诊断报告，并查看报告列表
+- 帮我保存关键词挖掘 / 网站诊断 / 知识库搭建 / GEO优化方案，并回显存储地址
 
 ## 七、追问规则
 
@@ -846,6 +885,8 @@ description: AI 全域智能体网站能力总入口 Skill。先做网站功能�
 - 帮我做一首带人声的歌曲，先创建任务，再帮我轮询结果
 - 帮我看 OpenClaw 的每日计划、每日复盘和创作素材
 - 帮我保存一份 GEO 可见度诊断报告，并告诉我现在已经有几份报告
+- 帮我把小红书和抖音评论用户生成评论获客列表
+- 帮我把这批平台名单写入平台获客
 
 ## 4. 常见失败排查
 
@@ -935,15 +976,48 @@ description: AI 全域智能体网站能力总入口 Skill。先做网站功能�
 
 ### 3.3 抖音 \`/douyin\`
 
-当前承载原创文案、二创文案、AI 生视频、数字人、口型驱动、RunningHub、广告预审和发布工作流。
+当前承载原创文案、二创文案、AI 生视频、视频混剪、数字人、口型驱动、RunningHub、广告预审和发布工作流。
 
 当前优先 MCP：
 
 - \`create_douyin_original_copy\`
 - \`create_douyin_remix_copy\`
 - \`manage_douyin_video_production\`
+- \`get_mixedcut_media_assets\`
+- \`create_mixedcut_remix_task\`
+- \`get_mixedcut_remix_task_progress\`
 - \`create_douyin_mobile_publish_session\`
 - \`create_douyin_desktop_publish_session\`
+
+处理原则：
+
+- 普通视频、直接视频、混剪短视频、数字人、口型驱动、RunningHub、广告预审都优先从 \`manage_douyin_video_production\` 进入
+- 当用户明确提到 \`视频混剪\`、\`mixedcut\`、\`把站内视频拿去混剪\`、\`把本机视频拿去混剪\` 时，不再走 \`manage_douyin_video_production\`，而是优先走：
+  - \`get_mixedcut_media_assets\`
+  - \`create_mixedcut_remix_task\`
+  - \`get_mixedcut_remix_task_progress\`
+- \`create_mixedcut_remix_task\` 当前支持：
+  - 站内视频素材 \`mediaAssetIds\`
+  - OpenClaw 创作素材 \`creativeMaterialIds\`
+  - stdio MCP 下的本机 \`localFilePath / localFilePaths\`
+- 本机视频会先归档成 OpenClaw 创作素材，再复用主站 mixedcut bridge 发任务
+
+RunningHub 当前常见 appKey 示例：
+
+- \`minimax-h3-fl2va-text-to-video\`
+- \`minimax-h3-fl2va-first-frame-video\`
+- \`minimax-h3-fl2va-first-last-frame-video\`
+- \`minimax-h3-fl2va-multi-image-video\`
+- \`minimax-h3-8step-image-to-video\`
+- \`minimax-h3-4step-first-last-frame-video\`
+- \`minimax-h3-accelerated-all-reference-video\`
+- \`minimax-h3-digital-human-auto\`
+- \`seedance25-multimodal-video\`
+- \`seedance20-viral-video-remix\`
+- \`seedance20-fast-all-reference-video\`
+- \`seedance20-fast-rh\`
+- \`qwen-image-chinese-font-design\`
+- \`qwen-font-design-8step\`
 
 ### 3.4 公众号 \`/wechat\`
 
@@ -969,14 +1043,16 @@ description: AI 全域智能体网站能力总入口 Skill。先做网站功能�
 
 ### 3.6 个人中心 \`/personal-center\`
 
-当前承载概览、任务、订单、作品、技能、第三方接口配置、OpenClaw 安装中心、团队协作和邀请通知。
+当前承载概览、任务、素材管理、作品、技能、第三方接口配置、OpenClaw 安装中心、团队协作和邀请通知。
 
 当前优先 MCP：
 
 - \`get_personal_center_overview\`
 - \`get_recent_tasks_summary\`
 - \`get_failed_tasks_summary\`
-- \`list_my_orders\`
+- \`list_personal_material_assets\`
+- \`get_local_material_storage_settings\`
+- \`update_local_material_storage_settings\`
 - \`get_skill_config_summary\`
 - \`list_my_third_party_platforms\`
 - \`list_brand_members\`
@@ -989,9 +1065,22 @@ description: AI 全域智能体网站能力总入口 Skill。先做网站功能�
 - OpenClaw 安装中心里的可视化复制动作
 - 作品中心的大范围人工浏览
 
-### 3.7 GEO \`/geo\`
+素材管理补充：
 
-当前承载 GEO 可见度诊断 HTML 报告查看、保存和删除。
+- 当前统一聚合网站上传素材与 OpenClaw 入库素材
+- 固定按 \`文本 / 图片 / 语音 / 视频\` 四类组织
+- \`local-single-user\` 安装态下可直接读取和更新素材库存储目录
+- 用户选择的是【素材库】外层根目录，系统会自动创建：
+  - \`素材库/文本\`
+  - \`素材库/图片\`
+  - \`素材库/语音\`
+  - \`素材库/视频\`
+- 网站上传素材会落到用户配置的本地素材库
+- OpenClaw 上传素材不强制进入素材库，但同样会进入四分类列表
+
+### 3.7 GEO获客 \`/geo\`
+
+当前承载 GEO 可见度诊断，以及关键词挖掘、网站诊断、知识库搭建、GEO优化方案、自媒体内容、第三方媒体、品牌网站等内容的查看、保存、删除与存储地址回显。
 
 当前优先 MCP：
 
@@ -999,7 +1088,20 @@ description: AI 全域智能体网站能力总入口 Skill。先做网站功能�
 - \`create_openclaw_geo_visibility_report\`
 - \`delete_openclaw_geo_visibility_report\`
 
-### 3.8 后台管理 \`/admin\`
+### 3.8 全网获客 \`/all-network-growth\`
+
+当前承载评论获客与平台获客两块列表；其中评论获客由 OpenClaw 从品牌增长评论用户结果生成，平台获客由 OpenClaw 直接写入平台名单。
+
+当前优先 MCP：
+
+- \`get_openclaw_comment_leads\`
+- \`create_openclaw_comment_leads\`
+- \`delete_openclaw_comment_lead\`
+- \`get_openclaw_platform_leads\`
+- \`create_openclaw_platform_leads\`
+- \`delete_openclaw_platform_lead\`
+
+### 3.9 后台管理 \`/admin\`
 
 默认不是品牌员工的标准执行域；非管理员会话不要默认把后台当成可执行域。
 
@@ -1016,7 +1118,8 @@ description: AI 全域智能体网站能力总入口 Skill。先做网站功能�
 - 设计工作台
 - 个人中心里的任务 / 订单 / 技能 / 第三方接口 / 团队协作
 - OpenClaw 数据归档
-- GEO 报告
+- GEO获客报告
+- 全网获客
 
 ### 4.2 默认先读后写
 
@@ -1080,6 +1183,15 @@ description: AI 全域智能体网站能力总入口 Skill。先做网站功能�
 - \`get_opportunity_insight_workspace\`
 - \`create_brand_growth_report\`
 - \`create_half_year_marketing_plan\`
+- \`get_brand_growth_visual_report_workspace\`
+- \`generate_brand_growth_visual_report\`
+- \`get_brand_growth_marketing_calendar_workspace\`
+- \`generate_brand_growth_marketing_calendar\`
+- \`update_brand_growth_marketing_calendar\`
+- \`get_brand_growth_topic_library_workspace\`
+- \`generate_brand_growth_topic_candidates\`
+- \`update_brand_growth_topic_library\`
+- \`get_brand_growth_material_library_items\`
 
 任务与反馈：
 
@@ -1092,6 +1204,9 @@ description: AI 全域智能体网站能力总入口 Skill。先做网站功能�
 个人中心与团队：
 
 - \`get_personal_center_overview\`
+- \`list_personal_material_assets\`
+- \`get_local_material_storage_settings\`
+- \`update_local_material_storage_settings\`
 - \`list_my_orders\`
 - \`list_my_third_party_platforms\`
 - \`check_my_third_party_platform_runtime_access\`
@@ -1117,6 +1232,9 @@ description: AI 全域智能体网站能力总入口 Skill。先做网站功能�
 - \`create_douyin_original_copy\`
 - \`create_douyin_remix_copy\`
 - \`manage_douyin_video_production\`
+- \`get_mixedcut_media_assets\`
+- \`create_mixedcut_remix_task\`
+- \`get_mixedcut_remix_task_progress\`
 - \`create_douyin_mobile_publish_session\`
 - \`create_douyin_desktop_publish_session\`
 
@@ -1146,12 +1264,42 @@ OpenClaw：
 - \`create_openclaw_creative_material\`
 - \`get_openclaw_video_works\`
 - \`create_openclaw_video_work\`
+- \`get_mixedcut_media_assets\`
+- \`create_mixedcut_remix_task\`
+- \`get_mixedcut_remix_task_progress\`
 
-GEO：
+素材管理补充：
+
+- \`list_personal_material_assets\`：读取个人中心四分类素材列表
+- \`get_local_material_storage_settings\`：查看本地素材库存储目录与命名规则
+- \`update_local_material_storage_settings\`：更新本地素材库存储根目录，并自动创建 \`素材库/文本|图片|语音|视频\`
+- \`create_openclaw_creative_material\` 支持 \`sourceKind\`：
+  - \`material_library_upload\`：网站上传并写入本地素材库
+  - \`openclaw_upload\`：OpenClaw 上传或外部归档素材
+- \`create_mixedcut_remix_task\` 支持：
+  - \`mediaAssetIds\`：直接复用站内视频素材
+  - \`creativeMaterialIds\`：直接复用 OpenClaw 创作素材
+  - \`uploadItems\`：直接上传文件内容
+  - stdio MCP 下也可直接传 \`localFilePath / localFilePaths\`
+- 当用户明确提到 \`视频混剪\` 或 \`mixedcut\` 时，优先走这组专用工具，不再误走 \`manage_douyin_video_production\`
+
+GEO获客：
 
 - \`get_openclaw_geo_visibility_reports\`
 - \`create_openclaw_geo_visibility_report\`
 - \`delete_openclaw_geo_visibility_report\`
+- \`get_openclaw_geo_contents\`
+- \`create_openclaw_geo_content\`
+- \`delete_openclaw_geo_content\`
+
+全网获客：
+
+- \`get_openclaw_comment_leads\`
+- \`create_openclaw_comment_leads\`
+- \`delete_openclaw_comment_lead\`
+- \`get_openclaw_platform_leads\`
+- \`create_openclaw_platform_leads\`
+- \`delete_openclaw_platform_lead\`
 
 ## 4. 统一优先级
 
@@ -1256,9 +1404,23 @@ GEO：
 - \`create_xiaohongshu_mobile_draft_session\`
 - \`create_xiaohongshu_desktop_draft_session\`
 
-抖音视频、数字人、RunningHub、广告预审：
+抖音视频、视频混剪、数字人、RunningHub、广告预审：
 
 - \`manage_douyin_video_production\`
+- \`get_mixedcut_media_assets\`
+- \`create_mixedcut_remix_task\`
+- \`get_mixedcut_remix_task_progress\`
+
+mixedcut 关键规则：
+
+1. 用户明确提到 \`视频混剪\`、\`mixedcut\`、\`站内视频拿去混剪\`、\`本机视频拿去混剪\` 时，优先走 mixedcut 专用工具，不要误路由到 \`manage_douyin_video_production\`
+2. 如果用户想先看可用素材，先 \`get_mixedcut_media_assets\`
+3. 发任务时优先判断素材来源：
+   - 站内视频：\`mediaAssetIds\`
+   - OpenClaw 创作素材：\`creativeMaterialIds\`
+   - 本机文件：stdio MCP 传 \`localFilePath / localFilePaths\`
+4. 本机文件会先归档成 OpenClaw 创作素材，再进入 mixedcut，不是直接绕过站内后端上传
+5. 任务创建成功后，继续用 \`get_mixedcut_remix_task_progress\` 轮询，不要把“已创建”误当成“已完成”
 
 RunningHub 关键规则：
 
@@ -1266,6 +1428,23 @@ RunningHub 关键规则：
 2. 再 \`get_app_detail\`
 3. 从返回的 \`nodeInfoList\` 模板里回填参数
 4. 最后 \`generate\`
+
+当前可直接识别的 RunningHub 示例：
+
+- \`minimax-h3-fl2va-text-to-video\`：文生视频
+- \`minimax-h3-fl2va-first-frame-video\`：首帧参考生视频
+- \`minimax-h3-fl2va-first-last-frame-video\`：首尾帧参考生视频
+- \`minimax-h3-fl2va-multi-image-video\`：多图参考生视频
+- \`minimax-h3-8step-image-to-video\`：8 步加速图生视频
+- \`minimax-h3-4step-first-last-frame-video\`：4 步加速首尾帧生视频
+- \`minimax-h3-accelerated-all-reference-video\`：全能参考视频
+- \`minimax-h3-digital-human-auto\`：数字人口播 / 唱歌 / 电商讲解自动版
+- \`seedance25-multimodal-video\`：Seedance 2.5 多模态视频
+- \`seedance20-viral-video-remix\`：Seedance 2.0 复刻爆款视频
+- \`seedance20-fast-all-reference-video\`：Seedance 2.0 Fast 全能生视频
+- \`seedance20-fast-rh\`：Seedance 2.0 Fast RH 版
+- \`qwen-image-chinese-font-design\`：中文字体设计图生图
+- \`qwen-font-design-8step\`：Qwen 8 步加速字体设计
 
 公众号工作流：
 
@@ -1294,18 +1473,34 @@ OpenClaw 专区：
 - 音乐：\`create_volcengine_music_task\`、\`get_volcengine_music_task\`
 - 创作素材：\`get_openclaw_creative_materials\`、\`create_openclaw_creative_material\`
 - 视频作品：\`get_openclaw_video_works\`、\`create_openclaw_video_work\`
+- 视频混剪：\`get_mixedcut_media_assets\`、\`create_mixedcut_remix_task\`、\`get_mixedcut_remix_task_progress\`
+- 个人中心素材管理：\`list_personal_material_assets\`、\`get_local_material_storage_settings\`、\`update_local_material_storage_settings\`
 
 处理原则：
 
-- OpenClaw 的创作素材、视频作品、GEO 报告都是归档板块，不是生成引擎本身
+- OpenClaw 的创作素材、视频作品、GEO获客内容、全网获客评论名单与平台名单都是归档板块，不是生成引擎本身
 - 音乐任务创建成功不代表最终完成，必须继续轮询结果
 - 当用户要求“生成后直接沉淀到素材库”时，优先把归档动作一并完成
+- 如果用户是在本地版安装态下上传网站素材，优先用 \`material_library_upload\` 把素材写入用户配置的本地素材库
+- 如果素材来自 OpenClaw 上传到网站或外部归档，继续用 \`openclaw_upload\`；这类素材不要求必须落在本地素材库里，但仍要进入四分类列表
 
-GEO 可见度诊断：
+GEO获客：
 
 - \`get_openclaw_geo_visibility_reports\`
 - \`create_openclaw_geo_visibility_report\`
 - \`delete_openclaw_geo_visibility_report\`
+- \`get_openclaw_geo_contents\`
+- \`create_openclaw_geo_content\`
+- \`delete_openclaw_geo_content\`
+
+全网获客：
+
+- \`get_openclaw_comment_leads\`
+- \`create_openclaw_comment_leads\`
+- \`delete_openclaw_comment_lead\`
+- \`get_openclaw_platform_leads\`
+- \`create_openclaw_platform_leads\`
+- \`delete_openclaw_platform_lead\`
 
 ## 3. 哪些场景应当回网页
 

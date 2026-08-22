@@ -142,6 +142,7 @@ OpenClaw 正式配置示例：
         "enabled": true,
         "url": "https://你的域名/api/openclaw/mcp",
         "transport": "streamable-http",
+        "timeout": 600000,
         "headers": {
           "Authorization": "Bearer ocp_xxx",
           "x-brand-id": "br_xxx"
@@ -151,6 +152,13 @@ OpenClaw 正式配置示例：
   }
 }
 ```
+
+补充说明：
+
+- `create_design_work`、部分图像生成、RunningHub/视频类调用属于长任务，客户端侧也应保留 `timeout: 600000`
+- `create_design_work` 现在支持显式 `imageSize` 参数，格式固定为 `宽x高`，例如 `1200x628`、`1080x1920`；若仍走旧链路，也可继续传 `spec: "宽x高"`
+- 如果 `imageSize` / `spec` 明确传错格式，服务端会直接返回 `400`，不再悄悄回退到默认竖版
+- 如果客户端已弹出超时，但站内任务中心或设计工作台里已经出现对应任务，优先按“请求已发出、客户端等待超时”处理，而不是直接判断为 MCP 网关不可用
 
 WorkBuddy 正式配置示例：
 

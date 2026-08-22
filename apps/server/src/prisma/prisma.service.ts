@@ -44,12 +44,35 @@ export class PrismaService extends PrismaClient implements OnModuleDestroy {
       return false;
     }
 
-    try {
-      await this.$queryRawUnsafe("SELECT 1");
-      return true;
-    } catch {
+    const maxAttempts = this.isLocalSqliteMode() ? 3 : 1;
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      try {
+        await this.$connect();
+        await this.$queryRawUnsafe("SELECT 1");
+        return true;
+      } catch (error) {
+        if (attempt >= maxAttempts || !this.shouldRetryDatabaseAvailability(error)) {
+          return false;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 150 * attempt));
+      }
+    }
+    return false;
+  }
+
+  private shouldRetryDatabaseAvailability(error: unknown) {
+    const message = error instanceof Error ? error.message : String(error || "");
+    if (!this.isLocalSqliteMode()) {
       return false;
     }
+    return [
+      "Socket timeout",
+      "database failed to respond",
+      "SQLITE_BUSY",
+      "SQLITE_LOCKED",
+      "Timed out during query execution",
+      "ConnectorError",
+    ].some((keyword) => message.includes(keyword));
   }
 
   async tableExists(tableName: string) {

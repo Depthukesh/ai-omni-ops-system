@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿"use client";
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿"use client";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -14,6 +14,9 @@ import { buildPersonalCenterLoginPath, formatCollaboratorRoleLabel, formatDateTi
 
 type PlatformDraft = {
   apiKey: string;
+  baseUrl: string;
+  mobile: string;
+  password: string;
 };
 
 const adminSystemRoles = new Set(["SUPER_ADMIN", "ADMIN_OPERATOR", "FINANCE_OPERATOR", "SUPPORT_OPERATOR"]);
@@ -108,11 +111,131 @@ function isDuoyuanxPlatform(platform?: UserThirdPartyPlatformRecord) {
   return searchable.includes("duoyuanx") || searchable.includes("多元探索");
 }
 
+function isRuanwenjiePlatform(platform?: UserThirdPartyPlatformRecord) {
+  const searchable = [platform?.name, platform?.baseUrl, platform?.tutorialUrl, platform?.remark].join(" ").toLowerCase();
+  return searchable.includes("api.kol.cn") || searchable.includes("ruanwenjie") || searchable.includes("软文街");
+}
+
+function isVideoRemixPlatform(platform?: UserThirdPartyPlatformRecord) {
+  const searchable = [platform?.id, platform?.name, platform?.baseUrl, platform?.tutorialUrl, platform?.remark].join(" ").toLowerCase();
+  return searchable.includes("视频混剪") || searchable.includes("mixedcut") || searchable.includes("videoautocut");
+}
+
+function parseVideoRemixCredential(value: string, fallbackBaseUrl = "") {
+  const normalized = normalizeString(value).trim();
+  if (!normalized) {
+    return {
+      baseUrl: fallbackBaseUrl,
+      apiKey: "",
+    };
+  }
+  try {
+    const parsed = JSON.parse(normalized) as Record<string, unknown>;
+    return {
+      baseUrl: normalizeString(parsed.baseUrl).trim() || fallbackBaseUrl,
+      apiKey: normalizeString(parsed.apiKey).trim(),
+    };
+  } catch {
+    return {
+      baseUrl: fallbackBaseUrl,
+      apiKey: normalized,
+    };
+  }
+}
+
+function parsePlatformDraft(platform: UserThirdPartyPlatformRecord): PlatformDraft {
+  if (isVideoRemixPlatform(platform)) {
+    const parsed = parseVideoRemixCredential(platform.apiKey, platform.baseUrl);
+    return {
+      apiKey: parsed.apiKey,
+      baseUrl: parsed.baseUrl,
+      mobile: "",
+      password: "",
+    };
+  }
+  if (!isRuanwenjiePlatform(platform)) {
+    return {
+      apiKey: platform.apiKey,
+      baseUrl: "",
+      mobile: "",
+      password: "",
+    };
+  }
+  try {
+    const parsed = JSON.parse(platform.apiKey) as Record<string, unknown>;
+    return {
+      apiKey: normalizeString(parsed.apiKey),
+      baseUrl: "",
+      mobile: normalizeString(parsed.mobile),
+      password: normalizeString(parsed.password),
+    };
+  } catch {
+    const parts = normalizeString(platform.apiKey)
+      .split("::")
+      .map((item) => item.trim())
+      .filter(Boolean);
+    if (parts.length >= 3) {
+      return {
+        apiKey: parts[0] || "",
+        baseUrl: "",
+        mobile: parts[1] || "",
+        password: parts[2] || "",
+      };
+    }
+    return {
+      apiKey: "",
+      baseUrl: "",
+      mobile: "",
+      password: "",
+    };
+  }
+}
+
+function buildPlatformSecretPayload(platform: UserThirdPartyPlatformRecord, draft: PlatformDraft) {
+  if (isVideoRemixPlatform(platform)) {
+    const baseUrl = draft.baseUrl.trim();
+    const apiKey = draft.apiKey.trim();
+    if (!baseUrl && !apiKey) {
+      return "";
+    }
+    return JSON.stringify({
+      baseUrl,
+      apiKey,
+    });
+  }
+  if (!isRuanwenjiePlatform(platform)) {
+    return draft.apiKey;
+  }
+  return JSON.stringify({
+    apiKey: draft.apiKey.trim(),
+    mobile: draft.mobile.trim(),
+    password: draft.password.trim(),
+    identity: "advertiser",
+    captchaToken: "advertiser",
+    captcha: "advertiser",
+  });
+}
+
+function getConfiguredBadgeLabel(platform: UserThirdPartyPlatformRecord) {
+  if (isVideoRemixPlatform(platform)) {
+    return parseVideoRemixCredential(platform.apiKey, platform.baseUrl).baseUrl ? "已配置服务" : "未配置服务";
+  }
+  return isRuanwenjiePlatform(platform)
+    ? (platform.apiKey ? "已配置凭证" : "未配置凭证")
+    : (platform.apiKey ? "已配置 Key" : "未配置 Key");
+}
+
 function getPlatformMetricTitle(platform: UserThirdPartyPlatformRecord) {
+  if (isVideoRemixPlatform(platform)) {
+    return "接入方式";
+  }
   return isChanjingPlatform(platform) ? "模板数" : "模型数";
 }
 
 function getPlatformMetricValue(platform: UserThirdPartyPlatformRecord) {
+  if (isVideoRemixPlatform(platform)) {
+    return "HTTP 服务";
+  }
   if (isChanjingPlatform(platform)) {
     if (platform.dynamicStats?.status === "ready" || platform.dynamicStats?.status === "partial") {
       return String(platform.dynamicStats.templateCount ?? 0);
@@ -123,10 +246,16 @@ function getPlatformMetricValue(platform: UserThirdPartyPlatformRecord) {
 }
 
 function getPlatformDefaultLabel(platform: UserThirdPartyPlatformRecord) {
+  if (isVideoRemixPlatform(platform)) {
+    return "服务入口";
+  }
   return isChanjingPlatform(platform) ? "定制数字人数" : "默认模型";
 }
 
 function getPlatformDefaultValue(platform: UserThirdPartyPlatformRecord) {
+  if (isVideoRemixPlatform(platform)) {
+    return parseVideoRemixCredential(platform.apiKey, platform.baseUrl).baseUrl || platform.baseUrl || "-";
+  }
   if (isChanjingPlatform(platform)) {
     if (platform.dynamicStats?.status === "ready" || platform.dynamicStats?.status === "partial") {
       return String(platform.dynamicStats.customPersonCount ?? 0);
@@ -167,6 +296,16 @@ function getDuoyuanxSummary(platform: UserThirdPartyPlatformRecord) {
   }
   const families = ["文本", "图像", "视频", "音频", "音乐"];
   return `当前展示的是多元探索统一网关能力，已预装 ${families.join(" / ")} 模型家族；配置同一份平台 Key 后，可按供应商作用域分别启用。`;
+}
+
+function getVideoRemixSummary(platform: UserThirdPartyPlatformRecord) {
+  if (!isVideoRemixPlatform(platform)) {
+    return "";
+  }
+  const parsed = parseVideoRemixCredential(platform.apiKey, platform.baseUrl);
+  return parsed.baseUrl
+    ? `当前品牌已绑定视频混剪服务地址 ${parsed.baseUrl}，后续工作台可以直接复用这份配置去对接 mixedcut HTTP 接口。`
+    : "视频混剪建议以独立 Docker 或本地 Python 服务运行；先在这里保存服务地址，内容获客里的“视频混剪”板块会复用这份品牌共享配置。";
 }
 
 export default function PersonalCenterThirdPartyPlatformsPage() {
@@ -244,8 +383,14 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
     [filteredPlatforms, platforms, selectedPlatformId],
   );
   const selectedDraft = selectedPlatform ? drafts[selectedPlatform.id] : undefined;
-  const isDirty = selectedPlatform && selectedDraft ? selectedDraft.apiKey !== selectedPlatform.apiKey : false;
+  const serializedSelectedDraft = selectedPlatform && selectedDraft ? buildPlatformSecretPayload(selectedPlatform, selectedDraft) : "";
+  const isDirty = selectedPlatform && selectedDraft ? serializedSelectedDraft !== selectedPlatform.apiKey : false;
   const selectedPlatformIsChanjing = isChanjingPlatform(selectedPlatform);
+  const selectedPlatformIsRuanwenjie = isRuanwenjiePlatform(selectedPlatform);
+  const selectedPlatformIsVideoRemix = isVideoRemixPlatform(selectedPlatform);
+  const selectedPlatformLaunchUrl = selectedPlatformIsVideoRemix
+    ? (selectedDraft?.baseUrl || selectedPlatform?.baseUrl || "")
+    : (selectedPlatform?.websiteUrl || "");
 
   async function loadPage() {
     setIsLoading(true);
@@ -292,9 +437,7 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
       Object.fromEntries(
         normalized.platforms.map((item) => [
           item.id,
-          {
-            apiKey: item.apiKey,
-          },
+          parsePlatformDraft(item),
         ]),
       ) as Record<string, PlatformDraft>,
     );
@@ -336,20 +479,24 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
     if (!platform || !draft || !canManage) {
       return;
     }
+    if (isRuanwenjiePlatform(platform) && (!draft.apiKey.trim() || !draft.mobile.trim() || !draft.password.trim())) {
+      setErrorMessage("保存失败：软文街需要同时填写 API Key、登录账号和登录密码。");
+      return;
+    }
 
     setSavingPlatformId(platformId);
     setNotice("");
     setErrorMessage("");
     try {
-      const updated = await updateMyThirdPartyPlatformSecret(platformId, { apiKey: draft.apiKey });
+      const updated = await updateMyThirdPartyPlatformSecret(platformId, {
+        apiKey: buildPlatformSecretPayload(platform, draft),
+      });
       setPlatforms((current) => current.map((item) => (item.id === platformId ? updated : item)));
       setDrafts((current) => ({
         ...current,
-        [platformId]: {
-          apiKey: updated.apiKey,
-        },
+        [platformId]: parsePlatformDraft(updated),
       }));
-      setNotice(`已保存「${updated.name}」的品牌共享 API Key。`);
+      setNotice(`已保存「${updated.name}」的品牌共享配置。`);
     } catch (error) {
       if (isAuthFailure(error)) {
         await handleSessionExpired();
@@ -432,6 +579,9 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
         <Link href="/personal-center" className="secondary-button">
           返回个人中心概览
         </Link>
+        <Link href="/personal-center/third-party-platforms/video-remix" className="secondary-button">
+          视频混剪设置
+        </Link>
         {adminSystemRoles.has(systemRole) ? (
           <Link href="/admin" className="primary-button">
             去后台接口供应商
@@ -481,7 +631,7 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
                   <p className="personal-meta">平台类型：{platform.providerType}</p>
                 </div>
                 <span className={`archive-pill ${platform.apiKey ? "status-in_progress" : "status-ready"}`}>
-                  {platform.apiKey ? "已配置 Key" : "未配置 Key"}
+                  {getConfiguredBadgeLabel(platform)}
                 </span>
               </div>
               <div className="personal-grid">
@@ -504,6 +654,7 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
               </div>
               {isChanjingPlatform(platform) ? <p className="panel-subtext" style={{ marginTop: 12 }}>{getChanjingStatsSummary(platform)}</p> : null}
               {isDuoyuanxPlatform(platform) ? <p className="panel-subtext" style={{ marginTop: 12 }}>{getDuoyuanxSummary(platform)}</p> : null}
+              {isVideoRemixPlatform(platform) ? <p className="panel-subtext" style={{ marginTop: 12 }}>{getVideoRemixSummary(platform)}</p> : null}
             </button>
           ))}
           {!filteredPlatforms.length ? (
@@ -543,8 +694,8 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
                 <p>
                   {canManage
                     ? isDirty
-                      ? "当前品牌共享 API Key 已有未保存修改。确认无误后保存，当前品牌下具备权限的成员会共用这份配置。"
-                      : "可以在这里校验当前品牌的共享 Key、默认模型和说明文档，再按需更新。"
+                      ? "当前品牌共享配置已有未保存修改。确认无误后保存，当前品牌下具备权限的成员会共用这份配置。"
+                      : "可以在这里校验当前品牌的共享配置、默认模型和说明文档，再按需更新。"
                     : "当前角色只有查看权限。你仍可核对平台基线、说明文档与已脱敏的品牌共享 Key。"}
                 </p>
               </div>
@@ -555,11 +706,17 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
                   onClick={() => void handleSavePlatform(selectedPlatform.id)}
                   disabled={!canManage || !isDirty || savingPlatformId === selectedPlatform.id}
                 >
-                  {savingPlatformId === selectedPlatform.id ? "保存中..." : "保存品牌共享 API Key"}
+                  {savingPlatformId === selectedPlatform.id
+                    ? "保存中..."
+                    : selectedPlatformIsRuanwenjie
+                      ? "保存品牌共享投放凭证"
+                      : selectedPlatformIsVideoRemix
+                        ? "保存视频混剪服务配置"
+                        : "保存品牌共享 API Key"}
                 </button>
-                {selectedPlatform.websiteUrl ? (
-                  <a href={selectedPlatform.websiteUrl} target="_blank" rel="noreferrer" className="secondary-button">
-                    打开第三方平台
+                {selectedPlatformLaunchUrl ? (
+                  <a href={selectedPlatformLaunchUrl} target="_blank" rel="noreferrer" className="secondary-button">
+                    {selectedPlatformIsVideoRemix ? "打开混剪服务" : "打开第三方平台"}
                   </a>
                 ) : null}
                 {selectedPlatform.tutorialUrl ? (
@@ -588,11 +745,11 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
               </div>
               <div>
                 <span>{getPlatformDefaultLabel(selectedPlatform)}</span>
-                <strong>{getPlatformDefaultValue(selectedPlatform)}</strong>
+                <strong style={{ wordBreak: "break-all" }}>{getPlatformDefaultValue(selectedPlatform)}</strong>
               </div>
               <div>
-                <span>当前品牌 API Key</span>
-                <strong>{selectedPlatform.effectiveApiKeyMasked}</strong>
+                <span>{selectedPlatformIsVideoRemix ? "当前品牌服务鉴权" : selectedPlatformIsRuanwenjie ? "当前品牌投放凭证" : "当前品牌 API Key"}</span>
+                <strong>{selectedPlatformIsVideoRemix ? (selectedDraft.apiKey ? "已配置 API Key" : "未配置 API Key") : selectedPlatform.effectiveApiKeyMasked}</strong>
               </div>
               <div>
                 <span>最近更新时间</span>
@@ -611,41 +768,170 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
                 {getDuoyuanxSummary(selectedPlatform)}
               </div>
             ) : null}
+            {selectedPlatformIsVideoRemix ? (
+              <div className="personal-inline-hint" style={{ marginBottom: 16 }}>
+                <strong>视频混剪接入说明</strong>
+                {getVideoRemixSummary(selectedPlatform)}
+              </div>
+            ) : null}
 
             <div className="personal-list">
-              <label className="field">
-                <span>{selectedPlatformIsChanjing ? "蝉镜凭证" : "API Key"}</span>
-                <input
-                  type="password"
-                  value={selectedDraft.apiKey}
-                  onChange={(event) =>
-                    setDrafts((current) => ({
-                      ...current,
-                      [selectedPlatform.id]: {
-                        apiKey: event.target.value,
-                      },
-                    }))
-                  }
-                  disabled={!canManage}
-                  placeholder={selectedPlatformIsChanjing ? "按 appId::secretKey 格式填写蝉镜凭证" : "填写当前品牌在该平台使用的共享 API Key"}
-                />
-                <small className="personal-meta">
-                  {selectedPlatformIsChanjing
-                    ? "蝉镜平台当前复用单字段存储，请填写 `appId::secretKey`；系统会在服务端自动换取 access_token，不需要手动填写 token。"
-                    : isDuoyuanxPlatform(selectedPlatform)
-                      ? "多元探索是统一网关型平台，当前品牌只需要维护一份平台 Key；后台的文本、图像、视频、音频、音乐供应商会共用这份品牌共享 Key。"
-                    : "该字段是当前品牌共享值，同品牌下有编辑权限的管理员维护的是同一份 Key，不会影响后台平台基线。"}
-                </small>
-              </label>
+              {selectedPlatformIsVideoRemix ? (
+                <>
+                  <div className="form-grid two-column">
+                    <label className="field">
+                      <span>服务地址</span>
+                      <input
+                        type="text"
+                        value={selectedDraft.baseUrl}
+                        onChange={(event) =>
+                          setDrafts((current) => ({
+                            ...current,
+                            [selectedPlatform.id]: {
+                              ...current[selectedPlatform.id],
+                              baseUrl: event.target.value,
+                            },
+                          }))
+                        }
+                        disabled={!canManage}
+                        placeholder="例如 http://127.0.0.1:5000"
+                      />
+                    </label>
+                    <label className="field">
+                      <span>API Key（可选）</span>
+                      <input
+                        type="password"
+                        value={selectedDraft.apiKey}
+                        onChange={(event) =>
+                          setDrafts((current) => ({
+                            ...current,
+                            [selectedPlatform.id]: {
+                              ...current[selectedPlatform.id],
+                              apiKey: event.target.value,
+                            },
+                          }))
+                        }
+                        disabled={!canManage}
+                        placeholder="如果视频混剪服务前面挂了鉴权网关，可在这里填写"
+                      />
+                    </label>
+                  </div>
+                  <div className="personal-inline-hint" style={{ marginBottom: 16 }}>
+                    <strong>推荐填写方式</strong>
+                    优先把 mixedcut 独立部署在 Docker 或本地 Python 服务上，然后把工作台实际可访问的 HTTP 地址填到这里；如果没有额外鉴权，API Key 可以留空。
+                  </div>
+                </>
+              ) : selectedPlatformIsRuanwenjie ? (
+                <>
+                  <div className="form-grid two-column">
+                    <label className="field">
+                      <span>软文街 API Key</span>
+                      <input
+                        type="password"
+                        value={selectedDraft.apiKey}
+                        onChange={(event) =>
+                          setDrafts((current) => ({
+                            ...current,
+                            [selectedPlatform.id]: {
+                              ...current[selectedPlatform.id],
+                              apiKey: event.target.value,
+                            },
+                          }))
+                        }
+                        disabled={!canManage}
+                        placeholder="填写软文街 API Key"
+                      />
+                    </label>
+                    <label className="field">
+                      <span>登录账号</span>
+                      <input
+                        type="text"
+                        value={selectedDraft.mobile}
+                        onChange={(event) =>
+                          setDrafts((current) => ({
+                            ...current,
+                            [selectedPlatform.id]: {
+                              ...current[selectedPlatform.id],
+                              mobile: event.target.value,
+                            },
+                          }))
+                        }
+                        disabled={!canManage}
+                        placeholder="填写软文街登录账号"
+                      />
+                    </label>
+                  </div>
+                  <label className="field">
+                    <span>登录密码</span>
+                    <input
+                      type="password"
+                      value={selectedDraft.password}
+                      onChange={(event) =>
+                        setDrafts((current) => ({
+                          ...current,
+                          [selectedPlatform.id]: {
+                            ...current[selectedPlatform.id],
+                            password: event.target.value,
+                          },
+                        }))
+                      }
+                      disabled={!canManage}
+                      placeholder="填写软文街登录密码"
+                    />
+                    <small className="personal-meta">
+                      软文街会复用这三项品牌共享凭证获取 token；文档里的 `identity / captcha_token / captcha` 将按示例固定补成 `advertiser`，不需要你额外填写。
+                    </small>
+                  </label>
+                </>
+              ) : (
+                <label className="field">
+                  <span>{selectedPlatformIsChanjing ? "蝉镜凭证" : "API Key"}</span>
+                  <input
+                    type="password"
+                    value={selectedDraft.apiKey}
+                    onChange={(event) =>
+                      setDrafts((current) => ({
+                        ...current,
+                        [selectedPlatform.id]: {
+                          ...current[selectedPlatform.id],
+                          apiKey: event.target.value,
+                        },
+                      }))
+                    }
+                    disabled={!canManage}
+                    placeholder={selectedPlatformIsChanjing ? "按 appId::secretKey 格式填写蝉镜凭证" : "填写当前品牌在该平台使用的共享 API Key"}
+                  />
+                  <small className="personal-meta">
+                    {selectedPlatformIsChanjing
+                      ? "蝉镜平台当前复用单字段存储，请填写 `appId::secretKey`；系统会在服务端自动换取 access_token，不需要手动填写 token。"
+                      : isDuoyuanxPlatform(selectedPlatform)
+                        ? "多元探索是统一网关型平台，当前品牌只需要维护一份平台 Key；后台的文本、图像、视频、音频、音乐供应商会共用这份品牌共享 Key。"
+                        : "该字段是当前品牌共享值，同品牌下有编辑权限的管理员维护的是同一份 Key，不会影响后台平台基线。"}
+                  </small>
+                </label>
+              )}
 
               <div className="field">
-                <span>{selectedPlatformIsChanjing ? "动态统计" : "大模型 ID"}</span>
+                <span>{selectedPlatformIsChanjing ? "动态统计" : selectedPlatformIsRuanwenjie ? "投放说明" : selectedPlatformIsVideoRemix ? "能力说明" : "大模型 ID"}</span>
                 <div className="admin-provider-chip-row" style={{ marginTop: 8 }}>
                   {selectedPlatformIsChanjing ? (
                     <>
                       <span className="admin-provider-chip">模板 {selectedPlatform.dynamicStats?.templateCount ?? "-"}</span>
                       <span className="admin-provider-chip">数字人 {selectedPlatform.dynamicStats?.customPersonCount ?? "-"}</span>
                       <span className="admin-provider-chip">标签 {selectedPlatform.dynamicStats?.tagCount ?? "-"}</span>
+                    </>
+                  ) : selectedPlatformIsRuanwenjie ? (
+                    <>
+                      <span className="admin-provider-chip">拉媒体列表</span>
+                      <span className="admin-provider-chip">选 GEO 文章</span>
+                      <span className="admin-provider-chip">提交投放订单</span>
+                    </>
+                  ) : selectedPlatformIsVideoRemix ? (
+                    <>
+                      <span className="admin-provider-chip">上传素材</span>
+                      <span className="admin-provider-chip">发起混剪</span>
+                      <span className="admin-provider-chip">轮询进度</span>
+                      <span className="admin-provider-chip">导出剪映草稿</span>
                     </>
                   ) : selectedPlatform.modelIds.length ? (
                     selectedPlatform.modelIds.map((model) => (

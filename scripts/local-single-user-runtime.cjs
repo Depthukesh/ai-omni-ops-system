@@ -3,15 +3,27 @@ const os = require("node:os");
 const path = require("node:path");
 const net = require("node:net");
 const { spawn } = require("node:child_process");
+const { resolveEffectiveLocalRoot } = require("./local-single-user-launch-settings.cjs");
+const { resolvePowerShellExecutable } = require("./local-single-user-platform.cjs");
 
 const projectRoot = fs.realpathSync.native(path.resolve(__dirname, ".."));
 const DEFAULT_WEB_PORT = 3001;
 const DEFAULT_API_PORT = 3011;
+const LOCAL_SINGLE_USER_LIFECYCLE_FILE = "local-single-user-lifecycle.json";
 
 function resolveLocalAppRoot(env = process.env) {
   const explicit = String(env.LOCAL_APP_DATA_ROOT || env.AI_OMNI_LOCAL_ROOT || "").trim();
   if (explicit) {
     return path.resolve(explicit);
+  }
+
+  try {
+    const configuredRoot = String(resolveEffectiveLocalRoot(env) || "").trim();
+    if (configuredRoot) {
+      return path.resolve(configuredRoot);
+    }
+  } catch {
+    // Fall back to platform defaults when launcher settings are unreadable.
   }
 
   if (process.platform === "win32" && env.APPDATA) {
@@ -59,6 +71,33 @@ function ensureLocalDirectories(env = process.env) {
     fs.mkdirSync(targetPath, { recursive: true });
   });
   return paths;
+}
+
+function getLifecycleStatePath(env = process.env) {
+  return path.join(resolveLocalPaths(env).runtimeRoot, LOCAL_SINGLE_USER_LIFECYCLE_FILE);
+}
+
+function readLifecycleState(env = process.env) {
+  const statePath = getLifecycleStatePath(env);
+  if (!fs.existsSync(statePath)) {
+    return null;
+  }
+  try {
+    return JSON.parse(fs.readFileSync(statePath, "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+function writeLifecycleState(snapshot, env = process.env) {
+  const paths = ensureLocalDirectories(env);
+  const statePath = path.join(paths.runtimeRoot, LOCAL_SINGLE_USER_LIFECYCLE_FILE);
+  const payload = {
+    updatedAt: new Date().toISOString(),
+    ...snapshot,
+  };
+  fs.writeFileSync(statePath, JSON.stringify(payload, null, 2), "utf8");
+  return statePath;
 }
 
 function toPrismaSqliteUrl(filePath) {
@@ -145,7 +184,7 @@ async function findAvailablePort(startPort, host = "127.0.0.1") {
 
 function openBrowser(url) {
   if (process.platform === "win32") {
-    const child = spawn("powershell", ["-NoProfile", "-Command", "Start-Process", url], {
+    const child = spawn(resolvePowerShellExecutable(process.env), ["-NoProfile", "-Command", "Start-Process", url], {
       stdio: "ignore",
       windowsHide: true,
     });
@@ -185,9 +224,12 @@ module.exports = {
   openBrowser,
   probePort,
   projectRoot,
+  readLifecycleState,
   resolveLocalAppRoot,
   resolveLocalPaths,
   sleep,
   shouldAutoOpenBrowser,
   toPrismaSqliteUrl,
+  writeLifecycleState,
+  getLifecycleStatePath,
 };

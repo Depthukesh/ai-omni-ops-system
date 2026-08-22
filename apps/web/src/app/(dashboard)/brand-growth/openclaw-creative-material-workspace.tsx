@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { type OpenClawCreativeMaterialRecord } from "../../../services/openclaw";
+import { OpenClawCommentThread } from "./openclaw-comment-thread";
 
 type OptionalDateFormatter = (value?: string) => string;
 
@@ -20,6 +21,18 @@ export interface OpenClawCreativeMaterialWorkspaceProps {
 type PreviewKind = "image" | "video" | "audio" | "text" | "file";
 
 function getPreviewKind(item: OpenClawCreativeMaterialRecord): PreviewKind {
+  if (item.materialCategory === "image") {
+    return "image";
+  }
+  if (item.materialCategory === "video") {
+    return "video";
+  }
+  if (item.materialCategory === "audio") {
+    return "audio";
+  }
+  if (item.materialCategory === "text") {
+    return "text";
+  }
   const normalizedMimeType = String(item.mimeType || "").toLowerCase();
   const normalizedType = String(item.materialType || "").toLowerCase();
   const normalizedUrl = String(item.fileUrl || "").toLowerCase();
@@ -55,6 +68,10 @@ function getMaterialFileLabel(item: OpenClawCreativeMaterialRecord) {
     return `文本内容 ${item.textContent.length} 字`;
   }
   return "-";
+}
+
+function getMaterialTagLabel(item: OpenClawCreativeMaterialRecord) {
+  return item.materialTags.length ? item.materialTags : [item.materialType || "未分类"];
 }
 
 export function OpenClawCreativeMaterialWorkspace(props: OpenClawCreativeMaterialWorkspaceProps) {
@@ -96,10 +113,10 @@ export function OpenClawCreativeMaterialWorkspace(props: OpenClawCreativeMateria
               <thead>
                 <tr>
                   <th>标题</th>
-                  <th>描述</th>
-                  <th>素材类型</th>
-                  <th>素材文件</th>
-                  <th>生成时间</th>
+                  <th>素材标签</th>
+                  <th>素材来源</th>
+                  <th>入库时间</th>
+                  <th>存储位置</th>
                   <th>操作</th>
                 </tr>
               </thead>
@@ -110,13 +127,21 @@ export function OpenClawCreativeMaterialWorkspace(props: OpenClawCreativeMateria
                       <span className="openclaw-record-table__text" title={item.title}>{item.title || "-"}</span>
                     </td>
                     <td className="openclaw-record-table__text-cell">
-                      <span className="openclaw-record-table__text" title={item.description}>{item.description || "-"}</span>
+                      <div className="material-tag-list">
+                        {getMaterialTagLabel(item).map((tag) => (
+                          <span key={`${item.id}-${tag}`} className="material-tag-chip" title={tag}>
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
                     </td>
-                    <td>{item.materialType || "-"}</td>
                     <td className="openclaw-record-table__text-cell">
-                      <span className="openclaw-record-table__text" title={getMaterialFileLabel(item)}>{getMaterialFileLabel(item)}</span>
+                      <span className="openclaw-record-table__text" title={item.sourceLabel}>{item.sourceLabel}</span>
                     </td>
                     <td>{props.formatDateTime(item.createdAt)}</td>
+                    <td className="openclaw-record-table__text-cell">
+                      <span className="openclaw-record-table__text" title={item.localFilePath || "-"}>{item.localFilePath || "-"}</span>
+                    </td>
                     <td className="openclaw-record-table__action-cell">
                       <div className="openclaw-record-table__actions">
                         <button type="button" className="secondary-button" onClick={() => setSelectedMaterial(item)}>
@@ -146,15 +171,19 @@ export function OpenClawCreativeMaterialWorkspace(props: OpenClawCreativeMateria
             <div className="openclaw-diary-dialog__head">
               <div>
                 <strong>{selectedMaterial.title || "创作素材"}</strong>
-                <p>{selectedMaterial.materialType || "未标注类型"} · 只读查看</p>
+                <p>{selectedMaterial.sourceLabel} · {selectedMaterial.materialType || "未标注类型"}</p>
               </div>
               <button type="button" className="secondary-button" onClick={() => setSelectedMaterial(null)}>
                 关闭
               </button>
             </div>
             <div className="openclaw-diary-dialog__meta">
-              <span>生成时间：{props.formatDateTime(selectedMaterial.createdAt)}</span>
+              <span>入库时间：{props.formatDateTime(selectedMaterial.createdAt)}</span>
               <span>更新时间：{props.formatDateTime(selectedMaterial.updatedAt)}</span>
+            </div>
+            <div className="openclaw-diary-dialog__meta">
+              <span>素材标签：{getMaterialTagLabel(selectedMaterial).join(" / ")}</span>
+              <span>存储位置：{selectedMaterial.localFilePath || "当前记录未绑定本地副本"}</span>
             </div>
             {selectedMaterial.description ? (
               <div className="openclaw-diary-dialog__content">{selectedMaterial.description}</div>
@@ -186,11 +215,19 @@ export function OpenClawCreativeMaterialWorkspace(props: OpenClawCreativeMateria
             {selectedMaterial.fileUrl ? (
               <div className="openclaw-diary-dialog__meta">
                 <span>文件：{getMaterialFileLabel(selectedMaterial)}</span>
+                {selectedMaterial.storageKey ? <span>存储键：{selectedMaterial.storageKey}</span> : null}
                 <a href={selectedMaterial.fileUrl} target="_blank" rel="noreferrer" className="note-data-link">
                   新窗口打开
                 </a>
               </div>
             ) : null}
+            <OpenClawCommentThread
+              brandId={selectedMaterial.brandId}
+              workspaceScope={selectedMaterial.workspaceScope}
+              resourceType="creative_material"
+              resourceId={selectedMaterial.id}
+              formatDateTime={props.formatDateTime}
+            />
           </div>
         </div>
       ) : null}

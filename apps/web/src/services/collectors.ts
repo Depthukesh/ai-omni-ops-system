@@ -69,6 +69,9 @@ export type XhsCollectedTargetUserRecord = {
   userId?: string;
   nickname: string;
   noteTitle?: string;
+  sourceCommentId?: string;
+  commentText?: string;
+  matchedKeyword?: string;
   collectedAt: string;
   syncStatus: "IDLE" | "RUNNING" | "SUCCESS" | "FAILED";
   retryCount: number;
@@ -104,6 +107,7 @@ export type XhsCommentRecord = {
   commentTime?: string;
   commentUserName?: string;
   commentUserId?: string;
+  commentUserProfileUrl?: string;
   likeCount?: number;
   replyCount?: number;
   collectedAt: string;
@@ -275,9 +279,27 @@ export type DouyinCommentRecord = {
   commentTime?: string;
   commentUserName?: string;
   commentUserSecUserId: string;
+  commentUserProfileUrl?: string;
   likeCount?: number;
   replyCount?: number;
   collectedAt: string;
+};
+
+export type DouyinCollectedTargetUserRecord = {
+  id: string;
+  sourceUrl: string;
+  profileUrl?: string;
+  secUserId?: string;
+  nickname: string;
+  workTitle?: string;
+  sourceCommentId?: string;
+  commentText?: string;
+  matchedKeyword?: string;
+  collectedAt: string;
+  syncStatus: "IDLE" | "RUNNING" | "SUCCESS" | "FAILED";
+  retryCount: number;
+  nextRetryAt?: string;
+  lastError?: string;
 };
 
 export type DouyinCommentPageRequest = {
@@ -319,6 +341,7 @@ export type DouyinCollectionWorkspace = {
   searchWorks: DouyinCollectedWorkRecord[];
   keywordRecommendations: DouyinKeywordRecommendationRecord[];
   commentData: DouyinCommentRecord[];
+  targetUsers: DouyinCollectedTargetUserRecord[];
   lowFanExplosiveWorks: DouyinCollectedWorkRecord[];
   highCompletionRateWorks: DouyinCollectedWorkRecord[];
   highLikeRateWorks: DouyinCollectedWorkRecord[];
@@ -739,6 +762,7 @@ export const douyinCollectionSeed: DouyinCollectionWorkspace = {
   searchWorks: [],
   keywordRecommendations: [],
   commentData: [],
+  targetUsers: [],
   lowFanExplosiveWorks: [],
   highCompletionRateWorks: [],
   highLikeRateWorks: [],
@@ -763,6 +787,7 @@ export async function syncDouyinCollectionWorkspace(payload: DouyinSyncPayload =
       searchWorks: number;
       keywordRecommendations: number;
       commentData: number;
+      targetUsers: number;
       lowFanExplosiveWorks: number;
       highCompletionRateWorks: number;
       highLikeRateWorks: number;
@@ -914,11 +939,25 @@ export async function getXiaohongshuCommentReplies(
   );
 }
 
-export async function syncXiaohongshuTargetUsers(sourceUrls: string[], brandId?: string) {
-  return jsonRequest<{ syncedCount: number; workspace: XhsCollectionWorkspace }>(
+export async function syncXiaohongshuTargetUsers(
+  payload: { sourceUrls?: string[]; matchKeywords?: string[]; syncCommentsFirst?: boolean } = {},
+  brandId?: string,
+) {
+  return jsonRequest<{ syncedCount: number; warnings?: string[]; workspace: XhsCollectionWorkspace }>(
     `/collectors/xiaohongshu/brands/${resolveBrandId(brandId)}/target-users/sync`,
     "POST",
-    { sourceUrls },
+    payload,
+  );
+}
+
+export async function syncDouyinTargetUsers(
+  payload: { sourceUrls?: string[]; matchKeywords?: string[]; syncCommentsFirst?: boolean } = {},
+  brandId?: string,
+) {
+  return jsonRequest<{ syncedCount: number; warnings?: string[]; workspace: DouyinCollectionWorkspace }>(
+    `/collectors/douyin/brands/${resolveBrandId(brandId)}/target-users/sync`,
+    "POST",
+    payload,
   );
 }
 

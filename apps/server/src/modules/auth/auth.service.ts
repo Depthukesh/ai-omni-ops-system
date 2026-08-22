@@ -1,7 +1,7 @@
 import { createHash, createHmac, randomBytes, randomUUID, scryptSync, timingSafeEqual } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { extname, resolve } from "node:path";
-import { BadRequestException, ConflictException, Injectable, NotFoundException, UnauthorizedException } from "@nestjs/common";
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException, UnauthorizedException } from "@nestjs/common";
 import { BrandMemberRole, BrandMemberStatus, SystemRole } from "@prisma/client";
 import {
   getBrandRolePermissionMap,
@@ -14,6 +14,11 @@ import {
   type BrandPermissionKey,
   type BrandPermissionMap,
 } from "../../../../../packages/shared/src/brand-permissions";
+import {
+  USER_ACCESS_FEATURE_KEYS,
+  parseUserAccessFeatureKeysJson,
+  type UserAccessFeatureKey,
+} from "../../../../../packages/shared/src/user-access";
 import { createId, database } from "../../common/mock-data";
 import { AppConfigService } from "../../config/app-config.service";
 import {
@@ -74,6 +79,9 @@ export type RequestAuthContext = {
   sessionId?: string;
   brandId?: string;
   systemRole?: SystemRole | "USER";
+  accessExpiresAt?: string | null;
+  allowedFeatureKeys?: UserAccessFeatureKey[];
+  hasFullFeatureAccess?: boolean;
   source: "token" | "fallback";
 };
 
@@ -124,6 +132,9 @@ type RegistrationInviteCodeRecord = {
   updatedAt: string;
 };
 
+const DEFAULT_LOCAL_USER_ID = "local_default_user";
+const DEFAULT_LOCAL_BRAND_ID = "local_default_brand";
+
 function loadRegistrationInviteCodeRecords() {
   const candidates = [
     resolve(process.cwd(), "prisma/seed-data/registration-invite-codes.txt"),
@@ -163,6 +174,7 @@ const registrationInviteCodeRecords: RegistrationInviteCodeRecord[] = loadRegist
 export class AuthService {
   private readonly appConfigService = new AppConfigService();
   private readonly ossStorageService = new OssStorageService(this.appConfigService);
+  private registrationInviteCodeSeedPromise: Promise<void> | null = null;
 
   constructor(private readonly prismaService: PrismaService) {}
 
@@ -182,6 +194,7 @@ export class AuthService {
       if (!user || !passwordCheck.matched) {
         throw new UnauthorizedException("账号或密码错误");
       }
+      this.assertUserAccessAvailability(user);
 
       if (passwordCheck.needsUpgrade) {
         await this.prismaService.user.update({
@@ -221,6 +234,7 @@ export class AuthService {
     if (!user || user.password !== payload.password) {
       throw new UnauthorizedException("账号或密码错误");
     }
+    this.assertUserAccessAvailability(user);
 
     return {
       accessToken: this.signToken({ sub: user.id, typ: "access", exp: this.getUnixTime() + this.getAccessTokenTtlSeconds() }),
@@ -242,6 +256,7 @@ export class AuthService {
     this.assertRegisterPayload(normalizedPayload);
 
     if (await this.prismaService.canUseDatabase()) {
+      await this.ensureRegistrationInviteCodesSeeded();
       const exists = await this.prismaService.user.findFirst({
         where: {
           OR: [
@@ -420,6 +435,7 @@ export class AuthService {
     if (session.refreshTokenHash !== this.hashSessionToken(payload.refreshToken)) {
       throw new UnauthorizedException("refresh token 不匹配");
     }
+    this.assertUserAccessAvailability(session.user);
 
     await this.ensureOwnerBrandMemberships(session.userId);
     const brands = await this.listAccessibleBrands(session.userId);
@@ -434,8 +450,45 @@ export class AuthService {
     };
   }
 
+  async resumeLocalSingleUserSession() {
+    if (!this.appConfigService.isLocalSingleUserMode()) {
+      throw new UnauthorizedException("当前运行环境不支持本地账号续用");
+    }
+    if (!(await this.prismaService.canUseDatabase())) {
+      throw new UnauthorizedException("本地数据库暂不可用，请稍后重试");
+    }
+
+    const candidate = await this.findLatestLocalSingleUserResumeCandidate();
+    if (!candidate) {
+      throw new UnauthorizedException("当前没有可续用的本地账号，请先登录");
+    }
+
+    this.assertUserAccessAvailability(candidate.user);
+    await this.ensureOwnerBrandMemberships(candidate.user.id);
+    const brands = await this.listAccessibleBrands(candidate.user.id);
+    const currentBrandId = this.pickCurrentBrandId(brands, candidate.currentBrandId || undefined);
+    const tokens = await this.issueSessionTokens(candidate.user.id, currentBrandId);
+
+    await this.prismaService.user.update({
+      where: { id: candidate.user.id },
+      data: {
+        lastLoginAt: new Date(),
+      },
+    });
+
+    return {
+      ...tokens,
+      currentBrandId,
+      brands,
+      user: this.toPublicDatabaseUser(candidate.user),
+    };
+  }
+
   getRegisterConfig() {
     const inviteCodeRequired = this.shouldRequireRegistrationInviteCode();
+    if (inviteCodeRequired) {
+      void this.ensureRegistrationInviteCodesSeeded();
+    }
     return {
       runtimeMode: this.appConfigService.getRuntimeMode(),
       inviteCodeRequired,
@@ -466,7 +519,9 @@ export class AuthService {
       throw new UnauthorizedException("请先登录");
     }
     const currentUser = await this.resolveCurrentUser(undefined, auth);
-    const brands = await this.listAccessibleBrands(currentUser.id);
+    const brands = this.shouldUseFallbackProfileData(auth)
+      ? this.buildFallbackBrands(auth, currentUser.id)
+      : await this.listAccessibleBrands(currentUser.id);
     const currentBrandId = this.pickCurrentBrandId(brands, auth?.brandId);
 
     return {
@@ -481,7 +536,9 @@ export class AuthService {
       throw new UnauthorizedException("请先登录");
     }
     const currentUser = await this.resolveCurrentUser(undefined, auth);
-    const brands = await this.listAccessibleBrands(currentUser.id);
+    const brands = this.shouldUseFallbackProfileData(auth)
+      ? this.buildFallbackBrands(auth, currentUser.id)
+      : await this.listAccessibleBrands(currentUser.id);
     return {
       brands,
       currentBrandId: this.pickCurrentBrandId(brands, auth?.brandId),
@@ -564,6 +621,9 @@ export class AuthService {
 
   async getProfile(auth?: RequestAuthContext) {
     const currentUser = await this.resolveCurrentUser(undefined, auth);
+    if (this.shouldUseFallbackProfileData(auth)) {
+      return this.buildFallbackPublicUser(auth, currentUser.id);
+    }
     if (await this.prismaService.canUseDatabase()) {
       const user = await this.prismaService.user.findUnique({
         where: { id: currentUser.id },
@@ -953,7 +1013,46 @@ export class AuthService {
   }
 
   private shouldRequireRegistrationInviteCode() {
-    return !this.appConfigService.isLocalSingleUserMode();
+    return true;
+  }
+
+  private async ensureRegistrationInviteCodesSeeded() {
+    if (this.registrationInviteCodeSeedPromise) {
+      return this.registrationInviteCodeSeedPromise;
+    }
+
+    this.registrationInviteCodeSeedPromise = (async () => {
+      if (!(await this.prismaService.canUseDatabase())) {
+        return;
+      }
+
+      if (!registrationInviteCodeRecords.length) {
+        return;
+      }
+
+      const count = await this.prismaService.registrationInviteCode.count();
+      if (count >= registrationInviteCodeRecords.length) {
+        return;
+      }
+
+      await Promise.all(
+        registrationInviteCodeRecords.map((record) =>
+          this.prismaService.registrationInviteCode.upsert({
+            where: { code: record.code },
+            update: {},
+            create: {
+              code: record.code,
+            },
+          }),
+        ),
+      );
+    })();
+
+    try {
+      await this.registrationInviteCodeSeedPromise;
+    } finally {
+      this.registrationInviteCodeSeedPromise = null;
+    }
   }
 
   private assertUpdateProfilePayload(payload: UpdateProfilePayload) {
@@ -1052,6 +1151,7 @@ export class AuthService {
   }
 
   private toPublicUser(user: (typeof database.users)[number]) {
+    const allowedFeatureKeys = parseUserAccessFeatureKeysJson(user.allowedFeatureKeysJson);
     return {
       id: user.id,
       mobile: user.mobile,
@@ -1062,6 +1162,9 @@ export class AuthService {
       status: user.status,
       membership: user.membership,
       systemRole: user.systemRole ?? "USER",
+      accessExpiresAt: user.accessExpiresAt ?? null,
+      allowedFeatureKeys,
+      hasFullFeatureAccess: !user.allowedFeatureKeysJson?.trim(),
       pointsBalance: user.pointsBalance,
     };
   }
@@ -1076,8 +1179,11 @@ export class AuthService {
     status: string;
     membership: string;
     systemRole?: string;
+    accessExpiresAt?: Date | null;
+    allowedFeatureKeysJson?: string | null;
     pointsBalance: number;
   }) {
+    const allowedFeatureKeys = parseUserAccessFeatureKeysJson(user.allowedFeatureKeysJson);
     return {
       id: user.id,
       mobile: user.mobile,
@@ -1088,6 +1194,9 @@ export class AuthService {
       status: user.status,
       membership: user.membership,
       systemRole: user.systemRole ?? "USER",
+      accessExpiresAt: user.accessExpiresAt?.toISOString() ?? null,
+      allowedFeatureKeys,
+      hasFullFeatureAccess: !user.allowedFeatureKeysJson?.trim(),
       pointsBalance: user.pointsBalance,
     };
   }
@@ -1109,57 +1218,163 @@ export class AuthService {
     if (parsed.typ !== "access" || !parsed.sub) {
       throw new UnauthorizedException("访问凭证无效");
     }
+    const requestedBrandId = this.readHeaderValue(headers, "x-brand-id") || parsed.bid || undefined;
 
     if (await this.prismaService.canUseDatabase()) {
-      const session = parsed.sid
-        ? await this.prismaService.userSession.findUnique({
-            where: { id: parsed.sid },
-            select: {
-              userId: true,
-              currentBrandId: true,
-              revokedAt: true,
-              expiresAt: true,
-            },
-          })
-        : null;
-      if (parsed.sid && (!session || session.userId !== parsed.sub || session.revokedAt || session.expiresAt.getTime() <= Date.now())) {
-        throw new UnauthorizedException("登录态已失效，请重新登录");
-      }
+      try {
+        const session = parsed.sid
+          ? await this.prismaService.userSession.findUnique({
+              where: { id: parsed.sid },
+              select: {
+                userId: true,
+                currentBrandId: true,
+                revokedAt: true,
+                expiresAt: true,
+              },
+            })
+          : null;
+        if (parsed.sid && (!session || session.userId !== parsed.sub || session.revokedAt || session.expiresAt.getTime() <= Date.now())) {
+          throw new UnauthorizedException("登录态已失效，请重新登录");
+        }
 
-      const user = await this.prismaService.user.findUnique({
-        where: { id: parsed.sub },
-        select: {
-          id: true,
-          systemRole: true,
-        },
-      });
-      if (!user) {
-        throw new UnauthorizedException("当前用户不存在");
-      }
+        const user = await this.prismaService.user.findUnique({
+          where: { id: parsed.sub },
+          select: {
+            id: true,
+            systemRole: true,
+            status: true,
+            accessExpiresAt: true,
+            allowedFeatureKeysJson: true,
+          },
+        });
+        if (!user) {
+          throw new UnauthorizedException("当前用户不存在");
+        }
+        this.assertUserAccessAvailability(user);
 
-      const requestedBrandId = this.readHeaderValue(headers, "x-brand-id") || parsed.bid || session?.currentBrandId || undefined;
-      const brands = await this.listAccessibleBrands(user.id);
-      const currentBrandId = this.pickCurrentBrandId(brands, requestedBrandId);
-      return {
-        userId: user.id,
-        sessionId: parsed.sid,
-        brandId: currentBrandId,
-        systemRole: user.systemRole,
-        source: "token",
-      };
+        const brands = await this.listAccessibleBrands(user.id);
+        const currentBrandId = this.pickCurrentBrandId(brands, requestedBrandId || session?.currentBrandId || undefined);
+        const authContext: RequestAuthContext = {
+          userId: user.id,
+          sessionId: parsed.sid,
+          brandId: currentBrandId,
+          systemRole: user.systemRole,
+          accessExpiresAt: user.accessExpiresAt?.toISOString() ?? null,
+          allowedFeatureKeys: parseUserAccessFeatureKeysJson(user.allowedFeatureKeysJson),
+          hasFullFeatureAccess: !user.allowedFeatureKeysJson?.trim(),
+          source: "token",
+        };
+        this.assertFeatureAccessFromHeaders(headers, authContext);
+        return authContext;
+      } catch (error) {
+        if (this.shouldFallbackToDefaultUserOnAuthError(error, options)) {
+          return this.resolveFallbackAuthContext({
+            preferredUserId: parsed.sub,
+            preferredBrandId: requestedBrandId,
+            sessionId: parsed.sid,
+          });
+        }
+        if (error instanceof UnauthorizedException) {
+          throw error;
+        }
+        throw error;
+      }
     }
 
     const user = database.users.find((item) => item.id === parsed.sub);
     if (!user) {
       throw new UnauthorizedException("当前用户不存在");
     }
+    this.assertUserAccessAvailability(user);
 
-    return {
+    const authContext: RequestAuthContext = {
       userId: user.id,
       sessionId: parsed.sid,
       brandId: this.readHeaderValue(headers, "x-brand-id") || parsed.bid || database.brands.find((item) => item.ownerUserId === user.id)?.id,
       systemRole: user.systemRole ?? "USER",
+      accessExpiresAt: user.accessExpiresAt ?? null,
+      allowedFeatureKeys: parseUserAccessFeatureKeysJson(user.allowedFeatureKeysJson),
+      hasFullFeatureAccess: !user.allowedFeatureKeysJson?.trim(),
       source: "token",
+    };
+    this.assertFeatureAccessFromHeaders(headers, authContext);
+    return authContext;
+  }
+
+  private async findLatestLocalSingleUserResumeCandidate() {
+    const now = new Date();
+    const latestRealSession = await this.prismaService.userSession.findFirst({
+      where: {
+        userId: {
+          not: DEFAULT_LOCAL_USER_ID,
+        },
+        revokedAt: null,
+        expiresAt: {
+          gt: now,
+        },
+        user: {
+          status: "ACTIVE",
+          OR: [
+            { accessExpiresAt: null },
+            { accessExpiresAt: { gt: now } },
+          ],
+        },
+      },
+      include: {
+        user: true,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    if (latestRealSession?.user) {
+      return {
+        user: latestRealSession.user,
+        currentBrandId: latestRealSession.currentBrandId || undefined,
+      };
+    }
+
+    const latestRealUser = await this.prismaService.user.findFirst({
+      where: {
+        id: {
+          not: DEFAULT_LOCAL_USER_ID,
+        },
+        status: "ACTIVE",
+        OR: [
+          { accessExpiresAt: null },
+          { accessExpiresAt: { gt: now } },
+        ],
+      },
+      orderBy: [
+        { lastLoginAt: "desc" },
+        { createdAt: "desc" },
+      ],
+    });
+
+    if (!latestRealUser) {
+      return null;
+    }
+
+    const latestUserSession = await this.prismaService.userSession.findFirst({
+      where: {
+        userId: latestRealUser.id,
+        revokedAt: null,
+        expiresAt: {
+          gt: now,
+        },
+      },
+      select: {
+        currentBrandId: true,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    return {
+      user: latestRealUser,
+      currentBrandId: latestUserSession?.currentBrandId || undefined,
     };
   }
 
@@ -1198,22 +1413,247 @@ export class AuthService {
     return { id: user.id };
   }
 
-  private async resolveFallbackAuthContext(): Promise<RequestAuthContext | undefined> {
-    const currentUser = await this.resolveCurrentUser(undefined, undefined, { allowDefaultFallback: true });
+  private async resolveFallbackAuthContext(options?: {
+    preferredUserId?: string;
+    preferredBrandId?: string;
+    sessionId?: string;
+  }): Promise<RequestAuthContext | undefined> {
+    const preferredUserId = String(options?.preferredUserId || "").trim();
+    let currentUser:
+      | {
+          id: string;
+        }
+      | undefined;
+    if (preferredUserId) {
+      try {
+        currentUser = await this.resolveCurrentUser(preferredUserId, undefined, { allowDefaultFallback: true });
+      } catch {
+        currentUser = undefined;
+      }
+    }
+    if (!currentUser) {
+      currentUser = await this.resolveCurrentUser(undefined, undefined, { allowDefaultFallback: true });
+    }
     const brands = await this.listAccessibleBrands(currentUser.id);
-    const user = database.users.find((item) => item.id === currentUser.id);
+    const currentBrandId = this.pickCurrentBrandId(brands, String(options?.preferredBrandId || "").trim() || undefined);
+    const user = await this.loadFallbackPublicUserSource(currentUser.id);
+    if (user) {
+      this.assertUserAccessAvailability(user);
+    }
     return {
       userId: currentUser.id,
-      brandId: this.pickCurrentBrandId(brands),
+      sessionId: options?.sessionId,
+      brandId: currentBrandId,
       source: "fallback",
       systemRole: user?.systemRole ?? "USER",
+      accessExpiresAt: this.readDateValue(user?.accessExpiresAt)?.toISOString() ?? null,
+      allowedFeatureKeys: parseUserAccessFeatureKeysJson(user?.allowedFeatureKeysJson),
+      hasFullFeatureAccess: !user?.allowedFeatureKeysJson?.trim(),
     };
+  }
+
+  private shouldFallbackToDefaultUserOnAuthError(
+    error: unknown,
+    options?: { fallbackToDefaultUser?: boolean },
+  ) {
+    if (!options?.fallbackToDefaultUser) {
+      return false;
+    }
+    if (!this.appConfigService.isLocalSingleUserMode()) {
+      return false;
+    }
+    const message = error instanceof Error ? error.message : String(error || "");
+    return [
+      "Socket timeout",
+      "database failed to respond",
+      "SQLITE_BUSY",
+      "SQLITE_LOCKED",
+      "Timed out during query execution",
+      "ConnectorError",
+      "当前用户不存在",
+      "登录态已失效",
+    ].some((keyword) => message.includes(keyword));
+  }
+
+  private shouldUseFallbackProfileData(auth?: RequestAuthContext) {
+    return Boolean(auth?.source === "fallback" && this.appConfigService.isLocalSingleUserMode());
+  }
+
+  private async buildFallbackPublicUser(auth: RequestAuthContext | undefined, userId?: string) {
+    const baseUser = await this.loadFallbackPublicUserSource(userId || "");
+    const publicBaseUser = baseUser
+      ? this.toPublicUser({
+          id: baseUser.id,
+          email: baseUser.email || "",
+          mobile: baseUser.mobile || "",
+          nickname: baseUser.nickname || "",
+          password: "",
+          avatarUrl: baseUser.avatarUrl || undefined,
+          emailVerifiedAt: new Date().toISOString(),
+          status: baseUser.status || "ACTIVE",
+          membership: baseUser.membership || "PRO",
+          pointsBalance: baseUser.pointsBalance || 0,
+          systemRole: baseUser.systemRole || "USER",
+          accessExpiresAt: this.readDateValue(baseUser.accessExpiresAt)?.toISOString(),
+          allowedFeatureKeysJson: baseUser.allowedFeatureKeysJson || "",
+        })
+      : this.toPublicUser(database.users[0]);
+    return {
+      ...publicBaseUser,
+      id: userId || baseUser?.id || "",
+      email: baseUser?.email || publicBaseUser.email || "",
+      nickname: auth?.source === "fallback" && this.appConfigService.isLocalSingleUserMode()
+        ? (baseUser?.nickname || "本地登录态用户")
+        : (baseUser?.nickname || publicBaseUser.nickname || ""),
+      systemRole: auth?.systemRole ?? baseUser?.systemRole ?? publicBaseUser.systemRole ?? "USER",
+      accessExpiresAt: auth?.accessExpiresAt ?? baseUser?.accessExpiresAt ?? publicBaseUser.accessExpiresAt ?? null,
+      allowedFeatureKeys: auth?.allowedFeatureKeys ?? parseUserAccessFeatureKeysJson(baseUser?.allowedFeatureKeysJson),
+      hasFullFeatureAccess: auth?.hasFullFeatureAccess ?? !baseUser?.allowedFeatureKeysJson?.trim(),
+    };
+  }
+
+  private async loadFallbackPublicUserSource(userId: string) {
+    if (await this.prismaService.canUseDatabase()) {
+      const user = await this.prismaService.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          email: true,
+          mobile: true,
+          nickname: true,
+          avatarUrl: true,
+          status: true,
+          membership: true,
+          systemRole: true,
+          accessExpiresAt: true,
+          allowedFeatureKeysJson: true,
+          pointsBalance: true,
+        },
+      });
+      if (user) {
+        return user;
+      }
+    }
+    const mockUser = database.users.find((item) => item.id === userId);
+    return mockUser
+      ? {
+          id: mockUser.id,
+          email: mockUser.email || "",
+          mobile: mockUser.mobile || "",
+          nickname: mockUser.nickname || "",
+          avatarUrl: mockUser.avatarUrl || null,
+          status: mockUser.status || null,
+          membership: mockUser.membership || null,
+          systemRole: mockUser.systemRole || "USER",
+          accessExpiresAt: mockUser.accessExpiresAt || null,
+          allowedFeatureKeysJson: mockUser.allowedFeatureKeysJson || "",
+          pointsBalance: mockUser.pointsBalance || 0,
+        }
+      : null;
+  }
+
+  private assertUserAccessAvailability(user: {
+    status?: string | null;
+    accessExpiresAt?: Date | string | null;
+  }) {
+    if (user.status && user.status !== "ACTIVE") {
+      throw new UnauthorizedException("当前账号已被停用，请联系管理员");
+    }
+
+    const expiresAt = this.readDateValue(user.accessExpiresAt);
+    if (expiresAt && expiresAt.getTime() <= Date.now()) {
+      throw new UnauthorizedException("当前账号使用期限已到期，请联系管理员");
+    }
+  }
+
+  private readDateValue(value: Date | string | null | undefined) {
+    if (!value) {
+      return null;
+    }
+    const date = value instanceof Date ? value : new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  private assertFeatureAccessFromHeaders(
+    headers: Record<string, string | string[] | undefined> | undefined,
+    auth: RequestAuthContext,
+  ) {
+    const requiredFeatureKey = this.resolveRequiredFeatureKeyFromHeaders(headers);
+    if (!requiredFeatureKey) {
+      return;
+    }
+    this.assertFeatureAccess(auth, requiredFeatureKey);
+  }
+
+  private resolveRequiredFeatureKeyFromHeaders(headers?: Record<string, string | string[] | undefined>) {
+    const rawPath = this.readHeaderValue(headers, "x-app-path")
+      || this.extractPathnameFromUrl(this.readHeaderValue(headers, "referer"))
+      || "";
+    const pathname = rawPath.split("?")[0];
+    if (!pathname) {
+      return undefined;
+    }
+
+    if (pathname.startsWith("/admin")) {
+      return USER_ACCESS_FEATURE_KEYS.ADMIN_CONSOLE;
+    }
+    if (pathname.startsWith("/personal-center/openclaw")) {
+      return USER_ACCESS_FEATURE_KEYS.OPENCLAW;
+    }
+    if (
+      pathname.startsWith("/personal-center")
+      || pathname.startsWith("/membership-purchase")
+      || pathname.startsWith("/points-purchase")
+      || pathname.startsWith("/orders/")
+    ) {
+      return USER_ACCESS_FEATURE_KEYS.PERSONAL_CENTER;
+    }
+    if (pathname.startsWith("/brand-growth")) {
+      return USER_ACCESS_FEATURE_KEYS.BRAND_GROWTH;
+    }
+    if (pathname.startsWith("/xiaohongshu")) {
+      return USER_ACCESS_FEATURE_KEYS.XIAOHONGSHU;
+    }
+    if (pathname.startsWith("/douyin")) {
+      return USER_ACCESS_FEATURE_KEYS.DOUYIN;
+    }
+    if (pathname.startsWith("/wechat")) {
+      return USER_ACCESS_FEATURE_KEYS.WECHAT;
+    }
+    if (pathname.startsWith("/more-features/design")) {
+      return USER_ACCESS_FEATURE_KEYS.DESIGN;
+    }
+    return undefined;
+  }
+
+  assertFeatureAccess(auth: RequestAuthContext | undefined, requiredFeatureKey: UserAccessFeatureKey) {
+    if (!auth?.userId) {
+      throw new UnauthorizedException("请先登录");
+    }
+    if (auth.hasFullFeatureAccess) {
+      return;
+    }
+    const allowedFeatureKeys = auth.allowedFeatureKeys || [];
+    if (allowedFeatureKeys.includes(requiredFeatureKey)) {
+      return;
+    }
+    throw new ForbiddenException("当前账号无权使用该功能，请联系管理员开通权限");
+  }
+
+  private extractPathnameFromUrl(value: string | undefined) {
+    if (!value) {
+      return "";
+    }
+    try {
+      return new URL(value).pathname;
+    } catch {
+      return value;
+    }
   }
 
   private async listAccessibleBrands(userId: string) {
     if (await this.prismaService.canUseDatabase()) {
-      await this.ensureOwnerBrandMemberships(userId);
-      const memberships = await this.prismaService.brandMember.findMany({
+      let memberships = await this.prismaService.brandMember.findMany({
         where: {
           userId,
           status: BrandMemberStatus.ACTIVE,
@@ -1231,6 +1671,27 @@ export class AuthService {
           joinedAt: "asc",
         },
       });
+
+      if (!memberships.length && (await this.ensureOwnerBrandMemberships(userId))) {
+        memberships = await this.prismaService.brandMember.findMany({
+          where: {
+            userId,
+            status: BrandMemberStatus.ACTIVE,
+          },
+          include: {
+            brand: {
+              select: {
+                id: true,
+                brandName: true,
+                industry: true,
+              },
+            },
+          },
+          orderBy: {
+            joinedAt: "asc",
+          },
+        });
+      }
 
       const normalizedMemberships = this.normalizeAccessibleBrandMemberships(memberships);
       return normalizedMemberships.map((item) => ({
@@ -1263,6 +1724,32 @@ export class AuthService {
       }));
   }
 
+  private buildFallbackBrands(auth: RequestAuthContext | undefined, userId: string) {
+    const preferredBrandId = String(auth?.brandId || "").trim();
+    if (preferredBrandId) {
+      return [
+        {
+          id: preferredBrandId,
+          brandName: "当前品牌",
+          industry: "本地登录态",
+          role: "ADMIN",
+        },
+      ];
+    }
+    const mockBrands = this.listMockBrands(userId);
+    if (mockBrands.length) {
+      return mockBrands;
+    }
+    return [
+      {
+        id: DEFAULT_LOCAL_BRAND_ID,
+        brandName: "当前品牌",
+        industry: "本地登录态",
+        role: "ADMIN",
+      },
+    ];
+  }
+
   private async loadBrandAccess(brandId: string, userId: string): Promise<{
     userId: string;
     brandId: string;
@@ -1273,8 +1760,7 @@ export class AuthService {
     permissions: BrandPermissionMap;
   }> {
     if (await this.prismaService.canUseDatabase()) {
-      await this.ensureOwnerBrandMemberships(userId);
-      const membership = await this.prismaService.brandMember.findFirst({
+      let membership = await this.prismaService.brandMember.findFirst({
         where: {
           brandId,
           userId,
@@ -1290,6 +1776,24 @@ export class AuthService {
           },
         },
       });
+      if (!membership && (await this.ensureOwnerBrandMemberships(userId, { brandId }))) {
+        membership = await this.prismaService.brandMember.findFirst({
+          where: {
+            brandId,
+            userId,
+            status: BrandMemberStatus.ACTIVE,
+          },
+          include: {
+            brand: {
+              select: {
+                id: true,
+                ownerUserId: true,
+                memberPermissionsJson: true,
+              },
+            },
+          },
+        });
+      }
       if (!membership) {
         throw new UnauthorizedException("当前账号无权访问该品牌");
       }
@@ -1331,38 +1835,69 @@ export class AuthService {
     return brands[0]?.id;
   }
 
-  private async ensureOwnerBrandMemberships(userId: string) {
+  private async ensureOwnerBrandMemberships(userId: string, options?: { brandId?: string }) {
     if (!(await this.prismaService.canUseDatabase())) {
-      return;
+      return false;
     }
 
     const ownedBrands = await this.prismaService.brand.findMany({
-      where: { ownerUserId: userId },
+      where: {
+        ownerUserId: userId,
+        ...(options?.brandId ? { id: options.brandId } : {}),
+      },
       select: { id: true },
     });
+    if (!ownedBrands.length) {
+      return false;
+    }
 
-    await Promise.all(
-      ownedBrands.map((brand) =>
-        this.prismaService.brandMember.upsert({
-          where: {
-            brandId_userId: {
-              brandId: brand.id,
-              userId,
-            },
-          },
-          create: {
-            brandId: brand.id,
+    const ownedBrandIds = ownedBrands.map((brand) => brand.id);
+    const existingMemberships = await this.prismaService.brandMember.findMany({
+      where: {
+        userId,
+        brandId: {
+          in: ownedBrandIds,
+        },
+      },
+      select: {
+        brandId: true,
+        role: true,
+        status: true,
+      },
+    });
+    const existingMembershipMap = new Map(existingMemberships.map((item) => [item.brandId, item]));
+    const brandsToRepair = ownedBrandIds.filter((brandId) => {
+      const membership = existingMembershipMap.get(brandId);
+      return !membership
+        || membership.role !== BrandMemberRole.OWNER
+        || membership.status !== BrandMemberStatus.ACTIVE;
+    });
+    if (!brandsToRepair.length) {
+      return false;
+    }
+
+    for (const brandId of brandsToRepair) {
+      await this.prismaService.brandMember.upsert({
+        where: {
+          brandId_userId: {
+            brandId,
             userId,
-            role: BrandMemberRole.OWNER,
-            status: BrandMemberStatus.ACTIVE,
           },
-          update: {
-            role: BrandMemberRole.OWNER,
-            status: BrandMemberStatus.ACTIVE,
-          },
-        }),
-      ),
-    );
+        },
+        create: {
+          brandId,
+          userId,
+          role: BrandMemberRole.OWNER,
+          status: BrandMemberStatus.ACTIVE,
+        },
+        update: {
+          role: BrandMemberRole.OWNER,
+          status: BrandMemberStatus.ACTIVE,
+        },
+      });
+    }
+
+    return true;
   }
 
   private async issueSessionTokens(userId: string, brandId?: string) {

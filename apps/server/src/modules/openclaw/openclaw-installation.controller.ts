@@ -13,7 +13,7 @@ export class OpenClawInstallationController {
 
   @Get("installation-hub")
   async getInstallationWorkspace(@Headers() headers: HeadersMap) {
-    const auth = await this.authService.resolveRequestAuthContext(headers);
+    const auth = await this.authService.resolveRequestAuthContext(headers, { fallbackToDefaultUser: true });
     if (!auth?.userId) {
       throw new UnauthorizedException("请先登录");
     }
@@ -25,7 +25,7 @@ export class OpenClawInstallationController {
     @Headers() headers: HeadersMap,
     @Body() payload?: { tokenName?: string; expiresInDays?: number },
   ) {
-    const auth = await this.authService.resolveRequestAuthContext(headers);
+    const auth = await this.authService.resolveRequestAuthContext(headers, { fallbackToDefaultUser: true });
     if (!auth?.userId) {
       throw new UnauthorizedException("请先登录");
     }
@@ -37,7 +37,7 @@ export class OpenClawInstallationController {
     @Headers() headers: HeadersMap,
     @Param("tokenId") tokenId: string,
   ) {
-    const auth = await this.authService.resolveRequestAuthContext(headers);
+    const auth = await this.authService.resolveRequestAuthContext(headers, { fallbackToDefaultUser: true });
     if (!auth?.userId) {
       throw new UnauthorizedException("请先登录");
     }
@@ -49,7 +49,7 @@ export class OpenClawInstallationController {
     @Headers() headers: HeadersMap,
     @Param("tokenId") tokenId: string,
   ) {
-    const auth = await this.authService.resolveRequestAuthContext(headers);
+    const auth = await this.authService.resolveRequestAuthContext(headers, { fallbackToDefaultUser: true });
     if (!auth?.userId) {
       throw new UnauthorizedException("请先登录");
     }
@@ -61,7 +61,7 @@ export class OpenClawInstallationController {
     @Headers() headers: HeadersMap,
     @Res() response: { setHeader(name: string, value: string): unknown; send(body: Buffer): unknown },
   ) {
-    const auth = await this.authService.resolveRequestAuthContext(headers);
+    const auth = await this.authService.resolveRequestAuthContext(headers, { fallbackToDefaultUser: true });
     if (!auth?.userId) {
       throw new UnauthorizedException("请先登录");
     }

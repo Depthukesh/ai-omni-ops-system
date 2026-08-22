@@ -10,10 +10,9 @@ import { brandInviteReadStateChangedEvent, buildPersonalCenterLoginPath } from "
 
 const primaryNavItems = [
   { href: "/brand-growth", label: "品牌增长策略", shortLabel: "策" },
-  { href: "/xiaohongshu", label: "某书", shortLabel: "书" },
-  { href: "/douyin", label: "某音/某号", shortLabel: "音" },
-  { href: "/wechat", label: "公众号", shortLabel: "公" },
-  { href: "/geo", label: "GEO", shortLabel: "G" },
+  { href: "/xiaohongshu", label: "内容获客", shortLabel: "客" },
+  { href: "/geo", label: "GEO获客", shortLabel: "G" },
+  { href: "/all-network-growth", label: "全网获客", shortLabel: "全" },
   { href: "/more-features", label: "更多功能", shortLabel: "更" },
   { href: "/personal-center", label: "个人中心", shortLabel: "我" },
 ];

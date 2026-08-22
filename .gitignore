@@ -20,5 +20,6 @@ __pycache__/
 .trae
 .tmp*
 .dbg
+workspace-notes
 prisma/dev.db
 apps/server/.dbg/

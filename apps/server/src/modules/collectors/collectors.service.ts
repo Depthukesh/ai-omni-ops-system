@@ -37,7 +37,7 @@ type CollectorNoteKind =
   | "XHS_BRAND_NOTE"
   | "XHS_BENCHMARK_NOTE"
   | "XHS_SEARCH_NOTE";
-type CollectorTargetKind = "XHS_TARGET_USER";
+type CollectorTargetKind = "XHS_TARGET_USER" | "DOUYIN_TARGET_USER";
 type CollectorAssetKind =
   | CollectorAccountKind
   | CollectorNoteKind
@@ -238,6 +238,11 @@ type DouyinSyncInput = {
   contentTagSelection?: DouyinContentTagSelection;
   cityCode?: number;
 };
+type CollectorTargetSyncInput = {
+  sourceUrls?: string[];
+  matchKeywords?: string[];
+  syncCommentsFirst?: boolean;
+};
 type DouyinResolvedAccountRecord = PlatformAccountRecord & {
   accountRole?: XhsAccountRole;
 };
@@ -400,6 +405,9 @@ export type XhsCollectedTargetUserRecord = {
   userId?: string;
   nickname: string;
   noteTitle?: string;
+  sourceCommentId?: string;
+  commentText?: string;
+  matchedKeyword?: string;
   collectedAt: string;
   syncStatus: CollectorSyncStatus;
   retryCount: number;
@@ -418,6 +426,7 @@ export type XhsCollectedCommentRecord = {
   commentTime?: string;
   commentUserName?: string;
   commentUserId?: string;
+  commentUserProfileUrl?: string;
   likeCount?: number;
   replyCount?: number;
   collectedAt: string;
@@ -574,9 +583,27 @@ export type DouyinCommentRecord = {
   commentTime?: string;
   commentUserName?: string;
   commentUserSecUserId: string;
+  commentUserProfileUrl?: string;
   likeCount?: number;
   replyCount?: number;
   collectedAt: string;
+};
+
+export type DouyinCollectedTargetUserRecord = {
+  id: string;
+  sourceUrl: string;
+  profileUrl?: string;
+  secUserId?: string;
+  nickname: string;
+  workTitle?: string;
+  sourceCommentId?: string;
+  commentText?: string;
+  matchedKeyword?: string;
+  collectedAt: string;
+  syncStatus: CollectorSyncStatus;
+  retryCount: number;
+  nextRetryAt?: string;
+  lastError?: string;
 };
 
 type DouyinCommentPageState = {
@@ -602,6 +629,7 @@ export type DouyinCollectionWorkspace = {
   searchWorks: DouyinCollectedWorkRecord[];
   keywordRecommendations: DouyinKeywordRecommendationRecord[];
   commentData: DouyinCommentRecord[];
+  targetUsers: DouyinCollectedTargetUserRecord[];
   lowFanExplosiveWorks: DouyinCollectedWorkRecord[];
   highCompletionRateWorks: DouyinCollectedWorkRecord[];
   highLikeRateWorks: DouyinCollectedWorkRecord[];
@@ -1256,17 +1284,57 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     return this.collectXhsSubComments(brandId, input);
   }
 
-  async syncTargetUsers(brandId: string, sourceUrls: string[]) {
+  async syncTargetUsers(brandId: string, input: CollectorTargetSyncInput | string[] = {}) {
     this.ensureBrandExistsInMockOrDatabase(brandId);
-    const rows = await this.mapWithConcurrency(
-      this.limitCollectorBatch(sourceUrls.filter(Boolean), this.collectorSyncBatchLimit, "xhs target users"),
-      this.collectorSyncConcurrency,
-      (url) => this.collectAndStoreTargetUser(brandId, url),
+    const normalizedInput = Array.isArray(input) ? { sourceUrls: input } : input;
+    const sourceUrls = this.limitCollectorBatch(
+      (normalizedInput.sourceUrls ?? [])
+        .map((item) => this.normalizeXhsShareText(String(item || "").trim()))
+        .filter(Boolean),
+      this.collectorSyncBatchLimit,
+      "xhs target users",
     );
+    if (!sourceUrls.length) {
+      throw new BadRequestException("请提供至少一条小红书作品链接或 note_id");
+    }
+    const matchKeywords = this.normalizeCommentMatchKeywords(normalizedInput.matchKeywords);
+    if (normalizedInput.syncCommentsFirst) {
+      await this.syncXhsCommentData(brandId, { sourceUrls });
+    }
+    const { rows, warnings } = await this.collectAndStoreTargetUsersFromComments(brandId, sourceUrls, matchKeywords);
     return {
       syncedCount: rows.filter((item) => item.syncStatus === "SUCCESS").length,
       items: rows,
+      warnings,
       workspace: await this.getXiaohongshuWorkspace(brandId),
+    };
+  }
+
+  async syncDouyinTargetUsers(brandId: string, input: CollectorTargetSyncInput = {}) {
+    this.ensureBrandExistsInMockOrDatabase(brandId);
+    const sourceUrls = this.limitCollectorBatch(
+      (input.sourceUrls ?? [])
+        .map((item) => String(item || "").trim())
+        .filter(Boolean),
+      this.collectorSyncBatchLimit,
+      "douyin target users",
+    );
+    if (!sourceUrls.length) {
+      throw new BadRequestException("请提供至少一条抖音作品链接或 aweme_id");
+    }
+    const matchKeywords = this.normalizeCommentMatchKeywords(input.matchKeywords);
+    if (input.syncCommentsFirst) {
+      await this.syncDouyinWorkspace(brandId, {
+        scope: "commentData",
+        commentSourceUrls: sourceUrls,
+      });
+    }
+    const { rows, warnings } = await this.collectAndStoreDouyinTargetUsersFromComments(brandId, sourceUrls, matchKeywords);
+    return {
+      syncedCount: rows.filter((item) => item.syncStatus === "SUCCESS").length,
+      items: rows,
+      warnings,
+      workspace: await this.getDouyinWorkspace(brandId),
     };
   }
 
@@ -1909,6 +1977,32 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
+  async fetchDouyinStoredMedia(brandId: string, assetId: string) {
+    const asset = await this.getCollectorAssetById(brandId, assetId);
+    const meta = this.asMeta(asset.metadataJson);
+    const kind = this.readMetaString(meta, "kind");
+    if (!this.isDouyinWorkKind(kind)) {
+      throw new NotFoundException("对应采集记录不包含抖音视频");
+    }
+    const storageKey = this.readMetaString(meta, "videoStorageKey");
+    const status = this.readMetaString(meta, "videoCacheStatus");
+    if (!storageKey || status !== "READY" || this.isIsoDateExpired(this.readMetaString(meta, "videoCacheExpiresAt"))) {
+      throw new NotFoundException("抖音视频预览不存在或已过期");
+    }
+    const file = await this.ossStorageService.getObject(storageKey);
+    if (!file) {
+      throw new NotFoundException("抖音视频预览不存在");
+    }
+    const storageFileName = storageKey.split("/").pop() || "";
+    const safeFileName =
+      this.sanitizeStoredFileName(storageFileName)
+      || `${this.sanitizeStoredFileName(this.readMetaString(meta, "workId")) || asset.id}.mp4`;
+    return {
+      ...file,
+      fileName: safeFileName,
+    };
+  }
+
   private async cacheXhsNoteMediaBundle(brandId: string, noteId: string, imageUrls: string[], videoUrl?: string) {
     const cachedImages: string[] = [];
     for (const [index, sourceUrl] of imageUrls.entries()) {
@@ -2163,6 +2257,9 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     const commentData = assets
       .filter((item) => item.metadataJson?.kind === "DOUYIN_COMMENT")
       .map((item) => this.mapDouyinComment(item));
+    const targetUsers = assets
+      .filter((item) => item.metadataJson?.kind === "DOUYIN_TARGET_USER")
+      .map((item) => this.mapDouyinTargetUser(item));
     const lowFanExplosiveWorks = assets
       .filter((item) => item.metadataJson?.kind === "DOUYIN_LOW_FAN_EXPLOSIVE_WORK")
       .map((item) => this.mapDouyinCollectedWork(item, "DOUYIN_LOW_FAN_EXPLOSIVE_WORK"));
@@ -2186,6 +2283,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       searchWorks,
       keywordRecommendations,
       commentData,
+      targetUsers,
       lowFanExplosiveWorks,
       highCompletionRateWorks,
       highLikeRateWorks,
@@ -2431,6 +2529,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       commentTime: this.readMetaString(meta, "commentTime") || undefined,
       commentUserName: this.readMetaString(meta, "commentUserName") || undefined,
       commentUserSecUserId: this.readMetaString(meta, "commentUserSecUserId"),
+      commentUserProfileUrl: this.readMetaString(meta, "commentUserProfileUrl") || undefined,
       likeCount: this.readMetaNumber(meta, "likeCount"),
       replyCount: this.readMetaNumber(meta, "replyCount"),
       collectedAt: this.readMetaString(meta, "collectedAt") || new Date().toISOString(),
@@ -2478,6 +2577,9 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     }
     if (!storageKey || this.isIsoDateExpired(expiresAt)) {
       return undefined;
+    }
+    if (this.ossStorageService.isUsingLocalFallback()) {
+      return this.buildDouyinVideoAssetUrl(asset.brandId, asset.id);
     }
     if (!this.ossStorageService.isEnabled()) {
       return undefined;
@@ -2820,6 +2922,29 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       userId: this.readMetaString(meta, "userId") || undefined,
       nickname: asset.title,
       noteTitle: this.readMetaString(meta, "noteTitle") || undefined,
+      sourceCommentId: this.readMetaString(meta, "sourceCommentId") || undefined,
+      commentText: this.readMetaString(meta, "commentText") || undefined,
+      matchedKeyword: this.readMetaString(meta, "matchedKeyword") || undefined,
+      collectedAt: this.readMetaString(meta, "collectedAt") || new Date().toISOString(),
+      syncStatus: (this.readMetaString(meta, "syncStatus") as CollectorSyncStatus) || "FAILED",
+      retryCount: this.readMetaNumber(meta, "retryCount") ?? 0,
+      nextRetryAt: this.readMetaString(meta, "nextRetryAt") || undefined,
+      lastError: this.readMetaString(meta, "lastError") || undefined,
+    };
+  }
+
+  private mapDouyinTargetUser(asset: AssetRecord): DouyinCollectedTargetUserRecord {
+    const meta = this.asMeta(asset.metadataJson);
+    return {
+      id: asset.id,
+      sourceUrl: this.readMetaString(meta, "sourceUrl"),
+      profileUrl: this.readMetaString(meta, "profileUrl") || undefined,
+      secUserId: this.readMetaString(meta, "secUserId") || undefined,
+      nickname: asset.title,
+      workTitle: this.readMetaString(meta, "workTitle") || undefined,
+      sourceCommentId: this.readMetaString(meta, "sourceCommentId") || undefined,
+      commentText: this.readMetaString(meta, "commentText") || undefined,
+      matchedKeyword: this.readMetaString(meta, "matchedKeyword") || undefined,
       collectedAt: this.readMetaString(meta, "collectedAt") || new Date().toISOString(),
       syncStatus: (this.readMetaString(meta, "syncStatus") as CollectorSyncStatus) || "FAILED",
       retryCount: this.readMetaNumber(meta, "retryCount") ?? 0,
@@ -2841,6 +2966,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       commentTime: this.readMetaString(meta, "commentTime") || undefined,
       commentUserName: this.readMetaString(meta, "commentUserName") || undefined,
       commentUserId: this.readMetaString(meta, "commentUserId") || undefined,
+      commentUserProfileUrl: this.readMetaString(meta, "commentUserProfileUrl") || undefined,
       likeCount: this.readMetaNumber(meta, "likeCount"),
       replyCount: this.readMetaNumber(meta, "replyCount"),
       collectedAt: this.readMetaString(meta, "collectedAt") || new Date().toISOString(),
@@ -4264,6 +4390,10 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     return `/api/collectors/xiaohongshu/brands/${encodeURIComponent(brandId)}/media/${encodeURIComponent(fileName)}`;
   }
 
+  private buildDouyinVideoAssetUrl(brandId: string, assetId: string) {
+    return `/api/collectors/douyin/brands/${encodeURIComponent(brandId)}/media/${encodeURIComponent(assetId)}`;
+  }
+
   private buildXhsNoteMediaFileName(
     noteId: string,
     mediaType: "image" | "video",
@@ -5251,6 +5381,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
           || this.pickString(item, ["nickname", "nick_name"])
           || undefined,
         commentUserSecUserId,
+        commentUserProfileUrl: this.buildDouyinUserUrl(commentUserSecUserId),
         likeCount: this.pickNumber(item, ["digg_count", "like_count", "likeCount"]),
         replyCount: this.pickNumber(item, ["reply_comment_total", "reply_count", "replyCount"]),
         collectedAt,
@@ -5429,6 +5560,10 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       }
       const user = this.asMeta(item.user_info);
       const commentText = this.pickString(item, ["content", "text", "comment_content"]) || "";
+      const commentUserId =
+        this.pickString(user, ["user_id", "userid", "id"])
+        || this.pickString(item, ["user_id", "userid"])
+        || undefined;
       const metadata = {
         kind: "XHS_NOTE_COMMENT" as const,
         sourceAccountId: `${noteId}:${commentId}`,
@@ -5444,10 +5579,8 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
           this.pickString(user, ["nickname", "name"])
           || this.pickString(item, ["nickname", "user_name"])
           || undefined,
-        commentUserId:
-          this.pickString(user, ["user_id", "userid", "id"])
-          || this.pickString(item, ["user_id", "userid"])
-          || undefined,
+        commentUserId,
+        commentUserProfileUrl: commentUserId ? this.buildXhsProfileUrl(commentUserId) : undefined,
         likeCount: this.pickNumber(item, ["like_count", "liked_count", "likes"]),
         replyCount: this.pickNumber(item, ["sub_comment_count", "reply_count", "replyCount"]),
         collectedAt,
@@ -5795,34 +5928,227 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     return rows;
   }
 
-  private async collectAndStoreTargetUser(brandId: string, sourceUrl: string): Promise<XhsCollectedTargetUserRecord> {
-    const collectedAt = new Date().toISOString();
-    const nextRetryAt = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
-
-    try {
-      throw new Error("缺少 1.5 目标用户接口的可访问文档链接，当前先记录重试任务");
-    } catch (error) {
-      const asset = await this.upsertTargetAsset({
-        brandId,
-        matchValue: sourceUrl,
-        title: "待采集目标用户",
-        description: "等待对接目标用户接口",
-        metadata: {
-          kind: "XHS_TARGET_USER",
-          sourceUrl,
-          profileUrl: undefined,
-          userId: undefined,
-          noteTitle: undefined,
-          collectedAt,
-          syncStatus: "FAILED",
-          retryCount: 1,
-          nextRetryAt,
-          lastError: error instanceof Error ? error.message : "采集失败",
-        },
-      });
-
-      return this.mapCollectedTargetUser(asset);
+  private async collectAndStoreTargetUsersFromComments(
+    brandId: string,
+    sourceUrls: string[],
+    matchKeywords: string[],
+  ): Promise<{ rows: XhsCollectedTargetUserRecord[]; warnings: string[] }> {
+    const assets = await this.listCollectorAssets(brandId);
+    const noteTitleById = new Map<string, string>();
+    for (const asset of assets) {
+      const meta = this.asMeta(asset.metadataJson);
+      const kind = this.readMetaString(meta, "kind");
+      if (kind !== "XHS_BRAND_NOTE" && kind !== "XHS_BENCHMARK_NOTE" && kind !== "XHS_SEARCH_NOTE") {
+        continue;
+      }
+      const noteId = this.readMetaString(meta, "noteId");
+      if (noteId && !noteTitleById.has(noteId)) {
+        noteTitleById.set(noteId, asset.title);
+      }
     }
+
+    const rows: XhsCollectedTargetUserRecord[] = [];
+    const warnings: string[] = [];
+    const emittedKeys = new Set<string>();
+
+    for (const sourceUrl of sourceUrls) {
+      const noteQuery = this.resolveXhsNoteQuery(sourceUrl);
+      const noteId = noteQuery.noteId || this.extractNoteIdFromUrl(sourceUrl);
+      const matchedComments = assets
+        .filter((asset) => this.readMetaString(this.asMeta(asset.metadataJson), "kind") === "XHS_NOTE_COMMENT")
+        .map((asset) => this.mapXhsComment(asset))
+        .filter((item) =>
+          (noteId && item.noteId === noteId)
+          || item.sourceUrl === sourceUrl
+          || item.noteUrl === sourceUrl,
+        );
+
+      if (!matchedComments.length) {
+        warnings.push(`小红书作品 ${sourceUrl} 还没有可用于提取目标用户的评论数据`);
+        continue;
+      }
+
+      const emittedBefore = rows.length;
+      for (const comment of matchedComments) {
+        const commentUserId = String(comment.commentUserId || "").trim();
+        if (!commentUserId) {
+          continue;
+        }
+        const matchedKeyword = this.matchCommentKeyword(
+          [comment.commentText, comment.commentUserName, comment.commentUserId],
+          matchKeywords,
+        );
+        if (matchKeywords.length && !matchedKeyword) {
+          continue;
+        }
+
+        const identity = `${sourceUrl}:${commentUserId}`;
+        if (emittedKeys.has(identity)) {
+          continue;
+        }
+
+        const collectedAt = new Date().toISOString();
+        const asset = await this.upsertTargetAsset({
+          kind: "XHS_TARGET_USER",
+          brandId,
+          matchValue: identity,
+          title: comment.commentUserName || `小红书用户 ${commentUserId}`,
+          description: noteId ? `来自笔记 ${noteId} 的评论匹配` : "来自评论匹配",
+          metadata: {
+            kind: "XHS_TARGET_USER",
+            sourceAccountId: identity,
+            sourceUrl,
+            profileUrl: comment.commentUserProfileUrl || this.buildXhsProfileUrl(commentUserId),
+            userId: commentUserId,
+            noteTitle: noteId ? noteTitleById.get(noteId) : undefined,
+            sourceCommentId: comment.commentId,
+            commentText: comment.commentText,
+            matchedKeyword: matchedKeyword || undefined,
+            collectedAt,
+            syncStatus: "SUCCESS",
+            retryCount: 0,
+          },
+        });
+        rows.push(this.mapCollectedTargetUser(asset));
+        emittedKeys.add(identity);
+      }
+
+      if (rows.length === emittedBefore) {
+        warnings.push(
+          matchKeywords.length
+            ? `小红书作品 ${sourceUrl} 的评论里没有命中关键词的目标用户`
+            : `小红书作品 ${sourceUrl} 的评论里没有可提取主页链接的用户`,
+        );
+      }
+    }
+
+    return { rows, warnings };
+  }
+
+  private async collectAndStoreDouyinTargetUsersFromComments(
+    brandId: string,
+    sourceUrls: string[],
+    matchKeywords: string[],
+  ): Promise<{ rows: DouyinCollectedTargetUserRecord[]; warnings: string[] }> {
+    const assets = await this.listCollectorAssets(brandId);
+    const workTitleById = new Map<string, string>();
+    for (const asset of assets) {
+      const meta = this.asMeta(asset.metadataJson);
+      const kind = this.readMetaString(meta, "kind");
+      if (
+        kind !== "DOUYIN_BRAND_WORK"
+        && kind !== "DOUYIN_COMPETITOR_WORK"
+        && kind !== "DOUYIN_BENCHMARK_WORK"
+        && kind !== "DOUYIN_SEARCH_WORK"
+      ) {
+        continue;
+      }
+      const workId = this.readMetaString(meta, "workId");
+      if (workId && !workTitleById.has(workId)) {
+        workTitleById.set(workId, asset.title);
+      }
+    }
+
+    const rows: DouyinCollectedTargetUserRecord[] = [];
+    const warnings: string[] = [];
+    const emittedKeys = new Set<string>();
+
+    for (const sourceUrl of sourceUrls) {
+      const workId = this.normalizeDouyinAwemeId(sourceUrl);
+      const matchedComments = assets
+        .filter((asset) => this.readMetaString(this.asMeta(asset.metadataJson), "kind") === "DOUYIN_COMMENT")
+        .map((asset) => this.mapDouyinComment(asset))
+        .filter((item) =>
+          (workId && item.sourceWorkId === workId)
+          || item.sourceWorkUrl === sourceUrl,
+        );
+
+      if (!matchedComments.length) {
+        warnings.push(`抖音作品 ${sourceUrl} 还没有可用于提取目标用户的评论数据`);
+        continue;
+      }
+
+      const emittedBefore = rows.length;
+      for (const comment of matchedComments) {
+        const secUserId = String(comment.commentUserSecUserId || "").trim();
+        if (!secUserId) {
+          continue;
+        }
+        const matchedKeyword = this.matchCommentKeyword(
+          [comment.commentText, comment.commentUserName, comment.commentUserSecUserId],
+          matchKeywords,
+        );
+        if (matchKeywords.length && !matchedKeyword) {
+          continue;
+        }
+
+        const identity = `${sourceUrl}:${secUserId}`;
+        if (emittedKeys.has(identity)) {
+          continue;
+        }
+
+        const collectedAt = new Date().toISOString();
+        const asset = await this.upsertTargetAsset({
+          kind: "DOUYIN_TARGET_USER",
+          brandId,
+          matchValue: identity,
+          title: comment.commentUserName || `抖音用户 ${secUserId}`,
+          description: workId ? `来自作品 ${workId} 的评论匹配` : "来自评论匹配",
+          metadata: {
+            kind: "DOUYIN_TARGET_USER",
+            sourceAccountId: identity,
+            sourceUrl,
+            profileUrl: comment.commentUserProfileUrl || this.buildDouyinUserUrl(secUserId),
+            secUserId,
+            workTitle: workId ? workTitleById.get(workId) : undefined,
+            sourceCommentId: comment.commentId,
+            commentText: comment.commentText,
+            matchedKeyword: matchedKeyword || undefined,
+            collectedAt,
+            syncStatus: "SUCCESS",
+            retryCount: 0,
+          },
+        });
+        rows.push(this.mapDouyinTargetUser(asset));
+        emittedKeys.add(identity);
+      }
+
+      if (rows.length === emittedBefore) {
+        warnings.push(
+          matchKeywords.length
+            ? `抖音作品 ${sourceUrl} 的评论里没有命中关键词的目标用户`
+            : `抖音作品 ${sourceUrl} 的评论里没有可提取主页链接的用户`,
+        );
+      }
+    }
+
+    return { rows, warnings };
+  }
+
+  private normalizeCommentMatchKeywords(values?: string[]) {
+    return Array.from(
+      new Set(
+        (values ?? [])
+          .map((item) => String(item || "").trim())
+          .filter(Boolean),
+      ),
+    );
+  }
+
+  private matchCommentKeyword(fields: Array<string | undefined>, keywords: string[]) {
+    if (!keywords.length) {
+      return "";
+    }
+    const normalizedFields = fields
+      .map((item) => String(item || "").trim().toLowerCase())
+      .filter(Boolean);
+    for (const keyword of keywords) {
+      const normalizedKeyword = keyword.toLowerCase();
+      if (normalizedFields.some((field) => field.includes(normalizedKeyword))) {
+        return keyword;
+      }
+    }
+    return "";
   }
 
   private async collectAndStoreDailyHotspotPlatform(
@@ -5932,8 +6258,8 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
         if (this.isDouyinWorkKind(kind)) {
           return meta.kind === kind && this.readMetaString(meta, "workId") === matchValue;
         }
-        if (kind === "XHS_TARGET_USER") {
-          return meta.kind === kind && this.readMetaString(meta, "sourceUrl") === matchValue;
+      if (kind === "XHS_TARGET_USER" || kind === "DOUYIN_TARGET_USER") {
+        return this.isSameCollectorTargetAssetIdentity(meta, kind, matchValue, metadata);
         }
         if (this.isXhsAccountKind(kind)) {
           return this.isSameXhsAccountAssetIdentity(meta, item.fileUrl ?? undefined, kind, matchValue, fileUrl, metadata);
@@ -6027,8 +6353,8 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       if (this.isDouyinWorkKind(kind)) {
         return item.brandId === brandId && meta.kind === kind && this.readMetaString(meta, "workId") === matchValue;
       }
-      if (kind === "XHS_TARGET_USER") {
-        return item.brandId === brandId && meta.kind === kind && this.readMetaString(meta, "sourceUrl") === matchValue;
+      if (kind === "XHS_TARGET_USER" || kind === "DOUYIN_TARGET_USER") {
+        return item.brandId === brandId && this.isSameCollectorTargetAssetIdentity(meta, kind, matchValue, metadata);
       }
       if (this.isXhsAccountKind(kind)) {
         return item.brandId === brandId
@@ -6250,10 +6576,15 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       }
     }
 
-    if (kind === "XHS_TARGET_USER") {
+    if (kind === "XHS_TARGET_USER" || kind === "DOUYIN_TARGET_USER") {
+      const sourceAccountId = this.readMetaString(meta, "sourceAccountId");
+      if (sourceAccountId) {
+        return `${kind}:target:${sourceAccountId}`;
+      }
       const sourceUrl = this.readMetaString(meta, "sourceUrl");
-      if (sourceUrl) {
-        return `${kind}:target:${sourceUrl}`;
+      const userId = this.readMetaString(meta, "userId") || this.readMetaString(meta, "secUserId");
+      if (sourceUrl || userId) {
+        return `${kind}:target:${sourceUrl}:${userId}`;
       }
     }
 
@@ -6393,7 +6724,33 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     return /https?:\/\/sns-avatar[^/\s]*\.xhscdn\.com\//i.test(value);
   }
 
+  private isSameCollectorTargetAssetIdentity(
+    meta: Record<string, unknown>,
+    kind: CollectorTargetKind,
+    matchValue: string,
+    metadata: Record<string, unknown>,
+  ) {
+    if (this.readMetaString(meta, "kind") !== kind) {
+      return false;
+    }
+    const existingSourceAccountId = this.readMetaString(meta, "sourceAccountId");
+    const incomingSourceAccountId = this.readMetaString(metadata, "sourceAccountId") || matchValue;
+    if (existingSourceAccountId || incomingSourceAccountId) {
+      return existingSourceAccountId === incomingSourceAccountId;
+    }
+    const existingComposite = [
+      this.readMetaString(meta, "sourceUrl"),
+      this.readMetaString(meta, "userId") || this.readMetaString(meta, "secUserId"),
+    ].filter(Boolean).join(":");
+    const incomingComposite = [
+      this.readMetaString(metadata, "sourceUrl") || matchValue,
+      this.readMetaString(metadata, "userId") || this.readMetaString(metadata, "secUserId"),
+    ].filter(Boolean).join(":");
+    return Boolean(existingComposite) && existingComposite === incomingComposite;
+  }
+
   private async upsertTargetAsset(params: {
+    kind?: CollectorTargetKind;
     brandId: string;
     matchValue: string;
     title: string;
@@ -6402,7 +6759,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
   }): Promise<AssetRecord> {
     return this.upsertCollectorAsset({
       brandId: params.brandId,
-      kind: "XHS_TARGET_USER",
+      kind: params.kind ?? "XHS_TARGET_USER",
       matchValue: params.matchValue,
       title: params.title,
       description: params.description,

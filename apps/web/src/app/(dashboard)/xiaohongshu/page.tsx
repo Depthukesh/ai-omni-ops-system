@@ -1,7 +1,7 @@
 "use client";
 
-import { XiaohongshuWorkspaceShell } from "./workspace-shell";
+import { ContentAcquisitionWorkspace } from "./content-acquisition-workspace";
 
 export default function XiaohongshuPage() {
-  return <XiaohongshuWorkspaceShell />;
+  return <ContentAcquisitionWorkspace />;
 }

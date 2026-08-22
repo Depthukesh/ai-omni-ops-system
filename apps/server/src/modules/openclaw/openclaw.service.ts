@@ -1,4 +1,6 @@
 import { createHash } from "node:crypto";
+import { readFile, stat } from "node:fs/promises";
+import { basename, extname } from "node:path";
 import { BadRequestException, Injectable, ServiceUnavailableException, UnauthorizedException } from "@nestjs/common";
 import { normalizeSafeText } from "../../common/prompt-injection-guard";
 import { AuthService, type RequestAuthContext } from "../auth/auth.service";
@@ -15,7 +17,14 @@ import {
   type XhsCollectionWorkspace,
 } from "../collectors/collectors.service";
 import { FeedbackService } from "../feedback/feedback.service";
+import { OpenClawCommentLeadService } from "./openclaw-comment-lead.service";
+import { OpenClawPlatformLeadService } from "./openclaw-platform-lead.service";
 import { OpenClawCreativeMaterialService } from "./openclaw-creative-material.service";
+import {
+  getOpenClawGeoContentLabel,
+  listOpenClawGeoContentCatalog,
+} from "./openclaw-geo-content-catalog";
+import { OpenClawGeoContentService } from "./openclaw-geo-content.service";
 import { OpenClawInstallationService } from "./openclaw-installation.service";
 import { OpenClawDailyPlanService } from "./openclaw-daily-plan.service";
 import { OpenClawGeoVisibilityReportService } from "./openclaw-geo-visibility-report.service";
@@ -24,13 +33,18 @@ import { OpenClawVideoWorkService } from "./openclaw-video-work.service";
 import {
   getOpenClawWorkspaceDashboardPath,
   getOpenClawWorkspaceDisplayName,
+  type OpenClawWorkspaceScope,
   normalizeOpenClawWorkspaceScope,
 } from "./openclaw-workspace-scope";
 import { OrdersService } from "../orders/orders.service";
 import { PublishingService } from "../publishing/publishing.service";
 import { ReportsService } from "../reports/reports.service";
 import { TasksService } from "../tasks/tasks.service";
-import { ThirdPartyPlatformsService } from "../third-party-platforms/third-party-platforms.service";
+import {
+  type MixedcutRemixSourceRecord,
+  ThirdPartyPlatformsService,
+} from "../third-party-platforms/third-party-platforms.service";
+import { LocalRuntimeService } from "../local-runtime/local-runtime.service";
 import { VolcengineMusicService } from "../third-party-platforms/volcengine-music.service";
 import { UserSkillsService } from "../user-skills/user-skills.service";
 import { type GeneratedAssetUploadPayload, WorksService } from "../works/works.service";
@@ -291,6 +305,7 @@ const OPENCLAW_WEBSITE_FUNCTION_CATALOG: OpenClawWebsiteFunctionCatalogItem[] = 
       "sync_douyin_benchmark_works",
       "sync_douyin_search_works",
       "sync_douyin_comment_data",
+      "sync_douyin_target_users",
     ],
   },
   {
@@ -329,19 +344,19 @@ const OPENCLAW_WEBSITE_FUNCTION_CATALOG: OpenClawWebsiteFunctionCatalogItem[] = 
     mcpTools: ["list_my_third_party_platforms", "check_my_third_party_platform_runtime_access", "update_my_third_party_platform_secret"],
   },
   {
-    key: "personal_order_center",
+    key: "personal_material_center",
     domainKey: "personal_center",
     domainName: "个人中心",
-    name: "查看个人订单中心",
-    summary: "适合查看当前账号最近订单、会员购买和点数充值状态。",
+    name: "查看个人素材管理",
+    summary: "适合查看个人中心统一素材列表、设置本地版素材库存储目录，并把网站上传或 OpenClaw 上传的素材按四分类收口到同一真源。",
     pageUrl: "/personal-center/orders",
-    pageLabel: "打开订单中心",
+    pageLabel: "打开素材管理",
     riskLevel: "low",
-    intentKeywords: ["订单", "会员订单", "充值订单", "支付状态", "订单中心"],
+    intentKeywords: ["素材管理", "素材库存储", "文本素材", "图片素材", "语音素材", "视频素材", "创作素材", "本地存储位置", "网站上传素材"],
     requiredInputKeys: [],
     requiredInputs: [],
-    recommendedQuestions: ["帮我看最近的订单情况", "帮我看还有哪些订单没完成支付"],
-    mcpTools: ["list_my_orders"],
+    recommendedQuestions: ["帮我看素材管理里的图片素材", "帮我把本地版素材库目录改到 D 盘", "帮我看最近有哪些网站上传素材已经入库"],
+    mcpTools: ["list_personal_material_assets", "get_local_material_storage_settings", "update_local_material_storage_settings"],
   },
   {
     key: "personal_center_overview",
@@ -485,11 +500,11 @@ const OPENCLAW_WEBSITE_FUNCTION_CATALOG: OpenClawWebsiteFunctionCatalogItem[] = 
   {
     key: "openclaw_geo_visibility_report",
     domainKey: "geo",
-    domainName: "GEO",
+    domainName: "GEO获客",
     name: "查看并管理 GEO 可见度诊断",
     summary: "适合把 OpenClaw 生成好的 GEO 可见度诊断 HTML 报告落库到 GEO 工作台，并支持查看与删除。",
     pageUrl: "/geo",
-    pageLabel: "打开 GEO 工作台",
+    pageLabel: "打开 GEO获客工作台",
     riskLevel: "medium",
     intentKeywords: ["geo", "GEO", "geo可见度", "可见度诊断", "诊断报告", "html报告"],
     requiredInputKeys: ["title", "htmlContent"],
@@ -499,6 +514,65 @@ const OPENCLAW_WEBSITE_FUNCTION_CATALOG: OpenClawWebsiteFunctionCatalogItem[] = 
       "get_openclaw_geo_visibility_reports",
       "create_openclaw_geo_visibility_report",
       "delete_openclaw_geo_visibility_report",
+    ],
+  },
+  {
+    key: "openclaw_geo_content",
+    domainKey: "geo",
+    domainName: "GEO获客",
+    name: "查看并管理 GEO 其它工作流内容",
+    summary: "适合把关键词挖掘、网站诊断、知识库搭建、GEO优化方案、自媒体内容、第三方媒体和品牌网站等 GEO 结果落到 GEO 工作台，支持 HTML 查看与非 HTML 存储地址回显。",
+    pageUrl: "/geo",
+    pageLabel: "打开 GEO获客工作台",
+    riskLevel: "medium",
+    intentKeywords: ["关键词挖掘", "网站诊断", "知识库搭建", "GEO优化方案", "自媒体内容", "第三方媒体", "品牌网站", "存储地址", "docx", "xlsx", "md"],
+    requiredInputKeys: ["contentType", "title", "htmlContent"],
+    requiredInputs: ["内容类型", "标题", "HTML 内容"],
+    recommendedQuestions: ["帮我保存一份关键词挖掘结果", "帮我看 GEO 工作台里的网站诊断和优化方案", "帮我看自媒体内容列表和对应存储地址"],
+    mcpTools: [
+      "get_openclaw_geo_contents",
+      "create_openclaw_geo_content",
+      "delete_openclaw_geo_content",
+    ],
+  },
+  {
+    key: "openclaw_comment_lead_workspace",
+    domainKey: "all_network_growth",
+    domainName: "全网获客",
+    name: "查看并生成评论获客列表",
+    summary: "适合把品牌增长策略里小红书和抖音的评论用户提取结果收口为评论获客列表，并在全网获客工作台中按平台查看、删除和继续沉淀。",
+    pageUrl: "/all-network-growth",
+    pageLabel: "打开 全网获客工作台",
+    riskLevel: "medium",
+    intentKeywords: ["评论获客", "全网获客", "评论线索", "评论用户", "抖音评论用户", "小红书评论用户", "获客名单", "评论客户"],
+    requiredInputKeys: [],
+    requiredInputs: [],
+    recommendedQuestions: ["帮我把小红书和抖音评论用户生成评论获客名单", "帮我看全网获客里的评论获客列表", "帮我删除这条评论获客记录"],
+    mcpTools: [
+      "get_openclaw_comment_leads",
+      "create_openclaw_comment_leads",
+      "delete_openclaw_comment_lead",
+      "sync_xiaohongshu_target_users",
+      "sync_douyin_target_users",
+    ],
+  },
+  {
+    key: "openclaw_platform_lead_workspace",
+    domainKey: "all_network_growth",
+    domainName: "全网获客",
+    name: "查看并维护平台获客列表",
+    summary: "适合由 OpenClaw 直接把平台名单写入全网获客工作台，并统一查看、补录或删除平台获客记录。",
+    pageUrl: "/all-network-growth",
+    pageLabel: "打开 全网获客工作台",
+    riskLevel: "medium",
+    intentKeywords: ["平台获客", "平台名单", "渠道名单", "联系方式", "入选平台", "全网获客平台"],
+    requiredInputKeys: ["platformLeadItems"],
+    requiredInputs: ["平台名单"],
+    recommendedQuestions: ["帮我看全网获客里的平台获客列表", "帮我把这批平台名单写入平台获客", "帮我删掉这条平台获客记录"],
+    mcpTools: [
+      "get_openclaw_platform_leads",
+      "create_openclaw_platform_leads",
+      "delete_openclaw_platform_lead",
     ],
   },
   {
@@ -583,8 +657,16 @@ const OPENCLAW_WEBSITE_FUNCTION_CATALOG: OpenClawWebsiteFunctionCatalogItem[] = 
       "manage_growth_reports",
       "get_latest_brand_growth_report_summary",
       "create_brand_growth_report",
+      "get_brand_growth_visual_report_workspace",
+      "generate_brand_growth_visual_report",
       "create_half_year_marketing_plan",
-      "get_unified_material_library_items",
+      "get_brand_growth_marketing_calendar_workspace",
+      "generate_brand_growth_marketing_calendar",
+      "update_brand_growth_marketing_calendar",
+      "get_brand_growth_topic_library_workspace",
+      "generate_brand_growth_topic_candidates",
+      "update_brand_growth_topic_library",
+      "get_brand_growth_material_library_items",
     ],
   },
   {
@@ -917,11 +999,13 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
   },
   {
     name: "sync_xiaohongshu_target_users",
-    description: "同步品牌资料库里小红书目标用户数据，需要提供用户或作品链接。",
+    description: "从品牌资料库里小红书作品评论中提取目标用户账号链接，可按关键词筛选，并可先补拉评论。",
     inputSchema: {
       type: "object",
       properties: {
         sourceUrls: { type: "array", items: { type: "string" } },
+        matchKeywords: { type: "array", items: { type: "string" } },
+        syncCommentsFirst: { type: "boolean" },
       },
       additionalProperties: false,
     },
@@ -1045,6 +1129,19 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
             additionalProperties: false,
           },
         },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "sync_douyin_target_users",
+    description: "从品牌资料库里抖音作品评论中提取目标用户账号链接，可按关键词筛选，并可先补拉评论。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        sourceUrls: { type: "array", items: { type: "string" } },
+        matchKeywords: { type: "array", items: { type: "string" } },
+        syncCommentsFirst: { type: "boolean" },
       },
       additionalProperties: false,
     },
@@ -1185,6 +1282,39 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
         status: { type: "string", description: "可选：PENDING、PAID、CANCELLED。" },
         limit: { type: "integer", minimum: 1, maximum: 50 },
       },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "list_personal_material_assets",
+    description: "查看个人中心素材管理页聚合的素材列表，可按文本、图片、语音、视频筛选，覆盖网站上传和 OpenClaw 入库素材。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        category: { type: "string", enum: ["text", "image", "audio", "video"], description: "可选：素材类型筛选。" },
+        limit: { type: "integer", minimum: 1, maximum: 100 },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_local_material_storage_settings",
+    description: "查看 local-single-user 安装态下个人中心素材库的目录设置、四类子目录和命名规则。",
+    inputSchema: {
+      type: "object",
+      properties: {},
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "update_local_material_storage_settings",
+    description: "更新 local-single-user 安装态下个人中心素材库存储目录。传入的是【素材库】外层的根目录，保存后会自动创建【素材库】及四类子目录。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        materialLibraryBaseRoot: { type: "string", description: "素材库存储根目录的绝对路径，例如 D:\\品牌素材。" },
+      },
+      required: ["materialLibraryBaseRoot"],
       additionalProperties: false,
     },
   },
@@ -1689,7 +1819,7 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
   },
   {
     name: "create_design_work",
-    description: "在网站设计工作台中直接创建一个设计任务。支持纯文字需求，也支持补充参考图 URL 或参考图上传对象；如需指定生图模型，应先调用 get_design_workspace_options，再把返回的 selectionKey 传入 modelSelection。",
+    description: "在网站设计工作台中直接创建一个设计任务。支持纯文字需求，也支持补充参考图 URL 或参考图上传对象；图片设计可通过 imageSize 指定尺寸（格式 宽x高，如 1200x628）；如需指定生图模型，应先调用 get_design_workspace_options，再把返回的 selectionKey 传入 modelSelection。",
     inputSchema: {
       type: "object",
       properties: {
@@ -1700,6 +1830,7 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
         productId: { type: "string" },
         injectBrandProfile: { type: "boolean" },
         referenceImageUrl: { type: "string", description: "可选：已存在的参考图 URL，适合图片已在网站或公网可访问地址时使用。" },
+        referenceMaterialId: { type: "string", description: "可选：站内 OpenClaw 创作素材 ID。适合直接复用已经归档到网站素材库的图片。"},
         referenceImage: {
           type: "object",
           description: "可选：直接上传参考图。可传 fileName、contentType、dataBase64。",
@@ -1712,7 +1843,8 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
           additionalProperties: false,
         },
         modelSelection: { type: "string", description: "可选：使用 get_design_workspace_options 返回的模型 selectionKey，例如 providerId::modelName。" },
-        spec: { type: "string" },
+        imageSize: { type: "string", description: "可选：图片尺寸，格式为 宽x高，例如 1200x628、1080x1920。未指定时 image 模块默认使用 1242x1660。" },
+        spec: { type: "string", description: "可选：兼容旧链路的规格字段；如果是图片设计，也可以继续传 宽x高，等价于 imageSize。" },
         additionalInstruction: { type: "string" },
       },
       required: ["module"],
@@ -1744,6 +1876,101 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
       properties: {
         planningYear: { type: "string" },
         focus: { type: "string" },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_brand_growth_visual_report_workspace",
+    description: "查看当前品牌的品牌增长可视化报告工作区状态。",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
+    name: "generate_brand_growth_visual_report",
+    description: "触发当前品牌的品牌增长可视化报告生成任务。",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
+    name: "get_brand_growth_marketing_calendar_workspace",
+    description: "查看当前品牌营销日历工作区状态。",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
+    name: "generate_brand_growth_marketing_calendar",
+    description: "触发当前品牌营销日历生成任务。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        payload: {
+          type: "object",
+          description: "对应营销日历原始接口请求体，结构与网站接口保持一致。",
+          additionalProperties: true,
+        },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "update_brand_growth_marketing_calendar",
+    description: "更新当前品牌指定 reportId 的营销日历内容。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        reportId: { type: "string" },
+        payload: {
+          type: "object",
+          description: "对应营销日历原始接口请求体，结构与网站接口保持一致。",
+          additionalProperties: true,
+        },
+      },
+      required: ["reportId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_brand_growth_topic_library_workspace",
+    description: "查看当前品牌选题库工作区状态，可按日期查看热点选题候选。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        selectedDate: { type: "string", description: "可选。热点选题候选日期。" },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "generate_brand_growth_topic_candidates",
+    description: "触发当前品牌选题库热点选题生成。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        selectedDate: { type: "string", description: "可选。热点选题候选日期。" },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "update_brand_growth_topic_library",
+    description: "更新当前品牌选题库内容。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        payload: {
+          type: "object",
+          description: "对应选题库原始接口请求体，结构与网站接口保持一致。",
+          additionalProperties: true,
+        },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_brand_growth_material_library_items",
+    description: "查看当前品牌品牌增长报告下的素材库结果。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        limit: { type: "integer", minimum: 1, maximum: 100 },
       },
       additionalProperties: false,
     },
@@ -2034,10 +2261,20 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
     inputSchema: {
       type: "object",
       properties: {
-        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat", "geo"], description: "可选：写入哪个板块，默认 brand_growth。" },
+        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat", "geo", "all_network_growth"], description: "可选：写入哪个板块，默认 brand_growth。" },
+        sourceKind: {
+          type: "string",
+          enum: ["openclaw_upload", "material_library_upload"],
+          description: "可选：素材来源类型。openclaw_upload 表示 OpenClaw 归档素材；material_library_upload 表示个人中心网站上传并写入本地【素材库】。",
+        },
         title: { type: "string", description: "素材标题。" },
         description: { type: "string", description: "素材描述。" },
         materialType: { type: "string", description: "素材类型，例如 text、image、video、audio、bgm。" },
+        materialTags: {
+          type: "array",
+          description: "可选：素材标签列表，例如 [\"海报\", \"活动图\"]。",
+          items: { type: "string" },
+        },
         fileUrl: { type: "string", description: "素材文件 URL，可选。" },
         fileName: { type: "string", description: "素材文件名，可选。" },
         mimeType: { type: "string", description: "素材 MIME 类型，可选。" },
@@ -2054,6 +2291,83 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
         },
       },
       required: ["title", "materialType"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_mixedcut_media_assets",
+    description: "查看当前品牌可供 mixedcut 使用的站内视频素材列表。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        limit: { type: "integer", minimum: 1, maximum: 100, description: "可选：返回条数，默认 20。" },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "create_mixedcut_remix_task",
+    description: "通过 OpenClaw 直接发起 mixedcut 混剪任务。可复用站内视频素材，也可把本机视频先归档到站内后再送 mixedcut。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat", "geo", "all_network_growth"], description: "可选：若本次带上传视频，先归档到哪个 OpenClaw 板块，默认 douyin。" },
+        mediaAssetIds: {
+          type: "array",
+          description: "可选：直接复用当前品牌已存在的站内视频资产 ID。",
+          items: { type: "string" },
+        },
+        creativeMaterialIds: {
+          type: "array",
+          description: "可选：复用已经保存到 OpenClaw 创作素材里的视频素材 ID。",
+          items: { type: "string" },
+        },
+        name: { type: "string", description: "可选：mixedcut 任务名。" },
+        style: { type: "string", enum: ["dynamic", "calm", "exciting"], description: "可选：混剪风格。" },
+        targetDurationSeconds: { type: "number", description: "目标时长，单位秒。" },
+        localFilePath: {
+          type: "string",
+          description: "可选：本地文件绝对路径。stdio MCP 会在客户端先读取并转成 uploadItems；streamableHttp 会由服务端尝试读取该路径，若当前服务运行环境不可访问此路径，请改用 uploadItems。",
+        },
+        localFilePaths: {
+          type: "array",
+          description: "可选：批量本地文件绝对路径。stdio MCP 会在客户端先读取并转成 uploadItems；streamableHttp 仅在服务端当前运行环境能访问这些路径时可用。",
+          items: { type: "string" },
+        },
+        uploadItems: {
+          type: "array",
+          description: "可选：直接上传本地视频内容。若当前是 streamableHttp 且文件只存在于客户端机器，请优先传这里的 base64 内容，不要只传 localFilePath。",
+          items: {
+            type: "object",
+            properties: {
+              title: { type: "string", description: "可选：素材标题。" },
+              fileName: { type: "string", description: "原始文件名，例如 clip.mp4。" },
+              contentType: { type: "string", description: "文件 MIME 类型，例如 video/mp4。" },
+              dataBase64: { type: "string", description: "文件二进制的 Base64 内容。" },
+              localFilePath: { type: "string", description: "可选：当前服务进程可访问的本地文件绝对路径。" },
+            },
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ["targetDurationSeconds"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_mixedcut_remix_task_progress",
+    description: "查询 mixedcut 混剪任务当前进度与结果。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        taskId: { type: "string", description: "mixedcut 任务 ID。" },
+        workspaceScope: {
+          type: "string",
+          enum: ["brand_growth", "xiaohongshu", "douyin", "wechat", "geo", "all_network_growth"],
+          description: "可选：任务完成后把成片同步到哪个 OpenClaw 板块作品列表，默认 douyin。",
+        },
+      },
+      required: ["taskId"],
       additionalProperties: false,
     },
   },
@@ -2163,6 +2477,176 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
         reportId: { type: "string", description: "GEO 可见度诊断报告 ID。" },
       },
       required: ["reportId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_openclaw_geo_contents",
+    description: "查看当前品牌 GEO 工作台中除可见度诊断外的其它工作流内容列表，可按内容类型筛选。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat", "geo"], description: "可选：指定板块作用域，默认 geo。" },
+        contentType: {
+          type: "string",
+          enum: ["keyword_research", "site_diagnosis", "knowledge_base_setup", "geo_optimization_plan", "self_media_content", "third_party_media", "brand_website_content"],
+          description: "可选：指定某个 GEO 内容板块。",
+        },
+        limit: { type: "integer", minimum: 1, maximum: 100 },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "create_openclaw_geo_content",
+    description: "为当前品牌 GEO 工作台保存关键词挖掘、网站诊断、知识库搭建、GEO优化方案、自媒体内容、第三方媒体或品牌网站等结果，支持 HTML 与非 HTML 附件存储地址。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat", "geo"], description: "可选：写入哪个板块，默认 geo。" },
+        contentType: {
+          type: "string",
+          enum: ["keyword_research", "site_diagnosis", "knowledge_base_setup", "geo_optimization_plan", "self_media_content", "third_party_media", "brand_website_content"],
+          description: "GEO 内容类型。",
+        },
+        title: { type: "string", description: "内容标题。" },
+        description: { type: "string", description: "摘要或补充说明，可选。" },
+        htmlContent: { type: "string", description: "完整的 HTML 内容。" },
+        attachmentFileUrl: { type: "string", description: "可选：非 HTML 附件的受控访问 URL。" },
+        attachmentFileName: { type: "string", description: "可选：非 HTML 附件文件名，例如 .docx / .xlsx / .md。" },
+        attachmentMimeType: { type: "string", description: "可选：非 HTML 附件 MIME Type。" },
+        attachmentStorageKey: { type: "string", description: "可选：非 HTML 附件受控存储键。" },
+        attachmentUpload: {
+          type: "object",
+          description: "可选：直接上传非 HTML 附件副本。",
+          properties: {
+            fileName: { type: "string" },
+            contentType: { type: "string" },
+            dataBase64: { type: "string", description: "附件的 Base64 内容。" },
+          },
+          additionalProperties: false,
+        },
+      },
+      required: ["contentType", "title", "htmlContent"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "delete_openclaw_geo_content",
+    description: "删除指定板块下的一条 GEO 工作流内容。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat", "geo"], description: "可选：删除所在板块，默认 geo。" },
+        contentType: {
+          type: "string",
+          enum: ["keyword_research", "site_diagnosis", "knowledge_base_setup", "geo_optimization_plan", "self_media_content", "third_party_media", "brand_website_content"],
+          description: "可选：删除后回刷的内容板块。",
+        },
+        contentId: { type: "string", description: "GEO 内容 ID。" },
+      },
+      required: ["contentId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_openclaw_comment_leads",
+    description: "查看全网获客工作台中的评论获客列表，可按来源平台筛选。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceScope: { type: "string", enum: ["all_network_growth"], description: "可选：当前固定写入全网获客工作台。" },
+        sourcePlatform: { type: "string", enum: ["xiaohongshu", "douyin"], description: "可选：来源平台筛选。" },
+        limit: { type: "integer", minimum: 1, maximum: 100 },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "create_openclaw_comment_leads",
+    description: "把品牌增长策略里小红书和抖音评论用户提取结果收口为评论获客列表，可选择平台、作品链接、关键词，并支持先补拉评论。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceScope: { type: "string", enum: ["all_network_growth"], description: "可选：当前固定写入全网获客工作台。" },
+        sourcePlatforms: {
+          type: "array",
+          items: { type: "string", enum: ["xiaohongshu", "douyin"] },
+          description: "可选：指定生成哪些平台的评论获客列表；默认两个平台都尝试。",
+        },
+        xiaohongshuSourceUrls: { type: "array", items: { type: "string" }, description: "可选：小红书作品链接或 note_id 列表。" },
+        douyinSourceUrls: { type: "array", items: { type: "string" }, description: "可选：抖音作品链接或 aweme_id 列表。" },
+        matchKeywords: { type: "array", items: { type: "string" }, description: "可选：关键词筛选。" },
+        syncCommentsFirst: { type: "boolean", description: "是否在提取评论获客前先补拉评论与目标用户。" },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "delete_openclaw_comment_lead",
+    description: "删除全网获客工作台中的一条评论获客记录。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceScope: { type: "string", enum: ["all_network_growth"], description: "可选：当前固定删除全网获客工作台数据。" },
+        leadId: { type: "string", description: "评论获客记录 ID。" },
+      },
+      required: ["leadId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_openclaw_platform_leads",
+    description: "查看全网获客工作台中的平台获客列表。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceScope: { type: "string", enum: ["all_network_growth"], description: "可选：当前固定读取全网获客工作台。" },
+        limit: { type: "integer", minimum: 1, maximum: 100 },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "create_openclaw_platform_leads",
+    description: "把平台名单直接写入全网获客工作台的平台获客列表。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceScope: { type: "string", enum: ["all_network_growth"], description: "可选：当前固定写入全网获客工作台。" },
+        items: {
+          type: "array",
+          description: "平台获客记录列表。",
+          items: {
+            type: "object",
+            properties: {
+              id: { type: "string", description: "可选：已有记录 ID，传入时按该记录更新。" },
+              name: { type: "string", description: "名称。" },
+              businessScope: { type: "string", description: "业务范围。" },
+              selectedReason: { type: "string", description: "入选理由。" },
+              contactInfo: { type: "string", description: "联系方式。" },
+              address: { type: "string", description: "地址。" },
+              selectedAt: { type: "string", description: "可选：入选时间，建议 ISO 时间。" },
+            },
+            required: ["name", "businessScope", "selectedReason", "contactInfo", "address"],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ["items"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "delete_openclaw_platform_lead",
+    description: "删除全网获客工作台中的一条平台获客记录。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceScope: { type: "string", enum: ["all_network_growth"], description: "可选：当前固定删除全网获客工作台数据。" },
+        leadId: { type: "string", description: "平台获客记录 ID。" },
+      },
+      required: ["leadId"],
       additionalProperties: false,
     },
   },
@@ -2537,7 +3021,11 @@ export class OpenClawService {
     private readonly openClawDailyPlanService: OpenClawDailyPlanService,
     private readonly openClawCreativeMaterialService: OpenClawCreativeMaterialService,
     private readonly openClawGeoVisibilityReportService: OpenClawGeoVisibilityReportService,
+    private readonly openClawGeoContentService: OpenClawGeoContentService,
+    private readonly openClawCommentLeadService: OpenClawCommentLeadService,
+    private readonly openClawPlatformLeadService: OpenClawPlatformLeadService,
     private readonly openClawVideoWorkService: OpenClawVideoWorkService,
+    private readonly localRuntimeService: LocalRuntimeService,
   ) {}
 
   private readPositiveIntegerEnv(name: string, fallback: number) {
@@ -2554,6 +3042,41 @@ export class OpenClawService {
       return typeof direct[0] === "string" ? direct[0] : "";
     }
     return typeof direct === "string" ? direct : "";
+  }
+
+  private async reportOpenClaw502DebugEvent(payload: Record<string, unknown>) {
+    let debugServerUrl = "http://127.0.0.1:7777/event";
+    let sessionId = "openclaw-502";
+    try {
+      const envContent = await readFile(`${process.cwd()}\\.dbg\\openclaw-502.env`, "utf8");
+      debugServerUrl = envContent.match(/DEBUG_SERVER_URL=(.+)/)?.[1]?.trim() || debugServerUrl;
+      sessionId = envContent.match(/DEBUG_SESSION_ID=(.+)/)?.[1]?.trim() || sessionId;
+    } catch {}
+    try {
+      await fetch(debugServerUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId,
+          runId: "pre-fix",
+          ts: Date.now(),
+          ...payload,
+        }),
+      });
+    } catch {}
+  }
+
+  private normalizeGeoContentType(value?: string) {
+    const normalized = String(value || "").trim();
+    if (!normalized) {
+      throw new BadRequestException("请提供 contentType");
+    }
+    const matched = listOpenClawGeoContentCatalog().find((item) => item.type === normalized);
+    if (!matched) {
+      const supported = listOpenClawGeoContentCatalog().map((item) => `${item.type}(${item.label})`).join("、");
+      throw new BadRequestException(`不支持的 GEO 内容类型，当前仅支持：${supported}`);
+    }
+    return matched.type;
   }
 
   private hashCacheValue(value: string) {
@@ -3455,6 +3978,8 @@ export class OpenClawService {
     headers: HeadersMap,
     options?: {
       sourceUrls?: string[];
+      matchKeywords?: string[];
+      syncCommentsFirst?: boolean;
     },
   ) {
     const auth = await this.requireAuth(headers);
@@ -3465,15 +3990,25 @@ export class OpenClawService {
     if (!sourceUrls.length) {
       throw new BadRequestException("请提供至少一条目标用户链接");
     }
-    const result = await this.collectorsService.syncTargetUsers(brandId, sourceUrls);
+    const matchKeywords = this.normalizeStringArray(options?.matchKeywords);
+    const result = await this.collectorsService.syncTargetUsers(brandId, {
+      sourceUrls,
+      matchKeywords,
+      syncCommentsFirst: options?.syncCommentsFirst === true,
+    });
     const counts = this.buildXiaohongshuCollectionCounts(result.workspace);
+    const keywordSummary = matchKeywords.length ? `，按 ${matchKeywords.length} 个关键词筛过一次` : "";
+    const warningText = Array.isArray((result as { warnings?: string[] }).warnings)
+      ? (result as { warnings?: string[] }).warnings?.filter(Boolean).join("；")
+      : "";
 
     return this.buildSummaryResponse({
       title: "小红书目标用户已同步",
-      summary: `已同步 ${result.syncedCount} 条目标用户数据，当前工作区里共有 ${counts.targetUsers} 条目标用户。`,
+      summary: `已同步 ${result.syncedCount} 条目标用户数据${keywordSummary}，当前工作区里共有 ${counts.targetUsers} 条目标用户。${warningText ? ` 提示：${warningText}` : ""}`,
       highlights: [
         `本次同步：${result.syncedCount}`,
         `工作区目标用户：${counts.targetUsers}`,
+        matchKeywords.length ? `关键词：${matchKeywords.join(" / ")}` : "关键词：未筛选",
       ],
       data: result,
       links: [{ label: "打开品牌增长工作台", url: "/brand-growth" }],
@@ -3554,7 +4089,7 @@ export class OpenClawService {
 
     return this.buildSummaryResponse({
       title: "抖音搜集数据工作区",
-      summary: `当前品牌资料库中的抖音搜集数据已包含 ${counts.brandAccounts} 个品牌账号、${counts.competitorAccounts} 个竞品账号、${counts.benchmarkWorks} 条对标作品、${counts.searchWorks} 条搜索结果和 ${counts.commentData} 条评论数据。`,
+      summary: `当前品牌资料库中的抖音搜集数据已包含 ${counts.brandAccounts} 个品牌账号、${counts.competitorAccounts} 个竞品账号、${counts.benchmarkWorks} 条对标作品、${counts.searchWorks} 条搜索结果、${counts.commentData} 条评论数据和 ${counts.targetUsers} 条目标用户。`,
       highlights: [
         `品牌账号：${counts.brandAccounts}`,
         `竞品账号：${counts.competitorAccounts}`,
@@ -3563,6 +4098,7 @@ export class OpenClawService {
         `对标作品：${counts.benchmarkWorks}`,
         `搜索结果：${counts.searchWorks}`,
         `评论数据：${counts.commentData}`,
+        `目标用户：${counts.targetUsers}`,
       ],
       data: {
         counts,
@@ -3573,6 +4109,7 @@ export class OpenClawService {
         benchmarkWorks: workspace.benchmarkWorks.slice(0, limit),
         searchWorks: workspace.searchWorks.slice(0, limit),
         commentData: workspace.commentData.slice(0, limit),
+        targetUsers: workspace.targetUsers.slice(0, limit),
         keywordRecommendations: workspace.keywordRecommendations.slice(0, limit),
         lowFanExplosiveWorks: workspace.lowFanExplosiveWorks.slice(0, limit),
         highCompletionRateWorks: workspace.highCompletionRateWorks.slice(0, limit),
@@ -3769,6 +4306,49 @@ export class OpenClawService {
         `本次同步：${result.breakdown.commentData}`,
         `工作区评论数据：${counts.commentData}`,
         `分页游标数：${result.commentPagination.length}`,
+      ],
+      data: result,
+      links: [{ label: "打开品牌增长工作台", url: "/brand-growth" }],
+      resultStatus: "COMPLETED",
+      resourceKind: "douyin_collection",
+    });
+  }
+
+  async syncDouyinTargetUsers(
+    headers: HeadersMap,
+    options?: {
+      sourceUrls?: string[];
+      matchKeywords?: string[];
+      syncCommentsFirst?: boolean;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.collection.douyinCollection", "edit", auth);
+
+    const sourceUrls = this.normalizeStringArray(options?.sourceUrls);
+    if (!sourceUrls.length) {
+      throw new BadRequestException("请提供至少一条抖音作品链接");
+    }
+    const matchKeywords = this.normalizeStringArray(options?.matchKeywords);
+    const result = await this.collectorsService.syncDouyinTargetUsers(brandId, {
+      sourceUrls,
+      matchKeywords,
+      syncCommentsFirst: options?.syncCommentsFirst === true,
+    });
+    const counts = this.buildDouyinCollectionCounts(result.workspace);
+    const keywordSummary = matchKeywords.length ? `，按 ${matchKeywords.length} 个关键词筛过一次` : "";
+    const warningText = Array.isArray((result as { warnings?: string[] }).warnings)
+      ? (result as { warnings?: string[] }).warnings?.filter(Boolean).join("；")
+      : "";
+
+    return this.buildSummaryResponse({
+      title: "抖音目标用户已同步",
+      summary: `已同步 ${result.syncedCount} 条目标用户数据${keywordSummary}，当前工作区里共有 ${counts.targetUsers} 条目标用户。${warningText ? ` 提示：${warningText}` : ""}`,
+      highlights: [
+        `本次同步：${result.syncedCount}`,
+        `工作区目标用户：${counts.targetUsers}`,
+        matchKeywords.length ? `关键词：${matchKeywords.join(" / ")}` : "关键词：未筛选",
       ],
       data: result,
       links: [{ label: "打开品牌增长工作台", url: "/brand-growth" }],
@@ -4291,6 +4871,374 @@ export class OpenClawService {
     });
   }
 
+  async getMixedcutMediaAssets(
+    headers: HeadersMap,
+    options?: {
+      limit?: number;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "personalCenter.thirdPartyPlatforms", "view", auth);
+
+    const workspace = await this.thirdPartyPlatformsService.listBrandMixedcutMediaAssets(brandId);
+    const items = workspace.items.slice(0, this.normalizeLimit(options?.limit));
+
+    return this.buildSummaryResponse({
+      title: "mixedcut 可用素材列表",
+      summary: workspace.items.length
+        ? `当前品牌共有 ${workspace.items.length} 条可供 mixedcut 使用的站内视频素材。`
+        : "当前品牌还没有可供 mixedcut 使用的站内视频素材。",
+      highlights: items.length
+        ? items.map((item) => `${item.title}｜${item.durationSec ? `${item.durationSec.toFixed(1)} 秒` : "时长未知"}｜${item.id}`)
+        : ["素材数：0"],
+      data: {
+        total: workspace.items.length,
+        items,
+      },
+      links: [{ label: "打开视频混剪工作台", url: "/xiaohongshu" }],
+      resourceKind: "mixedcut_media_asset",
+    });
+  }
+
+  async createMixedcutRemixTask(
+    headers: HeadersMap,
+    options?: {
+      workspaceScope?: string;
+      mediaAssetIds?: string[];
+      creativeMaterialIds?: string[];
+      name?: string;
+      style?: "dynamic" | "calm" | "exciting";
+      targetDurationSeconds?: number;
+      localFilePath?: string;
+      localFilePaths?: string[];
+      uploadItems?: Array<{
+        title?: string;
+        fileName?: string;
+        contentType?: string;
+        dataBase64?: string;
+        localFilePath?: string;
+      }>;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "personalCenter.thirdPartyPlatforms", "edit", auth);
+
+    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope || "douyin");
+    const workspaceLabel = getOpenClawWorkspaceDisplayName(workspaceScope);
+    const mediaAssetIds = Array.from(new Set((options?.mediaAssetIds || []).map((item) => String(item || "").trim()).filter(Boolean)));
+    const creativeMaterialIds = Array.from(new Set((options?.creativeMaterialIds || []).map((item) => String(item || "").trim()).filter(Boolean)));
+    const uploadItems = await this.normalizeMixedcutUploadItems(options);
+    if (!mediaAssetIds.length && !creativeMaterialIds.length && !uploadItems.length) {
+      throw new BadRequestException("请至少提供 mediaAssetIds、creativeMaterialIds、localFilePath / localFilePaths，或 uploadItems 里的一个来源。");
+    }
+    if (!uploadItems.every((item) => this.isLikelyVideoContentType(item.contentType, item.fileName))) {
+      throw new BadRequestException("mixedcut 当前只接受视频文件。请确认 localFilePath 或 uploadItems 对应的是 mp4 / mov 等视频文件。");
+    }
+    const sanitizedUploadItems = uploadItems
+      .filter((item) => item && typeof item === "object")
+      .map((item) => ({
+        title: typeof item.title === "string" ? item.title : undefined,
+        fileName: typeof item.fileName === "string" ? item.fileName : undefined,
+        contentType: typeof item.contentType === "string" ? item.contentType : undefined,
+        dataBase64: typeof item.dataBase64 === "string" ? item.dataBase64 : undefined,
+      }))
+      .filter((item) => String(item.dataBase64 || "").trim());
+
+    const sources: MixedcutRemixSourceRecord[] = [];
+    if (mediaAssetIds.length) {
+      const workspace = await this.thirdPartyPlatformsService.listBrandMixedcutMediaAssets(brandId);
+      const itemMap = new Map(workspace.items.map((item) => [item.id, item] as const));
+      const missingIds = mediaAssetIds.filter((item) => !itemMap.has(item));
+      if (missingIds.length) {
+        throw new BadRequestException(`未找到可用于 mixedcut 的站内视频素材：${missingIds.join("、")}`);
+      }
+      sources.push(...mediaAssetIds.map((item) => {
+        const matched = itemMap.get(item)!;
+        return {
+          id: matched.id,
+          brandId,
+          title: matched.title,
+          sourceUrl: matched.sourceUrl || matched.assetUrl,
+          mimeType: matched.mimeType,
+          durationSec: matched.durationSec,
+        } satisfies MixedcutRemixSourceRecord;
+      }));
+    }
+
+    if (creativeMaterialIds.length) {
+      const materials = await Promise.all(creativeMaterialIds.map((item) => this.getOpenClawCreativeMaterialByIdAcrossScopes(brandId, item)));
+      const missingIds = creativeMaterialIds.filter((item, index) => !materials[index]);
+      if (missingIds.length) {
+        throw new BadRequestException(`未找到可用的 OpenClaw 视频素材：${missingIds.join("、")}`);
+      }
+      const invalidIds = materials
+        .filter((item): item is NonNullable<typeof item> => Boolean(item))
+        .filter((item) => item.materialCategory !== "video" && !String(item.mimeType || "").toLowerCase().startsWith("video/"))
+        .map((item) => item.id);
+      if (invalidIds.length) {
+        throw new BadRequestException(`这些 OpenClaw 创作素材不是视频，暂时不能直接送 mixedcut：${invalidIds.join("、")}`);
+      }
+      sources.push(...materials
+        .filter((item): item is NonNullable<typeof item> => Boolean(item))
+        .map((item) => ({
+          id: item.id,
+          brandId,
+          title: item.title,
+          sourceUrl: item.fileUrl,
+          storageKey: item.storageKey,
+          mimeType: item.mimeType,
+        } satisfies MixedcutRemixSourceRecord)));
+    }
+
+    const archivedMaterials = [];
+    for (const item of sanitizedUploadItems) {
+      const material = await this.openClawCreativeMaterialService.createMaterial({
+        brandId,
+        workspaceScope,
+        createdByUserId: auth.userId,
+        sourceKind: "openclaw_upload",
+        title: String(item.title || item.fileName || `mixedcut-素材-${Date.now()}`).trim(),
+        materialType: "video",
+        fileName: item.fileName,
+        mimeType: item.contentType,
+        upload: {
+          fileName: item.fileName,
+          contentType: item.contentType,
+          dataBase64: item.dataBase64,
+        },
+      });
+      archivedMaterials.push(material);
+      sources.push({
+        id: material.id,
+        brandId,
+        title: material.title,
+        sourceUrl: material.fileUrl,
+        storageKey: material.storageKey,
+        mimeType: material.mimeType,
+      });
+    }
+
+    const task = await this.thirdPartyPlatformsService.createMixedcutRemixTaskFromSources(
+      {
+        mediaAssetIds,
+        name: options?.name,
+        style: options?.style,
+        targetDurationSeconds: options?.targetDurationSeconds,
+      },
+      sources,
+    );
+
+    return this.buildSummaryResponse({
+      title: "mixedcut 混剪任务已创建",
+      summary: `已通过 OpenClaw 为当前品牌发起 mixedcut 混剪任务，可继续在内容获客的视频混剪工作区跟进进度。`,
+      highlights: [
+        `任务 ID：${task.taskId}`,
+        `目标时长：${Number(options?.targetDurationSeconds || 0).toFixed(1)} 秒`,
+        `站内视频素材：${mediaAssetIds.length} 条`,
+        `OpenClaw 创作素材：${creativeMaterialIds.length} 条`,
+        `本地新归档素材：${archivedMaterials.length} 条（已落到 ${workspaceLabel} 创作素材）`,
+      ],
+      data: {
+        task,
+        sourceSummary: {
+          mediaAssetIds,
+          creativeMaterialIds,
+          localFilePath: this.normalizeOptionalString(options?.localFilePath) || undefined,
+          localFilePaths: this.normalizeStringArray(options?.localFilePaths),
+          archivedMaterialIds: archivedMaterials.map((item) => item.id),
+        },
+      },
+      links: [{ label: "打开视频混剪工作台", url: "/xiaohongshu" }],
+      resourceKind: "mixedcut_remix_task",
+      resultStatus: "IN_PROGRESS",
+      nextActions: [
+        { label: "继续轮询 mixedcut 任务", action: "check_status", target: task.taskId },
+        { label: "打开视频混剪工作台", action: "open_page", target: "/xiaohongshu" },
+      ],
+    });
+  }
+
+  private async normalizeMixedcutUploadItems(options?: {
+    localFilePath?: string;
+    localFilePaths?: string[];
+    uploadItems?: Array<{
+      title?: string;
+      fileName?: string;
+      contentType?: string;
+      dataBase64?: string;
+      localFilePath?: string;
+    }>;
+  }) {
+    const nextUploadItems = Array.isArray(options?.uploadItems)
+      ? options!.uploadItems
+          .filter((item) => item && typeof item === "object")
+          .map((item) => ({ ...item }))
+      : [];
+    const localFilePaths = [
+      this.normalizeOptionalString(options?.localFilePath),
+      ...this.normalizeStringArray(options?.localFilePaths),
+    ].filter((item): item is string => Boolean(item));
+
+    for (const localFilePath of localFilePaths) {
+      const upload = await this.createMixedcutUploadPayloadFromLocalFile(localFilePath, {});
+      nextUploadItems.push({
+        title: basename(localFilePath),
+        ...upload,
+      });
+    }
+
+    for (const item of nextUploadItems) {
+      const inlineLocalFilePath = this.normalizeOptionalString(item.localFilePath);
+      if (!inlineLocalFilePath) {
+        continue;
+      }
+      const upload = await this.createMixedcutUploadPayloadFromLocalFile(inlineLocalFilePath, {
+        fileName: item.fileName,
+        contentType: item.contentType,
+      });
+      item.title = typeof item.title === "string" ? item.title : basename(inlineLocalFilePath);
+      item.fileName = upload.fileName;
+      item.contentType = upload.contentType;
+      item.dataBase64 = upload.dataBase64;
+      delete item.localFilePath;
+    }
+
+    return nextUploadItems;
+  }
+
+  private async createMixedcutUploadPayloadFromLocalFile(
+    localFilePath: string,
+    options?: {
+      fileName?: string;
+      contentType?: string;
+    },
+  ) {
+    const normalizedPath = this.normalizeOptionalString(localFilePath);
+    if (!normalizedPath) {
+      throw new BadRequestException("localFilePath 不能为空");
+    }
+    const fileStat = await stat(normalizedPath).catch(() => null);
+    if (!fileStat || !fileStat.isFile()) {
+      throw new BadRequestException(
+        `当前服务运行环境无法直接读取本地文件：${normalizedPath}。如果你现在走的是 streamableHttp，请改用 uploadItems.dataBase64，或改走 stdio MCP 让桥接层先在客户端读取文件。`,
+      );
+    }
+    const buffer = await readFile(normalizedPath);
+    const fileName = this.normalizeOptionalString(options?.fileName) || basename(normalizedPath);
+    const contentType = this.resolveMixedcutLocalFileContentType(normalizedPath, options?.contentType);
+    return {
+      fileName,
+      contentType,
+      dataBase64: buffer.toString("base64"),
+    };
+  }
+
+  private resolveMixedcutLocalFileContentType(filePath: string, fallback?: string) {
+    const normalizedFallback = this.normalizeOptionalString(fallback);
+    if (normalizedFallback) {
+      return normalizedFallback;
+    }
+    const extension = extname(String(filePath || "").trim()).toLowerCase();
+    if (extension === ".mp4") {
+      return "video/mp4";
+    }
+    if (extension === ".mov") {
+      return "video/quicktime";
+    }
+    if (extension === ".avi") {
+      return "video/x-msvideo";
+    }
+    if (extension === ".mkv") {
+      return "video/x-matroska";
+    }
+    if (extension === ".webm") {
+      return "video/webm";
+    }
+    if (extension === ".m4v") {
+      return "video/x-m4v";
+    }
+    return "application/octet-stream";
+  }
+
+  private isLikelyVideoContentType(contentType?: string, fileName?: string) {
+    const normalizedContentType = this.normalizeOptionalString(contentType)?.toLowerCase() || "";
+    if (normalizedContentType.startsWith("video/")) {
+      return true;
+    }
+    const extension = extname(String(fileName || "").trim()).toLowerCase();
+    return [".mp4", ".mov", ".avi", ".mkv", ".webm", ".m4v"].includes(extension);
+  }
+
+  async getMixedcutRemixTaskProgress(
+    headers: HeadersMap,
+    options?: {
+      taskId?: string;
+      workspaceScope?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "personalCenter.thirdPartyPlatforms", "view", auth);
+
+    const taskId = String(options?.taskId || "").trim();
+    if (!taskId) {
+      throw new BadRequestException("请提供 taskId");
+    }
+    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope || "douyin");
+    const workspacePath = getOpenClawWorkspaceDashboardPath(workspaceScope);
+    const task = await this.thirdPartyPlatformsService.getBrandMixedcutRemixTaskProgress(brandId, taskId, {
+      workspaceScope,
+      archiveToOpenClawVideoWorks: true,
+      createdByUserId: auth.userId,
+    });
+    const normalizedStatus = String(task.status || "").trim().toLowerCase();
+    const resultStatus: OpenClawResultStatus = normalizedStatus === "completed"
+      ? "COMPLETED"
+      : normalizedStatus === "failed" || normalizedStatus === "error"
+        ? "ACTION_REQUIRED"
+        : "IN_PROGRESS";
+
+    return this.buildSummaryResponse({
+      title: "mixedcut 任务进度",
+      summary: normalizedStatus === "completed"
+        ? `mixedcut 任务 ${taskId} 已完成。`
+        : normalizedStatus === "failed" || normalizedStatus === "error"
+          ? `mixedcut 任务 ${taskId} 执行失败。`
+          : `mixedcut 任务 ${taskId} 仍在进行中。`,
+      highlights: [
+        `状态：${task.status || "unknown"}`,
+        `进度：${typeof task.progress === "number" ? `${task.progress}%` : "未知"}`,
+        task.targetDurationSeconds ? `目标时长：${task.targetDurationSeconds.toFixed(1)} 秒` : "目标时长：未返回",
+        task.actualDurationSeconds ? `实际时长：${task.actualDurationSeconds.toFixed(1)} 秒` : "实际时长：未返回",
+        task.durationWithinTolerance === true ? "时长校验：在容差内" : task.durationWithinTolerance === false ? "时长校验：超出容差" : "时长校验：未返回",
+        task.archiveStatus === "saved"
+          ? `作品归档：已同步到 ${task.openClawVideoWorkWorkspaceScope || workspaceScope} 作品列表`
+          : task.archiveStatus === "failed"
+            ? `作品归档：${task.archiveMessage || "同步失败"}`
+            : "作品归档：待任务完成后自动同步",
+        task.error ? `失败原因：${task.error}` : "失败原因：无",
+      ],
+      data: task,
+      links: [
+        { label: "打开视频混剪工作台", url: "/xiaohongshu" },
+        { label: "打开作品列表", url: workspacePath },
+      ],
+      resourceKind: "mixedcut_remix_task",
+      resultStatus,
+      nextActions: normalizedStatus === "completed"
+        ? [
+            { label: "打开视频混剪工作台", action: "open_page", target: "/xiaohongshu" },
+            { label: "打开作品列表", action: "open_page", target: workspacePath },
+          ]
+        : [
+            { label: "继续轮询 mixedcut 任务", action: "check_status", target: taskId },
+            { label: "打开视频混剪工作台", action: "open_page", target: "/xiaohongshu" },
+          ],
+    });
+  }
+
   async listMyOrders(
     headers: HeadersMap,
     options?: {
@@ -4331,9 +5279,148 @@ export class OpenClawService {
           paidAt: item.paidAt,
         })),
       },
-      links: [{ label: "打开订单中心", url: "/personal-center/orders" }],
+      links: [{ label: "打开个人中心概览", url: "/personal-center" }],
       resourceKind: "order",
     });
+  }
+
+  async listPersonalMaterialAssets(
+    headers: HeadersMap,
+    options?: {
+      category?: string;
+      limit?: number;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "view", auth);
+
+    const workspaceScopes: OpenClawWorkspaceScope[] = ["brand_growth", "xiaohongshu", "douyin", "wechat", "geo", "all_network_growth"];
+    const workspaces = await Promise.all(
+      workspaceScopes.map((scope) => this.openClawCreativeMaterialService.listWorkspace(brandId, scope, 200)),
+    );
+    const itemMap = new Map<string, (typeof workspaces)[number]["items"][number]>();
+    for (const workspace of workspaces) {
+      for (const item of workspace.items) {
+        itemMap.set(item.id, item);
+      }
+    }
+    const allItems = [...itemMap.values()];
+    const normalizedCategory = this.normalizeCreativeMaterialCategory(options?.category);
+    const filtered = allItems
+      .filter((item) => (normalizedCategory ? item.materialCategory === normalizedCategory : true))
+      .sort((left, right) => this.getTimestamp(right.createdAt) - this.getTimestamp(left.createdAt));
+    const items = filtered.slice(0, this.normalizeLimit(options?.limit));
+    const counts = {
+      text: allItems.filter((item) => item.materialCategory === "text").length,
+      image: allItems.filter((item) => item.materialCategory === "image").length,
+      audio: allItems.filter((item) => item.materialCategory === "audio").length,
+      video: allItems.filter((item) => item.materialCategory === "video").length,
+    };
+    const categoryLabel = this.getCreativeMaterialCategoryLabel(normalizedCategory);
+
+    return this.buildSummaryResponse({
+      title: normalizedCategory ? `素材管理：${categoryLabel}` : "素材管理",
+      summary: filtered.length
+        ? `当前共返回 ${filtered.length} 条${normalizedCategory ? categoryLabel : ""}素材，已统一聚合网站上传与 OpenClaw 入库记录。`
+        : normalizedCategory
+          ? `当前还没有 ${categoryLabel} 素材。`
+          : "当前还没有可展示的素材。",
+      highlights: items.length
+        ? items.slice(0, 5).map((item) => `${item.title}｜${item.sourceLabel}｜${item.localFilePath || "未绑定本地路径"}`)
+        : [
+            `文本：${counts.text}`,
+            `图片：${counts.image}`,
+            `语音：${counts.audio}`,
+            `视频：${counts.video}`,
+          ],
+      data: {
+        total: filtered.length,
+        category: normalizedCategory || undefined,
+        counts,
+        items,
+      },
+      links: [{ label: "打开素材管理", url: "/personal-center/orders" }],
+      resourceKind: "openclaw_creative_material",
+    });
+  }
+
+  async getLocalMaterialStorageSettings(headers: HeadersMap) {
+    await this.requireAuth(headers);
+    const settings = this.localRuntimeService.getSettings();
+    const materialLibrary = settings.materialLibrary;
+
+    return this.buildSummaryResponse({
+      title: "素材库存储设置",
+      summary: settings.supported
+        ? `当前本地版素材库写入目录为 ${materialLibrary.libraryRoot}，网站上传素材会自动落到这里。`
+        : "当前不是 local-single-user 安装态，素材库存储设置只提供规则说明，不开放本地目录改写。",
+      highlights: [
+        `当前目录：${materialLibrary.libraryRoot}`,
+        `文本目录：${materialLibrary.categoryDirectories.text}`,
+        `图片目录：${materialLibrary.categoryDirectories.image}`,
+        `语音目录：${materialLibrary.categoryDirectories.audio}`,
+        `视频目录：${materialLibrary.categoryDirectories.video}`,
+      ],
+      data: {
+        supported: settings.supported,
+        runtimeMode: settings.runtimeMode,
+        materialLibrary,
+      },
+      links: [{ label: "打开素材管理", url: "/personal-center/orders" }],
+      resourceKind: "local_material_storage_settings",
+    });
+  }
+
+  async updateLocalMaterialStorageSettings(
+    headers: HeadersMap,
+    options?: {
+      materialLibraryBaseRoot?: string;
+    },
+  ) {
+    await this.requireAuth(headers);
+    const nextSettings = this.localRuntimeService.updateSettings({
+      materialLibraryBaseRoot: typeof options?.materialLibraryBaseRoot === "string" ? options.materialLibraryBaseRoot : null,
+    });
+
+    return this.buildSummaryResponse({
+      title: "素材库存储设置已更新",
+      summary: nextSettings.message,
+      highlights: [
+        `素材库目录：${nextSettings.materialLibrary.libraryRoot}`,
+        `文本目录：${nextSettings.materialLibrary.categoryDirectories.text}`,
+        `图片目录：${nextSettings.materialLibrary.categoryDirectories.image}`,
+        `语音目录：${nextSettings.materialLibrary.categoryDirectories.audio}`,
+        `视频目录：${nextSettings.materialLibrary.categoryDirectories.video}`,
+      ],
+      data: nextSettings,
+      links: [{ label: "打开素材管理", url: "/personal-center/orders" }],
+      resourceKind: "local_material_storage_settings",
+      resultStatus: "COMPLETED",
+    });
+  }
+
+  private normalizeCreativeMaterialCategory(value?: string): "text" | "image" | "audio" | "video" | undefined {
+    const normalized = String(value || "").trim().toLowerCase();
+    if (normalized === "text" || normalized === "image" || normalized === "audio" || normalized === "video") {
+      return normalized;
+    }
+    return undefined;
+  }
+
+  private getCreativeMaterialCategoryLabel(category?: "text" | "image" | "audio" | "video") {
+    switch (category) {
+      case "text":
+        return "文本";
+      case "image":
+        return "图片";
+      case "audio":
+        return "语音";
+      case "video":
+        return "视频";
+      default:
+        return "全部";
+    }
   }
 
   async getPersonalCenterOverview(headers: HeadersMap) {
@@ -5940,52 +7027,125 @@ export class OpenClawService {
         dataBase64?: string;
       };
       referenceImageUrl?: string;
+      referenceMaterialId?: string;
       modelSelection?: string;
+      imageSize?: string;
       spec?: string;
       additionalInstruction?: string;
     },
   ) {
     const auth = await this.requireAuth(headers);
     const brandId = await this.requireCurrentBrandId(auth);
+    const debugTraceId = this.readHeaderValue(headers, "x-openclaw-debug-trace-id");
     await this.authService.assertBrandPermission(brandId, "personalCenter.works", "edit", auth);
 
     const module = this.normalizeDesignModule(options?.module);
     if (!module) {
       throw new BadRequestException("请提供有效的设计模块：image、html、deck、video");
     }
+    const referenceMaterialId = String(options?.referenceMaterialId || "").trim();
+    const explicitReferenceImageUrl = String(options?.referenceImageUrl || "").trim();
+    const resolvedReferenceImageUrl = explicitReferenceImageUrl
+      || (referenceMaterialId ? (await this.getOpenClawCreativeMaterialFileUrl(brandId, referenceMaterialId) || "") : "");
+    if (referenceMaterialId && !options?.referenceImage?.dataBase64 && !resolvedReferenceImageUrl) {
+      throw new BadRequestException(`未找到可用的创作素材参考图：${referenceMaterialId}`);
+    }
+    const resolvedSpec = this.resolveCreateDesignWorkSpec(module, options);
 
-    const result = await this.worksService.generateDesignWork(brandId, {
-      module,
-      designType: String(options?.designType || "").trim() || undefined,
-      title: String(options?.title || "").trim() || undefined,
-      calendarItemId: String(options?.calendarItemId || "").trim() || undefined,
-      productId: String(options?.productId || "").trim() || undefined,
-      injectBrandProfile: typeof options?.injectBrandProfile === "boolean" ? options.injectBrandProfile : undefined,
-      referenceImage: options?.referenceImage?.dataBase64
-        ? {
-          fileName: String(options.referenceImage.fileName || "").trim() || "reference-image",
-          contentType: String(options.referenceImage.contentType || "").trim() || "application/octet-stream",
-          dataBase64: String(options.referenceImage.dataBase64 || "").trim(),
-        }
-        : undefined,
-      referenceImageUrl: String(options?.referenceImageUrl || "").trim() || undefined,
-      modelSelection: String(options?.modelSelection || "").trim() || undefined,
-      spec: String(options?.spec || "").trim() || undefined,
-      additionalInstruction: this.normalizeSafeInstruction(options?.additionalInstruction, "设计补充要求") || undefined,
-    }, auth);
-
-    return this.buildSummaryResponse({
-      title: "设计任务已受理",
-      summary: `已在网站设计工作台中创建 ${module} 设计任务。`,
-      highlights: [
-        `模块：${module}`,
-        options?.designType ? `设计类型：${options.designType}` : "设计类型：按默认技能生成",
-        options?.productId ? `产品：${options.productId}` : "产品：未指定",
-        options?.referenceImage?.dataBase64 ? "参考图：已上传参考图" : (options?.referenceImageUrl ? "参考图：已提供图片链接" : "参考图：未提供"),
-      ],
-      data: result,
-      links: [{ label: "打开设计工作台", url: "/personal-center/works" }],
+    // #region debug-point A:create-design-entry
+    void this.reportOpenClaw502DebugEvent({
+      hypothesisId: "A",
+      location: "openclaw.service.ts:createDesignWork:entry",
+      msg: "[DEBUG] create_design_work entered OpenClaw service",
+      traceId: debugTraceId,
+      data: {
+        brandId,
+        module,
+        designType: String(options?.designType || "").trim() || "",
+        modelSelection: String(options?.modelSelection || "").trim() || "",
+        imageSize: resolvedSpec || "",
+        hasReferenceImage: Boolean(options?.referenceImage?.dataBase64),
+        hasReferenceImageUrl: Boolean(explicitReferenceImageUrl),
+        hasReferenceMaterialId: Boolean(referenceMaterialId),
+      },
     });
+    // #endregion
+
+    try {
+      const result = await this.worksService.generateDesignWork(brandId, {
+        module,
+        designType: String(options?.designType || "").trim() || undefined,
+        title: String(options?.title || "").trim() || undefined,
+        calendarItemId: String(options?.calendarItemId || "").trim() || undefined,
+        productId: String(options?.productId || "").trim() || undefined,
+        injectBrandProfile: typeof options?.injectBrandProfile === "boolean" ? options.injectBrandProfile : undefined,
+        referenceImage: options?.referenceImage?.dataBase64
+          ? {
+            fileName: String(options.referenceImage.fileName || "").trim() || "reference-image",
+            contentType: String(options.referenceImage.contentType || "").trim() || "application/octet-stream",
+            dataBase64: String(options.referenceImage.dataBase64 || "").trim(),
+          }
+          : undefined,
+        referenceImageUrl: resolvedReferenceImageUrl || undefined,
+        modelSelection: String(options?.modelSelection || "").trim() || undefined,
+        spec: resolvedSpec,
+        additionalInstruction: this.normalizeSafeInstruction(options?.additionalInstruction, "设计补充要求") || undefined,
+        debugTraceId: debugTraceId || undefined,
+      }, auth);
+
+      // #region debug-point B:create-design-success
+      void this.reportOpenClaw502DebugEvent({
+        hypothesisId: "B",
+        location: "openclaw.service.ts:createDesignWork:success",
+        msg: "[DEBUG] create_design_work completed in OpenClaw service",
+        traceId: debugTraceId,
+        data: {
+          brandId,
+          module,
+          taskId: result.taskId,
+          taskStatus: result.taskStatus,
+          status: result.status,
+        },
+      });
+      // #endregion
+
+      return this.buildSummaryResponse({
+        title: "设计任务已完成",
+        summary: `已在网站设计工作台中完成 ${module} 设计任务。`,
+        highlights: [
+          `任务 ID：${result.taskId}`,
+          `模块：${module}`,
+          options?.designType ? `设计类型：${options.designType}` : "设计类型：按默认技能生成",
+          module === "image"
+            ? `图片尺寸：${resolvedSpec || "未指定，默认 1242x1660"}`
+            : `规格：${resolvedSpec || "未指定"}`,
+          options?.productId ? `产品：${options.productId}` : "产品：未指定",
+          options?.referenceImage?.dataBase64
+            ? "参考图：已上传参考图"
+            : (explicitReferenceImageUrl
+              ? "参考图：已提供图片链接"
+              : (referenceMaterialId ? `参考图：已使用创作素材 ${referenceMaterialId}` : "参考图：未提供")),
+        ],
+        data: result,
+        links: [{ label: "打开设计工作台", url: "/personal-center/works" }],
+        resultStatus: "COMPLETED",
+      });
+    } catch (error) {
+      // #region debug-point D:create-design-failure
+      void this.reportOpenClaw502DebugEvent({
+        hypothesisId: "D",
+        location: "openclaw.service.ts:createDesignWork:catch",
+        msg: "[DEBUG] create_design_work failed in OpenClaw service",
+        traceId: debugTraceId,
+        data: {
+          brandId,
+          module,
+          errorMessage: error instanceof Error ? error.message : String(error),
+        },
+      });
+      // #endregion
+      throw error;
+    }
   }
 
   async getXiaohongshuMarketingCalendarOptions(
@@ -7089,7 +8249,7 @@ export class OpenClawService {
         ? `当前品牌 ${workspaceLabel} 板块共有 ${workspace.total} 条创作素材。`
         : `当前品牌 ${workspaceLabel} 板块还没有创作素材，OpenClaw 可先调用站内能力生成并保存首条素材。`,
       highlights: items.length
-        ? items.slice(0, 5).map((item) => `${item.materialType || "素材"}｜${item.title}`)
+        ? items.slice(0, 5).map((item) => `${item.title}｜${item.sourceLabel}｜${item.materialTags.join("/")}`)
         : ["素材数：0"],
       data: {
         total: workspace.total,
@@ -7244,9 +8404,11 @@ export class OpenClawService {
     headers: HeadersMap,
     options?: {
       workspaceScope?: string;
+      sourceKind?: string;
       title?: string;
       description?: string;
       materialType?: string;
+      materialTags?: string[];
       fileUrl?: string;
       fileName?: string;
       mimeType?: string;
@@ -7269,9 +8431,11 @@ export class OpenClawService {
       brandId,
       workspaceScope,
       createdByUserId: auth.userId,
+      sourceKind: options?.sourceKind,
       title: options?.title,
       description: options?.description,
       materialType: options?.materialType,
+      materialTags: options?.materialTags,
       fileUrl: options?.fileUrl,
       fileName: options?.fileName,
       mimeType: options?.mimeType,
@@ -7283,9 +8447,12 @@ export class OpenClawService {
       title: `${workspaceLabel}创作素材已保存`,
       summary: `已在 ${workspaceLabel} 板块保存创作素材《${item.title}》。`,
       highlights: [
-        `素材类型：${item.materialType || "未标注"}`,
+        `素材分类：${this.getCreativeMaterialCategoryLabel(item.materialCategory)}`,
         `素材标题：${item.title}`,
-        item.fileUrl ? `文件地址：${item.fileUrl}` : `文本长度：${String(item.textContent || "").length} 字`,
+        `素材标签：${item.materialTags.join("/")}`,
+        `素材来源：${item.sourceLabel}`,
+        `来源类型：${item.sourceKind === "material_library_upload" ? "网站上传 / 本地素材库" : "OpenClaw 上传 / 外部归档"}`,
+        item.localFilePath ? `本地路径：${item.localFilePath}` : (item.fileUrl ? `文件地址：${item.fileUrl}` : `文本长度：${String(item.textContent || "").length} 字`),
       ],
       data: item,
       links: [{ label: `打开${workspaceLabel}工作台`, url: workspacePath }],
@@ -7464,6 +8631,392 @@ export class OpenClawService {
       data: item,
       links: [{ label: `打开${workspaceLabel}工作台`, url: workspacePath }],
       resourceKind: "openclaw_geo_visibility_report",
+      resultStatus: "COMPLETED",
+    });
+  }
+
+  async getOpenClawGeoContents(
+    headers: HeadersMap,
+    options?: {
+      workspaceScope?: string;
+      contentType?: string;
+      limit?: number;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "view", auth);
+    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope || "geo");
+    const workspaceLabel = getOpenClawWorkspaceDisplayName(workspaceScope);
+    const workspacePath = getOpenClawWorkspaceDashboardPath(workspaceScope);
+    const workspace = await this.openClawGeoContentService.listWorkspace(brandId, workspaceScope, {
+      contentType: typeof options?.contentType === "string" ? options.contentType : undefined,
+      limit: options?.limit,
+    });
+    const items = workspace.items.slice(0, this.normalizeLimit(options?.limit));
+    const contentType = String(options?.contentType || "").trim();
+    const contentLabel = contentType ? getOpenClawGeoContentLabel(this.normalizeGeoContentType(contentType)) : "GEO工作流内容";
+
+    return this.buildSummaryResponse({
+      title: `${workspaceLabel}${contentType ? contentLabel : "GEO工作流内容"}`,
+      summary: workspace.total
+        ? contentType
+          ? `当前品牌 ${workspaceLabel} 板块共有 ${workspace.total} 条 ${contentLabel}。`
+          : `当前品牌 ${workspaceLabel} 板块共有 ${workspace.total} 条除可见度诊断外的 GEO 工作流内容。`
+        : contentType
+          ? `当前品牌 ${workspaceLabel} 板块还没有 ${contentLabel}，OpenClaw 可先保存首条结果。`
+          : `当前品牌 ${workspaceLabel} 板块还没有其它 GEO 工作流内容，OpenClaw 可先保存首条结果。`,
+      highlights: items.length
+        ? items.slice(0, 5).map((item) => {
+            const attachmentText = item.storageAddress ? `${item.attachmentLabel} 地址已保存` : `${item.attachmentLabel} 地址缺失`;
+            return `${item.sectionLabel}｜${item.title}｜HTML ${item.htmlContent ? "已保存" : "缺失"}｜${attachmentText}`;
+          })
+        : ["内容数：0"],
+      data: {
+        total: workspace.total,
+        items,
+      },
+      links: [{ label: `打开${workspaceLabel}工作台`, url: workspacePath }],
+      resourceKind: "openclaw_geo_content",
+    });
+  }
+
+  async createOpenClawGeoContent(
+    headers: HeadersMap,
+    options?: {
+      workspaceScope?: string;
+      contentType?: string;
+      title?: string;
+      description?: string;
+      htmlContent?: string;
+      attachmentFileUrl?: string;
+      attachmentFileName?: string;
+      attachmentMimeType?: string;
+      attachmentStorageKey?: string;
+      attachmentUpload?: {
+        fileName?: string;
+        contentType?: string;
+        dataBase64?: string;
+      };
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "edit", auth);
+    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope || "geo");
+    const workspaceLabel = getOpenClawWorkspaceDisplayName(workspaceScope);
+    const workspacePath = getOpenClawWorkspaceDashboardPath(workspaceScope);
+    const contentType = this.normalizeGeoContentType(options?.contentType);
+    const contentLabel = getOpenClawGeoContentLabel(contentType);
+
+    const item = await this.openClawGeoContentService.createContent({
+      brandId,
+      workspaceScope,
+      createdByUserId: auth.userId,
+      contentType,
+      title: options?.title,
+      description: options?.description,
+      htmlContent: options?.htmlContent,
+      attachmentFileUrl: options?.attachmentFileUrl,
+      attachmentFileName: options?.attachmentFileName,
+      attachmentMimeType: options?.attachmentMimeType,
+      attachmentStorageKey: options?.attachmentStorageKey,
+      attachmentUpload: options?.attachmentUpload,
+    });
+
+    return this.buildSummaryResponse({
+      title: `${workspaceLabel}${contentLabel}已保存`,
+      summary: `已在 ${workspaceLabel} 板块保存 ${contentLabel}《${item.title}》。`,
+      highlights: [
+        `内容标题：${item.title}`,
+        `HTML 长度：${String(item.htmlContent || "").length} 字符`,
+        item.storageAddress ? `${item.attachmentLabel} 存储地址：${item.storageAddress}` : `${item.attachmentLabel} 存储地址：未填写`,
+      ],
+      data: item,
+      links: [{ label: `打开${workspaceLabel}工作台`, url: workspacePath }],
+      resourceKind: "openclaw_geo_content",
+      resultStatus: "COMPLETED",
+    });
+  }
+
+  async deleteOpenClawGeoContent(
+    headers: HeadersMap,
+    options?: {
+      workspaceScope?: string;
+      contentType?: string;
+      contentId?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "edit", auth);
+    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope || "geo");
+    const workspaceLabel = getOpenClawWorkspaceDisplayName(workspaceScope);
+    const workspacePath = getOpenClawWorkspaceDashboardPath(workspaceScope);
+    const contentId = String(options?.contentId || "").trim();
+    if (!contentId) {
+      throw new BadRequestException("请提供 contentId");
+    }
+
+    const item = await this.openClawGeoContentService.deleteContent(brandId, workspaceScope, contentId);
+
+    return this.buildSummaryResponse({
+      title: `${workspaceLabel}${item.sectionLabel}已删除`,
+      summary: `已从 ${workspaceLabel} 板块删除 ${item.sectionLabel}《${item.title}》。`,
+      highlights: [
+        `内容标题：${item.title}`,
+        `内容 ID：${item.id}`,
+        `生成模式：${item.generationMode === "multiple" ? "多次生成列表" : "一次性生成内容"}`,
+      ],
+      data: item,
+      links: [{ label: `打开${workspaceLabel}工作台`, url: workspacePath }],
+      resourceKind: "openclaw_geo_content",
+      resultStatus: "COMPLETED",
+    });
+  }
+
+  async getOpenClawCommentLeads(
+    headers: HeadersMap,
+    options?: {
+      workspaceScope?: string;
+      sourcePlatform?: string;
+      limit?: number;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "view", auth);
+    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope || "all_network_growth");
+    const workspaceLabel = getOpenClawWorkspaceDisplayName(workspaceScope);
+    const workspacePath = getOpenClawWorkspaceDashboardPath(workspaceScope);
+    const workspace = await this.openClawCommentLeadService.listWorkspace({
+      brandId,
+      workspaceScope,
+      sourcePlatform: typeof options?.sourcePlatform === "string" ? options.sourcePlatform : undefined,
+      limit: options?.limit,
+    });
+    const items = workspace.items.slice(0, this.normalizeLimit(options?.limit));
+    const sourcePlatform = String(options?.sourcePlatform || "").trim();
+    const sourceLabel =
+      sourcePlatform === "xiaohongshu" ? "小红书"
+      : sourcePlatform === "douyin" ? "抖音"
+      : "全平台";
+
+    return this.buildSummaryResponse({
+      title: `${workspaceLabel}评论获客`,
+      summary: workspace.total
+        ? `${workspaceLabel}工作台当前共有 ${workspace.total} 条${sourceLabel === "全平台" ? "" : `${sourceLabel}`}评论获客记录。`
+        : `${workspaceLabel}工作台当前还没有评论获客记录，OpenClaw 可先从小红书或抖音评论用户结果生成首批名单。`,
+      highlights: items.length
+        ? items.slice(0, 5).map((item) => `${item.sourcePlatformLabel}｜${item.userName}｜${item.selectedReason}｜${item.userProfileUrl}`)
+        : ["记录数：0"],
+      data: {
+        total: workspace.total,
+        items,
+      },
+      links: [{ label: `打开${workspaceLabel}工作台`, url: workspacePath }],
+      resourceKind: "openclaw_comment_lead",
+    });
+  }
+
+  async createOpenClawCommentLeads(
+    headers: HeadersMap,
+    options?: {
+      workspaceScope?: string;
+      sourcePlatforms?: string[];
+      xiaohongshuSourceUrls?: string[];
+      douyinSourceUrls?: string[];
+      matchKeywords?: string[];
+      syncCommentsFirst?: boolean;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "edit", auth);
+    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope || "all_network_growth");
+    const workspaceLabel = getOpenClawWorkspaceDisplayName(workspaceScope);
+    const workspacePath = getOpenClawWorkspaceDashboardPath(workspaceScope);
+    const result = await this.openClawCommentLeadService.createLeadsFromCollectors({
+      brandId,
+      workspaceScope,
+      createdByUserId: auth.userId,
+      sourcePlatforms: Array.isArray(options?.sourcePlatforms) ? options?.sourcePlatforms : undefined,
+      xiaohongshuSourceUrls: Array.isArray(options?.xiaohongshuSourceUrls) ? options?.xiaohongshuSourceUrls : undefined,
+      douyinSourceUrls: Array.isArray(options?.douyinSourceUrls) ? options?.douyinSourceUrls : undefined,
+      matchKeywords: Array.isArray(options?.matchKeywords) ? options?.matchKeywords : undefined,
+      syncCommentsFirst: options?.syncCommentsFirst === true,
+    });
+
+    return this.buildSummaryResponse({
+      title: `${workspaceLabel}评论获客已生成`,
+      summary: `已在 ${workspaceLabel} 工作台生成 ${result.items.length} 条评论获客记录，其中新增 ${result.createdCount} 条、更新 ${result.updatedCount} 条。`,
+      highlights: [
+        `小红书：${result.platformCounts.xiaohongshu} 条`,
+        `抖音：${result.platformCounts.douyin} 条`,
+        Array.isArray(options?.matchKeywords) && options?.matchKeywords.length ? `关键词：${options.matchKeywords.join("、")}` : "关键词：未限制",
+      ],
+      data: result,
+      links: [{ label: `打开${workspaceLabel}工作台`, url: workspacePath }],
+      resourceKind: "openclaw_comment_lead",
+      resultStatus: "COMPLETED",
+    });
+  }
+
+  async deleteOpenClawCommentLead(
+    headers: HeadersMap,
+    options?: {
+      workspaceScope?: string;
+      leadId?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "edit", auth);
+    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope || "all_network_growth");
+    const workspaceLabel = getOpenClawWorkspaceDisplayName(workspaceScope);
+    const workspacePath = getOpenClawWorkspaceDashboardPath(workspaceScope);
+    const leadId = String(options?.leadId || "").trim();
+    if (!leadId) {
+      throw new BadRequestException("请提供 leadId");
+    }
+
+    const item = await this.openClawCommentLeadService.deleteLead(brandId, workspaceScope, leadId);
+
+    return this.buildSummaryResponse({
+      title: `${workspaceLabel}评论获客已删除`,
+      summary: `已从 ${workspaceLabel} 工作台删除评论获客记录《${item.userName}》。`,
+      highlights: [
+        `来源平台：${item.sourcePlatformLabel}`,
+        `入选理由：${item.selectedReason}`,
+        `用户主页：${item.userProfileUrl}`,
+      ],
+      data: item,
+      links: [{ label: `打开${workspaceLabel}工作台`, url: workspacePath }],
+      resourceKind: "openclaw_comment_lead",
+      resultStatus: "COMPLETED",
+    });
+  }
+
+  async getOpenClawPlatformLeads(
+    headers: HeadersMap,
+    options?: {
+      workspaceScope?: string;
+      limit?: number;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "view", auth);
+    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope || "all_network_growth");
+    const workspaceLabel = getOpenClawWorkspaceDisplayName(workspaceScope);
+    const workspacePath = getOpenClawWorkspaceDashboardPath(workspaceScope);
+    const workspace = await this.openClawPlatformLeadService.listWorkspace({
+      brandId,
+      workspaceScope,
+      limit: options?.limit,
+    });
+    const items = workspace.items.slice(0, this.normalizeLimit(options?.limit));
+
+    return this.buildSummaryResponse({
+      title: `${workspaceLabel}平台获客`,
+      summary: workspace.total
+        ? `${workspaceLabel}工作台当前共有 ${workspace.total} 条平台获客记录。`
+        : `${workspaceLabel}工作台当前还没有平台获客记录，OpenClaw 可直接写入首批平台名单。`,
+      highlights: items.length
+        ? items.slice(0, 5).map((item) => `${item.name}｜${item.businessScope}｜${item.contactInfo}｜${item.address}`)
+        : ["记录数：0"],
+      data: {
+        total: workspace.total,
+        items,
+      },
+      links: [{ label: `打开${workspaceLabel}工作台`, url: workspacePath }],
+      resourceKind: "openclaw_platform_lead",
+    });
+  }
+
+  async createOpenClawPlatformLeads(
+    headers: HeadersMap,
+    options?: {
+      workspaceScope?: string;
+      items?: Array<{
+        id?: string;
+        name?: string;
+        businessScope?: string;
+        selectedReason?: string;
+        contactInfo?: string;
+        address?: string;
+        selectedAt?: string;
+      }>;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "edit", auth);
+    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope || "all_network_growth");
+    const workspaceLabel = getOpenClawWorkspaceDisplayName(workspaceScope);
+    const workspacePath = getOpenClawWorkspaceDashboardPath(workspaceScope);
+    const items = Array.isArray(options?.items) ? options.items : [];
+    if (!items.length) {
+      throw new BadRequestException("请至少提供一条平台获客记录");
+    }
+
+    const result = await this.openClawPlatformLeadService.createLeads({
+      brandId,
+      workspaceScope,
+      createdByUserId: auth.userId,
+      items: items.map((item) => ({
+        id: typeof item?.id === "string" ? item.id : undefined,
+        name: String(item?.name || "").trim(),
+        businessScope: String(item?.businessScope || "").trim(),
+        selectedReason: String(item?.selectedReason || "").trim(),
+        contactInfo: String(item?.contactInfo || "").trim(),
+        address: String(item?.address || "").trim(),
+        selectedAt: typeof item?.selectedAt === "string" ? item.selectedAt : undefined,
+      })),
+    });
+
+    return this.buildSummaryResponse({
+      title: `${workspaceLabel}平台获客已写入`,
+      summary: `已在 ${workspaceLabel} 工作台写入 ${result.items.length} 条平台获客记录，其中新增 ${result.createdCount} 条、更新 ${result.updatedCount} 条。`,
+      highlights: result.items.slice(0, 5).map((item) => `${item.name}｜${item.businessScope}｜${item.contactInfo}`),
+      data: result,
+      links: [{ label: `打开${workspaceLabel}工作台`, url: workspacePath }],
+      resourceKind: "openclaw_platform_lead",
+      resultStatus: "COMPLETED",
+    });
+  }
+
+  async deleteOpenClawPlatformLead(
+    headers: HeadersMap,
+    options?: {
+      workspaceScope?: string;
+      leadId?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "edit", auth);
+    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope || "all_network_growth");
+    const workspaceLabel = getOpenClawWorkspaceDisplayName(workspaceScope);
+    const workspacePath = getOpenClawWorkspaceDashboardPath(workspaceScope);
+    const leadId = String(options?.leadId || "").trim();
+    if (!leadId) {
+      throw new BadRequestException("请提供 leadId");
+    }
+
+    const item = await this.openClawPlatformLeadService.deleteLead(brandId, workspaceScope, leadId);
+
+    return this.buildSummaryResponse({
+      title: `${workspaceLabel}平台获客已删除`,
+      summary: `已从 ${workspaceLabel} 工作台删除平台获客记录《${item.name}》。`,
+      highlights: [
+        `业务范围：${item.businessScope}`,
+        `联系方式：${item.contactInfo}`,
+        `地址：${item.address}`,
+      ],
+      data: item,
+      links: [{ label: `打开${workspaceLabel}工作台`, url: workspacePath }],
+      resourceKind: "openclaw_platform_lead",
       resultStatus: "COMPLETED",
     });
   }
@@ -7768,6 +9321,95 @@ export class OpenClawService {
       },
       links: [{ label: "打开半年营销规划", url: "/brand-growth/half-year-marketing-plan" }],
     });
+  }
+
+  async getBrandGrowthVisualReportWorkspace(headers: HeadersMap) {
+    return this.manageGrowthReports(headers, {
+      action: "get_visual_growth_workspace",
+    });
+  }
+
+  async generateBrandGrowthVisualReport(headers: HeadersMap) {
+    return this.manageGrowthReports(headers, {
+      action: "generate_visual_growth_report",
+    });
+  }
+
+  async getBrandGrowthMarketingCalendarWorkspace(headers: HeadersMap) {
+    return this.manageGrowthReports(headers, {
+      action: "get_xiaohongshu_marketing_calendar_workspace",
+    });
+  }
+
+  async generateBrandGrowthMarketingCalendar(
+    headers: HeadersMap,
+    options?: {
+      payload?: Record<string, unknown>;
+    },
+  ) {
+    return this.manageGrowthReports(headers, {
+      action: "generate_xiaohongshu_marketing_calendar",
+      payload: options?.payload,
+    });
+  }
+
+  async updateBrandGrowthMarketingCalendar(
+    headers: HeadersMap,
+    options?: {
+      reportId?: string;
+      payload?: Record<string, unknown>;
+    },
+  ) {
+    return this.manageGrowthReports(headers, {
+      action: "update_xiaohongshu_marketing_calendar",
+      reportId: options?.reportId,
+      payload: options?.payload,
+    });
+  }
+
+  async getBrandGrowthTopicLibraryWorkspace(
+    headers: HeadersMap,
+    options?: {
+      selectedDate?: string;
+    },
+  ) {
+    return this.manageGrowthReports(headers, {
+      action: "get_douyin_hot_topic_candidates_workspace",
+      selectedDate: options?.selectedDate,
+    });
+  }
+
+  async generateBrandGrowthTopicCandidates(
+    headers: HeadersMap,
+    options?: {
+      selectedDate?: string;
+    },
+  ) {
+    return this.manageGrowthReports(headers, {
+      action: "generate_douyin_hot_topic_candidates",
+      selectedDate: options?.selectedDate,
+    });
+  }
+
+  async updateBrandGrowthTopicLibrary(
+    headers: HeadersMap,
+    options?: {
+      payload?: Record<string, unknown>;
+    },
+  ) {
+    return this.manageGrowthReports(headers, {
+      action: "update_douyin_topic_library",
+      payload: options?.payload,
+    });
+  }
+
+  async getBrandGrowthMaterialLibraryItems(
+    headers: HeadersMap,
+    options?: {
+      limit?: number;
+    },
+  ) {
+    return this.getUnifiedMaterialLibraryItems(headers, options);
   }
 
   async createKnowledgeBase(
@@ -8196,6 +9838,47 @@ export class OpenClawService {
     return undefined;
   }
 
+  private resolveCreateDesignWorkSpec(
+    module: "image" | "html" | "deck" | "video",
+    options?: { imageSize?: string; spec?: string },
+  ) {
+    const rawImageSize = String(options?.imageSize || "").trim();
+    const rawSpec = String(options?.spec || "").trim();
+    const normalizedImageSize = this.normalizeCreateDesignWorkSize(rawImageSize);
+    const normalizedSpec = this.normalizeCreateDesignWorkSize(rawSpec);
+
+    if (rawImageSize && module !== "image") {
+      throw new BadRequestException("imageSize 仅适用于 image 模块；HTML、PPT 和视频方案请继续使用 spec 描述规格");
+    }
+    if (module !== "image") {
+      return rawSpec || undefined;
+    }
+    if (rawImageSize && !normalizedImageSize) {
+      throw new BadRequestException("imageSize 格式必须为 宽x高，例如 1200x628 或 1080x1920");
+    }
+    if (rawSpec && !normalizedSpec) {
+      throw new BadRequestException("spec 格式必须为 宽x高，例如 1200x628 或 1080x1920");
+    }
+    if (normalizedImageSize && normalizedSpec && normalizedImageSize !== normalizedSpec) {
+      throw new BadRequestException("imageSize 与 spec 同时提供时必须保持一致");
+    }
+
+    return normalizedImageSize || normalizedSpec || undefined;
+  }
+
+  private normalizeCreateDesignWorkSize(value?: string) {
+    const match = String(value || "").match(/(\d{3,5})\s*[xX*]\s*(\d{3,5})/);
+    if (!match) {
+      return "";
+    }
+    const width = Number(match[1]);
+    const height = Number(match[2]);
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+      return "";
+    }
+    return `${Math.trunc(width)}x${Math.trunc(height)}`;
+  }
+
   private normalizeDouyinOriginalCopyType(value?: string) {
     const normalized = String(value || "").trim().toUpperCase();
     if (
@@ -8323,12 +10006,27 @@ export class OpenClawService {
     return `wechat-workflow-${workflowId}-${role}-${index + 1}.bin`;
   }
 
-  private async getWechatWorkflowCreativeMaterialFileUrl(brandId: string, materialId: string) {
+  private async getOpenClawCreativeMaterialFileUrl(brandId: string, materialId: string) {
     const scopes = ["wechat", "brand_growth", "douyin", "xiaohongshu", "geo"];
     for (const scope of scopes) {
       const matched = await this.openClawCreativeMaterialService.getMaterialById(brandId, scope, materialId);
       if (matched?.fileUrl) {
         return matched.fileUrl;
+      }
+    }
+    return undefined;
+  }
+
+  private async getOpenClawCreativeMaterialByIdAcrossScopes(brandId: string, materialId: string) {
+    const normalizedMaterialId = String(materialId || "").trim();
+    if (!normalizedMaterialId) {
+      return undefined;
+    }
+    const scopes: OpenClawWorkspaceScope[] = ["wechat", "brand_growth", "douyin", "xiaohongshu", "geo", "all_network_growth"];
+    for (const scope of scopes) {
+      const matched = await this.openClawCreativeMaterialService.getMaterialById(brandId, scope, normalizedMaterialId);
+      if (matched) {
+        return matched;
       }
     }
     return undefined;
@@ -8357,7 +10055,7 @@ export class OpenClawService {
     }
     const materialId = typeof record.materialId === "string" ? record.materialId.trim() : "";
     if (materialId) {
-      const materialFileUrl = await this.getWechatWorkflowCreativeMaterialFileUrl(brandId, materialId);
+      const materialFileUrl = await this.getOpenClawCreativeMaterialFileUrl(brandId, materialId);
       if (!materialFileUrl) {
         throw new BadRequestException(`未找到可用的公众号图片素材：${materialId}`);
       }
@@ -11058,6 +12756,7 @@ export class OpenClawService {
       searchWorks: workspace.searchWorks.length,
       keywordRecommendations: workspace.keywordRecommendations.length,
       commentData: workspace.commentData.length,
+      targetUsers: workspace.targetUsers.length,
       lowFanExplosiveWorks: workspace.lowFanExplosiveWorks.length,
       highCompletionRateWorks: workspace.highCompletionRateWorks.length,
       highLikeRateWorks: workspace.highLikeRateWorks.length,
@@ -11355,6 +13054,10 @@ export class OpenClawService {
           sourceUrls: Array.isArray(toolArgs.sourceUrls)
             ? toolArgs.sourceUrls.map((item) => String(item || ""))
             : undefined,
+          matchKeywords: Array.isArray(toolArgs.matchKeywords)
+            ? toolArgs.matchKeywords.map((item) => String(item || ""))
+            : undefined,
+          syncCommentsFirst: toolArgs.syncCommentsFirst === true,
         });
       case "sync_xiaohongshu_feishu_workspace":
         return this.syncXiaohongshuFeishuWorkspace(headers);
@@ -11428,6 +13131,16 @@ export class OpenClawService {
               }))
             : undefined,
         });
+      case "sync_douyin_target_users":
+        return this.syncDouyinTargetUsers(headers, {
+          sourceUrls: Array.isArray(toolArgs.sourceUrls)
+            ? toolArgs.sourceUrls.map((item) => String(item || ""))
+            : undefined,
+          matchKeywords: Array.isArray(toolArgs.matchKeywords)
+            ? toolArgs.matchKeywords.map((item) => String(item || ""))
+            : undefined,
+          syncCommentsFirst: toolArgs.syncCommentsFirst === true,
+        });
       case "sync_douyin_keyword_recommendations":
         return this.syncDouyinKeywordRecommendations(headers, {
           searchKeyword: typeof toolArgs.searchKeyword === "string" ? toolArgs.searchKeyword : undefined,
@@ -11482,6 +13195,17 @@ export class OpenClawService {
         return this.listMyOrders(headers, {
           status: typeof toolArgs.status === "string" ? toolArgs.status : undefined,
           limit: typeof toolArgs.limit === "number" ? toolArgs.limit : undefined,
+        });
+      case "list_personal_material_assets":
+        return this.listPersonalMaterialAssets(headers, {
+          category: typeof toolArgs.category === "string" ? toolArgs.category : undefined,
+          limit: typeof toolArgs.limit === "number" ? toolArgs.limit : undefined,
+        });
+      case "get_local_material_storage_settings":
+        return this.getLocalMaterialStorageSettings(headers);
+      case "update_local_material_storage_settings":
+        return this.updateLocalMaterialStorageSettings(headers, {
+          materialLibraryBaseRoot: typeof toolArgs.materialLibraryBaseRoot === "string" ? toolArgs.materialLibraryBaseRoot : undefined,
         });
       case "get_personal_center_overview":
         return this.getPersonalCenterOverview(headers);
@@ -11766,7 +13490,9 @@ export class OpenClawService {
             }
             : undefined,
           referenceImageUrl: typeof toolArgs.referenceImageUrl === "string" ? toolArgs.referenceImageUrl : undefined,
+          referenceMaterialId: typeof toolArgs.referenceMaterialId === "string" ? toolArgs.referenceMaterialId : undefined,
           modelSelection: typeof toolArgs.modelSelection === "string" ? toolArgs.modelSelection : undefined,
+          imageSize: typeof toolArgs.imageSize === "string" ? toolArgs.imageSize : undefined,
           spec: typeof toolArgs.spec === "string" ? toolArgs.spec : undefined,
           additionalInstruction: typeof toolArgs.additionalInstruction === "string" ? toolArgs.additionalInstruction : undefined,
         });
@@ -11868,6 +13594,43 @@ export class OpenClawService {
           materialDescription: typeof toolArgs.materialDescription === "string" ? toolArgs.materialDescription : undefined,
           materialType: typeof toolArgs.materialType === "string" ? toolArgs.materialType : undefined,
         });
+      case "get_mixedcut_media_assets":
+        return this.getMixedcutMediaAssets(headers, {
+          limit: typeof toolArgs.limit === "number" ? toolArgs.limit : undefined,
+        });
+      case "create_mixedcut_remix_task":
+        return this.createMixedcutRemixTask(headers, {
+          workspaceScope: typeof toolArgs.workspaceScope === "string" ? toolArgs.workspaceScope : undefined,
+          mediaAssetIds: Array.isArray(toolArgs.mediaAssetIds)
+            ? toolArgs.mediaAssetIds.map((item) => String(item || "").trim()).filter(Boolean)
+            : undefined,
+          creativeMaterialIds: Array.isArray(toolArgs.creativeMaterialIds)
+            ? toolArgs.creativeMaterialIds.map((item) => String(item || "").trim()).filter(Boolean)
+            : undefined,
+          name: typeof toolArgs.name === "string" ? toolArgs.name : undefined,
+          style: typeof toolArgs.style === "string" ? toolArgs.style as "dynamic" | "calm" | "exciting" : undefined,
+          targetDurationSeconds: typeof toolArgs.targetDurationSeconds === "number" ? toolArgs.targetDurationSeconds : undefined,
+          localFilePath: typeof toolArgs.localFilePath === "string" ? toolArgs.localFilePath : undefined,
+          localFilePaths: Array.isArray(toolArgs.localFilePaths)
+            ? toolArgs.localFilePaths.map((item) => String(item || "").trim()).filter(Boolean)
+            : undefined,
+          uploadItems: Array.isArray(toolArgs.uploadItems)
+            ? toolArgs.uploadItems
+              .map((item) => item && typeof item === "object" && !Array.isArray(item) ? item as Record<string, unknown> : {})
+              .map((item) => ({
+                title: typeof item.title === "string" ? item.title : undefined,
+                fileName: typeof item.fileName === "string" ? item.fileName : undefined,
+                contentType: typeof item.contentType === "string" ? item.contentType : undefined,
+                dataBase64: typeof item.dataBase64 === "string" ? item.dataBase64 : undefined,
+                localFilePath: typeof item.localFilePath === "string" ? item.localFilePath : undefined,
+              }))
+            : undefined,
+        });
+      case "get_mixedcut_remix_task_progress":
+        return this.getMixedcutRemixTaskProgress(headers, {
+          taskId: typeof toolArgs.taskId === "string" ? toolArgs.taskId : undefined,
+          workspaceScope: typeof toolArgs.workspaceScope === "string" ? toolArgs.workspaceScope : undefined,
+        });
       case "get_openclaw_creative_materials":
         return this.getOpenClawCreativeMaterials(headers, {
           workspaceScope: typeof toolArgs.workspaceScope === "string" ? toolArgs.workspaceScope : undefined,
@@ -11876,9 +13639,13 @@ export class OpenClawService {
       case "create_openclaw_creative_material":
         return this.createOpenClawCreativeMaterial(headers, {
           workspaceScope: typeof toolArgs.workspaceScope === "string" ? toolArgs.workspaceScope : undefined,
+          sourceKind: typeof toolArgs.sourceKind === "string" ? toolArgs.sourceKind : undefined,
           title: typeof toolArgs.title === "string" ? toolArgs.title : undefined,
           description: typeof toolArgs.description === "string" ? toolArgs.description : undefined,
           materialType: typeof toolArgs.materialType === "string" ? toolArgs.materialType : undefined,
+          materialTags: Array.isArray(toolArgs.materialTags)
+            ? toolArgs.materialTags.map((item) => String(item || "").trim()).filter(Boolean)
+            : undefined,
           fileUrl: typeof toolArgs.fileUrl === "string" ? toolArgs.fileUrl : undefined,
           fileName: typeof toolArgs.fileName === "string" ? toolArgs.fileName : undefined,
           mimeType: typeof toolArgs.mimeType === "string" ? toolArgs.mimeType : undefined,
@@ -11924,6 +13691,96 @@ export class OpenClawService {
           workspaceScope: typeof toolArgs.workspaceScope === "string" ? toolArgs.workspaceScope : undefined,
           reportId: typeof toolArgs.reportId === "string" ? toolArgs.reportId : undefined,
         });
+      case "get_openclaw_geo_contents":
+        return this.getOpenClawGeoContents(headers, {
+          workspaceScope: typeof toolArgs.workspaceScope === "string" ? toolArgs.workspaceScope : undefined,
+          contentType: typeof toolArgs.contentType === "string" ? toolArgs.contentType : undefined,
+          limit: typeof toolArgs.limit === "number" ? toolArgs.limit : undefined,
+        });
+      case "create_openclaw_geo_content":
+        return this.createOpenClawGeoContent(headers, {
+          workspaceScope: typeof toolArgs.workspaceScope === "string" ? toolArgs.workspaceScope : undefined,
+          contentType: typeof toolArgs.contentType === "string" ? toolArgs.contentType : undefined,
+          title: typeof toolArgs.title === "string" ? toolArgs.title : undefined,
+          description: typeof toolArgs.description === "string" ? toolArgs.description : undefined,
+          htmlContent: typeof toolArgs.htmlContent === "string" ? toolArgs.htmlContent : undefined,
+          attachmentFileUrl: typeof toolArgs.attachmentFileUrl === "string" ? toolArgs.attachmentFileUrl : undefined,
+          attachmentFileName: typeof toolArgs.attachmentFileName === "string" ? toolArgs.attachmentFileName : undefined,
+          attachmentMimeType: typeof toolArgs.attachmentMimeType === "string" ? toolArgs.attachmentMimeType : undefined,
+          attachmentStorageKey: typeof toolArgs.attachmentStorageKey === "string" ? toolArgs.attachmentStorageKey : undefined,
+          attachmentUpload: toolArgs.attachmentUpload && typeof toolArgs.attachmentUpload === "object" && !Array.isArray(toolArgs.attachmentUpload)
+            ? {
+                fileName: typeof (toolArgs.attachmentUpload as Record<string, unknown>).fileName === "string"
+                  ? (toolArgs.attachmentUpload as Record<string, unknown>).fileName as string
+                  : undefined,
+                contentType: typeof (toolArgs.attachmentUpload as Record<string, unknown>).contentType === "string"
+                  ? (toolArgs.attachmentUpload as Record<string, unknown>).contentType as string
+                  : undefined,
+                dataBase64: typeof (toolArgs.attachmentUpload as Record<string, unknown>).dataBase64 === "string"
+                  ? (toolArgs.attachmentUpload as Record<string, unknown>).dataBase64 as string
+                  : undefined,
+              }
+            : undefined,
+        });
+      case "delete_openclaw_geo_content":
+        return this.deleteOpenClawGeoContent(headers, {
+          workspaceScope: typeof toolArgs.workspaceScope === "string" ? toolArgs.workspaceScope : undefined,
+          contentType: typeof toolArgs.contentType === "string" ? toolArgs.contentType : undefined,
+          contentId: typeof toolArgs.contentId === "string" ? toolArgs.contentId : undefined,
+        });
+      case "get_openclaw_comment_leads":
+        return this.getOpenClawCommentLeads(headers, {
+          workspaceScope: typeof toolArgs.workspaceScope === "string" ? toolArgs.workspaceScope : undefined,
+          sourcePlatform: typeof toolArgs.sourcePlatform === "string" ? toolArgs.sourcePlatform : undefined,
+          limit: typeof toolArgs.limit === "number" ? toolArgs.limit : undefined,
+        });
+      case "create_openclaw_comment_leads":
+        return this.createOpenClawCommentLeads(headers, {
+          workspaceScope: typeof toolArgs.workspaceScope === "string" ? toolArgs.workspaceScope : undefined,
+          sourcePlatforms: Array.isArray(toolArgs.sourcePlatforms)
+            ? toolArgs.sourcePlatforms.map((item) => String(item || "").trim()).filter(Boolean)
+            : undefined,
+          xiaohongshuSourceUrls: Array.isArray(toolArgs.xiaohongshuSourceUrls)
+            ? toolArgs.xiaohongshuSourceUrls.map((item) => String(item || "").trim()).filter(Boolean)
+            : undefined,
+          douyinSourceUrls: Array.isArray(toolArgs.douyinSourceUrls)
+            ? toolArgs.douyinSourceUrls.map((item) => String(item || "").trim()).filter(Boolean)
+            : undefined,
+          matchKeywords: Array.isArray(toolArgs.matchKeywords)
+            ? toolArgs.matchKeywords.map((item) => String(item || "").trim()).filter(Boolean)
+            : undefined,
+          syncCommentsFirst: toolArgs.syncCommentsFirst === true,
+        });
+      case "delete_openclaw_comment_lead":
+        return this.deleteOpenClawCommentLead(headers, {
+          workspaceScope: typeof toolArgs.workspaceScope === "string" ? toolArgs.workspaceScope : undefined,
+          leadId: typeof toolArgs.leadId === "string" ? toolArgs.leadId : undefined,
+        });
+      case "get_openclaw_platform_leads":
+        return this.getOpenClawPlatformLeads(headers, {
+          workspaceScope: typeof toolArgs.workspaceScope === "string" ? toolArgs.workspaceScope : undefined,
+          limit: typeof toolArgs.limit === "number" ? toolArgs.limit : undefined,
+        });
+      case "create_openclaw_platform_leads":
+        return this.createOpenClawPlatformLeads(headers, {
+          workspaceScope: typeof toolArgs.workspaceScope === "string" ? toolArgs.workspaceScope : undefined,
+          items: Array.isArray(toolArgs.items)
+            ? toolArgs.items.map((item) => ({
+              id: item && typeof item === "object" && typeof item.id === "string" ? item.id : undefined,
+              name: item && typeof item === "object" && typeof item.name === "string" ? item.name : undefined,
+              businessScope: item && typeof item === "object" && typeof item.businessScope === "string" ? item.businessScope : undefined,
+              selectedReason: item && typeof item === "object" && typeof item.selectedReason === "string" ? item.selectedReason : undefined,
+              contactInfo: item && typeof item === "object" && typeof item.contactInfo === "string" ? item.contactInfo : undefined,
+              address: item && typeof item === "object" && typeof item.address === "string" ? item.address : undefined,
+              selectedAt: item && typeof item === "object" && typeof item.selectedAt === "string" ? item.selectedAt : undefined,
+            }))
+            : undefined,
+        });
+      case "delete_openclaw_platform_lead":
+        return this.deleteOpenClawPlatformLead(headers, {
+          workspaceScope: typeof toolArgs.workspaceScope === "string" ? toolArgs.workspaceScope : undefined,
+          leadId: typeof toolArgs.leadId === "string" ? toolArgs.leadId : undefined,
+        });
       case "create_openclaw_video_work":
         return this.createOpenClawVideoWork(headers, {
           workspaceScope: typeof toolArgs.workspaceScope === "string" ? toolArgs.workspaceScope : undefined,
@@ -11955,6 +13812,43 @@ export class OpenClawService {
         return this.createHalfYearMarketingPlan(headers, {
           planningYear: typeof toolArgs.planningYear === "string" ? toolArgs.planningYear : undefined,
           focus: typeof toolArgs.focus === "string" ? toolArgs.focus : undefined,
+        });
+      case "get_brand_growth_visual_report_workspace":
+        return this.getBrandGrowthVisualReportWorkspace(headers);
+      case "generate_brand_growth_visual_report":
+        return this.generateBrandGrowthVisualReport(headers);
+      case "get_brand_growth_marketing_calendar_workspace":
+        return this.getBrandGrowthMarketingCalendarWorkspace(headers);
+      case "generate_brand_growth_marketing_calendar":
+        return this.generateBrandGrowthMarketingCalendar(headers, {
+          payload: toolArgs.payload && typeof toolArgs.payload === "object" && !Array.isArray(toolArgs.payload)
+            ? toolArgs.payload as Record<string, unknown>
+            : undefined,
+        });
+      case "update_brand_growth_marketing_calendar":
+        return this.updateBrandGrowthMarketingCalendar(headers, {
+          reportId: typeof toolArgs.reportId === "string" ? toolArgs.reportId : undefined,
+          payload: toolArgs.payload && typeof toolArgs.payload === "object" && !Array.isArray(toolArgs.payload)
+            ? toolArgs.payload as Record<string, unknown>
+            : undefined,
+        });
+      case "get_brand_growth_topic_library_workspace":
+        return this.getBrandGrowthTopicLibraryWorkspace(headers, {
+          selectedDate: typeof toolArgs.selectedDate === "string" ? toolArgs.selectedDate : undefined,
+        });
+      case "generate_brand_growth_topic_candidates":
+        return this.generateBrandGrowthTopicCandidates(headers, {
+          selectedDate: typeof toolArgs.selectedDate === "string" ? toolArgs.selectedDate : undefined,
+        });
+      case "update_brand_growth_topic_library":
+        return this.updateBrandGrowthTopicLibrary(headers, {
+          payload: toolArgs.payload && typeof toolArgs.payload === "object" && !Array.isArray(toolArgs.payload)
+            ? toolArgs.payload as Record<string, unknown>
+            : undefined,
+        });
+      case "get_brand_growth_material_library_items":
+        return this.getBrandGrowthMaterialLibraryItems(headers, {
+          limit: typeof toolArgs.limit === "number" ? toolArgs.limit : undefined,
         });
       case "create_knowledge_base":
         return this.createKnowledgeBase(headers, {

@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>系统内页简洁版预览</title>
+  <style>
+    :root {
+      --bg: #f6f7fb;
+      --surface: #ffffff;
+      --surface-soft: #f9fafc;
+      --border: #e8ebf2;
+      --text: #101828;
+      --muted: #667085;
+      --accent: #2563eb;
+      --accent-soft: #eff6ff;
+      --success: #16a34a;
+      --success-soft: #effdf3;
+      --shadow: 0 16px 40px rgba(16, 24, 40, 0.06);
+      --radius-lg: 28px;
+      --radius-md: 20px;
+      --radius-sm: 14px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      min-width: 320px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+
+    body {
+      min-height: 100vh;
+    }
+
+    .shell {
+      display: grid;
+      grid-template-columns: 88px minmax(0, 1fr);
+      min-height: 100vh;
+    }
+
+    .rail {
+      background: #ffffff;
+      border-right: 1px solid var(--border);
+      padding: 20px 14px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo {
+      width: 42px;
+      height: 42px;
+      border-radius: 14px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: #111827;
+      color: #ffffff;
+      font-size: 18px;
+      font-weight: 800;
+    }
+
+    .rail-item {
+      width: 56px;
+      height: 56px;
+      border-radius: 18px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid transparent;
+      background: transparent;
+      color: #98a2b3;
+      font-size: 16px;
+      font-weight: 700;
+    }
+
+    .rail-item.active {
+      background: var(--accent-soft);
+      border-color: #dbeafe;
+      color: var(--accent);
+    }
+
+    .content {
+      padding: 24px;
+    }
+
+    .topbar {
+      min-height: 72px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    .brand-title strong {
+      display: block;
+      font-size: 18px;
+      letter-spacing: -0.02em;
+    }
+
+    .brand-title span {
+      display: block;
+      margin-top: 4px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .topbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .search {
+      min-width: 260px;
+      min-height: 44px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: #ffffff;
+      padding: 0 16px;
+      display: flex;
+      align-items: center;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .button {
+      min-height: 44px;
+      padding: 0 18px;
+      border-radius: 999px;
+      border: 1px solid transparent;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: 600;
+      white-space: nowrap;
+      background: #ffffff;
+    }
+
+    .button-primary {
+      background: #111827;
+      color: #ffffff;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 320px;
+      gap: 20px;
+    }
+
+    .main-stack,
+    .side-stack {
+      display: grid;
+      gap: 20px;
+    }
+
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow);
+    }
+
+    .hero {
+      padding: 32px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      min-height: 30px;
+      padding: 0 12px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .hero h1 {
+      margin: 18px 0 10px;
+      font-size: 40px;
+      line-height: 1.02;
+      letter-spacing: -0.05em;
+      max-width: 12ch;
+    }
+
+    .hero p {
+      margin: 0;
+      max-width: 40ch;
+      font-size: 15px;
+      line-height: 1.8;
+      color: var(--muted);
+    }
+
+    .hero-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 22px;
+    }
+
+    .chip {
+      min-height: 36px;
+      padding: 0 14px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: var(--surface-soft);
+      display: inline-flex;
+      align-items: center;
+      font-size: 13px;
+      color: #344054;
+    }
+
+    .hero-actions {
+      display: flex;
+      gap: 12px;
+      margin-top: 22px;
+    }
+
+    .entry-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .entry-card {
+      padding: 24px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow);
+    }
+
+    .entry-card span {
+      display: inline-flex;
+      align-items: center;
+      min-height: 30px;
+      padding: 0 10px;
+      border-radius: 999px;
+      background: var(--surface-soft);
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .entry-card h2 {
+      margin: 16px 0 8px;
+      font-size: 22px;
+      letter-spacing: -0.03em;
+    }
+
+    .entry-card p {
+      margin: 0;
+      font-size: 14px;
+      line-height: 1.8;
+      color: var(--muted);
+      max-width: 22ch;
+    }
+
+    .entry-link {
+      display: inline-flex;
+      align-items: center;
+      margin-top: 18px;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--accent);
+    }
+
+    .side-box {
+      padding: 24px;
+    }
+
+    .side-box h3 {
+      margin: 0;
+      font-size: 20px;
+      letter-spacing: -0.03em;
+    }
+
+    .side-box p {
+      margin: 10px 0 0;
+      font-size: 14px;
+      line-height: 1.8;
+      color: var(--muted);
+    }
+
+    .focus {
+      margin-top: 18px;
+      padding: 16px;
+      border-radius: var(--radius-sm);
+      background: var(--accent-soft);
+      border: 1px solid #dbeafe;
+    }
+
+    .focus strong {
+      display: block;
+      font-size: 16px;
+      letter-spacing: -0.02em;
+    }
+
+    .focus span {
+      display: block;
+      margin-top: 6px;
+      font-size: 13px;
+      line-height: 1.8;
+      color: #365314;
+    }
+
+    .update {
+      margin-top: 16px;
+      padding: 16px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: var(--surface-soft);
+    }
+
+    .update strong {
+      display: block;
+      font-size: 15px;
+      letter-spacing: -0.02em;
+    }
+
+    .update span {
+      display: block;
+      margin-top: 6px;
+      font-size: 13px;
+      line-height: 1.8;
+      color: var(--muted);
+    }
+
+    .note {
+      padding: 18px 22px;
+      border-radius: var(--radius-md);
+      background: #ffffff;
+      border: 1px dashed #d0d5dd;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.8;
+    }
+
+    @media (max-width: 1160px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+
+      .entry-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 860px) {
+      .shell {
+        grid-template-columns: 1fr;
+      }
+
+      .rail {
+        display: none;
+      }
+
+      .content {
+        padding: 14px;
+      }
+
+      .topbar {
+        display: block;
+      }
+
+      .brand-title {
+        margin-bottom: 14px;
+      }
+
+      .topbar-actions {
+        flex-wrap: wrap;
+      }
+
+      .search {
+        min-width: 0;
+        width: 100%;
+      }
+
+      .hero h1 {
+        font-size: 32px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <aside class="rail">
+      <div class="logo">17</div>
+      <div class="rail-item active">策</div>
+      <div class="rail-item">书</div>
+      <div class="rail-item">音</div>
+      <div class="rail-item">公</div>
+      <div class="rail-item">我</div>
+    </aside>
+
+    <main class="content">
+      <header class="topbar">
+        <div class="brand-title">
+          <strong>17AI 门店增长实验室</strong>
+          <span>品牌增长策略工作台</span>
+        </div>
+        <div class="topbar-actions">
+          <div class="search">搜索报告、任务或素材</div>
+          <div class="button button-primary">创建今日动作</div>
+        </div>
+      </header>
+
+      <div class="layout">
+        <section class="main-stack">
+          <article class="panel hero">
+            <div class="eyebrow">Simple Dashboard</div>
+            <h1>今天先把最重要的一步做完。</h1>
+            <p>这版预览只保留当前状态、三个核心入口和两个侧边信息盒子，让页面回到真正可用的系统首页。</p>
+            <div class="hero-meta">
+              <span class="chip">当前阶段：报告更新</span>
+              <span class="chip">今日重点：机会洞察</span>
+              <span class="chip">下一步：进入内容执行</span>
+            </div>
+            <div class="hero-actions">
+              <div class="button button-primary">继续处理</div>
+              <div class="button">查看报告</div>
+            </div>
+          </article>
+
+          <section class="entry-grid">
+            <article class="entry-card">
+              <span>Input</span>
+              <h2>数据采集</h2>
+              <p>先看今天的数据输入是否完整。</p>
+              <div class="entry-link">进入模块</div>
+            </article>
+            <article class="entry-card">
+              <span>Insight</span>
+              <h2>增长报告</h2>
+              <p>把洞察和规划继续往前推进。</p>
+              <div class="entry-link">继续处理</div>
+            </article>
+            <article class="entry-card">
+              <span>Action</span>
+              <h2>内容执行</h2>
+              <p>把结果送到小红书、抖音和公众号。</p>
+              <div class="entry-link">开始接力</div>
+            </article>
+          </section>
+
+          <div class="note">
+            这一版刻意删掉了大段说明、密集统计和过多状态提示，只保留真正帮助当前决策的内容。
+          </div>
+        </section>
+
+        <aside class="side-stack">
+          <article class="panel side-box">
+            <h3>今日重点</h3>
+            <p>先更新机会洞察，再决定本周选题和分发节奏。</p>
+            <div class="focus">
+              <strong>机会洞察总报告</strong>
+              <span>这是今天唯一优先级最高的任务。</span>
+            </div>
+          </article>
+
+          <article class="panel side-box">
+            <h3>最近更新</h3>
+            <p>只展示一个最重要的最近输出，不再堆很多结果卡。</p>
+            <div class="update">
+              <strong>品牌增长报告 V12</strong>
+              <span>今天 09:18 已更新，可直接继续进入执行链路。</span>
+            </div>
+          </article>
+        </aside>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

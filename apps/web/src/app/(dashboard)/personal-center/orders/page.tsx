@@ -2,49 +2,50 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { getMe, logout as logoutSession, readAuthSession, switchBrand, type MeResponse } from "../../../../services/auth";
-import { getOrders, orderSeed, type OrderRecord } from "../../../../services/personal-center";
 import {
-  buildPersonalCenterLoginPath,
-  formatCollaboratorRoleLabel,
-  formatDateTime,
-  isAuthFailure,
-  personalOrderStatusClassMap,
-} from "../route-helpers";
+  getPersonalCenterCreativeMaterialWorkspace,
+  type OpenClawCreativeMaterialCategory,
+  type OpenClawCreativeMaterialRecord,
+} from "../../../../services/openclaw";
+import {
+  getLocalRuntimeSettings,
+  pickLocalMaterialLibraryBaseRoot,
+  updateLocalRuntimeSettings,
+  type LocalRuntimeSettings,
+} from "../../../../services/personal-center";
+import { buildPersonalCenterLoginPath, formatCollaboratorRoleLabel, formatDateTime, isAuthFailure } from "../route-helpers";
 
-type OrderStatusFilter = "ALL" | OrderRecord["orderStatus"];
-type OrderTypeFilter = "ALL" | "MEMBERSHIP_PURCHASE" | "POINTS_RECHARGE";
+type MaterialCategoryFilter = OpenClawCreativeMaterialCategory;
 
-const orderStatusFilters: Array<{ key: OrderStatusFilter; label: string }> = [
-  { key: "ALL", label: "全部状态" },
-  { key: "PENDING", label: "待支付" },
-  { key: "PAID", label: "已支付" },
-  { key: "FAILED", label: "失败" },
-  { key: "REFUNDED", label: "已退款" },
-  { key: "CANCELLED", label: "已取消" },
-];
-
-const orderTypeFilters: Array<{ key: OrderTypeFilter; label: string }> = [
-  { key: "ALL", label: "全部类型" },
-  { key: "MEMBERSHIP_PURCHASE", label: "会员订单" },
-  { key: "POINTS_RECHARGE", label: "点数充值" },
+const materialCategoryFilters: Array<{
+  key: MaterialCategoryFilter;
+  label: string;
+  description: string;
+}> = [
+  { key: "text", label: "文本", description: "文案、脚本、正文类素材" },
+  { key: "image", label: "图片", description: "封面图、海报、图片类素材" },
+  { key: "audio", label: "语音", description: "语音、配乐、音频类素材" },
+  { key: "video", label: "视频", description: "视频片段与成片素材" },
 ];
 
 export default function PersonalCenterOrdersPage() {
   const router = useRouter();
-  const [orders, setOrders] = useState<OrderRecord[]>(orderSeed);
+  const [materials, setMaterials] = useState<OpenClawCreativeMaterialRecord[]>([]);
   const [brands, setBrands] = useState<MeResponse["brands"]>([]);
   const [currentBrandId, setCurrentBrandId] = useState("");
+  const [localRuntimeSettings, setLocalRuntimeSettings] = useState<LocalRuntimeSettings | null>(null);
+  const [materialLibraryBaseRootDraft, setMaterialLibraryBaseRootDraft] = useState("");
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<OrderStatusFilter>("ALL");
-  const [typeFilter, setTypeFilter] = useState<OrderTypeFilter>("ALL");
+  const [activeCategory, setActiveCategory] = useState<MaterialCategoryFilter>("text");
   const [isLoading, setIsLoading] = useState(true);
   const [isSwitchingBrand, setIsSwitchingBrand] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [isSavingStorageSettings, setIsSavingStorageSettings] = useState(false);
+  const [isPickingStorageFolder, setIsPickingStorageFolder] = useState(false);
   const [notice, setNotice] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
-  const [dataSource, setDataSource] = useState<"api" | "seed">("seed");
 
   useEffect(() => {
     const session = readAuthSession();
@@ -53,39 +54,48 @@ export default function PersonalCenterOrdersPage() {
       return;
     }
 
-    void loadOrdersPage();
+    void loadMaterialsPage();
   }, [router]);
 
-  async function loadOrdersPage() {
+  async function loadMaterialsPage(preferredBrandId?: string) {
     setIsLoading(true);
     setNotice("");
     setErrorMessage("");
 
-    const [meResult, ordersResult] = await Promise.allSettled([getMe(), getOrders()]);
+    try {
+      const me = await getMe();
+      const nextBrandId = preferredBrandId || me.currentBrandId || me.brands[0]?.id || "";
+      setBrands(me.brands);
+      setCurrentBrandId(nextBrandId);
 
-    if (meResult.status === "rejected" && isAuthFailure(meResult.reason)) {
-      await handleSessionExpired();
-      return;
+      const localRuntimeResult = await Promise.resolve(getLocalRuntimeSettings()).then(
+        (value) => ({ status: "fulfilled" as const, value }),
+        () => ({ status: "rejected" as const }),
+      );
+      if (localRuntimeResult.status === "fulfilled") {
+        setLocalRuntimeSettings(localRuntimeResult.value);
+        setMaterialLibraryBaseRootDraft(localRuntimeResult.value.materialLibrary.configuredBaseRoot);
+      }
+
+      if (!nextBrandId) {
+        setMaterials([]);
+        setIsLoading(false);
+        return;
+      }
+
+      const workspace = await getPersonalCenterCreativeMaterialWorkspace(nextBrandId, 300);
+      setMaterials([...workspace.items].sort((left, right) => right.createdAt.localeCompare(left.createdAt)));
+    } catch (error) {
+      if (isAuthFailure(error)) {
+        await handleSessionExpired();
+        return;
+      }
+      const message = error instanceof Error ? error.message : "素材管理加载失败";
+      setMaterials([]);
+      setErrorMessage(message);
+    } finally {
+      setIsLoading(false);
     }
-
-    if (meResult.status === "fulfilled") {
-      setBrands(meResult.value.brands);
-      setCurrentBrandId(meResult.value.currentBrandId || meResult.value.brands[0]?.id || "");
-    } else {
-      setBrands([]);
-      setCurrentBrandId("");
-    }
-
-    if (ordersResult.status === "fulfilled") {
-      setOrders(ordersResult.value);
-      setDataSource(meResult.status === "fulfilled" ? "api" : "seed");
-    } else {
-      setOrders(orderSeed);
-      setDataSource("seed");
-      setErrorMessage("订单接口暂时不可用，当前展示的是本地演示订单数据。");
-    }
-
-    setIsLoading(false);
   }
 
   async function handleBrandSwitch(nextBrandId: string) {
@@ -100,8 +110,8 @@ export default function PersonalCenterOrdersPage() {
       const result = await switchBrand(nextBrandId);
       setBrands(result.brands);
       setCurrentBrandId(result.currentBrandId || nextBrandId);
-      setNotice("品牌工作区已切换，订单中心已刷新当前上下文。");
-      await loadOrdersPage();
+      await loadMaterialsPage(result.currentBrandId || nextBrandId);
+      setNotice("品牌工作区已切换，素材管理列表已更新。");
     } catch (error) {
       if (isAuthFailure(error)) {
         await handleSessionExpired();
@@ -134,61 +144,111 @@ export default function PersonalCenterOrdersPage() {
     router.replace(buildPersonalCenterLoginPath("/personal-center/orders"));
   }
 
-  const filteredOrders = useMemo(() => {
-    const keyword = search.trim().toLowerCase();
+  async function handlePickStorageFolder() {
+    setIsPickingStorageFolder(true);
+    setNotice("");
+    setErrorMessage("");
+    try {
+      const result = await pickLocalMaterialLibraryBaseRoot();
+      if (result.canceled || !result.selectedPath) {
+        setNotice("已取消选择素材存储目录。");
+        return;
+      }
+      setMaterialLibraryBaseRootDraft(result.selectedPath);
+      setNotice(`已选择素材存储目录：${result.selectedPath}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "选择素材存储目录失败";
+      setErrorMessage(message);
+    } finally {
+      setIsPickingStorageFolder(false);
+    }
+  }
 
-    return [...orders]
-      .sort(sortByOrderUpdatedAtDesc)
-      .filter((item) => statusFilter === "ALL" || item.orderStatus === statusFilter)
-      .filter((item) => typeFilter === "ALL" || item.orderType === typeFilter)
-      .filter((item) =>
-        !keyword
-          || item.orderNo.toLowerCase().includes(keyword)
-          || item.orderType.toLowerCase().includes(keyword)
-          || item.orderStatus.toLowerCase().includes(keyword)
-          || (item.membership ?? "").toLowerCase().includes(keyword)
-          || String(item.pointsAmount ?? "").includes(keyword),
-      );
-  }, [orders, search, statusFilter, typeFilter]);
+  async function handleSaveMaterialLibrarySettings(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!localRuntimeSettings?.supported) {
+      return;
+    }
 
-  const summary = useMemo(
-    () => ({
-      total: filteredOrders.length,
-      paid: filteredOrders.filter((item) => item.orderStatus === "PAID").length,
-      pending: filteredOrders.filter((item) => item.orderStatus === "PENDING").length,
-      membershipOrders: filteredOrders.filter((item) => item.orderType === "MEMBERSHIP_PURCHASE").length,
-      rechargeOrders: filteredOrders.filter((item) => item.orderType === "POINTS_RECHARGE").length,
-      totalAmount: filteredOrders.reduce((sum, item) => sum + item.amountYuan, 0),
-    }),
-    [filteredOrders],
-  );
+    setIsSavingStorageSettings(true);
+    setNotice("");
+    setErrorMessage("");
+    try {
+      const nextSettings = await updateLocalRuntimeSettings({
+        materialLibraryBaseRoot: materialLibraryBaseRootDraft.trim() || null,
+      });
+      setLocalRuntimeSettings(nextSettings);
+      setMaterialLibraryBaseRootDraft(nextSettings.materialLibrary.configuredBaseRoot);
+      setNotice(nextSettings.message);
+    } catch (error) {
+      if (isAuthFailure(error)) {
+        await handleSessionExpired();
+        return;
+      }
+      const message = error instanceof Error ? error.message : "保存素材存储目录失败";
+      setErrorMessage(`保存素材存储目录失败：${message}`);
+    } finally {
+      setIsSavingStorageSettings(false);
+    }
+  }
 
   const currentBrand = useMemo(
     () => brands.find((item) => item.id === currentBrandId) ?? brands[0],
     [brands, currentBrandId],
   );
 
+  const countsByCategory = useMemo(
+    () => ({
+      text: materials.filter((item) => item.materialCategory === "text").length,
+      image: materials.filter((item) => item.materialCategory === "image").length,
+      audio: materials.filter((item) => item.materialCategory === "audio").length,
+      video: materials.filter((item) => item.materialCategory === "video").length,
+    }),
+    [materials],
+  );
+
+  const filteredMaterials = useMemo(() => {
+    const keyword = search.trim().toLowerCase();
+    return materials
+      .filter((item) => item.materialCategory === activeCategory)
+      .filter((item) => {
+        if (!keyword) {
+          return true;
+        }
+        const haystack = [
+          item.title,
+          item.materialType,
+          item.materialTags.join(" "),
+          item.sourceLabel,
+          item.localFilePath || "",
+        ]
+          .join(" ")
+          .toLowerCase();
+        return haystack.includes(keyword);
+      });
+  }, [activeCategory, materials, search]);
+
+  const activeCategoryMeta = materialCategoryFilters.find((item) => item.key === activeCategory) || materialCategoryFilters[0];
+
   return (
     <section className="panel personal-center-panel">
       <div className="panel-header">
         <div>
-          <h2>订单中心</h2>
-          <p className="panel-subtext">集中查看当前账号的会员订单与点数充值记录，方便你核对消费、补单进度和最近的充值情况。</p>
+          <h2>素材管理</h2>
+          <p className="panel-subtext">统一聚合网站上传素材和 OpenClaw 入库素材，并按文本、图片、语音、视频四类紧凑展示。</p>
         </div>
-        <span>{summary.total} 笔订单</span>
+        <span>{filteredMaterials.length} 条素材</span>
       </div>
 
       <div className="personal-actions" style={{ marginBottom: 16, flexWrap: "wrap" }}>
         <div className="workspace-status">
-          <span className={`archive-pill ${dataSource === "api" ? "status-ready" : "status-in_progress"}`}>
-            {dataSource === "api" ? "接口数据" : "演示数据"}
-          </span>
-          {isLoading ? <span className="status-text">正在加载订单中心数据...</span> : null}
+          <span className="archive-pill status-ready">素材统一真源</span>
+          {isLoading ? <span className="status-text">正在加载素材管理数据...</span> : null}
           {!isLoading && notice ? <span className="status-text success-text">{notice}</span> : null}
           {!isLoading && errorMessage ? <span className="status-text error-text">{errorMessage}</span> : null}
         </div>
-        <button type="button" className="secondary-button" onClick={() => void loadOrdersPage()} disabled={isLoading || isSwitchingBrand}>
-          刷新订单
+        <button type="button" className="secondary-button" onClick={() => void loadMaterialsPage(currentBrandId)} disabled={isLoading || isSwitchingBrand}>
+          刷新列表
         </button>
         <label className="field" style={{ minWidth: 220 }}>
           <span>当前品牌</span>
@@ -209,216 +269,169 @@ export default function PersonalCenterOrdersPage() {
         </button>
       </div>
 
-      <div className="card-grid" style={{ marginBottom: 16 }}>
-        <article className="metric-card">
-          <span>当前品牌上下文</span>
-          <strong>{currentBrand?.brandName || "未绑定品牌"}</strong>
-          <p>当前订单列表按登录账号过滤，品牌维度的更细归属会在后续账单域继续补齐。</p>
-        </article>
-        <article className="metric-card">
-          <span>已支付</span>
-          <strong>{summary.paid}</strong>
-          <p>包含会员购买成功和点数到账的订单。</p>
-        </article>
-        <article className="metric-card">
-          <span>待支付</span>
-          <strong>{summary.pending}</strong>
-          <p>可继续进入订单详情页查看状态或模拟支付。</p>
-        </article>
-        <article className="metric-card">
-          <span>筛选金额汇总</span>
-          <strong>{summary.totalAmount.toFixed(2)} 元</strong>
-          <p>按当前筛选条件汇总，便于快速查看最近消费情况。</p>
-        </article>
-      </div>
-
       <div className="personal-context-banner">
         <div>
-          <strong>先筛状态，再按订单类型缩小范围</strong>
-          <p>如果只是确认是否到账，优先看“已支付”和“待支付”；如果要排查会员开通或点数补充，再切到对应订单类型查看。</p>
+          <strong>{currentBrand?.brandName || "当前品牌"}素材总览</strong>
+          <p>网站上传的素材会优先进入你设置的【素材库】目录；OpenClaw 上传到网站的素材不要求进入【素材库】，但会同步纳入这里的统一列表。</p>
         </div>
         <div className="personal-context-actions">
-          <Link href="/membership-purchase" className="primary-button">
-            创建会员订单
-          </Link>
-          <Link href="/points-purchase" className="secondary-button">
-            创建充值订单
+          <Link href="/personal-center" className="secondary-button">
+            返回个人中心概览
           </Link>
         </div>
       </div>
 
-      <div className="personal-actions" style={{ marginBottom: 16 }}>
-        <Link href="/personal-center" className="secondary-button">
-          返回个人中心概览
-        </Link>
-      </div>
-
-      <div className="personal-toolbar" style={{ alignItems: "flex-end" }}>
-        <label className="field personal-search">
-          <span>搜索订单</span>
-          <input
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="搜索订单号、订单类型、状态、会员等级或充值点数"
-          />
-        </label>
-        {search.trim() ? (
-          <button type="button" className="secondary-button" onClick={() => setSearch("")}>
-            清空搜索
-          </button>
-        ) : null}
-      </div>
-
-      <div className="tab-switcher" aria-label="订单状态筛选" style={{ marginTop: 16 }}>
-        {orderStatusFilters.map((item) => (
-          <button
-            key={item.key}
-            type="button"
-            className={`tab-button ${statusFilter === item.key ? "is-active" : ""}`}
-            onClick={() => setStatusFilter(item.key)}
-          >
-            {item.label}
-          </button>
-        ))}
-      </div>
-
-      <div className="tab-switcher" aria-label="订单类型筛选" style={{ marginTop: 12 }}>
-        {orderTypeFilters.map((item) => (
-          <button
-            key={item.key}
-            type="button"
-            className={`tab-button ${typeFilter === item.key ? "is-active" : ""}`}
-            onClick={() => setTypeFilter(item.key)}
-          >
-            {item.label}
-          </button>
-        ))}
-      </div>
-
-      <div className="card-grid" style={{ marginTop: 16 }}>
-        <article className="metric-card">
-          <span>会员订单</span>
-          <strong>{summary.membershipOrders}</strong>
-          <p>当前筛选结果中属于会员购买的订单数。</p>
-        </article>
-        <article className="metric-card">
-          <span>点数充值</span>
-          <strong>{summary.rechargeOrders}</strong>
-          <p>当前筛选结果中属于点数充值的订单数。</p>
-        </article>
-        <article className="metric-card">
-          <span>最近一笔订单</span>
-          <strong>{filteredOrders[0] ? formatDateTime(filteredOrders[0].createdAt) : "暂无记录"}</strong>
-          <p>按更新时间倒序展示，方便快速定位最近一次购买或充值。</p>
-        </article>
-        <article className="metric-card">
-          <span>当前筛选结果</span>
-          <strong>{summary.total}</strong>
-          <p>可配合状态、类型和关键词快速缩小范围。</p>
-        </article>
-      </div>
-
-      <div className="personal-list" style={{ marginTop: 16 }}>
-        {filteredOrders.map((item) => (
-          <article className="entity-card personal-card" key={item.id}>
-            <div className="entity-card-head">
-              <div>
-                <strong>{item.orderType === "MEMBERSHIP_PURCHASE" ? `${item.membership || "会员"} 会员订单` : `${item.pointsAmount || 0} 点充值订单`}</strong>
-                <p className="personal-meta">
-                  {item.orderNo} · {item.orderType === "MEMBERSHIP_PURCHASE" ? "会员购买" : "点数充值"}
-                </p>
-              </div>
-              <span className={`archive-pill ${personalOrderStatusClassMap[item.orderStatus]}`}>{formatOrderStatusLabel(item.orderStatus)}</span>
+      <div className="personal-list" style={{ marginBottom: 16 }}>
+        <article className="entity-card personal-card">
+          <div className="entity-card-head">
+            <div>
+              <strong>本地存储设置</strong>
+              <p className="personal-meta">点击选择文件夹后直接选存储地址即可。素材库和 GEO 等站内生成内容都会写到这里。</p>
             </div>
-            <div className="personal-grid">
-              <div>
-                <span>订单号</span>
-                <strong className="mono-text">{item.orderNo}</strong>
+            <span className="archive-pill status-ready">本地版设置</span>
+          </div>
+
+          {localRuntimeSettings?.supported ? (
+            <form className="form-grid" onSubmit={handleSaveMaterialLibrarySettings} style={{ marginTop: 16 }}>
+              <label className="field field-full">
+                <span>本地存储文件夹</span>
+                <input
+                  value={materialLibraryBaseRootDraft}
+                  onChange={(event) => setMaterialLibraryBaseRootDraft(event.target.value)}
+                  placeholder="例如 D:\\品牌素材"
+                />
+              </label>
+              <div className="personal-actions personal-actions--tight field-full">
+                <button type="button" className="secondary-button" onClick={() => void handlePickStorageFolder()} disabled={isPickingStorageFolder || isSavingStorageSettings}>
+                  {isPickingStorageFolder ? "选择中..." : "选择文件夹"}
+                </button>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => setMaterialLibraryBaseRootDraft(localRuntimeSettings.materialLibrary.defaultBaseRoot)}
+                  disabled={isSavingStorageSettings}
+                >
+                  恢复默认目录
+                </button>
+                <button type="submit" className="primary-button" disabled={isSavingStorageSettings}>
+                  {isSavingStorageSettings ? "保存中..." : "保存本地存储设置"}
+                </button>
               </div>
-              <div>
-                <span>支付金额</span>
-                <strong>{item.amountYuan} 元</strong>
-              </div>
-              <div>
-                <span>{item.orderType === "MEMBERSHIP_PURCHASE" ? "会员等级" : "充值点数"}</span>
-                <strong>{item.orderType === "MEMBERSHIP_PURCHASE" ? item.membership || "未记录" : `${item.pointsAmount || 0} 点`}</strong>
-              </div>
-              <div>
-                <span>订单状态</span>
-                <strong>{formatOrderStatusLabel(item.orderStatus)}</strong>
-              </div>
-              <div>
-                <span>创建时间</span>
-                <strong>{formatDateTime(item.createdAt)}</strong>
-              </div>
-              <div>
-                <span>支付时间</span>
-                <strong>{item.paidAt ? formatDateTime(item.paidAt) : "未支付"}</strong>
-              </div>
+            </form>
+          ) : (
+            <p className="field-hint" style={{ marginTop: 16 }}>当前不是 local-single-user 安装态，这里只展示素材库规则说明，不开放本地文件夹设置。</p>
+          )}
+        </article>
+      </div>
+
+      <div className="personal-split-layout personal-material-layout">
+        <aside className="personal-split-sidebar personal-material-layout__sidebar">
+          <div className="personal-material-nav">
+            {materialCategoryFilters.map((item) => {
+              const count = countsByCategory[item.key];
+              const isActive = activeCategory === item.key;
+              return (
+                <button
+                  key={item.key}
+                  type="button"
+                  className={`personal-material-nav__item ${isActive ? "is-active" : ""}`}
+                  onClick={() => setActiveCategory(item.key)}
+                >
+                  <strong>{item.label}</strong>
+                  <span>{count} 条</span>
+                  <p>{item.description}</p>
+                </button>
+              );
+            })}
+          </div>
+        </aside>
+
+        <div className="personal-split-main">
+          <div className="personal-toolbar personal-toolbar-cluster">
+            <label className="field personal-search">
+              <span>搜索素材</span>
+              <input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="搜索标题、标签、来源或本地路径"
+              />
+            </label>
+            {search.trim() ? (
+              <button type="button" className="secondary-button" onClick={() => setSearch("")}>
+                清空搜索
+              </button>
+            ) : null}
+          </div>
+
+          <div className="personal-inline-hint" style={{ marginTop: 16 }}>
+            <strong>当前分类：{activeCategoryMeta.label}</strong>
+            <div>{activeCategoryMeta.description}，当前共 {filteredMaterials.length} 条。</div>
+          </div>
+
+          {filteredMaterials.length ? (
+            <div className="table-scroll-shell personal-material-table-shell">
+              <table className="soft-table personal-material-table">
+                <thead>
+                  <tr>
+                    <th>标题</th>
+                    <th>素材标签</th>
+                    <th>素材来源</th>
+                    <th>入库时间</th>
+                    <th>存储位置</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredMaterials.map((item) => (
+                    <tr key={item.id}>
+                      <td className="openclaw-record-table__text-cell">
+                        <span className="openclaw-record-table__text" title={item.title}>
+                          {item.title || "-"}
+                        </span>
+                      </td>
+                      <td className="openclaw-record-table__text-cell">
+                        <div className="material-tag-list">
+                          {item.materialTags.map((tag) => (
+                            <span key={`${item.id}-${tag}`} className="material-tag-chip" title={tag}>
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      </td>
+                      <td className="openclaw-record-table__text-cell">
+                        <span className="openclaw-record-table__text" title={item.sourceLabel}>
+                          {item.sourceLabel}
+                        </span>
+                      </td>
+                      <td>{formatDateTime(item.createdAt)}</td>
+                      <td className="openclaw-record-table__text-cell">
+                        <span className="openclaw-record-table__text" title={item.localFilePath || "-"}>
+                          {item.localFilePath || "-"}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-            <div className="personal-actions">
-              <Link href={`/orders/${encodeURIComponent(item.id)}`} className="secondary-button">
-                查看订单详情
-              </Link>
-            </div>
-          </article>
-        ))}
-        {!filteredOrders.length ? (
-          <div className="empty-canvas-box">
-            <strong>{search.trim() || statusFilter !== "ALL" || typeFilter !== "ALL" ? "当前筛选条件下没有订单" : "当前还没有可展示的订单记录"}</strong>
-            <p>
-              {search.trim() || statusFilter !== "ALL" || typeFilter !== "ALL"
-                ? "可以先清空搜索词，或把状态和类型切回“全部”后重新查看。"
-                : "你可以先创建会员订单或点数充值订单，后续支付状态和到账结果都会回到这里统一查看。"}
-            </p>
-            <div className="personal-actions">
-              {search.trim() || statusFilter !== "ALL" || typeFilter !== "ALL" ? (
-                <>
+          ) : (
+            <div className="empty-canvas-box" style={{ marginTop: 16 }}>
+              <strong>{search.trim() ? "没有命中当前搜索条件的素材" : `当前还没有${activeCategoryMeta.label}素材`}</strong>
+              <p>
+                {search.trim()
+                  ? "可以先清空搜索，或切换到其它分类继续查看。"
+                  : "OpenClaw 上传到网站的素材会自动同步到这里。"}
+              </p>
+              {search.trim() ? (
+                <div className="personal-actions">
                   <button type="button" className="secondary-button" onClick={() => setSearch("")}>
                     清空搜索
                   </button>
-                  <button
-                    type="button"
-                    className="secondary-button"
-                    onClick={() => {
-                      setStatusFilter("ALL");
-                      setTypeFilter("ALL");
-                    }}
-                  >
-                    查看全部订单
-                  </button>
-                </>
-              ) : (
-                <Link href="/membership-purchase" className="primary-button">
-                  去创建会员订单
-                </Link>
-              )}
+                </div>
+              ) : null}
             </div>
-          </div>
-        ) : null}
+          )}
+        </div>
       </div>
     </section>
   );
 }
-
-function sortByOrderUpdatedAtDesc(a: OrderRecord, b: OrderRecord) {
-  return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
-}
-
-function formatOrderStatusLabel(status: OrderRecord["orderStatus"]) {
-  switch (status) {
-    case "PENDING":
-      return "待支付";
-    case "PAID":
-      return "已支付";
-    case "FAILED":
-      return "支付失败";
-    case "REFUNDED":
-      return "已退款";
-    case "CANCELLED":
-      return "已取消";
-    default:
-      return status;
-  }
-}
-

@@ -103,6 +103,8 @@ model User {
   status         UserStatus         @default(ACTIVE)
   membership     MembershipLevel    @default(FREE)
   systemRole     SystemRole         @default(USER)
+  accessExpiresAt DateTime?
+  allowedFeatureKeysJson String?
   pointsBalance  Int                @default(0)
   lastLoginAt    DateTime?
   createdAt      DateTime           @default(now())
@@ -1059,13 +1061,16 @@ model OpenClawCreativeMaterial {
   brandId         String
   workspaceScope  String   @default("brand_growth")
   createdByUserId String
+  sourceKind      String   @default("openclaw_upload")
   title           String   @default("")
   description     String   @default("")
   materialType    String
+  materialTags    String   @default("[]")
   fileUrl         String?
   fileName        String?
   mimeType        String?
   textContent     String?
+  storageKey      String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -1103,6 +1108,63 @@ model OpenClawGeoVisibilityReport {
 
   @@index([brandId, workspaceScope, createdAt(sort: Desc)], map: "OpenClawGeoVisibilityReport_brand_scope_created_idx")
   @@map("OpenClawGeoVisibilityReport")
+}
+
+model OpenClawGeoContent {
+  id                   String   @id
+  brandId              String
+  workspaceScope       String   @default("geo")
+  createdByUserId      String
+  contentType          String   @default("")
+  title                String   @default("")
+  description          String   @default("")
+  htmlContent          String   @default("")
+  attachmentFileUrl    String?
+  attachmentFileName   String?
+  attachmentMimeType   String?
+  attachmentStorageKey String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@index([brandId, workspaceScope, contentType, createdAt(sort: Desc)], map: "OpenClawGeoContent_brand_scope_type_created_idx")
+  @@map("OpenClawGeoContent")
+}
+
+model OpenClawCommentLead {
+  id              String   @id
+  brandId         String
+  workspaceScope  String   @default("all_network_growth")
+  createdByUserId String
+  sourcePlatform  String   @default("")
+  sourceUrl       String   @default("")
+  sourceCommentId String?
+  userName        String   @default("")
+  userComment     String   @default("")
+  selectedReason  String   @default("")
+  userProfileUrl  String   @default("")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([brandId, workspaceScope, sourcePlatform, createdAt(sort: Desc)], map: "OpenClawCommentLead_brand_scope_platform_created_idx")
+  @@map("OpenClawCommentLead")
+}
+
+model OpenClawPlatformLead {
+  id              String   @id
+  brandId         String
+  workspaceScope  String   @default("all_network_growth")
+  createdByUserId String
+  name            String   @default("")
+  businessScope   String   @default("")
+  selectedReason  String   @default("")
+  contactInfo     String   @default("")
+  address         String   @default("")
+  selectedAt      DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([brandId, workspaceScope, selectedAt(sort: Desc)], map: "OpenClawPlatformLead_brand_scope_selected_idx")
+  @@map("OpenClawPlatformLead")
 }
 
 model KnowledgeBase {

@@ -1,5 +1,6 @@
 import { jsonRequest, request } from "./http";
 import { orderSeed, type OrderRecord } from "./personal-center";
+import type { UserAccessFeatureKey } from "../../../../packages/shared/src/user-access";
 
 const XHS_ORIGINAL_COPY_SCIENCE_PROMPT_SEED = `---
 name: "xhs-original-copy-science"
@@ -168,6 +169,9 @@ export type AdminUserRecord = {
   systemRole: "USER" | "SUPER_ADMIN" | "ADMIN_OPERATOR" | "FINANCE_OPERATOR" | "SUPPORT_OPERATOR";
   emailVerified: boolean;
   pointsBalance: number;
+  accessExpiresAt: string | null;
+  allowedFeatureKeys: UserAccessFeatureKey[];
+  hasFullFeatureAccess: boolean;
   brandCount: number;
   taskCount: number;
   orderCount: number;
@@ -985,6 +989,9 @@ export const adminUserSeed: AdminUserRecord[] = [
     systemRole: "USER",
     emailVerified: true,
     pointsBalance: 14420,
+    accessExpiresAt: null,
+    allowedFeatureKeys: [],
+    hasFullFeatureAccess: true,
     brandCount: 1,
     taskCount: 2,
     orderCount: 2,
@@ -1004,6 +1011,9 @@ export const adminUserSeed: AdminUserRecord[] = [
     systemRole: "SUPER_ADMIN",
     emailVerified: true,
     pointsBalance: 3800,
+    accessExpiresAt: null,
+    allowedFeatureKeys: [],
+    hasFullFeatureAccess: true,
     brandCount: 1,
     taskCount: 4,
     orderCount: 1,
@@ -1023,6 +1033,9 @@ export const adminUserSeed: AdminUserRecord[] = [
     systemRole: "SUPPORT_OPERATOR",
     emailVerified: false,
     pointsBalance: 200,
+    accessExpiresAt: "2026-05-31T23:59:59.000Z",
+    allowedFeatureKeys: [],
+    hasFullFeatureAccess: true,
     brandCount: 0,
     taskCount: 1,
     orderCount: 0,
@@ -3547,6 +3560,8 @@ export async function updateAdminUser(
     membership?: MembershipLevel;
     systemRole?: AdminUserRecord["systemRole"];
     pointsBalance?: number;
+    accessExpiresAt?: string | null;
+    allowedFeatureKeys?: UserAccessFeatureKey[] | null;
     emailVerified?: boolean;
     password?: string;
   },

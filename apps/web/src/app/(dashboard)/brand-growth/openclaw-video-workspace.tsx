@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { type OpenClawVideoWorkRecord } from "../../../services/openclaw";
 import { type DouyinPublishableWorkTarget } from "../douyin/publish-types";
+import { OpenClawCommentThread } from "./openclaw-comment-thread";
 
 type OptionalDateFormatter = (value?: string) => string;
 
@@ -194,6 +195,13 @@ export function OpenClawVideoWorkspace(props: OpenClawVideoWorkspaceProps) {
                 </a>
               ) : null}
             </div>
+            <OpenClawCommentThread
+              brandId={selectedWork.brandId}
+              workspaceScope={selectedWork.workspaceScope}
+              resourceType="video_work"
+              resourceId={selectedWork.id}
+              formatDateTime={props.formatDateTime}
+            />
           </div>
         </div>
       ) : null}

@@ -13,6 +13,8 @@ export type UserRecord = {
   status: "ACTIVE" | "DISABLED";
   membership: "FREE" | "BASIC" | "PRO" | "ENTERPRISE";
   systemRole?: "USER" | "SUPER_ADMIN" | "ADMIN_OPERATOR" | "FINANCE_OPERATOR" | "SUPPORT_OPERATOR";
+  accessExpiresAt?: string;
+  allowedFeatureKeysJson?: string;
   pointsBalance: number;
 };
 

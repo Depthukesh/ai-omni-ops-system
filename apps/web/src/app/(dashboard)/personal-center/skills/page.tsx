@@ -1,9 +1,8 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { flattenSkillCenterLeaves } from "@shared/skill-center-manifest";
 import { getMe, logout as logoutSession, readAuthSession, switchBrand, type MeResponse } from "../../../../services/auth";
 import {
   getUserSkillEditorOptions,
@@ -12,10 +11,14 @@ import {
   updateUserSkill,
   type UserSkillEditorModelOption,
   type UserSkillEditorOptions,
-  type UserSkillPromptRecord,
   type UserSkillRecord,
 } from "../../../../services/personal-center";
-import { buildPersonalCenterLoginPath, formatCollaboratorRoleLabel, formatDateTime, isAuthFailure } from "../route-helpers";
+import {
+  buildPersonalCenterLoginPath,
+  formatCollaboratorRoleLabel,
+  formatDateTime,
+  isAuthFailure,
+} from "../route-helpers";
 
 type SkillStatusFilter = "ALL" | UserSkillRecord["baseSkill"]["status"];
 type UserSkillPromptEditDraft = {
@@ -30,26 +33,6 @@ type UserSkillEditDraft = {
   description: string;
   prompts: Record<string, UserSkillPromptEditDraft>;
 };
-type PromptLeafView = {
-  id: string;
-  primaryId: string;
-  primaryLabel: string;
-  sectionId: string;
-  sectionLabel: string;
-  leafLabel: string;
-  leafDescription: string;
-  skill: UserSkillRecord;
-  prompt: UserSkillPromptRecord;
-};
-type PromptLeafGroup = {
-  id: string;
-  label: string;
-  sections: Array<{
-    id: string;
-    label: string;
-    items: PromptLeafView[];
-  }>;
-};
 
 const adminSystemRoles = new Set(["SUPER_ADMIN", "ADMIN_OPERATOR", "FINANCE_OPERATOR", "SUPPORT_OPERATOR"]);
 const skillStatusFilters: Array<{ key: SkillStatusFilter; label: string }> = [
@@ -63,19 +46,18 @@ export default function PersonalCenterSkillsPage() {
   const router = useRouter();
   const [skills, setSkills] = useState<UserSkillRecord[]>([]);
   const [skillDrafts, setSkillDrafts] = useState<Record<string, UserSkillEditDraft>>({});
-  const [selectedLeafId, setSelectedLeafId] = useState("");
+  const [selectedSkillId, setSelectedSkillId] = useState("");
   const [brands, setBrands] = useState<MeResponse["brands"]>([]);
   const [currentBrandId, setCurrentBrandId] = useState("");
   const [systemRole, setSystemRole] = useState<string>("USER");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<SkillStatusFilter>("ALL");
-  const [collapsedGroupMap, setCollapsedGroupMap] = useState<Record<string, boolean>>({});
-  const [collapsedSectionMap, setCollapsedSectionMap] = useState<Record<string, boolean>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isSwitchingBrand, setIsSwitchingBrand] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [savingSkillId, setSavingSkillId] = useState("");
   const [resettingSkillId, setResettingSkillId] = useState("");
+  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
   const [editorOptions, setEditorOptions] = useState<UserSkillEditorOptions>({ modelOptions: [] });
   const [notice, setNotice] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
@@ -91,67 +73,80 @@ export default function PersonalCenterSkillsPage() {
     void loadSkillsPage();
   }, [router]);
 
-  const allPromptLeaves = useMemo(() => buildPromptLeafViews(skills), [skills]);
-  const filteredPromptLeaves = useMemo(() => {
-    const keyword = search.trim().toLowerCase();
-    return allPromptLeaves.filter((item) => {
-      if (statusFilter !== "ALL" && item.skill.baseSkill.status !== statusFilter) {
-        return false;
-      }
-      if (!keyword) {
-        return true;
-      }
-      return [
-        item.primaryLabel,
-        item.sectionLabel,
-        item.leafLabel,
-        item.leafDescription,
-        item.skill.baseSkill.slug,
-        item.skill.baseSkill.category,
-        item.skill.effectiveSkill.defaultModel,
-        item.prompt.basePrompt.scene,
-        item.prompt.basePrompt.name,
-      ]
-        .join(" ")
-        .toLowerCase()
-        .includes(keyword);
-    });
-  }, [allPromptLeaves, search, statusFilter]);
-  const groupedPromptLeaves = useMemo(() => groupPromptLeafViews(filteredPromptLeaves), [filteredPromptLeaves]);
-
   useEffect(() => {
-    if (!filteredPromptLeaves.find((item) => item.id === selectedLeafId)) {
-      setSelectedLeafId(filteredPromptLeaves[0]?.id || "");
+    if (!selectedSkillId && skills.length) {
+      setSelectedSkillId(skills[0].id);
     }
-  }, [filteredPromptLeaves, selectedLeafId]);
+  }, [selectedSkillId, skills]);
+
+  const filteredSkills = useMemo(() => {
+    const keyword = search.trim().toLowerCase();
+    return [...skills]
+      .sort(sortBySkillUpdatedAtDesc)
+      .filter((item) => statusFilter === "ALL" || item.baseSkill.status === statusFilter)
+      .filter((item) => {
+        if (!keyword) {
+          return true;
+        }
+        return [
+          item.effectiveSkill.name,
+          item.baseSkill.name,
+          item.baseSkill.slug,
+          item.baseSkill.category,
+          item.effectiveSkill.defaultModel,
+          item.baseSkill.provider,
+        ]
+          .join(" ")
+          .toLowerCase()
+          .includes(keyword);
+      });
+  }, [search, skills, statusFilter]);
 
   useEffect(() => {
-    const currentSelectedLeaf = filteredPromptLeaves.find((item) => item.id === selectedLeafId) ?? filteredPromptLeaves[0];
-    if (!currentSelectedLeaf) {
+    if (!filteredSkills.find((item) => item.id === selectedSkillId)) {
+      setSelectedSkillId(filteredSkills[0]?.id || "");
+    }
+  }, [filteredSkills, selectedSkillId]);
+
+  const groupedSkills = useMemo(() => buildSkillCategoryGroups(filteredSkills), [filteredSkills]);
+
+  useEffect(() => {
+    setExpandedCategories((current) => {
+      const next: Record<string, boolean> = {};
+      let changed = false;
+
+      for (const group of groupedSkills) {
+        if (Object.prototype.hasOwnProperty.call(current, group.key)) {
+          next[group.key] = current[group.key];
+        } else {
+          next[group.key] = true;
+          changed = true;
+        }
+      }
+
+      if (Object.keys(current).length !== Object.keys(next).length) {
+        changed = true;
+      }
+
+      return changed ? next : current;
+    });
+  }, [groupedSkills]);
+
+  const selectedSkill = useMemo(
+    () => filteredSkills.find((item) => item.id === selectedSkillId) ?? filteredSkills[0],
+    [filteredSkills, selectedSkillId],
+  );
+
+  useEffect(() => {
+    if (!selectedSkill) {
       return;
     }
-    setCollapsedGroupMap((current) => ({
-      ...current,
-      [currentSelectedLeaf.primaryId]: false,
-    }));
-    setCollapsedSectionMap((current) => ({
-      ...current,
-      [buildSectionCollapseKey(currentSelectedLeaf.primaryId, currentSelectedLeaf.sectionId)]: false,
-    }));
-  }, [filteredPromptLeaves, selectedLeafId]);
+    const groupKey = normalizeSkillCategory(selectedSkill.baseSkill.category);
+    setExpandedCategories((current) => (current[groupKey] ? current : { ...current, [groupKey]: true }));
+  }, [selectedSkill]);
 
-  const selectedLeaf = useMemo(
-    () => filteredPromptLeaves.find((item) => item.id === selectedLeafId) ?? filteredPromptLeaves[0],
-    [filteredPromptLeaves, selectedLeafId],
-  );
-  const selectedSkill = selectedLeaf?.skill;
-  const selectedPrompt = selectedLeaf?.prompt;
   const currentDraft = selectedSkill ? skillDrafts[selectedSkill.id] : undefined;
-  const currentPromptDraft = selectedPrompt && currentDraft ? currentDraft.prompts[selectedPrompt.id] : undefined;
   const isCurrentSkillDirty = selectedSkill && currentDraft ? isSkillDraftDirty(selectedSkill, currentDraft) : false;
-  const isCurrentPromptDirty = selectedPrompt && currentPromptDraft
-    ? isPromptDraftDirty(selectedPrompt, currentPromptDraft)
-    : false;
 
   async function loadSkillsPage() {
     setIsLoading(true);
@@ -185,10 +180,11 @@ export default function PersonalCenterSkillsPage() {
     if (skillsResult.status === "fulfilled") {
       setSkills(skillsResult.value);
       setSkillDrafts(buildSkillDraftMap(skillsResult.value));
+      setSelectedSkillId((current) => current || skillsResult.value[0]?.id || "");
     } else {
       setSkills([]);
       setSkillDrafts({});
-      setSelectedLeafId("");
+      setSelectedSkillId("");
       setErrorMessage(skillsResult.reason instanceof Error ? skillsResult.reason.message : "技能中心加载失败");
     }
 
@@ -244,7 +240,7 @@ export default function PersonalCenterSkillsPage() {
         ...current,
         [skillId]: buildSkillDraft(updated),
       }));
-      setNotice(`已保存「${selectedLeaf?.leafLabel || updated.effectiveSkill.name}」所在技能下的修改。`);
+      setNotice(`已保存「${updated.effectiveSkill.name}」所在技能下的修改。`);
     } catch (error) {
       if (isAuthFailure(error)) {
         await handleSessionExpired();
@@ -306,7 +302,6 @@ export default function PersonalCenterSkillsPage() {
     [brands, currentBrandId],
   );
   const canManageCurrentBrandSkills = currentBrand?.role === "ADMIN";
-  const hasSearchKeyword = Boolean(search.trim());
 
   return (
     <section className="panel personal-center-panel">
@@ -315,7 +310,7 @@ export default function PersonalCenterSkillsPage() {
           <h2>技能中心</h2>
           <p className="panel-subtext">这里保存当前品牌共享的技能与提示词配置；品牌管理员可修改，未覆盖时默认跟随后台平台基线。</p>
         </div>
-        <span>{filteredPromptLeaves.length} 个技能项</span>
+        <span>{filteredSkills.length} 个技能</span>
       </div>
 
       <div className="personal-actions" style={{ marginBottom: 16, flexWrap: "wrap" }}>
@@ -367,14 +362,9 @@ export default function PersonalCenterSkillsPage() {
           <input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="搜索分类、技能名称、场景、slug、模型"
+            placeholder="搜索技能名称、slug、分类、模型"
           />
         </label>
-        {search.trim() ? (
-          <button type="button" className="secondary-button" onClick={() => setSearch("")}>
-            清空搜索
-          </button>
-        ) : null}
         <div className="workspace-status">
           <span className="status-text">当前品牌：{currentBrand?.brandName || "未绑定品牌"}</span>
           <span className="status-text">{canManageCurrentBrandSkills ? "当前账号可管理该品牌技能库" : "当前账号仅可查看该品牌技能库"}</span>
@@ -394,121 +384,77 @@ export default function PersonalCenterSkillsPage() {
         ))}
       </div>
 
-      <div className="personal-split-layout" style={{ gridTemplateColumns: "minmax(280px, 360px) minmax(0, 1fr)" }}>
-        <div className="personal-list personal-split-sidebar">
-          {groupedPromptLeaves.map((group) => (
-            <article key={group.id} className="entity-card personal-card">
-              <button
-                type="button"
-                className="entity-card-head"
-                onClick={() => toggleGroupCollapse(group.id, setCollapsedGroupMap)}
-                style={{ width: "100%", border: "none", background: "transparent", textAlign: "left", cursor: "pointer" }}
-              >
-                <div>
-                  <strong>{group.label}</strong>
-                  <p className="personal-meta">{group.sections.reduce((sum, section) => sum + section.items.length, 0)} 个技能项</p>
-                </div>
-                <span className="personal-meta">{hasSearchKeyword || !collapsedGroupMap[group.id] ? "收起" : "展开"}</span>
-              </button>
-              {hasSearchKeyword || !collapsedGroupMap[group.id] ? (
-                <div className="personal-list">
-                  {group.sections.map((section) => {
-                    const sectionKey = buildSectionCollapseKey(group.id, section.id);
-                    const sectionExpanded = hasSearchKeyword || !collapsedSectionMap[sectionKey];
-                    return (
-                      <div key={section.id}>
-                        <button
-                          type="button"
-                          onClick={() => toggleSectionCollapse(group.id, section.id, setCollapsedSectionMap)}
-                          style={{
-                            width: "100%",
-                            marginBottom: 8,
-                            padding: 0,
-                            border: "none",
-                            background: "transparent",
-                            textAlign: "left",
-                            cursor: "pointer",
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                          }}
-                        >
-                          <p className="personal-meta" style={{ marginBottom: 0 }}>{section.label}</p>
-                          <span className="personal-meta">{sectionExpanded ? "收起" : "展开"}</span>
-                        </button>
-                        {sectionExpanded ? (
-                          <div className="personal-list">
-                            {section.items.map((item) => (
+      <div className="personal-split-layout personal-skills-layout">
+        <aside className="personal-split-sidebar personal-skills-sidebar">
+          <div className="admin-skill-tree-card admin-skill-tree-card--directory personal-skills-tree">
+            <div className="admin-skill-nav-title">
+              <strong>技能分组</strong>
+              <span>左侧按板块分类，可展开收起；右侧详情固定在内容框里查看。</span>
+            </div>
+
+            {groupedSkills.length ? (
+              <div className="admin-skill-primary-list">
+                {groupedSkills.map((group) => {
+                  const isExpanded = expandedCategories[group.key] ?? true;
+                  const hasSelectedSkill = group.skills.some((skill) => skill.id === selectedSkill?.id);
+                  return (
+                    <section
+                      key={group.key}
+                      className={`admin-skill-primary-group ${isExpanded ? "expanded" : ""}`}
+                    >
+                      <button
+                        type="button"
+                        className={`admin-skill-primary-button ${hasSelectedSkill ? "active" : ""}`}
+                        onClick={() => setExpandedCategories((current) => ({ ...current, [group.key]: !isExpanded }))}
+                      >
+                        <span className="admin-skill-primary-mark">{group.label.slice(0, 1)}</span>
+                        <span className="admin-skill-primary-button-copy">
+                          <strong>{group.label}</strong>
+                          <small>{group.skills.length} 个技能</small>
+                        </span>
+                        <span className={`admin-skill-primary-arrow ${isExpanded ? "expanded" : ""}`}>⌄</span>
+                      </button>
+
+                      {isExpanded ? (
+                        <div className="admin-skill-tree-sections">
+                          <div className="admin-skill-tree-leaf-list">
+                            {group.skills.map((skill) => (
                               <button
-                                key={item.id}
+                                key={skill.id}
                                 type="button"
-                                className="entity-card personal-card"
-                                onClick={() => setSelectedLeafId(item.id)}
-                                style={{
-                                  width: "100%",
-                                  textAlign: "left",
-                                  border: item.id === selectedLeaf?.id ? "1px solid var(--platform-card-selected-border)" : undefined,
-                                  background: item.id === selectedLeaf?.id ? "var(--platform-card-selected-bg)" : undefined,
-                                  boxShadow: item.id === selectedLeaf?.id ? "var(--platform-card-selected-shadow)" : undefined,
-                                }}
+                                className={`admin-skill-tree-leaf-button ${skill.id === selectedSkill?.id ? "active" : ""}`}
+                                onClick={() => setSelectedSkillId(skill.id)}
                               >
-                                <div className="entity-card-head">
-                                  <div>
-                                    <strong>{item.leafLabel}</strong>
-                                    <p className="personal-meta">{item.prompt.basePrompt.scene}</p>
-                                  </div>
-                                  <span className={`archive-pill ${item.prompt.isCustomized ? "status-in_progress" : "status-ready"}`}>
-                                    {item.prompt.isCustomized ? "已自定义" : "跟随平台"}
-                                  </span>
-                                </div>
-                                <div className="personal-grid">
-                                  <div>
-                                    <span>执行技能</span>
-                                    <strong>{item.skill.effectiveSkill.name}</strong>
-                                  </div>
-                                  <div>
-                                    <span>模型</span>
-                                    <strong>{formatScopedModelLabel(item.prompt.effectivePrompt.modelName, editorOptions.modelOptions)}</strong>
-                                  </div>
+                                <span className="admin-skill-tree-leaf-dot" />
+                                <div className="personal-skills-leaf-copy">
+                                  <strong>{skill.effectiveSkill.name}</strong>
+                                  <small>
+                                    {skill.isCustomized ? "已自定义" : "跟随平台"} · {skill.prompts.length} 条提示词
+                                  </small>
                                 </div>
                               </button>
                             ))}
                           </div>
-                        ) : null}
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : null}
-            </article>
-          ))}
-          {!groupedPromptLeaves.length ? (
-            <div className="empty-canvas-box">
-              <strong>没有找到匹配的提示词</strong>
-              <p>可以先清空搜索词，或切换状态筛选后重新查看当前品牌技能库。</p>
-              <div className="personal-actions">
-                {search.trim() ? (
-                  <button type="button" className="secondary-button" onClick={() => setSearch("")}>
-                    清空搜索词
-                  </button>
-                ) : null}
-                {statusFilter !== "ALL" ? (
-                  <button type="button" className="secondary-button" onClick={() => setStatusFilter("ALL")}>
-                    查看全部状态
-                  </button>
-                ) : null}
+                        </div>
+                      ) : null}
+                    </section>
+                  );
+                })}
               </div>
-            </div>
-          ) : null}
-        </div>
+            ) : (
+              <div className="empty-canvas-box">暂无匹配技能，请调整搜索词或状态筛选。</div>
+            )}
+          </div>
+        </aside>
 
-        {selectedLeaf && selectedSkill && selectedPrompt && currentPromptDraft ? (
-          <article className="entity-card personal-card personal-split-main">
+        <div className="personal-split-main personal-skills-main-shell">
+          {selectedSkill && currentDraft ? (
+            <article className="entity-card personal-card personal-skills-detail">
             <div className="entity-card-head">
               <div>
-                <strong>{selectedLeaf.leafLabel}</strong>
+                <strong>{selectedSkill.effectiveSkill.name}</strong>
                 <p className="personal-meta">
-                  {selectedLeaf.primaryLabel} · {selectedLeaf.sectionLabel}
+                  {selectedSkill.baseSkill.slug} · {selectedSkill.baseSkill.provider} · {selectedSkill.baseSkill.category}
                 </p>
               </div>
               <span className={`archive-pill ${skillStatusClassMap[selectedSkill.baseSkill.status]}`}>
@@ -516,164 +462,190 @@ export default function PersonalCenterSkillsPage() {
               </span>
             </div>
 
-            <p className="personal-meta" style={{ marginBottom: 16 }}>
-              {selectedLeaf.leafDescription}
-            </p>
-
-            <div className="personal-context-banner">
+            <div className="personal-grid" style={{ marginBottom: 16 }}>
               <div>
-                <strong>当前正在编辑「{selectedLeaf.leafLabel}」所在技能</strong>
-                <p>
-                  {canManageCurrentBrandSkills
-                    ? isCurrentSkillDirty
-                      ? "当前技能下存在未保存修改。保存时会一并提交该执行技能下所有已变更提示词。"
-                      : "可以先检查模型、温度和内容，再决定是否覆盖当前品牌共享版本。"
-                    : "当前账号只有查看权限，可用来核对平台基线与当前品牌覆盖状态。"}
-                </p>
-              </div>
-              <div className="personal-context-actions">
-                <button
-                  type="button"
-                  className="primary-button"
-                  onClick={() => void handleSaveSkill(selectedSkill.id)}
-                  disabled={!canManageCurrentBrandSkills || !isCurrentSkillDirty || savingSkillId === selectedSkill.id || resettingSkillId === selectedSkill.id}
-                >
-                  {savingSkillId === selectedSkill.id ? "保存中..." : "保存当前技能修改"}
-                </button>
-                <button
-                  type="button"
-                  className="secondary-button"
-                  onClick={() => void handleResetSkill(selectedSkill.id)}
-                  disabled={!canManageCurrentBrandSkills || savingSkillId === selectedSkill.id || resettingSkillId === selectedSkill.id}
-                >
-                  {resettingSkillId === selectedSkill.id ? "重置中..." : "恢复平台基线"}
-                </button>
-              </div>
-            </div>
-
-            {!canManageCurrentBrandSkills ? (
-              <div className="personal-inline-hint" style={{ marginBottom: 16 }}>
-                <strong>当前为只读模式</strong>
-                当前账号不是该品牌管理员，无法直接保存或重置品牌技能库。如需调整，请切换到有权限的账号后再操作。
-              </div>
-            ) : null}
-
-            <div className="personal-inline-hint" style={{ marginBottom: 16 }}>
-              <strong>本次编辑范围</strong>
-              当前正在编辑 1 个技能项；保存时会一并提交该执行技能下所有已修改提示词，并写入当前品牌共享技能库。当前提示词{isCurrentPromptDirty ? "已" : "未"}发生改动。
-            </div>
-
-            <div className="personal-grid" style={{ marginBottom: 12 }}>
-              <div>
-                <span>所属分类</span>
-                <strong>{selectedLeaf.primaryLabel} / {selectedLeaf.sectionLabel}</strong>
+                <span>平台技能名</span>
+                <strong>{selectedSkill.baseSkill.name}</strong>
               </div>
               <div>
-                <span>执行技能</span>
-                <strong>{selectedSkill.effectiveSkill.name}</strong>
+                <span>点数成本</span>
+                <strong>{selectedSkill.baseSkill.pointsCost}</strong>
               </div>
               <div>
-                <span>提示词场景</span>
-                <strong>{selectedPrompt.basePrompt.scene}</strong>
+                <span>品牌状态</span>
+                <strong>{selectedSkill.isCustomized ? "已保存品牌覆盖" : "默认跟随平台"}</strong>
               </div>
               <div>
-                <span>最近更新时间</span>
-                <strong>{formatDateTime(selectedPrompt.effectivePrompt.updatedAt)}</strong>
-              </div>
-            </div>
-
-            <div className="personal-grid" style={{ marginBottom: 12 }}>
-              <div>
-                <span>平台模型</span>
-                <strong>{formatScopedModelLabel(selectedPrompt.basePrompt.modelName, editorOptions.modelOptions)}</strong>
-              </div>
-              <div>
-                <span>平台温度</span>
-                <strong>{selectedPrompt.basePrompt.temperature}</strong>
-              </div>
-              <div>
-                <span>平台 Tokens</span>
-                <strong>{selectedPrompt.basePrompt.maxTokens}</strong>
-              </div>
-              <div>
-                <span>同技能提示词数</span>
-                <strong>{selectedSkill.prompts.length}</strong>
+                <span>最近重置</span>
+                <strong>{formatDateTime(selectedSkill.lastResetAt)}</strong>
               </div>
             </div>
 
             <div className="personal-list">
               <label className="field">
-                <span>提示词模型</span>
+                <span>技能名称</span>
+                <input
+                  value={currentDraft.displayName}
+                  onChange={(event) => updateSkillDraftField(selectedSkill.id, "displayName", event.target.value, setSkillDrafts)}
+                  placeholder={selectedSkill.baseSkill.name}
+                  disabled={!canManageCurrentBrandSkills}
+                />
+                <small className="personal-meta">不改就沿用平台值：{selectedSkill.baseSkill.name}</small>
+              </label>
+
+              <label className="field">
+                <span>默认模型</span>
                 <select
-                  value={currentPromptDraft.modelName}
-                  onChange={(event) => updatePromptDraftField(selectedSkill.id, selectedPrompt.id, "modelName", event.target.value, setSkillDrafts)}
+                  value={currentDraft.defaultModel}
+                  onChange={(event) => updateSkillDraftField(selectedSkill.id, "defaultModel", event.target.value, setSkillDrafts)}
+                  disabled={!canManageCurrentBrandSkills}
                 >
-                  {buildModelOptions(editorOptions.modelOptions, selectedPrompt.basePrompt.modelName, currentPromptDraft.modelName).map((option) => (
+                  {buildModelOptions(editorOptions.modelOptions, selectedSkill.baseSkill.defaultModel, currentDraft.defaultModel).map((option) => (
                     <option key={option.value} value={option.value}>
                       {option.label}
                     </option>
                   ))}
                 </select>
                 <small className="personal-meta">
-                  默认跟随后台当前模型：{formatScopedModelLabel(selectedPrompt.basePrompt.modelName, editorOptions.modelOptions)}
+                  不改就沿用平台值：{formatScopedModelLabel(selectedSkill.baseSkill.defaultModel, editorOptions.modelOptions)}
                 </small>
               </label>
-
-              <div className="personal-grid">
-                <label className="field">
-                  <span>温度</span>
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={currentPromptDraft.temperature}
-                    onChange={(event) => updatePromptDraftField(selectedSkill.id, selectedPrompt.id, "temperature", event.target.value, setSkillDrafts)}
-                    placeholder={String(selectedPrompt.basePrompt.temperature)}
-                  />
-                </label>
-                <label className="field">
-                  <span>最大 Tokens</span>
-                  <input
-                    type="number"
-                    step="1"
-                    value={currentPromptDraft.maxTokens}
-                    onChange={(event) => updatePromptDraftField(selectedSkill.id, selectedPrompt.id, "maxTokens", event.target.value, setSkillDrafts)}
-                    placeholder={String(selectedPrompt.basePrompt.maxTokens)}
-                  />
-                </label>
-              </div>
 
               <label className="field">
-                <span>提示词内容</span>
+                <span>技能说明</span>
                 <textarea
-                  className="skill-editor-textarea"
-                  value={currentPromptDraft.content}
-                  onChange={(event) => updatePromptDraftField(selectedSkill.id, selectedPrompt.id, "content", event.target.value, setSkillDrafts)}
-                  rows={10}
-                  placeholder={selectedPrompt.basePrompt.content}
+                  value={currentDraft.description}
+                  onChange={(event) => updateSkillDraftField(selectedSkill.id, "description", event.target.value, setSkillDrafts)}
+                  rows={4}
+                  placeholder={selectedSkill.baseSkill.description}
+                  disabled={!canManageCurrentBrandSkills}
                 />
-                <small className="personal-meta">
-                  保存后会覆盖当前品牌共享版本；点击“恢复平台基线”会恢复该执行技能下的品牌提示词配置。
-                </small>
+                <small className="personal-meta">不改就沿用平台说明；后台修改平台说明后，未自定义字段会自动跟随。</small>
               </label>
             </div>
-          </article>
-        ) : (
-          <div className="empty-canvas-box">
-            <strong>{search.trim() ? "当前搜索结果为空" : "请选择左侧技能项查看并编辑当前品牌版本"}</strong>
-            <p>{search.trim() ? "可以先清空搜索词，或切换状态筛选后重新定位需要编辑的技能项。" : "进入右侧详情后即可核对平台基线、品牌覆盖内容和当前技能的修改状态。"}</p>
-            <div className="personal-actions">
-              {search.trim() ? (
-                <button type="button" className="secondary-button" onClick={() => setSearch("")}>
-                  清空搜索词
-                </button>
-              ) : (
-                <Link href="/personal-center" className="secondary-button">
-                  返回个人中心概览
-                </Link>
-              )}
+
+            <div className="personal-actions" style={{ marginTop: 16, marginBottom: 16 }}>
+              <button
+                type="button"
+                className="primary-button"
+                onClick={() => void handleSaveSkill(selectedSkill.id)}
+                disabled={!canManageCurrentBrandSkills || !isCurrentSkillDirty || savingSkillId === selectedSkill.id || resettingSkillId === selectedSkill.id}
+              >
+                {savingSkillId === selectedSkill.id ? "保存中..." : "保存当前技能修改"}
+              </button>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => void handleResetSkill(selectedSkill.id)}
+                disabled={!canManageCurrentBrandSkills || savingSkillId === selectedSkill.id || resettingSkillId === selectedSkill.id}
+              >
+                {resettingSkillId === selectedSkill.id ? "重置中..." : "恢复平台基线"}
+              </button>
             </div>
-          </div>
-        )}
+
+            <p className="personal-meta" style={{ marginBottom: 16 }}>
+              当前共 {selectedSkill.prompts.length} 条提示词；模型默认跟随后台平台配置，你可以在下面按提示词单独切换。
+            </p>
+
+            <div className="personal-list personal-skills-prompt-list">
+              {selectedSkill.prompts.map((prompt) => {
+                const promptDraft = currentDraft.prompts[prompt.id];
+                return (
+                  <article key={prompt.id} className="entity-card personal-card">
+                    <div className="entity-card-head">
+                      <div>
+                        <strong>{prompt.basePrompt.name}</strong>
+                        <p className="personal-meta">{prompt.basePrompt.scene}</p>
+                      </div>
+                      <span className={`archive-pill ${prompt.isCustomized ? "status-in_progress" : "status-ready"}`}>
+                        {prompt.isCustomized ? "提示词已自定义" : "提示词跟随平台"}
+                      </span>
+                    </div>
+
+                    <div className="personal-grid" style={{ marginBottom: 12 }}>
+                      <div>
+                        <span>平台模型</span>
+                        <strong>{formatScopedModelLabel(prompt.basePrompt.modelName, editorOptions.modelOptions)}</strong>
+                      </div>
+                      <div>
+                        <span>平台温度</span>
+                        <strong>{prompt.basePrompt.temperature}</strong>
+                      </div>
+                      <div>
+                        <span>平台 Tokens</span>
+                        <strong>{prompt.basePrompt.maxTokens}</strong>
+                      </div>
+                      <div>
+                        <span>最近更新时间</span>
+                        <strong>{formatDateTime(prompt.effectivePrompt.updatedAt)}</strong>
+                      </div>
+                    </div>
+
+                    <div className="personal-list">
+                      <label className="field">
+                        <span>提示词模型</span>
+                        <select
+                          value={promptDraft.modelName}
+                          onChange={(event) => updatePromptDraftField(selectedSkill.id, prompt.id, "modelName", event.target.value, setSkillDrafts)}
+                          disabled={!canManageCurrentBrandSkills}
+                        >
+                          {buildModelOptions(editorOptions.modelOptions, prompt.basePrompt.modelName, promptDraft.modelName).map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                        <small className="personal-meta">
+                          默认跟随后台当前模型：{formatScopedModelLabel(prompt.basePrompt.modelName, editorOptions.modelOptions)}
+                        </small>
+                      </label>
+
+                      <div className="personal-grid">
+                        <label className="field">
+                          <span>温度</span>
+                          <input
+                            type="number"
+                            step="0.1"
+                            value={promptDraft.temperature}
+                            onChange={(event) => updatePromptDraftField(selectedSkill.id, prompt.id, "temperature", event.target.value, setSkillDrafts)}
+                            placeholder={String(prompt.basePrompt.temperature)}
+                            disabled={!canManageCurrentBrandSkills}
+                          />
+                        </label>
+                        <label className="field">
+                          <span>Max Tokens</span>
+                          <input
+                            type="number"
+                            step="1"
+                            value={promptDraft.maxTokens}
+                            onChange={(event) => updatePromptDraftField(selectedSkill.id, prompt.id, "maxTokens", event.target.value, setSkillDrafts)}
+                            placeholder={String(prompt.basePrompt.maxTokens)}
+                            disabled={!canManageCurrentBrandSkills}
+                          />
+                        </label>
+                      </div>
+
+                      <label className="field">
+                        <span>提示词内容</span>
+                        <textarea
+                          value={promptDraft.content}
+                          onChange={(event) => updatePromptDraftField(selectedSkill.id, prompt.id, "content", event.target.value, setSkillDrafts)}
+                          rows={12}
+                          placeholder={prompt.basePrompt.content}
+                          disabled={!canManageCurrentBrandSkills}
+                        />
+                        <small className="personal-meta">保存后只覆盖当前品牌共享版本；点击“恢复平台基线”会回到后台默认提示词。</small>
+                      </label>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+            </article>
+          ) : (
+            <div className="empty-canvas-box">请选择左侧技能查看并编辑品牌版本。</div>
+          )}
+        </div>
       </div>
     </section>
   );
@@ -685,103 +657,8 @@ const skillStatusClassMap: Record<UserSkillRecord["baseSkill"]["status"], string
   DISABLED: "status-paused",
 };
 
-function buildPromptLeafViews(skills: UserSkillRecord[]) {
-  const configuredLeaves = flattenSkillCenterLeaves();
-  const consumedPromptKeys = new Set<string>();
-  const views: PromptLeafView[] = [];
-
-  configuredLeaves.forEach((leaf) => {
-    const skill = skills.find((item) => item.baseSkill.slug === leaf.skillSlug);
-    const prompt = skill?.prompts.find((item) => item.basePrompt.scene === leaf.promptScene);
-    if (!skill || !prompt) {
-      return;
-    }
-    consumedPromptKeys.add(`${skill.id}::${prompt.id}`);
-    views.push({
-      id: leaf.id,
-      primaryId: leaf.primaryId,
-      primaryLabel: leaf.primaryLabel,
-      sectionId: leaf.sectionId,
-      sectionLabel: leaf.sectionLabel,
-      leafLabel: leaf.label,
-      leafDescription: leaf.description,
-      skill,
-      prompt,
-    });
-  });
-
-  skills.forEach((skill) => {
-    skill.prompts.forEach((prompt) => {
-      const key = `${skill.id}::${prompt.id}`;
-      if (consumedPromptKeys.has(key)) {
-        return;
-      }
-      views.push({
-        id: `fallback-${skill.id}-${prompt.id}`,
-        primaryId: `fallback-${skill.baseSkill.category}`,
-        primaryLabel: skill.baseSkill.category || "未分类",
-        sectionId: `fallback-section-${skill.id}`,
-        sectionLabel: skill.effectiveSkill.name,
-        leafLabel: prompt.basePrompt.name,
-        leafDescription: prompt.basePrompt.scene,
-        skill,
-        prompt,
-      });
-    });
-  });
-
-  return views;
-}
-
-function toggleGroupCollapse(
-  primaryId: string,
-  setCollapsedGroupMap: React.Dispatch<React.SetStateAction<Record<string, boolean>>>,
-) {
-  setCollapsedGroupMap((current) => ({
-    ...current,
-    [primaryId]: !current[primaryId],
-  }));
-}
-
-function toggleSectionCollapse(
-  primaryId: string,
-  sectionId: string,
-  setCollapsedSectionMap: React.Dispatch<React.SetStateAction<Record<string, boolean>>>,
-) {
-  const sectionKey = buildSectionCollapseKey(primaryId, sectionId);
-  setCollapsedSectionMap((current) => ({
-    ...current,
-    [sectionKey]: !current[sectionKey],
-  }));
-}
-
-function buildSectionCollapseKey(primaryId: string, sectionId: string) {
-  return `${primaryId}::${sectionId}`;
-}
-
-function groupPromptLeafViews(items: PromptLeafView[]) {
-  const groups = new Map<string, PromptLeafGroup>();
-  items.forEach((item) => {
-    if (!groups.has(item.primaryId)) {
-      groups.set(item.primaryId, {
-        id: item.primaryId,
-        label: item.primaryLabel,
-        sections: [],
-      });
-    }
-    const group = groups.get(item.primaryId)!;
-    let section = group.sections.find((entry) => entry.id === item.sectionId);
-    if (!section) {
-      section = {
-        id: item.sectionId,
-        label: item.sectionLabel,
-        items: [],
-      };
-      group.sections.push(section);
-    }
-    section.items.push(item);
-  });
-  return Array.from(groups.values());
+function sortBySkillUpdatedAtDesc(a: UserSkillRecord, b: UserSkillRecord) {
+  return new Date(b.effectiveSkill.updatedAt).getTime() - new Date(a.effectiveSkill.updatedAt).getTime();
 }
 
 function buildSkillDraftMap(skills: UserSkillRecord[]) {
@@ -805,6 +682,21 @@ function buildSkillDraft(skill: UserSkillRecord): UserSkillEditDraft {
   };
 }
 
+function updateSkillDraftField(
+  skillId: string,
+  field: keyof Omit<UserSkillEditDraft, "prompts">,
+  value: string,
+  setSkillDrafts: React.Dispatch<React.SetStateAction<Record<string, UserSkillEditDraft>>>,
+) {
+  setSkillDrafts((current) => ({
+    ...current,
+    [skillId]: {
+      ...current[skillId],
+      [field]: value,
+    },
+  }));
+}
+
 function updatePromptDraftField(
   skillId: string,
   promptId: string,
@@ -825,20 +717,6 @@ function updatePromptDraftField(
       },
     },
   }));
-}
-
-function isPromptDraftDirty(prompt: UserSkillPromptRecord, draft: UserSkillPromptEditDraft) {
-  return JSON.stringify({
-    content: normalizeComparableText(draft.content),
-    modelName: normalizeComparableText(draft.modelName),
-    temperature: normalizeComparableNumber(draft.temperature),
-    maxTokens: normalizeComparableInt(draft.maxTokens),
-  }) !== JSON.stringify({
-    content: normalizeComparableText(prompt.effectivePrompt.content),
-    modelName: normalizeComparableText(prompt.effectivePrompt.modelName),
-    temperature: Number(prompt.effectivePrompt.temperature ?? 0),
-    maxTokens: Math.round(Number(prompt.effectivePrompt.maxTokens ?? 0)),
-  });
 }
 
 function isSkillDraftDirty(skill: UserSkillRecord, draft: UserSkillEditDraft) {
@@ -865,6 +743,33 @@ function formatScopedModelLabel(value: string, modelOptions: UserSkillEditorMode
   return modelOptions.find((item) => item.value === normalized)?.label || buildFallbackModelOption(normalized).label;
 }
 
+function buildSkillCategoryGroups(skills: UserSkillRecord[]) {
+  const groups = new Map<string, { key: string; label: string; skills: UserSkillRecord[] }>();
+  for (const skill of skills) {
+    const label = formatSkillCategoryLabel(skill.baseSkill.category);
+    const key = normalizeSkillCategory(skill.baseSkill.category);
+    const current = groups.get(key);
+    if (current) {
+      current.skills.push(skill);
+      continue;
+    }
+    groups.set(key, {
+      key,
+      label,
+      skills: [skill],
+    });
+  }
+  return Array.from(groups.values());
+}
+
+function normalizeSkillCategory(value: string) {
+  return String(value || "").trim() || "未分类";
+}
+
+function formatSkillCategoryLabel(value: string) {
+  return normalizeSkillCategory(value);
+}
+
 function buildFallbackModelOption(value: string): UserSkillEditorModelOption {
   const normalized = String(value || "").trim();
   const separatorIndex = normalized.indexOf("::");
@@ -889,30 +794,27 @@ function buildFallbackModelOption(value: string): UserSkillEditorModelOption {
 }
 
 function buildUpdatePayload(skill: UserSkillRecord, draft: UserSkillEditDraft) {
-  const promptOverrides = skill.prompts
-    .map((prompt) => {
+  return {
+    displayName: toNullableText(draft.displayName, skill.baseSkill.name),
+    defaultModel: toNullableText(draft.defaultModel, skill.baseSkill.defaultModel),
+    description: toNullableText(draft.description, skill.baseSkill.description),
+    promptOverrides: skill.prompts.map((prompt) => {
       const promptDraft = draft.prompts[prompt.id];
-      const override = {
+      return {
         promptId: prompt.id,
         content: toNullableText(promptDraft?.content, prompt.basePrompt.content),
         modelName: toNullableText(promptDraft?.modelName, prompt.basePrompt.modelName),
         temperature: toNullableNumber(promptDraft?.temperature, prompt.basePrompt.temperature),
         maxTokens: toNullableInt(promptDraft?.maxTokens, prompt.basePrompt.maxTokens),
       };
-      const hasEffectiveOverride = Object.entries(override).some(([key, value]) => key !== "promptId" && value !== null);
-      return hasEffectiveOverride ? override : undefined;
-    })
-    .filter((item): item is NonNullable<typeof item> => Boolean(item));
-  return {
-    displayName: toNullableText(draft.displayName, skill.baseSkill.name),
-    defaultModel: toNullableText(draft.defaultModel, skill.baseSkill.defaultModel),
-    description: toNullableText(draft.description, skill.baseSkill.description),
-    promptOverrides,
+    }),
   };
 }
 
 function upsertSkill(current: UserSkillRecord[], next: UserSkillRecord) {
-  return current.map((item) => (item.id === next.id ? next : item));
+  return current
+    .map((item) => (item.id === next.id ? next : item))
+    .sort(sortBySkillUpdatedAtDesc);
 }
 
 function serializeComparableDraft(skill: UserSkillRecord, draft: UserSkillEditDraft) {

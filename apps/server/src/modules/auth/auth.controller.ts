@@ -36,6 +36,11 @@ export class AuthController {
     return this.authService.refreshSession(payload);
   }
 
+  @Post("local-single-user/resume")
+  resumeLocalSingleUserSession() {
+    return this.authService.resumeLocalSingleUserSession();
+  }
+
   @Post("logout")
   async logout(@Headers() headers: Record<string, string | string[] | undefined>) {
     const auth = await this.authService.resolveRequestAuthContext(headers);

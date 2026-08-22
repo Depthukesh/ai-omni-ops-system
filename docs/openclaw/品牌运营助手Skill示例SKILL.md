@@ -78,7 +78,7 @@
 - 查看我的待处理品牌邀请和邀请通知
 - 查看第三方接口配置摘要
 - 查看多元探索平台是否已经接入并能否覆盖文本、图像、视频、音频、音乐
-- 查看最近订单情况
+- 查看素材管理里的各类创作素材
 - 查看知识库和最近新增资料
 - 看当前技能配置摘要
 
@@ -327,6 +327,8 @@
 - 如果用户提供了参考图：
   - 图片已有 URL 时优先传 `referenceImageUrl`
   - 图片在当前会话里时可直接传 `referenceImage.fileName / contentType / dataBase64`
+- 如果用户明确指定尺寸，优先传 `create_design_work.imageSize="宽x高"`，例如 `1200x628`
+- 兼容旧链路时，也可以继续传 `create_design_work.spec="宽x高"`
 - 如果用户说“用多元探索做图”，先检查多元探索平台 runtime 是否可用；确认可用后，仍然通过网站现有设计工作台工具链执行，不直接伪造一个不存在的多元探索专用设计工具
 - 一旦用户明确指定“就用多元探索”，必须从 `moduleOptions.image.models` 中筛选 `providerName` 属于多元探索的 `selectionKey`，不要仅按 Veo / Seedance / Kling 等模型家族猜测 provider
 
@@ -392,6 +394,21 @@
 - 不要把 `localFilePath=...` 这段字面文本塞进 `fieldValue` 或 `fieldData`；那只是兼容旧写法，标准写法仍然是独立字段 `localFilePath`
 - 不要手动修改模板里的 `fieldData`；尤其不要保留或手填 `example.png` 这类占位值，保持 `get_app_detail` 返回模板原样即可
 - 不要猜测 `nodeId`，也不要在 `nodeInfoList` 为空时直接调用 `generate`
+- 当前常见 RunningHub appKey 示例：
+  - `minimax-h3-fl2va-text-to-video`：文生视频
+  - `minimax-h3-fl2va-first-frame-video`：首帧参考生视频
+  - `minimax-h3-fl2va-first-last-frame-video`：首尾帧参考生视频
+  - `minimax-h3-fl2va-multi-image-video`：多图参考生视频
+  - `minimax-h3-8step-image-to-video`：8 步加速图生视频
+  - `minimax-h3-4step-first-last-frame-video`：4 步加速首尾帧生视频
+  - `minimax-h3-accelerated-all-reference-video`：全能参考视频
+  - `minimax-h3-digital-human-auto`：数字人口播 / 唱歌 / 电商讲解自动版
+  - `seedance25-multimodal-video`：Seedance 2.5 多模态视频
+  - `seedance20-viral-video-remix`：Seedance 2.0 复刻爆款视频
+  - `seedance20-fast-all-reference-video`：Seedance 2.0 Fast 全能生视频
+  - `seedance20-fast-rh`：Seedance 2.0 Fast RH 版
+  - `qwen-image-chinese-font-design`：中文字体设计图生图
+  - `qwen-font-design-8step`：Qwen 8 步加速字体设计
 
 ### 保存并管理 OpenClaw 创作素材
 
@@ -402,6 +419,9 @@
 - 保存素材时，使用：
   - `create_openclaw_creative_material`
   - 必填：`title`、`materialType`
+  - 可选：`sourceKind`
+    - `openclaw_upload`：OpenClaw 上传到网站或外部归档素材
+    - `material_library_upload`：网站上传并写入本地素材库
   - 如果是当前机器上的本地文件，优先传对象字段：`localFilePath: "<本地绝对路径>"`，stdio MCP 会自动上传到网站并回填站内 `fileUrl`
   - 如果已经有公网或站内地址，传：`fileUrl`、`fileName`、`mimeType`
   - 如果已经拿到文件内容，也可直接传：`upload.fileName`、`upload.contentType`、`upload.dataBase64`
@@ -483,6 +503,25 @@
   - `reportId=<报告ID>`
 - 这个板块只负责归档和查看 HTML 诊断报告，不负责在站内重新生成 GEO 诊断内容
 
+### 保存并管理 GEO 其它工作流内容
+
+- 当 OpenClaw 已经生成关键词挖掘、网站诊断、知识库搭建、GEO优化方案、自媒体内容、第三方媒体或品牌网站结果时，统一保存到独立的 `GEO` 板块
+- 查看这些内容列表时，使用：
+  - `get_openclaw_geo_contents`
+  - 可按 `contentType` 筛选某个板块
+- 保存这些内容时，使用：
+  - `create_openclaw_geo_content`
+  - 必填：`contentType`、`title`、`htmlContent`
+  - 可补充：`description`
+  - 非 HTML 附件可通过 `attachmentFileUrl / attachmentFileName / attachmentMimeType / attachmentStorageKey`，或 `attachmentUpload` 一并写入
+- 删除时，使用：
+  - `delete_openclaw_geo_content`
+  - `contentId=<内容ID>`
+- 这些板块默认负责：
+  - HTML 站内预览
+  - 非 HTML 附件受控副本
+  - `存储地址` 回显
+
 ### 新建知识库
 
 - 优先使用：`create_knowledge_base`
@@ -491,9 +530,13 @@
 
 - 优先使用：`upload_knowledge_base_files`
 
-### 查看最近订单情况
+### 查看素材管理里的各类创作素材
 
-- 优先使用：`list_my_orders`
+- 优先使用：`list_personal_material_assets`
+- 如果用户在问本地版素材库存储目录，继续使用：
+  - `get_local_material_storage_settings`
+  - `update_local_material_storage_settings`
+- 当前素材管理统一聚合网站上传素材与 OpenClaw 入库素材
 
 ## 七、行为边界
 

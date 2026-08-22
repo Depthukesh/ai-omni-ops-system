@@ -1,8 +1,16 @@
+import { readFileSync } from "node:fs";
 import { homedir, networkInterfaces } from "node:os";
 import { join, resolve } from "node:path";
 import { Injectable } from "@nestjs/common";
 
 export type AppRuntimeMode = "standard" | "local-single-user";
+export type StorageProviderMode = "auto" | "local" | "oss";
+type LocalLauncherSettingsRecord = {
+  localAppDataRoot?: string;
+  pendingMigrationFrom?: string;
+  materialLibraryBaseRoot?: string;
+  updatedAt?: string;
+};
 
 @Injectable()
 export class AppConfigService {
@@ -17,6 +25,25 @@ export class AppConfigService {
 
   isWorkerBootMode() {
     return this.readFirst("SERVER_BOOT_MODE").toLowerCase() === "worker";
+  }
+
+  getStorageProviderMode(): StorageProviderMode {
+    if (this.isLocalSingleUserMode()) {
+      return "local";
+    }
+    const value = this.readFirst("STORAGE_PROVIDER_MODE").toLowerCase();
+    if (value === "local" || value === "oss") {
+      return value;
+    }
+    return "auto";
+  }
+
+  shouldForceLocalManagedStorage() {
+    return this.getStorageProviderMode() === "local";
+  }
+
+  shouldForceOssStorage() {
+    return this.getStorageProviderMode() === "oss";
   }
 
   getServerHost() {
@@ -53,6 +80,64 @@ export class AppConfigService {
 
   getLocalLauncherSettingsPath() {
     return join(this.getDefaultLocalAppRoot(), "launcher-settings.json");
+  }
+
+  getLocalMaterialLibraryFolderName() {
+    return "素材库";
+  }
+
+  getLocalManagedStorageFolderName() {
+    return "站内存储";
+  }
+
+  getDefaultMaterialLibraryBaseRoot() {
+    return this.getLocalAppRoot();
+  }
+
+  getConfiguredMaterialLibraryBaseRoot() {
+    const explicit = this.readFirst("MATERIAL_LIBRARY_BASE_ROOT", "LOCAL_MATERIAL_LIBRARY_BASE_ROOT");
+    if (explicit) {
+      return resolve(explicit);
+    }
+    const settings = this.readLocalLauncherSettings();
+    const configured = String(settings.materialLibraryBaseRoot || "").trim();
+    return configured ? resolve(configured) : this.getDefaultMaterialLibraryBaseRoot();
+  }
+
+  getConfiguredMaterialLibraryDisplayRoot() {
+    const explicit = this.readFirst("MATERIAL_LIBRARY_DISPLAY_ROOT", "LOCAL_MATERIAL_LIBRARY_DISPLAY_ROOT");
+    if (explicit) {
+      return resolve(explicit);
+    }
+    return this.getConfiguredMaterialLibraryBaseRoot();
+  }
+
+  getLocalMaterialLibraryRoot() {
+    return join(this.getConfiguredMaterialLibraryBaseRoot(), this.getLocalMaterialLibraryFolderName());
+  }
+
+  getConfiguredLocalManagedStorageRoot() {
+    const explicit = this.readFirst("MANAGED_STORAGE_ROOT", "LOCAL_MANAGED_STORAGE_ROOT");
+    if (explicit) {
+      return resolve(explicit);
+    }
+    return join(this.getConfiguredMaterialLibraryBaseRoot(), this.getLocalManagedStorageFolderName());
+  }
+
+  getConfiguredLocalManagedStorageDisplayRoot() {
+    const explicit = this.readFirst("MANAGED_STORAGE_DISPLAY_ROOT", "LOCAL_MANAGED_STORAGE_DISPLAY_ROOT");
+    if (explicit) {
+      return resolve(explicit);
+    }
+    return join(this.getConfiguredMaterialLibraryDisplayRoot(), this.getLocalManagedStorageFolderName());
+  }
+
+  getLocalMaterialLibraryCategoryRoot(category: "text" | "image" | "audio" | "video") {
+    return join(this.getLocalMaterialLibraryRoot(), this.getMaterialCategoryFolderName(category));
+  }
+
+  getLocalMaterialLibraryDisplayCategoryRoot(category: "text" | "image" | "audio" | "video") {
+    return join(this.getConfiguredMaterialLibraryDisplayRoot(), this.getMaterialCategoryFolderName(category));
   }
 
   getLocalPathsForRoot(rootPath: string) {
@@ -106,6 +191,11 @@ export class AppConfigService {
     const explicit = this.readFirst("WEB_PUBLIC_BASE_URL", "NEXT_PUBLIC_WEB_BASE_URL");
     if (explicit) {
       return trimTrailingSlash(explicit);
+    }
+
+    const runtimeBrowserUrl = this.readLocalRuntimeBrowserUrl();
+    if (runtimeBrowserUrl) {
+      return runtimeBrowserUrl;
     }
 
     if (isLoopbackHost(this.getServerHost())) {
@@ -166,6 +256,72 @@ export class AppConfigService {
 
   getOpenClawInstallTokenEncryptionSecret() {
     return this.readFirst("OPENCLAW_INSTALL_TOKEN_SECRET", "AUTH_TOKEN_SECRET") || "ai-omni-ops-system-dev-secret";
+  }
+
+  getStandardRuntimeUpdateManifestUrl() {
+    return this.readFirst("STANDARD_RUNTIME_UPDATE_MANIFEST_URL", "DOCKER_STANDARD_UPDATE_MANIFEST_URL");
+  }
+
+  private readLocalLauncherSettings(): LocalLauncherSettingsRecord {
+    const settingsFilePath = this.getLocalLauncherSettingsPath();
+    try {
+      const content = readFileSync(settingsFilePath, "utf8").replace(/^\uFEFF/, "");
+      if (!content.trim()) {
+        return {};
+      }
+      const parsed = JSON.parse(content) as LocalLauncherSettingsRecord;
+      return {
+        localAppDataRoot: typeof parsed.localAppDataRoot === "string" ? parsed.localAppDataRoot.trim() : "",
+        pendingMigrationFrom: typeof parsed.pendingMigrationFrom === "string" ? parsed.pendingMigrationFrom.trim() : "",
+        materialLibraryBaseRoot: typeof parsed.materialLibraryBaseRoot === "string" ? parsed.materialLibraryBaseRoot.trim() : "",
+        updatedAt: typeof parsed.updatedAt === "string" ? parsed.updatedAt : "",
+      };
+    } catch {
+      return {};
+    }
+  }
+
+  private readLocalRuntimeBrowserUrl() {
+    if (!this.isLocalSingleUserMode()) {
+      return "";
+    }
+
+    const runtimeMetadataPath = join(this.getLocalRuntimeRoot(), "local-single-user-runtime.json");
+    try {
+      const content = readFileSync(runtimeMetadataPath, "utf8").replace(/^\uFEFF/, "");
+      if (!content.trim()) {
+        return "";
+      }
+      const parsed = JSON.parse(content) as {
+        browserUrl?: string;
+        previewUrl?: string;
+      };
+      const browserUrl = trimTrailingSlash(String(parsed.browserUrl || "").trim());
+      if (browserUrl) {
+        return browserUrl;
+      }
+      const previewUrl = trimTrailingSlash(String(parsed.previewUrl || "").trim());
+      if (!previewUrl) {
+        return "";
+      }
+      return trimTrailingSlash(new URL(previewUrl).origin);
+    } catch {
+      return "";
+    }
+  }
+
+  private getMaterialCategoryFolderName(category: "text" | "image" | "audio" | "video") {
+    switch (category) {
+      case "image":
+        return "图片";
+      case "audio":
+        return "语音";
+      case "video":
+        return "视频";
+      case "text":
+      default:
+        return "文本";
+    }
   }
 
   private readFirst(...keys: string[]) {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
+import { USER_ACCESS_FEATURE_OPTIONS, type UserAccessFeatureKey } from "../../../../../../packages/shared/src/user-access";
 import {
   deleteAdminUser,
   getAdminUserDetail,
@@ -37,6 +38,9 @@ type UserDetailDraft = {
   status: AdminUserRecord["status"];
   systemRole: AdminUserRecord["systemRole"];
   pointsBalance: string;
+  accessExpiresAt: string;
+  hasFullFeatureAccess: boolean;
+  allowedFeatureKeys: UserAccessFeatureKey[];
   emailVerified: boolean;
   password: string;
 };
@@ -206,6 +210,8 @@ export function UsersManagementPanel(props: UsersManagementPanelProps) {
       status: detailDraft.status,
       systemRole: detailDraft.systemRole,
       pointsBalance: Number(detailDraft.pointsBalance || 0),
+      accessExpiresAt: detailDraft.accessExpiresAt ? new Date(detailDraft.accessExpiresAt).toISOString() : null,
+      allowedFeatureKeys: detailDraft.hasFullFeatureAccess ? null : detailDraft.allowedFeatureKeys,
       emailVerified: detailDraft.emailVerified,
       password: detailDraft.password.trim() || undefined,
     };
@@ -584,6 +590,14 @@ export function UsersManagementPanel(props: UsersManagementPanelProps) {
                       onChange={(event) => setDetailDraft((current) => ({ ...current, pointsBalance: event.target.value }))}
                     />
                   </label>
+                  <label>
+                    <span>使用期限</span>
+                    <input
+                      type="datetime-local"
+                      value={detailDraft.accessExpiresAt}
+                      onChange={(event) => setDetailDraft((current) => ({ ...current, accessExpiresAt: event.target.value }))}
+                    />
+                  </label>
                   <label className="admin-user-checkbox">
                     <input
                       type="checkbox"
@@ -592,6 +606,47 @@ export function UsersManagementPanel(props: UsersManagementPanelProps) {
                     />
                     <span>邮箱已验证</span>
                   </label>
+                  <label className="admin-user-checkbox">
+                    <input
+                      type="checkbox"
+                      checked={detailDraft.hasFullFeatureAccess}
+                      onChange={(event) =>
+                        setDetailDraft((current) => ({
+                          ...current,
+                          hasFullFeatureAccess: event.target.checked,
+                          allowedFeatureKeys: event.target.checked ? [] : current.allowedFeatureKeys,
+                        }))
+                      }
+                    />
+                    <span>不限制模块权限</span>
+                  </label>
+                  <div className="field field-full">
+                    <span>可用模块权限</span>
+                    <div className="admin-user-feature-grid">
+                      {USER_ACCESS_FEATURE_OPTIONS.map((item) => {
+                        const checked = detailDraft.hasFullFeatureAccess || detailDraft.allowedFeatureKeys.includes(item.key);
+                        return (
+                          <label key={item.key} className="admin-user-checkbox admin-user-feature-option">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              disabled={detailDraft.hasFullFeatureAccess}
+                              onChange={(event) =>
+                                setDetailDraft((current) => ({
+                                  ...current,
+                                  allowedFeatureKeys: event.target.checked
+                                    ? [...new Set([...current.allowedFeatureKeys, item.key])]
+                                    : current.allowedFeatureKeys.filter((featureKey) => featureKey !== item.key),
+                                }))
+                              }
+                            />
+                            <span>{item.label}</span>
+                            <small>{item.description}</small>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
                   <label>
                     <span>重置密码</span>
                     <input
@@ -697,6 +752,9 @@ function buildUserDetailDraft(detail: AdminUserDetailRecord | null): UserDetailD
     status: detail?.status ?? "ACTIVE",
     systemRole: detail?.systemRole ?? "USER",
     pointsBalance: detail ? String(detail.pointsBalance) : "0",
+    accessExpiresAt: detail?.accessExpiresAt ? toDateTimeLocalValue(detail.accessExpiresAt) : "",
+    hasFullFeatureAccess: detail?.hasFullFeatureAccess ?? true,
+    allowedFeatureKeys: detail?.allowedFeatureKeys ?? [],
     emailVerified: detail?.emailVerified ?? false,
     password: "",
   };
@@ -724,6 +782,8 @@ function buildSeedUpdatedDetail(
     status: AdminUserRecord["status"];
     systemRole: AdminUserRecord["systemRole"];
     pointsBalance: number;
+    accessExpiresAt?: string | null;
+    allowedFeatureKeys?: UserAccessFeatureKey[] | null;
     emailVerified: boolean;
     password?: string;
   },
@@ -740,6 +800,9 @@ function buildSeedUpdatedDetail(
     status: payload.status,
     systemRole: payload.systemRole,
     pointsBalance: payload.pointsBalance,
+    accessExpiresAt: payload.accessExpiresAt ?? null,
+    allowedFeatureKeys: payload.allowedFeatureKeys ?? [],
+    hasFullFeatureAccess: payload.allowedFeatureKeys == null,
     emailVerified: emailChanged ? payload.emailVerified : payload.emailVerified,
     updatedAt: new Date().toISOString(),
   };
@@ -757,6 +820,9 @@ function toListRecord(detail: AdminUserDetailRecord): AdminUserRecord {
     systemRole: detail.systemRole,
     emailVerified: detail.emailVerified,
     pointsBalance: detail.pointsBalance,
+    accessExpiresAt: detail.accessExpiresAt,
+    allowedFeatureKeys: detail.allowedFeatureKeys,
+    hasFullFeatureAccess: detail.hasFullFeatureAccess,
     brandCount: detail.brandCount,
     taskCount: detail.taskCount,
     orderCount: detail.orderCount,
@@ -816,4 +882,14 @@ function formatDateTime(value: string) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(date);
+}
+
+function toDateTimeLocalValue(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+  const offset = date.getTimezoneOffset();
+  const localDate = new Date(date.getTime() - offset * 60_000);
+  return localDate.toISOString().slice(0, 16);
 }

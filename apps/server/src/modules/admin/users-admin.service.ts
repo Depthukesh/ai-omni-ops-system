@@ -1,6 +1,11 @@
 import { randomBytes, scryptSync } from "node:crypto";
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import { MembershipLevel, Prisma, SystemRole, UserStatus } from "@prisma/client";
+import {
+  parseUserAccessFeatureKeysJson,
+  stringifyUserAccessFeatureKeys,
+  type UserAccessFeatureKey,
+} from "../../../../../packages/shared/src/user-access";
 import { createId, database } from "../../common/mock-data";
 import { PrismaService } from "../../prisma/prisma.service";
 
@@ -23,6 +28,9 @@ export type AdminUserRecord = {
   systemRole: "USER" | "SUPER_ADMIN" | "ADMIN_OPERATOR" | "FINANCE_OPERATOR" | "SUPPORT_OPERATOR";
   emailVerified: boolean;
   pointsBalance: number;
+  accessExpiresAt: string | null;
+  allowedFeatureKeys: UserAccessFeatureKey[];
+  hasFullFeatureAccess: boolean;
   brandCount: number;
   taskCount: number;
   orderCount: number;
@@ -56,6 +64,8 @@ export type UpdateAdminUserPayload = {
   membership?: "FREE" | "BASIC" | "PRO" | "ENTERPRISE";
   systemRole?: "USER" | "SUPER_ADMIN" | "ADMIN_OPERATOR" | "FINANCE_OPERATOR" | "SUPPORT_OPERATOR";
   pointsBalance?: number;
+  accessExpiresAt?: string | null;
+  allowedFeatureKeys?: UserAccessFeatureKey[] | null;
   emailVerified?: boolean;
   password?: string;
 };
@@ -288,6 +298,8 @@ export class UsersAdminService {
             membership: normalized.membership ? (normalized.membership as MembershipLevel) : undefined,
             systemRole: normalized.systemRole ? (normalized.systemRole as SystemRole) : undefined,
             pointsBalance: normalized.pointsBalance !== undefined ? nextPointsBalance : undefined,
+            accessExpiresAt: normalized.accessExpiresAt,
+            allowedFeatureKeysJson: normalized.allowedFeatureKeysJson,
             emailVerifiedAt: nextEmailVerifiedAt,
             passwordHash: normalized.password ? this.hashPassword(normalized.password) : undefined,
           },
@@ -413,6 +425,12 @@ export class UsersAdminService {
 
     if (normalized.pointsBalance !== undefined) {
       user.pointsBalance = nextPointsBalance;
+    }
+    if (normalized.accessExpiresAt !== undefined) {
+      user.accessExpiresAt = normalized.accessExpiresAt?.toISOString() || undefined;
+    }
+    if (normalized.allowedFeatureKeysJson !== undefined) {
+      user.allowedFeatureKeysJson = normalized.allowedFeatureKeysJson || undefined;
     }
 
     if (pointsDelta !== 0) {
@@ -568,6 +586,9 @@ export class UsersAdminService {
       systemRole: user.systemRole,
       emailVerified: Boolean(user.emailVerifiedAt),
       pointsBalance: user.pointsBalance,
+      accessExpiresAt: user.accessExpiresAt?.toISOString() ?? null,
+      allowedFeatureKeys: parseUserAccessFeatureKeysJson(user.allowedFeatureKeysJson),
+      hasFullFeatureAccess: !user.allowedFeatureKeysJson?.trim(),
       brandCount,
       taskCount: user._count.tasks,
       orderCount: user._count.orders,
@@ -617,6 +638,9 @@ export class UsersAdminService {
       systemRole: user.systemRole ?? "USER",
       emailVerified: Boolean(user.emailVerifiedAt),
       pointsBalance: user.pointsBalance,
+      accessExpiresAt: user.accessExpiresAt ?? null,
+      allowedFeatureKeys: parseUserAccessFeatureKeysJson(user.allowedFeatureKeysJson),
+      hasFullFeatureAccess: !user.allowedFeatureKeysJson?.trim(),
       brandCount: brandIds.size,
       taskCount: database.tasks.filter((item) => item.userId === user.id).length,
       orderCount: database.orders.filter((item) => item.userId === user.id).length,
@@ -645,6 +669,7 @@ export class UsersAdminService {
   }
 
   private normalizeUpdatePayload(payload: UpdateAdminUserPayload) {
+    const normalizedAccessExpiresAt = this.parseOptionalDateTime(payload.accessExpiresAt);
     return {
       nickname: payload.nickname?.trim(),
       mobile: payload.mobile?.trim(),
@@ -654,6 +679,13 @@ export class UsersAdminService {
       membership: payload.membership,
       systemRole: payload.systemRole,
       pointsBalance: payload.pointsBalance,
+      accessExpiresAt: normalizedAccessExpiresAt.value,
+      accessExpiresAtInvalid: normalizedAccessExpiresAt.invalid,
+      allowedFeatureKeysJson: payload.allowedFeatureKeys === null
+        ? null
+        : payload.allowedFeatureKeys
+          ? stringifyUserAccessFeatureKeys(payload.allowedFeatureKeys)
+          : undefined,
       emailVerified: payload.emailVerified,
       password: payload.password?.trim(),
     };
@@ -680,9 +712,31 @@ export class UsersAdminService {
       throw new BadRequestException("积分余额必须是大于等于 0 的整数");
     }
 
+    if (payload.accessExpiresAtInvalid) {
+      throw new BadRequestException("使用期限格式不正确");
+    }
+
     if (payload.password !== undefined && payload.password.length > 0 && payload.password.length < 6) {
       throw new BadRequestException("密码至少需要 6 位");
     }
+  }
+
+  private parseOptionalDateTime(value: string | null | undefined) {
+    if (value === undefined) {
+      return { value: undefined, invalid: false } as const;
+    }
+    if (value === null) {
+      return { value: null, invalid: false } as const;
+    }
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return { value: null, invalid: false } as const;
+    }
+    const date = new Date(trimmed);
+    if (Number.isNaN(date.getTime())) {
+      return { value: null, invalid: true } as const;
+    }
+    return { value: date, invalid: false } as const;
   }
 
   private hashPassword(password: string) {

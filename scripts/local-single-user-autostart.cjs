@@ -1,6 +1,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
+const { resolvePowerShellExecutable } = require("./local-single-user-platform.cjs");
 
 const projectRoot = fs.realpathSync.native(path.resolve(__dirname, ".."));
 const helperScriptPath = path.join(projectRoot, "scripts", "local-single-user-autostart.ps1");
@@ -9,9 +10,8 @@ const startupDir = process.env.APPDATA
   ? path.join(process.env.APPDATA, "Microsoft", "Windows", "Start Menu", "Programs", "Startup")
   : "";
 const startupCmdPath = startupDir ? path.join(startupDir, "AiOmniOps Local Single User.cmd") : "";
-const powershellExe = process.env.SystemRoot
-  ? path.join(process.env.SystemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe")
-  : "powershell.exe";
+const startupLnkPath = startupDir ? path.join(startupDir, "AiOmniOps Local Single User.lnk") : "";
+const powershellExe = resolvePowerShellExecutable(process.env);
 
 function assertWindows() {
   if (process.platform !== "win32") {
@@ -59,6 +59,7 @@ function runPowerShellScript(script, options = {}) {
 function installTask() {
   assertWindows();
   assertHelperExists();
+  removeStartupArtifacts();
   const script = `
 $taskName = '${taskName.replace(/'/g, "''")}'
 $action = New-ScheduledTaskAction -Execute '${powershellExe.replace(/'/g, "''")}' -Argument '${buildTaskActionArgs().replace(/'/g, "''")}'
@@ -81,6 +82,7 @@ function installStartupShortcut() {
   assertWindows();
   assertHelperExists();
   ensureStartupDir();
+  removeStartupArtifacts();
   const content = [
     "@echo off",
     buildStartupCommand(),
@@ -91,12 +93,25 @@ function installStartupShortcut() {
 }
 
 function removeStartupShortcut() {
+  let removed = false;
   if (startupCmdPath && fs.existsSync(startupCmdPath)) {
     fs.unlinkSync(startupCmdPath);
     console.log(`Removed startup shortcut: ${startupCmdPath}`);
-    return true;
+    removed = true;
   }
-  return false;
+  if (startupLnkPath && fs.existsSync(startupLnkPath)) {
+    fs.unlinkSync(startupLnkPath);
+    console.log(`Removed legacy startup shortcut: ${startupLnkPath}`);
+    removed = true;
+  }
+  return removed;
+}
+
+function removeStartupArtifacts() {
+  if (!startupDir) {
+    return false;
+  }
+  return removeStartupShortcut();
 }
 
 function hasPermissionDenied(detail) {
@@ -146,6 +161,10 @@ $task.Triggers | Format-List
       console.log(`Startup shortcut installed: ${startupCmdPath}`);
       return;
     }
+    if (startupLnkPath && fs.existsSync(startupLnkPath)) {
+      console.log(`Legacy startup shortcut installed: ${startupLnkPath}`);
+      return;
+    }
     console.log(`Scheduled task not installed: ${taskName}`);
     return;
   }
@@ -170,7 +189,7 @@ function main() {
       if (!hasPermissionDenied(detail)) {
         throw error;
       }
-      console.warn("Scheduled task install denied; falling back to current-user Startup shortcut.");
+      console.log("Scheduled task install denied; falling back to current-user Startup shortcut.");
       installStartupShortcut();
     }
     return;

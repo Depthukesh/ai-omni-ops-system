@@ -175,11 +175,21 @@
 - `get_latest_brand_growth_report_summary`
 - `create_brand_growth_report`
 - `create_half_year_marketing_plan`
+- `get_brand_growth_visual_report_workspace`
+- `generate_brand_growth_visual_report`
+- `get_brand_growth_marketing_calendar_workspace`
+- `generate_brand_growth_marketing_calendar`
+- `update_brand_growth_marketing_calendar`
+- `get_brand_growth_topic_library_workspace`
+- `generate_brand_growth_topic_candidates`
+- `update_brand_growth_topic_library`
+- `get_brand_growth_material_library_items`
 
 处理原则：
 
 - 用户只说“做营销方案 / 营销规划 / 报告”时，优先让 `manage_growth_reports` 先做统一编排
 - 用户明确只要某一份单体产物时，再走专用创建工具
+- 用户明确提到“品牌增长可视化报告 / 营销日历 / 选题库 / 素材库”时，优先走对应的品牌增长语义别名工具，不再混用 `xiaohongshu_*` 或 `douyin_*` 命名
 
 ### 3.8 看和同步采集数据
 
@@ -267,18 +277,26 @@
 - `create_douyin_original_copy`
 - `create_douyin_remix_copy`
 
-### 3.13 抖音视频、数字人、RunningHub、广告预审
+### 3.13 抖音视频、视频混剪、数字人、RunningHub、广告预审
 
 典型问法：
 
 - 帮我做一条抖音视频
+- 帮我把这几个视频混剪成 15 秒
+- 帮我用 mixedcut 混一条短视频
+- 帮我把本机这个视频直接拿去混剪
 - 帮我用数字人做视频
 - 帮我用 RunningHub 跑这个应用
 - 帮我做广告预审
 
-优先工具：
+优先工具分两组：
 
-- `manage_douyin_video_production`
+- 通用抖音视频生产：
+  - `manage_douyin_video_production`
+- mixedcut 视频混剪：
+  - `get_mixedcut_media_assets`
+  - `create_mixedcut_remix_task`
+  - `get_mixedcut_remix_task_progress`
 
 子路由：
 
@@ -290,12 +308,42 @@
 - RunningHub：`section=runninghub`
 - 广告预审：`section=ad_preaudit`
 
+mixedcut 关键规则：
+
+1. 用户明确提到 `视频混剪`、`mixedcut`、`站内视频拿去混剪`、`本机视频拿去混剪` 时，优先走 mixedcut 专用工具，不要误路由到 `manage_douyin_video_production`
+2. 如果用户想先看可用素材，先 `get_mixedcut_media_assets`
+3. 发任务时优先判断素材来源：
+   - 站内视频：`mediaAssetIds`
+   - OpenClaw 创作素材：`creativeMaterialIds`
+   - 本机文件：
+     - `stdio MCP` 优先传 `localFilePath / localFilePaths`
+     - `streamableHttp` 只有在服务端当前运行环境能访问该路径时才适合直接传 `localFilePath / localFilePaths`；否则改用 `uploadItems.dataBase64`
+4. 本机文件会先归档成 OpenClaw 创作素材，再进入 mixedcut，不是直接绕过站内后端上传
+5. 任务创建成功后，继续用 `get_mixedcut_remix_task_progress` 轮询，不要把“已创建”误当成“已完成”
+
 RunningHub 关键规则：
 
 1. 先 `list_apps`
 2. 再 `get_app_detail`
 3. 从返回的 `nodeInfoList` 模板里回填参数
 4. 最后 `generate`
+
+当前可直接识别的 RunningHub 示例：
+
+- `minimax-h3-fl2va-text-to-video`：文生视频
+- `minimax-h3-fl2va-first-frame-video`：首帧参考生视频
+- `minimax-h3-fl2va-first-last-frame-video`：首尾帧参考生视频
+- `minimax-h3-fl2va-multi-image-video`：多图参考生视频
+- `minimax-h3-8step-image-to-video`：8 步加速图生视频
+- `minimax-h3-4step-first-last-frame-video`：4 步加速首尾帧生视频
+- `minimax-h3-accelerated-all-reference-video`：全能参考视频
+- `minimax-h3-digital-human-auto`：数字人口播 / 唱歌 / 电商讲解自动版
+- `seedance25-multimodal-video`：Seedance 2.5 多模态视频
+- `seedance20-viral-video-remix`：Seedance 2.0 复刻爆款视频
+- `seedance20-fast-all-reference-video`：Seedance 2.0 Fast 全能生视频
+- `seedance20-fast-rh`：Seedance 2.0 Fast RH 版
+- `qwen-image-chinese-font-design`：中文字体设计图生图
+- `qwen-font-design-8step`：Qwen 8 步加速字体设计
 
 ### 3.14 公众号工作流
 
@@ -351,6 +399,8 @@ RunningHub 关键规则：
 
 - 指定模型前必须先读 options
 - 如果用户指定参考图，尽量带上参考图输入
+- 如果用户明确指定图片尺寸，优先传 `imageSize: "宽x高"`，例如 `1200x628`
+- 兼容旧链路时也可以继续传 `spec: "宽x高"`，但不要把“品牌封面图 / 信息图海报”误写成纯中文尺寸描述
 - 如果用户说“用多元探索做图 / 做视频方案”，先检查多元探索平台 runtime 是否可用；确认可用后，仍然通过网站现有的设计或视频工具链执行，不直接伪造一个不存在的多元探索专用设计工具
 
 ### 3.16 OpenClaw 专区
@@ -387,12 +437,45 @@ RunningHub 关键规则：
 
 处理原则：
 
-- OpenClaw 的创作素材、视频作品、GEO 报告都是归档板块，不是生成引擎本身
+- OpenClaw 的创作素材、视频作品、GEO获客内容、全网获客评论名单都是归档板块，不是生成引擎本身
 - 音乐任务创建成功不代表最终完成，必须继续轮询结果
 - 当用户要求“生成后直接沉淀到素材库”时，优先把归档动作一并完成
 - 当用户明确要求“先看多元探索平台当前是否可供 OpenClaw 直用，再决定是否生成并沉淀素材”时，先走第三方接口配置域工具，不要直接跳过可用性检查
+- 创作素材列表当前统一回显：
+  - 标题
+  - 素材标签
+  - 素材来源
+  - 入库时间
+  - 存储位置（本地文件夹地址）
 
-### 3.17 GEO 可见度诊断
+### 3.17 个人中心素材管理
+
+典型问法：
+
+- 帮我看素材管理里的图片素材
+- 帮我看内容获客最近入库的文本素材
+- 帮我看哪些素材已经落到本地文件夹
+- 帮我看当前素材库存到哪个本地目录
+- 帮我把本地版素材库目录改到 D 盘
+
+优先工具：
+
+- `list_personal_material_assets`
+- `get_local_material_storage_settings`
+- `update_local_material_storage_settings`
+
+处理原则：
+
+- 这是个人中心聚合视角，不是新建第二套素材库
+- 数据来源统一覆盖网站上传素材与 OpenClaw 入库素材
+- 默认按 `text / image / audio / video` 四类路由
+- 用户如果在问本地版素材到底写到哪个目录，优先先读 `get_local_material_storage_settings`
+- 用户如果要改目录，调用 `update_local_material_storage_settings`，传入的是【素材库】外层根目录
+- 网站上传素材会写入用户配置的 `素材库/文本|图片|语音|视频`
+- OpenClaw 上传素材不要求必须写入 `素材库`，但同样要出现在四分类列表里
+- 如果用户要求看具体素材内容，再回到对应内容获客子板块或继续读取创作素材详情
+
+### 3.18 GEO获客可见度诊断
 
 典型问法：
 
@@ -404,6 +487,49 @@ RunningHub 关键规则：
 - `get_openclaw_geo_visibility_reports`
 - `create_openclaw_geo_visibility_report`
 - `delete_openclaw_geo_visibility_report`
+
+### 3.19 GEO获客其它工作流内容
+
+典型问法：
+
+- 帮我保存关键词挖掘结果
+- 帮我看网站诊断、知识库搭建或 GEO优化方案
+- 帮我看自媒体内容 / 第三方媒体 / 品牌网站列表
+- 帮我看某条结果的存储地址
+
+优先工具：
+
+- `get_openclaw_geo_contents`
+- `create_openclaw_geo_content`
+- `delete_openclaw_geo_content`
+
+### 3.20 全网获客评论获客
+
+典型问法：
+
+- 帮我把小红书和抖音评论用户生成评论获客名单
+- 帮我看全网获客里的评论获客列表
+- 帮我删掉这条评论获客记录
+
+优先工具：
+
+- `get_openclaw_comment_leads`
+- `create_openclaw_comment_leads`
+- `delete_openclaw_comment_lead`
+
+### 3.21 全网获客平台获客
+
+典型问法：
+
+- 帮我看全网获客里的平台获客列表
+- 帮我把这批平台名单写入平台获客
+- 帮我删掉这条平台获客记录
+
+优先工具：
+
+- `get_openclaw_platform_leads`
+- `create_openclaw_platform_leads`
+- `delete_openclaw_platform_lead`
 
 ## 4. 哪些场景应当回网页
 

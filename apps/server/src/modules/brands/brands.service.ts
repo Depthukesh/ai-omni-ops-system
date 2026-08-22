@@ -524,6 +524,8 @@ export class BrandsService {
       return this.getArchiveFromDatabase(id);
     }
 
+    this.assertLocalSingleUserBrandArchiveDatabaseAvailable();
+
     return this.getArchiveFromMock(id);
   }
 
@@ -1430,6 +1432,8 @@ export class BrandsService {
       });
     }
 
+    this.assertLocalSingleUserBrandArchiveDatabaseAvailable();
+
     return this.updateBackgroundFromMock(id, payload);
   }
 
@@ -1457,6 +1461,8 @@ export class BrandsService {
         }),
       );
     }
+
+    this.assertLocalSingleUserBrandArchiveDatabaseAvailable();
 
     return this.createProductFromMock(id, payload);
   }
@@ -1487,6 +1493,8 @@ export class BrandsService {
       );
     }
 
+    this.assertLocalSingleUserBrandArchiveDatabaseAvailable();
+
     return this.updateProductFromMock(id, productId, payload);
   }
 
@@ -1501,6 +1509,8 @@ export class BrandsService {
         }),
       );
     }
+
+    this.assertLocalSingleUserBrandArchiveDatabaseAvailable();
 
     return this.deleteProductFromMock(id, productId);
   }
@@ -3344,7 +3354,13 @@ export class BrandsService {
       return this.knowledgeBasesService;
     }
     if (!this.knowledgeBasesServiceFallback) {
-      const thirdPartyPlatformsService = new ThirdPartyPlatformsService(this.prismaService, new ChanjingOpenApiService());
+      const thirdPartyPlatformsService = new ThirdPartyPlatformsService(
+        this.prismaService,
+        new ApiProvidersService(this.prismaService),
+        new ChanjingOpenApiService(),
+        this.appConfigService,
+        this.ossStorageService,
+      );
       this.knowledgeBasesServiceFallback = new KnowledgeBasesService(
         this.prismaService,
         this.ossStorageService,
@@ -5290,6 +5306,13 @@ export class BrandsService {
     }
   }
 
+  private assertLocalSingleUserBrandArchiveDatabaseAvailable() {
+    if (!this.appConfigService.isLocalSingleUserMode()) {
+      return;
+    }
+    throw new ServiceUnavailableException("本地品牌资料库暂时不可用，请等待数据库恢复后重试；系统不会再回退到临时演示数据。");
+  }
+
   private async getDefaultUserId() {
     const user = await this.prismaService.user.findFirst({
       orderBy: { createdAt: "asc" },
@@ -5309,6 +5332,7 @@ export class BrandsService {
       return;
     }
 
+    this.assertLocalSingleUserBrandArchiveDatabaseAvailable();
     this.getBrand(id);
   }
 

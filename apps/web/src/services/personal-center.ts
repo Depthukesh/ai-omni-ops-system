@@ -1,5 +1,7 @@
 import type { PromptTemplateRecord, SkillConfigRecord } from "./admin";
 import { jsonRequest, request } from "./http";
+import type { OpenClawWorkspaceScope } from "./openclaw";
+import type { UserAccessFeatureKey } from "../../../../packages/shared/src/user-access";
 
 export type TaskStatus = "PENDING" | "QUEUED" | "RUNNING" | "SUCCESS" | "FAILED" | "CANCELLED";
 export type MediaType = "IMAGE" | "VIDEO" | "DOCUMENT" | "HTML" | "ARCHIVE";
@@ -47,6 +49,9 @@ export type UserProfile = {
   emailVerified?: boolean;
   status: "ACTIVE" | "DISABLED";
   membership: "FREE" | "BASIC" | "PRO" | "ENTERPRISE";
+  accessExpiresAt?: string | null;
+  allowedFeatureKeys?: UserAccessFeatureKey[];
+  hasFullFeatureAccess?: boolean;
   pointsBalance: number;
 };
 
@@ -143,6 +148,70 @@ export type GetMyThirdPartyPlatformsResponse = {
   platforms: UserThirdPartyPlatformRecord[];
 };
 
+export type MixedcutAiConfigSyncSource = {
+  capability: "llm" | "vision" | "image";
+  providerId: string;
+  providerName: string;
+  baseUrl: string;
+  model: string;
+  appliedField: string;
+};
+
+export type MixedcutAiConfigPreview = {
+  installRoot: string;
+  configFilePath: string;
+  configFileExists: boolean;
+  config: Record<string, unknown>;
+  sources: MixedcutAiConfigSyncSource[];
+  warnings: string[];
+};
+
+export type MixedcutMediaAssetRecord = {
+  id: string;
+  brandId?: string;
+  title: string;
+  mediaType: string;
+  assetUrl?: string;
+  sourceUrl?: string;
+  mimeType?: string;
+  fileSize?: number;
+  durationSec?: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type MixedcutUploadedVideoRecord = {
+  mediaAssetId: string;
+  title: string;
+  fileName: string;
+  mixedcutPath: string;
+};
+
+export type MixedcutRemixTaskRecord = {
+  taskId: string;
+  projectId?: string;
+  status: string;
+  progress: number;
+  error?: string;
+  videoUrl?: string;
+  videoPath?: string;
+  outputPath?: string;
+  duration?: number;
+  targetDurationSeconds?: number;
+  actualDurationSeconds?: number;
+  durationDeltaSeconds?: number;
+  durationWithinTolerance?: boolean;
+  videoCount?: number;
+  mode?: string;
+  editingMode?: string;
+  timeline: unknown[];
+  uploadedVideos?: MixedcutUploadedVideoRecord[];
+  openClawVideoWorkId?: string;
+  openClawVideoWorkWorkspaceScope?: string;
+  archiveStatus?: "saved" | "failed";
+  archiveMessage?: string;
+};
+
 export type UpdateUserSkillPayload = {
   displayName?: string | null;
   defaultModel?: string | null;
@@ -191,6 +260,7 @@ export type SystemUpdateLatestRelease = {
   htmlUrl: string;
   publishedAt: string;
   body: string;
+  summary: string | null;
   changeLogs: Array<{
     releaseTag: string | null;
     appVersion: string | null;
@@ -200,6 +270,19 @@ export type SystemUpdateLatestRelease = {
   zipAsset: SystemUpdateAsset | null;
   checksumAsset: SystemUpdateAsset | null;
   checksumValue: string | null;
+  updateGuide: {
+    commands: string[];
+    notices: string[];
+    requires: {
+      server: boolean;
+      web: boolean;
+      mixedcut: boolean;
+      skillPackage: boolean;
+      migration: boolean;
+    };
+    changeLogUrl: string | null;
+    skillPackageUrl: string | null;
+  } | null;
 };
 
 export type SystemUpdateStatus = {
@@ -207,11 +290,12 @@ export type SystemUpdateStatus = {
   current: SystemUpdateCurrentBuild;
   latest: SystemUpdateLatestRelease | null;
   source: {
-    kind: "oss";
+    kind: "oss" | "manifest";
     label: string;
     manifestUrl: string;
     publicBaseUrl: string;
-  };
+    executionMode: "auto-apply" | "guide-only";
+  } | null;
   phase: SystemUpdatePhase;
   updateAvailable: boolean;
   message: string;
@@ -239,6 +323,21 @@ export type LocalRuntimeSettings = {
   settingsFilePath: string;
   pendingMigrationFrom: string | null;
   restartRequired: boolean;
+  materialLibrary: {
+    folderName: string;
+    currentBaseRoot: string;
+    configuredBaseRoot: string;
+    defaultBaseRoot: string;
+    libraryRoot: string;
+    categoryDirectories: {
+      text: string;
+      image: string;
+      audio: string;
+      video: string;
+    };
+    namingRules: string[];
+    appliesImmediately: boolean;
+  };
   paths: {
     appRoot: string;
     dataRoot: string;
@@ -534,6 +633,37 @@ export async function updateMyThirdPartyPlatformSecret(platformId: string, paylo
   return jsonRequest<UserThirdPartyPlatformRecord>(`/third-party-platforms/${platformId}/secret`, "PATCH", payload);
 }
 
+export async function getMyMixedcutAiConfigPreview() {
+  return request<MixedcutAiConfigPreview>("/third-party-platforms/mixedcut-ai-config");
+}
+
+export async function syncMyMixedcutAiConfig() {
+  return jsonRequest<MixedcutAiConfigPreview>("/third-party-platforms/mixedcut-ai-config/sync", "POST", {});
+}
+
+export async function getMyMixedcutMediaAssets() {
+  return request<{ items: MixedcutMediaAssetRecord[] }>("/third-party-platforms/mixedcut/media-assets");
+}
+
+export async function createMyMixedcutRemixTask(payload: {
+  mediaAssetIds: string[];
+  name?: string;
+  style?: "dynamic" | "calm" | "exciting";
+  targetDurationSeconds: number;
+  workspaceScope?: OpenClawWorkspaceScope;
+}) {
+  return jsonRequest<MixedcutRemixTaskRecord>("/third-party-platforms/mixedcut/remix-task", "POST", payload);
+}
+
+export async function getMyMixedcutRemixTaskProgress(taskId: string, options?: { workspaceScope?: OpenClawWorkspaceScope }) {
+  const query = new URLSearchParams();
+  if (options?.workspaceScope) {
+    query.set("workspaceScope", options.workspaceScope);
+  }
+  const suffix = query.toString() ? `?${query.toString()}` : "";
+  return request<MixedcutRemixTaskRecord>(`/third-party-platforms/mixedcut/remix-task/${taskId}${suffix}`);
+}
+
 export async function getSystemUpdateStatus() {
   return request<SystemUpdateStatus>("/system/update/status");
 }
@@ -554,11 +684,19 @@ export async function getLocalRuntimeSettings() {
   return request<LocalRuntimeSettings>("/local-runtime/settings");
 }
 
-export async function updateLocalRuntimeSettings(payload: { localAppDataRoot?: string | null }) {
+export async function updateLocalRuntimeSettings(payload: { localAppDataRoot?: string | null; materialLibraryBaseRoot?: string | null }) {
   return request<LocalRuntimeSettings & { success: boolean; message: string }>("/local-runtime/settings", {
     method: "PATCH",
     body: JSON.stringify(payload),
   });
+}
+
+export async function pickLocalMaterialLibraryBaseRoot() {
+  return jsonRequest<{ canceled: boolean; selectedPath: string; libraryRoot: string }>(
+    "/local-runtime/pick-material-library-base-root",
+    "POST",
+    {},
+  );
 }
 
 export async function createMedia(payload: {

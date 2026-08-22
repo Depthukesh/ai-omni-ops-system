@@ -16,11 +16,13 @@
     "@prisma/client": "^6.16.1",
     "adm-zip": "^0.5.17",
     "ali-oss": "^6.23.0",
+    "express": "^4.21.2",
     "iconv-lite": "^0.4.24",
     "nodemailer": "^8.0.7",
     "prisma": "^6.16.1",
     "reflect-metadata": "0.2.2",
-    "rxjs": "7.8.1"
+    "rxjs": "7.8.1",
+    "sharp": "^0.34.3"
   },
   "devDependencies": {
     "@types/ali-oss": "^6.23.3",

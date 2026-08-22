@@ -738,6 +738,56 @@ async function normalizeRunningHubGenerateArgs(args = {}) {
   };
 }
 
+async function normalizeMixedcutRemixArgs(args = {}) {
+  const nextArgs = { ...args };
+  const nextUploadItems = Array.isArray(args.uploadItems)
+    ? args.uploadItems
+      .map((item) => item && typeof item === "object" && !Array.isArray(item) ? { ...item } : null)
+      .filter(Boolean)
+    : [];
+
+  const singleLocalFilePath = String(args.localFilePath || "").trim();
+  const multipleLocalFilePaths = Array.isArray(args.localFilePaths)
+    ? args.localFilePaths.map((item) => String(item || "").trim()).filter(Boolean)
+    : [];
+  const pendingLocalFilePaths = [];
+  if (singleLocalFilePath) {
+    pendingLocalFilePaths.push(singleLocalFilePath);
+  }
+  pendingLocalFilePaths.push(...multipleLocalFilePaths);
+
+  for (const localFilePath of pendingLocalFilePaths) {
+    const upload = await createUploadPayloadFromLocalFile(localFilePath, {});
+    nextUploadItems.push({
+      title: basename(localFilePath),
+      ...upload,
+    });
+  }
+
+  for (const item of nextUploadItems) {
+    const inlineLocalFilePath = String(item.localFilePath || "").trim();
+    if (!inlineLocalFilePath) {
+      continue;
+    }
+    const upload = await createUploadPayloadFromLocalFile(inlineLocalFilePath, {
+      fileName: item.fileName,
+      contentType: item.contentType,
+    });
+    item.title = typeof item.title === "string" ? item.title : basename(inlineLocalFilePath);
+    item.fileName = upload.fileName;
+    item.contentType = upload.contentType;
+    item.dataBase64 = upload.dataBase64;
+    delete item.localFilePath;
+  }
+
+  if (nextUploadItems.length) {
+    nextArgs.uploadItems = nextUploadItems;
+  }
+  delete nextArgs.localFilePath;
+  delete nextArgs.localFilePaths;
+  return nextArgs;
+}
+
 async function normalizeToolArgs(name, args = {}) {
   if (name === "create_openclaw_creative_material") {
     const localFilePath = String(args.localFilePath || "").trim();
@@ -753,6 +803,9 @@ async function normalizeToolArgs(name, args = {}) {
   }
   if (name === "manage_douyin_video_production") {
     return normalizeRunningHubGenerateArgs(args);
+  }
+  if (name === "create_mixedcut_remix_task") {
+    return normalizeMixedcutRemixArgs(args);
   }
   return args;
 }
@@ -964,9 +1017,10 @@ async function handleMessage(message) {
       return;
     }
     try {
+      const normalizedArgs = await normalizeToolArgs(toolName, toolArgs);
       const result = await callMcp("tools/call", {
         name: toolName,
-        arguments: toolArgs,
+        arguments: normalizedArgs,
       }, message.id);
       writeResult(message.id, result || {
         content: [

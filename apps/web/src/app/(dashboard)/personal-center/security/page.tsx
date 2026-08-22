@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿"use client";
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿"use client";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -604,7 +604,7 @@ export default function PersonalCenterSecurityPage() {
             </div>
             <div>
               <span>注册准入</span>
-              <strong>{localRuntimeSettings?.inviteCodeRequired ? "仍需邀请码" : "允许直接注册"}</strong>
+              <strong>{localRuntimeSettings?.inviteCodeRequired ? "邀请码准入" : "开放注册"}</strong>
             </div>
             <div className="field-full">
               <span>当前资料目录</span>

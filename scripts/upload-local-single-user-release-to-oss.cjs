@@ -1,6 +1,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
+const { spawnSync } = require("node:child_process");
 const OSS = require("ali-oss");
 
 const projectRoot = fs.realpathSync.native(path.resolve(__dirname, ".."));
@@ -8,9 +9,11 @@ const artifactsRoot = path.join(projectRoot, ".release", "artifacts");
 const zipFilePath = path.join(artifactsRoot, "AiOmniOps-local-single-user-win-x64.zip");
 const checksumFilePath = `${zipFilePath}.sha256`;
 const latestJsonPath = path.join(artifactsRoot, "latest.json");
+const validateScriptPath = path.join(projectRoot, "scripts", "validate-local-single-user-release.cjs");
 const MULTIPART_UPLOAD_THRESHOLD_BYTES = 64 * 1024 * 1024;
 const MULTIPART_UPLOAD_PART_SIZE_BYTES = 8 * 1024 * 1024;
 const OSS_TIMEOUT_MS = 15 * 60 * 1000;
+const MULTIPART_UPLOAD_PART_RETRY_COUNT = 5;
 const DEFAULT_RELEASE_NOTES = "版本页改为合并展示当前版本与最新版本，并收口为系统更新日志视图";
 
 function parseArgs(argv) {
@@ -70,14 +73,43 @@ function hashFile(filePath) {
   return crypto.createHash("sha256").update(fs.readFileSync(filePath)).digest("hex");
 }
 
+function runReleaseValidation(extraArgs = []) {
+  const result = spawnSync(process.execPath, [validateScriptPath, ...extraArgs], {
+    cwd: projectRoot,
+    stdio: "inherit",
+    windowsHide: true,
+    env: process.env,
+  });
+  if (result.status !== 0) {
+    throw new Error(`发布物校验失败，退出码：${result.status || 1}`);
+  }
+}
+
+function normalizeOssRegion(region) {
+  const normalized = String(region || "").trim();
+  if (!normalized) {
+    throw new Error("OSS 区域不能为空");
+  }
+  return normalized.startsWith("oss-") ? normalized : `oss-${normalized}`;
+}
+
 function buildPublicBaseUrl(bucket, region, explicit) {
   if (explicit) {
     return explicit.replace(/\/+$/g, "");
   }
-  return `https://${bucket}.${region}.aliyuncs.com`;
+  const normalizedRegion = normalizeOssRegion(region);
+  return `https://${bucket}.${normalizedRegion}.aliyuncs.com`;
 }
 
 function readAppVersion() {
+  const releaseManifestPath = path.join(projectRoot, ".release", "local-single-user-win-x64", "meta", "release-manifest.json");
+  if (fs.existsSync(releaseManifestPath)) {
+    const releaseManifest = JSON.parse(fs.readFileSync(releaseManifestPath, "utf8"));
+    const manifestVersion = String(releaseManifest.appVersion || "").trim();
+    if (manifestVersion) {
+      return manifestVersion;
+    }
+  }
   const packageJsonPath = path.join(projectRoot, "package.json");
   const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
   return String(packageJson.version || "").trim() || "0.1.0";
@@ -98,6 +130,38 @@ async function readExistingLatestJson(publicBaseUrl, prefix) {
     return await response.json();
   } catch {
     return null;
+  }
+}
+
+async function verifyUploadedLatestJson(publicBaseUrl, prefix, expected) {
+  const probeUrl = `${publicBaseUrl}/${prefix}/latest.json?ts=${Date.now()}`;
+  const response = await fetch(probeUrl, {
+    headers: {
+      Accept: "application/json",
+      "User-Agent": "ai-omni-ops-system-release-uploader",
+      "Cache-Control": "no-cache",
+      Pragma: "no-cache",
+    },
+  });
+  if (!response.ok) {
+    throw new Error(`回读 latest.json 失败：HTTP ${response.status}`);
+  }
+  const latest = await response.json().catch(() => ({}));
+  const version = String(latest?.version || "").trim();
+  const appVersion = String(latest?.appVersion || "").trim();
+  const checksumValue = String(latest?.checksumValue || "").trim().toLowerCase();
+  const zipUrl = String(latest?.zipUrl || "").trim();
+  if (version !== expected.version) {
+    throw new Error(`回读 latest.json.version 不匹配：期望 ${expected.version}，实际 ${version || "<empty>"}`);
+  }
+  if (appVersion !== expected.appVersion) {
+    throw new Error(`回读 latest.json.appVersion 不匹配：期望 ${expected.appVersion}，实际 ${appVersion || "<empty>"}`);
+  }
+  if (checksumValue !== String(expected.checksumValue || "").trim().toLowerCase()) {
+    throw new Error(`回读 latest.json.checksumValue 不匹配：期望 ${expected.checksumValue}，实际 ${checksumValue || "<empty>"}`);
+  }
+  if (!zipUrl.includes(`/${expected.version}/`)) {
+    throw new Error(`回读 latest.json.zipUrl 未指向目标版本：${zipUrl || "<empty>"}`);
   }
 }
 
@@ -157,6 +221,121 @@ function buildLatestJson(version, appVersion, publicBaseUrl, prefix, notes, exis
   };
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+async function fetchWithTimeout(url, options, timeoutMs) {
+  const controller = new AbortController();
+  const timeoutHandle = setTimeout(() => {
+    controller.abort();
+  }, timeoutMs);
+  try {
+    return await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (controller.signal.aborted) {
+      throw new Error(`请求超时：${timeoutMs}ms`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutHandle);
+  }
+}
+
+async function uploadLargeFileWithSignedMultipart(client, objectKey, localFilePath, headers) {
+  const { uploadId } = await client.initMultipartUpload(objectKey, { headers });
+  const fileSize = fs.statSync(localFilePath).size;
+  const partCount = Math.ceil(fileSize / MULTIPART_UPLOAD_PART_SIZE_BYTES);
+  const fileHandle = fs.openSync(localFilePath, "r");
+  const completedParts = [];
+
+  try {
+    for (let index = 0; index < partCount; index += 1) {
+      const partNumber = index + 1;
+      const start = index * MULTIPART_UPLOAD_PART_SIZE_BYTES;
+      const partSize = Math.min(MULTIPART_UPLOAD_PART_SIZE_BYTES, fileSize - start);
+      const buffer = Buffer.allocUnsafe(partSize);
+      const bytesRead = fs.readSync(fileHandle, buffer, 0, partSize, start);
+      if (bytesRead !== partSize) {
+        throw new Error(`读取分片失败：part=${partNumber} expected=${partSize} actual=${bytesRead}`);
+      }
+
+      let uploaded = false;
+      let lastError = null;
+      for (let attempt = 1; attempt <= MULTIPART_UPLOAD_PART_RETRY_COUNT; attempt += 1) {
+        const signedUrl = client.signatureUrl(objectKey, {
+          method: "PUT",
+          expires: 3600,
+          subResource: {
+            partNumber,
+            uploadId,
+          },
+        });
+        try {
+          const response = await fetchWithTimeout(
+            signedUrl,
+            {
+              method: "PUT",
+              headers: {
+                "Content-Length": String(bytesRead),
+              },
+              body: buffer,
+            },
+            OSS_TIMEOUT_MS,
+          );
+          if (!response.ok) {
+            const errorText = (await response.text().catch(() => "")).slice(0, 400);
+            throw new Error(`HTTP ${response.status}${errorText ? ` ${errorText}` : ""}`);
+          }
+          const etag = String(response.headers.get("etag") || "").trim();
+          if (!etag) {
+            throw new Error(`上传分片缺少 ETag：part=${partNumber}`);
+          }
+          completedParts.push({
+            number: partNumber,
+            etag,
+          });
+          console.log(`multipart-part-ok ${partNumber}/${partCount}`);
+          uploaded = true;
+          break;
+        } catch (error) {
+          lastError = error;
+          if (attempt < MULTIPART_UPLOAD_PART_RETRY_COUNT) {
+            console.warn(
+              `multipart-part-retry ${partNumber}/${partCount} attempt=${attempt} reason=${
+                error instanceof Error ? error.message : String(error)
+              }`,
+            );
+            await sleep(Math.min(5000, attempt * 1000));
+          }
+        }
+      }
+
+      if (!uploaded) {
+        throw new Error(
+          `分片上传失败：part=${partNumber}/${partCount} reason=${
+            lastError instanceof Error ? lastError.message : String(lastError)
+          }`,
+        );
+      }
+    }
+
+    await client.completeMultipartUpload(objectKey, uploadId, completedParts, { headers });
+  } catch (error) {
+    try {
+      await client.abortMultipartUpload(objectKey, uploadId);
+    } catch {}
+    throw error;
+  } finally {
+    fs.closeSync(fileHandle);
+  }
+}
+
 async function uploadFile(client, objectKey, localFilePath, contentType, cacheControl) {
   const headers = {
     "Content-Type": contentType,
@@ -164,12 +343,7 @@ async function uploadFile(client, objectKey, localFilePath, contentType, cacheCo
   };
   const fileSize = fs.statSync(localFilePath).size;
   if (fileSize >= MULTIPART_UPLOAD_THRESHOLD_BYTES) {
-    await client.multipartUpload(objectKey, localFilePath, {
-      headers,
-      timeout: OSS_TIMEOUT_MS,
-      partSize: MULTIPART_UPLOAD_PART_SIZE_BYTES,
-      parallel: 4,
-    });
+    await uploadLargeFileWithSignedMultipart(client, objectKey, localFilePath, headers);
     return;
   }
   await client.put(objectKey, localFilePath, {
@@ -190,7 +364,7 @@ async function main() {
   const accessKeyId = readRequiredEnv("OSS_ACCESS_KEY_ID");
   const accessKeySecret = readRequiredEnv("OSS_ACCESS_KEY_SECRET");
   const bucket = readRequiredEnv("OSS_BUCKET");
-  const region = readRequiredEnv("OSS_REGION");
+  const region = normalizeOssRegion(readRequiredEnv("OSS_REGION"));
   const publicBaseUrl = buildPublicBaseUrl(bucket, region, args.publicBaseUrl);
   const appVersion = readAppVersion();
   const existingLatestJson = await readExistingLatestJson(publicBaseUrl, args.prefix);
@@ -204,6 +378,20 @@ async function main() {
   }
 
   fs.writeFileSync(latestJsonPath, `${JSON.stringify(latestJson, null, 2)}\n`, "utf8");
+  runReleaseValidation([
+    "--release-root",
+    path.join(projectRoot, ".release", "local-single-user-win-x64"),
+    "--zip-file",
+    zipFilePath,
+    "--checksum-file",
+    checksumFilePath,
+    "--latest-json",
+    latestJsonPath,
+    "--expected-release-tag",
+    args.version,
+    "--expected-app-version",
+    appVersion,
+  ]);
 
   console.log(`zip: ${zipFilePath}`);
   console.log(`sha256: ${expectedSha256}`);
@@ -248,6 +436,11 @@ async function main() {
     "application/json; charset=utf-8",
     "no-store",
   );
+  await verifyUploadedLatestJson(publicBaseUrl, args.prefix, {
+    version: args.version,
+    appVersion,
+    checksumValue: expectedSha256,
+  });
 
   console.log(`zipUrl=${latestJson.zipUrl}`);
   console.log(`sha256Url=${latestJson.sha256Url}`);

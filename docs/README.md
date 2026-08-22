@@ -35,12 +35,16 @@
 
 这些文档不是全局基线，但仍然服务于当前系统。
 
+- `docs/homepage-ui-optimization-proposal-2026-08-08.md`
+  - 当前这份文档已收敛为系统内页简洁版方案，聚焦 `(dashboard)` 主工作台入口该保留什么、该删掉什么
 - `docs/personal-center-multi-user-system-plan.md`
   - 个人中心、多用户、品牌协作与权限设计
 - `docs/system-refactor-roadmap.md`
   - 当前结构收口与重构路线
 - `docs/production-stability-and-performance-remediation-plan.md`
   - 生产稳定性、部署降压、首屏性能和慢任务异步化治理方案
+- `docs/docker-postgresql-mixedcut-local-deployment-plan.md`
+  - 本地部署从 SQLite 单机收口到 Docker + PostgreSQL + mixedcut 的第一阶段开发方案，覆盖宿主机素材管理、共享挂载根和阶段拆分
 - `docs/wechat-infrastructure-refactor-plan.md`
   - 公众号 Step 2-5 单一事实源、服务拆分与底层改造方案
 - `docs/production-web-port-conflict-recovery.md`
@@ -55,6 +59,55 @@
 - 目录：`docs/changes/`
 - 作用：记录重要改动的背景、范围、验证和后续事项
 - 要求：真实代码改动默认同步补一条变更记录
+- 最新补充：
+  - `docs/changes/2026-08-22-design-workspace-first-load-guard.md`
+    - 设计工作台首屏改为只拉取历史列表，创建弹窗所需的模型/日历/产品配置延后到点击创建时再按需加载，并把设计历史窗口缩到最近 24 条
+  - `docs/changes/2026-08-22-design-workspace-image-card-memory-guard.md`
+    - 设计工作台图片卡片列表默认不再自动加载真实成品图，改为点击时按需预览，优先避免浏览器首屏图像解码导致的高内存占用
+  - `docs/changes/2026-08-22-web-chunk-recovery-inline-regex-fix.md`
+    - 修复前端根布局中 chunk 自动恢复内联脚本的正则转义错误，避免浏览器在页面初始化前因 `Invalid regular expression flags` 直接白屏
+  - `docs/changes/2026-08-22-openclaw-generated-image-data-url-fix.md`
+    - 修复 OpenClaw 设计生图在第三方返回 `data:image/...;base64,...` 时被误当成远程 URL 下载、从而导致任务失败的问题
+  - `docs/changes/2026-08-22-design-workspace-history-memory-pressure-fix.md`
+    - 修复 `更多功能 -> 设计` 首屏因历史列表携带完整 HTML 内容并批量渲染 iframe 卡片而触发的浏览器内存崩溃
+  - `docs/changes/2026-08-22-openclaw-design-work-image-size-entry-clarification.md`
+    - 给 OpenClaw `create_design_work` 显式补齐 `imageSize` 入参，并把旧 `spec: 宽x高` 的兼容关系与错误格式拦截规则写清楚，避免外部误以为只能生成默认竖版图
+  - `docs/changes/2026-08-22-video-remix-archive-scope-and-project-list-expansion.md`
+    - 视频混剪工作区默认把成片回流到统一的“某音/某号作品列表”，并把 mixedcut 页面里剩余的 `limit=5 / limit=20` 前端项目数截断一并放开
+  - `docs/changes/2026-08-22-mixedcut-http-mcp-local-filepath-compat.md`
+    - 收口 mixedcut 的 HTTP MCP 本地路径兼容问题：`create_mixedcut_remix_task` schema 正式声明 `localFilePath / localFilePaths`，并把 streamableHttp 下的服务端路径解析边界和 `uploadItems.dataBase64` 回退方式写清楚
+  - `docs/changes/2026-08-22-docker-standard-version-update-guide-page.md`
+    - 把个人中心 `版本与升级` 从“仅 local-single-user 自动升级”扩展为双模式：安装态继续一键升级；Docker 标准运行态在配置远端更新清单后，可显示最新版本、容器重建命令、mixedcut/Skill 同步提醒和更新说明链接
+  - `docs/changes/2026-08-22-openclaw-mixedcut-skill-sync.md`
+    - 把 mixedcut 从“仅 MCP 可调用”继续同步到 OpenClaw Skill ZIP：补齐主 Skill、工具矩阵、任务路由与安装中心 fallback，对 `视频混剪 / mixedcut / 本机 localFilePath` 给出统一语义
+  - `docs/changes/2026-08-22-openclaw-mixedcut-mcp-local-file-bridge.md`
+    - 给 OpenClaw 补 mixedcut MCP 工具，支持直接读取站内 mixedcut 素材、发起 mixedcut 任务、轮询进度，并在 stdio MCP 下把本机 `localFilePath / localFilePaths` 自动转成上传后先归档到站内创作素材
+  - `docs/changes/2026-08-22-video-remix-site-media-bridge.md`
+    - 在内容获客 `视频混剪` 工作区补站内视频手动桥接：支持勾选站内视频素材，由主站后端上传到 mixedcut 并直接创建混剪任务；同时给 Docker `server` 显式补 `MIXEDCUT_INTERNAL_BASE_URL`
+  - `docs/changes/2026-08-22-video-remix-direct-entry-and-settings-split.md`
+    - 把内容获客里的 `视频混剪` 从设置面板改成直接承载 mixedcut 主界面，并在个人中心 `第三方接口配置` 下新增独立 `视频混剪设置` 页面
+  - `docs/changes/2026-08-22-docker-web-api-proxy-target-fix.md`
+    - 修复 Docker 本地部署下 `ai-omni-web` 默认把 `/api/*` 代理到容器自身 `127.0.0.1:3011`，导致登录页报 `API 代理失败`；当前显式改为转发到 `server:3011`
+  - `docs/changes/2026-08-22-mixedcut-container-template-fallback-and-healthcheck-fix.md`
+    - 修复 mixedcut 容器因缺失 `home.html / 404.html / 500.html` 导致根路由 `500`、健康检查持续失败的问题；当前根路由收口到 `/remix`，Docker 健康检查改走 `/api/health`
+  - `docs/changes/2026-08-21-content-acquisition-video-remix-workspace-and-mixedcut-platform.md`
+    - 在内容获客 -> 某音/某号 下新增独立 `视频混剪` 入口，并把 mixedcut 作为独立 HTTP 服务接入个人中心第三方接口配置；当前支持按品牌维护 `服务地址 + 可选 API Key`
+  - `docs/changes/2026-08-21-mixedcut-ai-config-sync-from-third-party-models.md`
+    - 收口视频混剪接入方向：不再单独维护 `视频混剪服务` 平台配置，而是把个人中心现有第三方大模型同步到 mixedcut 的 `config/ai_config.json`
+  - `docs/changes/2026-08-21-docker-postgresql-mixedcut-local-deployment-phase-1.md`
+    - 启动 Docker + PostgreSQL + mixedcut 本地部署第一阶段，补标准运行态本地存储配置、宿主机路径展示映射和 compose 脚手架
+  - `docs/changes/2026-08-21-openclaw-design-work-reference-material-id.md`
+    - OpenClaw 设计工作台新增 `referenceMaterialId`，允许直接复用站内创作素材作为参考图，减少手动转公网 URL 或重复上传
+  - `docs/changes/2026-08-21-local-single-user-root-route-redirect-fix.md`
+    - 修复 local-single-user 安装态访问根路径 `/` 直接掉进 Next.js `/error` 的问题；当前安装态会把 `/` 直接收口到 `/brand-growth`，不再尝试渲染只服务官网场景的营销首页模板
+  - `docs/changes/2026-08-19-local-single-user-install-elevation-exit-code-and-direct-ps1-fix.md`
+    - 修复 local-single-user 安装包在“请求 Windows 提权”后窗口直接消失的问题：安装入口改为读取真实退出码，并去掉提权后再回调 `.cmd` 的脆弱跳板，直接拉起 PowerShell 安装主体
+  - `docs/changes/2026-08-19-openclaw-image-hard-failure-and-duplicate-submit-guard.md`
+    - 修正 OpenClaw 生图链路把上游 `400/403` 硬失败笼统看成 `502/504` 的排查偏差，并补上单任务硬失败停机与短时间重复提交保护
+  - `docs/changes/2026-08-19-openclaw-paid-image-success-should-not-fail-on-cache.md`
+    - 修复第三方图片 provider 已成功返回结果后，本站因二次下载/归一化/落盘失败又把整次同步调用重新打成失败的问题
+  - `docs/changes/2026-08-19-local-single-user-runtime-browser-url-port-fallback-fix.md`
+    - 收口 local-single-user 安装、升级、自启与修复脚本中的固定 `3001` 端口假设，统一优先使用 runtime metadata 中的 `browserUrl / previewUrl`
 
 ### 4. 历史规划与阶段草案
 
@@ -69,6 +122,8 @@
 - 只保留当前仍需要交付或汇报的 HTML 报告
 - 不再保留与 Markdown 一一重复的展示镜像
 - 面向站点用户公开访问的交付型 HTML，如 OpenClaw 安装说明页，放在 `apps/web/public/docs/`，不计入 `docs/` 源文档体系
+- 当前新增的系统内页样式预览稿位于：
+  - `apps/web/public/docs/homepage-ui-refresh-preview.html`
 
 ### 6. 外部表达资产
 
@@ -114,10 +169,148 @@
 
 ## 最近应优先关注的文档
 
+- `docs/changes/2026-08-22-video-remix-direct-entry-and-settings-split.md`
+  - 内容获客里的 `视频混剪` 当前直接进入 mixedcut 主界面；模型同步与配置下发改收口到 `个人中心 / 第三方接口配置 / 视频混剪设置`
+- `docs/changes/2026-08-22-docker-web-api-proxy-target-fix.md`
+  - 修复 Docker 本地部署下主站 `13001` 登录页能打开但提交时报 `API 代理失败` 的问题；当前 `web` 容器会把站内 `/api/*` 代理到 `server:3011`
+- `docs/changes/2026-08-22-mixedcut-container-template-fallback-and-healthcheck-fix.md`
+  - 修复 mixedcut 容器根路由模板缺失导致的 `500/unhealthy`；当前直达服务地址会收口到 `/remix`，容器健康检查统一走 `/api/health`
+- `docs/local-single-user-stability-delivery-refactor-plan.md`
+  - `local-single-user` 稳定性交付重构的正式方案与分阶段开发计划；明确按“单一入口、单一状态、单一环境解析”推进，并将周期控制在可持续的小步闭环内
+- `docs/changes/2026-08-21-content-acquisition-video-remix-workspace-and-mixedcut-platform.md`
+  - 在内容获客 -> 某音/某号 下新增独立 `视频混剪` 入口，并把 mixedcut 作为独立 HTTP 服务接入个人中心第三方接口配置；当前支持按品牌维护 `服务地址 + 可选 API Key`
+- `docs/changes/2026-08-21-mixedcut-ai-config-sync-from-third-party-models.md`
+  - 收口视频混剪接入方向：不再单独维护 `视频混剪服务` 平台配置，而是把个人中心现有第三方大模型同步到 mixedcut 的 `config/ai_config.json`
+- `docs/changes/2026-08-21-docker-postgresql-mixedcut-local-deployment-phase-1.md`
+  - 启动 Docker + PostgreSQL + mixedcut 本地部署第一阶段，补标准运行态本地存储配置、宿主机路径展示映射和 compose 脚手架
+- `docs/changes/2026-08-21-openclaw-design-work-reference-material-id.md`
+  - OpenClaw 设计工作台新增 `referenceMaterialId`，允许直接复用站内创作素材作为参考图，减少手动转公网 URL 或重复上传
+- `docs/changes/2026-08-17-local-single-user-stability-refactor-phase-1.md`
+  - 稳定性交付重构第一阶段已启动：新增统一平台 helper，开始收口 PowerShell / cmd / taskkill 解析，并让 launcher 开始写统一 lifecycle 状态文件
+- `docs/changes/2026-08-17-local-single-user-stability-refactor-phase-2-install-lifecycle.md`
+  - 稳定性交付重构第二阶段已开始推进安装主链收口：安装脚本开始直接消费 lifecycle 状态，并在安装失败时输出 `lifecyclePhase / lifecycleError / lifecyclePath` 等关键上下文
+- `docs/changes/2026-08-17-local-single-user-stability-refactor-phase-2-autostart-lifecycle.md`
+  - 稳定性交付重构第二阶段继续推进自启恢复链收口：autostart helper 开始先解析真实 `localAppRoot`，并直接写入、消费统一 lifecycle 状态，避免默认 `%APPDATA%` 路径与用户自定义根目录场景下的状态分裂
+- `docs/changes/2026-08-17-local-single-user-release-missing-platform-helper-fix.md`
+  - 修复 `hotfix-70` 发布物遗漏 `local-single-user-platform.cjs` 导致安装包覆盖安装与升级后新版本首启直接 `MODULE_NOT_FOUND` 的问题；当前已把该共享 helper 收回发布物必带清单
+- `docs/changes/2026-08-17-local-single-user-updater-bootstrap-process-alive-fix.md`
+  - 修复“立即升级”在慢机器上过早报 `升级器未成功启动` 的 bootstrap 误判：当前只要独立 updater 进程仍存活且没有明确 stderr 失败信号，就继续让后台升级链推进，而不是要求极短时间内必须先看到 trace/stdout 落盘
+- `docs/changes/2026-08-17-local-single-user-oss-upload-signed-multipart-fallback.md`
+  - 修复 `local-single-user` 252MB 级别发布包上传 OSS 时 `ali-oss multipartUpload()` 容易 `ECONNRESET / callback twice` 的问题；当前大包改为 signed multipart 分片上传，并对单 part 做受控重试
+- `docs/changes/2026-08-17-local-single-user-install-entry-powershell-path-fix.md`
+  - 修复 `local-single-user` 安装入口仍依赖 PATH 中 `powershell` 命令别名的问题；安装入口现在优先走系统 PowerShell 绝对路径，并为“安装后工作台未 ready”补充更细的超时上下文，便于继续收口启动期故障
+- `docs/changes/2026-08-17-local-single-user-autostart-duplicate-startup-entry-fix.md`
+  - 修复 `local-single-user` 在 Windows Startup 目录中同时残留标准 `.cmd` 与历史 `.lnk` 自启入口的问题；后续自启重装、repair、升级与安装器 fallback 都会先清旧入口，只保留一个有效启动项，避免开机双重拉起把 launcher 锁等待放大成“重启后页面打不开”
+- `docs/changes/2026-08-17-local-single-user-apply-entry-lightweight-updater-extraction-fix.md`
+  - 修复 `local-single-user` 点击“立即升级”成功率越来越低的问题：不再在 `POST /system/update/apply` 同步请求里整包解压数百 MB 升级包，只快速提取目标发布包里的单个 updater 脚本，从而把升级入口从重 IO 卡顿中解放出来
+- `docs/changes/2026-08-16-local-default-brand-background-snapshot-restore.md`
+  - 为 `local-single-user` 的 `local_default_brand` 增加本地背景快照与启动期自动恢复；即使未来再有链路把品牌背景写回默认值，也会优先从本地快照恢复，降低“品牌背景资料又变默认”的数据损伤
+- `docs/changes/2026-08-16-local-single-user-autostart-ready-retry-fix.md`
+  - 把 `local-single-user` 的开机自启 helper 从“只点火”补成“先验活、首轮失败后自动补一次启动”，并新增 `autostart-helper.log`，用于收口“重启后页面又打不开”的重启现场
+- `docs/changes/2026-08-16-geo-third-party-media-delivery-and-ruanwenjie-integration.md`
+  - 把软文街平台接入个人中心第三方接口配置，并在 `/geo` 的 `第三方媒体` 板块下新增 `第三方媒体投放` 列表；支持读取可投放媒体、选择已生成文章并直接提交投放订单
+- `docs/changes/2026-08-15-local-material-library-and-openclaw-material-sync.md`
+  - 在 `local-single-user` 的个人中心素材管理页新增素材库存储设置，支持用户自定义根目录并自动创建 `素材库/文本|图片|语音|视频`；同时把网站上传素材与 OpenClaw 上传素材统一收口到四分类列表，并同步到 MCP / Skill / 安装中心说明
+- `docs/changes/2026-08-15-all-network-growth-comment-leads.md`
+  - 把顶栏 `GEO` 正式改成 `GEO获客`，新增 `/all-network-growth` 全网获客工作台与 `评论获客` 子板块，并把小红书 / 抖音评论用户结果沉淀为可由 OpenClaw / MCP / Skill 共用的评论获客列表
+- `docs/changes/2026-08-18-all-network-growth-platform-leads-and-comment-pagination.md`
+  - 收口 `/all-network-growth`：评论获客页面去掉站内生成区、列表改为每页 20 条分页，并新增由 OpenClaw 直接写入的 `平台获客` 子板块，同步补齐 MCP / Skill / 持久化真源
+- `docs/changes/2026-08-18-local-single-user-install-backup-and-version-entry-resilience-fix.md`
+  - 修复 local-single-user 安装器在备份旧安装目录时未清掉 `start-local-single-user.cmd` 的 `cmd.exe` wrapper、导致备份失败后可能留下半安装根的问题，并让个人中心在升级状态接口失败时仍保留 `版本与升级` 入口
+- `docs/changes/2026-08-15-brand-growth-comment-target-user-openclaw-chain.md`
+  - 补齐品牌增长策略里“小红书 / 抖音作品 -> 评论 -> 匹配评论用户 -> 账号链接”的完整链路，同时把评论用户主页链接、目标用户提取和 OpenClaw 对应工具一起接通
+- `docs/changes/2026-08-14-local-single-user-worker-exit-keep-web-alive-fix.md`
+  - 修复 local-single-user 在后台 worker 异常退出时，launcher 直接把 API / Web 一起杀掉、最终让页面整体打不开的问题；现在会优先受控自动重启 worker，并保持页面继续可用
+- `docs/changes/2026-08-14-local-single-user-oss-region-normalize-fix.md`
+  - 修复 local-single-user 发布上传脚本直接把 `cn-beijing` 拼成错误 OSS 域名的问题；现在会统一归一化为 `oss-cn-beijing`，避免上传 client 和 `latest.json` 下载地址同时写错
+- `docs/changes/2026-08-14-local-single-user-prisma-generate-skip-guard-fix.md`
+  - 修复 local-single-user 升级后 launcher 只信任 runtime 里的 Prisma state / schema hash，导致安装目录里的 `.prisma/client` 即使已被升级包覆回 PostgreSQL 版本也继续跳过 `prisma generate` 的问题；现在会先核对真实生成 client 的 datasource provider，若不是 `sqlite` 就强制重生
+- `docs/changes/2026-08-14-local-single-user-sqlite-availability-retry-fix.md`
+  - 修复 local-single-user 下 Prisma `canUseDatabase()` 对 SQLite 启动期瞬时抖动过于敏感的问题；改为先连接再探测，并仅对 SQLite 的 timeout / busy / locked 等瞬时错误做短重试，避免真实数据库明明可用却被整条链路判成不可用
+- `docs/changes/2026-08-14-local-single-user-real-session-auto-resume-fix.md`
+  - 修复 local-single-user 下浏览器仍残留 `local_default_user / local_default_brand` 会话时，页面持续显示演示账号的问题；新增真实本地会话自动续回接口，并让前端请求层自动把默认本地 session 切回最近真实账号
+- `docs/changes/2026-08-14-local-single-user-install-autostart-node-fallback-fix.md`
+  - 修复 local-single-user 安装阶段在执行 `install-autostart.cmd` 时，一旦 Node 包装层往 `stderr` 输出或直接失败就把整包安装判死的问题；安装器现改为按退出码判断，并在 autostart 注册失败时自动兜底到当前用户 Startup 快捷方式
+- `docs/changes/2026-08-14-local-single-user-auth-fallback-and-openclaw-installation-fix.md`
+  - 修复 local-single-user 下 `/auth/me`、`/auth/brands` 在 SQLite 超时或旧 token 会话失配时被后端 fallback 拉回演示账号，以及 OpenClaw 安装中心因此提示“当前用户不存在”“未配置品牌”的问题；同时收口 OpenClaw 每日计划 / 每日复盘的 SQLite 兼容 SQL
+- `docs/changes/2026-08-14-local-single-user-registration-invite-seed-packaging-fix.md`
+  - 修复 local-single-user 安装包未携带 `prisma/seed-data/registration-invite-codes.txt`，导致种子文件中真实存在的邀请码在安装态仍被判成“邀请码不存在、已失效或已被使用”的问题
+- `docs/changes/2026-08-13-local-single-user-version-entry-fallback-fix.md`
+  - 修复 local-single-user 下只要升级状态接口暂时拿不到，`版本与升级` tab 就整个消失，以及 `/auth/me` 虽已 fallback 但返回层又继续查数据库导致仍显示“本地登录态”的问题
+- `docs/changes/2026-08-13-local-single-user-auth-timeout-fallback-fix.md`
+  - 修复 local-single-user 在浏览器已有 token、但 SQLite 短时超时或锁等待时，`/auth/me` 与 `/auth/brands` 仍强依赖 `userSession` 查询而导致个人中心退回“本地登录态”、版本与升级入口一起折叠的问题
+- `docs/changes/2026-08-13-user-skills-sqlite-compatibility-fix.md`
+  - 修复另一台已安装 `hotfix-47` 的 local-single-user 机器在 SQLite 安装态下，`user-skills` 原生 SQL 因兼容问题报 `near "EXISTS"` / `no such table: COALESCE`，进而导致个人中心部分接口异常和页面退回“本地登录态”的问题
+- `docs/changes/2026-08-13-local-single-user-startup-self-heal-default.md`
+  - 把 local-single-user 在“重启后页面打不开”场景下的默认策略改成受控自动自愈：首轮启动失败后，launcher 会自动清理 runtime 残留、旧进程和 runtime web bundle，再重试启动，而不是让用户自己清锁排障
+- `docs/changes/2026-08-12-local-single-user-upgrade-runtime-release-tag-fallback-fix.md`
+  - 修复 local-single-user 升级到 `0.1.20` 时，虽然新版本 API / Web 已启动成功，但 updater 因读不到安装目录 releaseTag 而误判失败并自动回滚到 `0.1.19` 的问题；launcher 现会把 `releaseTag/appVersion` 写入 runtime metadata，updater 也会回退读取该版本标记
+- `docs/changes/2026-08-12-geo-openclaw-content-workspace-expansion.md`
+  - 扩展 `/geo` 工作台，新增关键词挖掘、网站诊断、知识库搭建、GEO优化方案、自媒体内容、第三方媒体、品牌网站，并统一补齐 HTML 预览与非 HTML `存储地址`
+- `docs/changes/2026-08-12-material-management-and-content-acquisition-materials.md`
+  - 把个人中心原“订单中心”收口为“素材管理”，并让内容获客三组 `创作素材` 与个人中心聚合列表统一补齐标题、标签、来源、入库时间和本地文件夹地址
+- `docs/changes/2026-08-11-content-acquisition-workbench-and-local-storage.md`
+  - 把顶部 `某书 / 某音/某号 / 公众号` 入口收口为统一的 `内容获客` 工作台，补齐 OpenClaw 留言区，并将 `local-single-user` 安装态的受控资源副本正式切到本地存储
+- `docs/changes/2026-08-10-local-register-invite-and-user-access-control.md`
+  - 收口本地单机版也必须邀请码注册，并在后台用户管理补齐账号到期时间、主模块权限配置以及后端统一拦截
+- `docs/changes/2026-08-09-skill-center-sqlite-gpt54-sync-fix.md`
+  - 修复本地单机版 `个人中心 -> 技能中心` 因 SQLite 分支再次执行 PostgreSQL 风格 `POSITION(...)` 而直接 500 的问题
+- `docs/changes/2026-08-08-openclaw-mcp-timeout-stability.md`
+  - 收口 OpenClaw 安装中心导出的 MCP timeout 配置，并修正 `create_design_work` 已同步完成却仍返回处理中语义的问题
+- `docs/changes/2026-08-08-local-single-user-autostart-prebuilt-mode-fix.md`
+  - 修复 local-single-user 在机器重启后页面打不开的问题；根因是开机自启 helper 没有继承 `LOCAL_SINGLE_USER_PREBUILT_ONLY=true`，导致安装态误命中 `next/dist/bin/next`
+- `docs/changes/2026-08-08-homepage-ui-optimization-proposal-and-preview.md`
+  - 记录本轮系统内页简洁版方案与预览稿：按 `finesse-brief` 收口结构，再按 `finesse-ui` 重做更干净、低信息密度的 HTML 预览页
+- `docs/homepage-ui-optimization-proposal-2026-08-08.md`
+  - 当前已改为系统内页简洁版方案，建议把进入系统后的主工作台压缩成“顶部 -> 首屏 -> 三个核心入口 -> 两个侧边信息盒子”
+- `docs/changes/2026-08-08-local-single-user-install-ready-check-fallback-fix.md`
+  - 修复 local-single-user 手动安装阶段“本地工作台其实已经起来，但安装脚本仍因只等 runtime metadata 而误判失败”的问题；安装 ready 判定改为优先看 API / Web 真实健康，并通过 `cmd.exe /d /c` 更稳地拉起启动入口
+- `docs/changes/2026-08-08-local-single-user-apply-run-updater-source-fix.md`
+  - 修复 local-single-user 升级链在 apply-run 阶段仍复用当前安装版本旧 updater 的问题；改为优先从刚下载的发布包里提取最新 updater 再执行，避免修复版 updater 永远无法通过版本更新真正生效
+- `docs/changes/2026-08-08-local-single-user-updater-preflight-cleanup-fix.md`
+  - 收紧 local-single-user 升级链的垃圾清理职责：历史 `downloads/*`、`extract-*`、旧 `apply-runs/*` 改为在 updater 安装前预清理并在成功后复清，不再由 launcher 启动时直接触碰当前升级目录，避免升级失败后页面打不开
+- `docs/changes/2026-08-07-local-single-user-launcher-startup-cleanup-fallback.md`
+  - 为 local-single-user launcher 补启动期兜底清理：新版本启动时也会主动回收历史 `updates` 垃圾目录与旧 `%LOCALAPPDATA%\\AiOmniOps` 安装痕迹，避免只依赖升级器单点清理
+- `docs/changes/2026-08-07-local-single-user-historical-update-artifacts-cleanup-fix.md`
+  - 修复 local-single-user 升级成功后只删除“本轮”目录、未回收历史 `downloads/*`、`extract-*`、旧 `apply-runs/*` 的问题；升级成功后改为统一清理历史升级残留
+- `docs/changes/2026-08-07-local-single-user-dual-appdata-cleanup-fix.md`
+  - 收口 local-single-user 升级链在 `%APPDATA%\\AiOmniOps` 与 `%LOCALAPPDATA%\\AiOmniOps` 两处同时残留安装/升级文件的问题；安装器日志统一回到主资料目录，升级成功后额外清理历史 `%LOCALAPPDATA%\\AiOmniOps` 痕迹
+- `docs/changes/2026-08-07-local-single-user-upgrade-restart-fallback-fix.md`
+  - 修复 local-single-user 升级后因 `start-local-single-user.cmd` 缺失而跳过重启、页面长时间停在“升级进行中”的问题；updater 现在会回退到 bundled `node.exe + launcher.cjs` 直接拉起新版本
+- `docs/changes/2026-08-07-local-single-user-upgrade-disk-pressure-rollback-tightening.md`
+  - 收紧 local-single-user 升级在磁盘空间紧张场景下的行为：升级前先预清理历史 `AiOmniOps-backup-*`，安装脚本只要非 0 退出就立即回滚，避免留下半安装状态
+- `docs/changes/2026-08-07-local-single-user-install-backup-auto-cleanup.md`
+  - 让 local-single-user 升级成功后自动清理安装目录旁边堆积的 `AiOmniOps-backup-*` 备份目录，避免 `%LOCALAPPDATA%\\Programs` 长期被旧版本副本占满
+- `docs/changes/2026-08-07-local-single-user-update-artifact-auto-cleanup.md`
+  - 让 local-single-user 升级成功后自动清理 `updates/downloads`、解压目录和 `apply-runs` 临时目录，避免长期占满 C 盘
+- `docs/changes/2026-08-07-douyin-runninghub-minimax-h3-fl2va-app-sync.md`
+  - 把 3 个 MiniMax H3 FL2VA RunningHub 应用接入抖音工作台通用清单，并同步到 OpenClaw / MCP / Skill ZIP 说明
+- `docs/changes/2026-08-07-local-single-user-semantic-version-auto-increment.md`
+  - 把 local-single-user 主版本号从“固定读取 package.json 的 0.1.0”改为“每次发包自动递增 patch 版本”，并统一到 release manifest / latest.json / 当前安装态读取链路
+- `docs/changes/2026-08-06-local-single-user-launcher-runtime-exit-debug-instrumentation.md`
+  - 为 `local-single-user` 启动链补 runtime exit 调试埋点：记录 `killProcessTree` 的触发原因、child `exit`、健康检查超时和 runtime metadata 落盘后的进程快照，专门用于定位“服务明明启动成功过，但随后整套进程又消失”的问题
+- `docs/changes/2026-08-06-version-update-status-priority-fix.md`
+  - 修复版本与升级页面在已检测到新版本时，仍被上一次失败记录压成“升级失败”的状态优先级问题
+- `docs/changes/2026-08-06-local-single-user-install-backup-lock-recovery.md`
+  - 修复安装器在“备份旧安装目录”时只依赖 runtime metadata PID 停进程，导致旧安装目录仍被占用就直接失败的问题；新版安装器会额外扫描命中旧安装路径的进程并增加移动重试
+- `docs/changes/2026-08-06-local-single-user-launcher-stale-lock-recovery.md`
+  - 修复 `local-single-user-launcher.lock` 在异常退出后残留时，会把后续重启一直卡在“本地工作台正在启动中”的问题；新版 launcher 会自动清理 stale lock 并重新抢锁
+- `docs/changes/2026-08-06-local-single-user-upgrade-runtime-verification-tightening.md`
+  - 本地单机版升级验活从“只看 runtime metadata”收紧为“目标 releaseTag + API + Web”三重确认，并补充 updater trace；同时修正回滚后要按恢复版本验活，避免自动回滚被再次误判失败
+- `docs/changes/2026-08-06-skill-center-sqlite-compatibility-fix.md`
+  - 修复本地单机版 SQLite 环境下“个人中心 -> 技能中心”因 `user-skills` 模块执行 PostgreSQL 专用 SQL 而直接 `Internal server error` 的问题
+- `docs/changes/2026-08-06-version-page-change-log-version-and-collapse.md`
+  - 版本页系统更新日志补上版本号，并改为默认展开最新一条、历史记录可折叠的展示方式；同时明确当前顶部 `0.1.0` 来自根 `package.json` 版本号，热修包变化仍体现在 `releaseTag`
+- `docs/changes/2026-08-04-local-single-user-install-autostart-fallback-fix.md`
+  - 修复安装阶段计划任务自启动被系统拒绝时，fallback 到启动文件夹快捷方式却因 `stderr` 输出被 PowerShell 误判为安装失败的问题
+- `docs/changes/2026-08-04-local-single-user-install-launch-ready-and-open-browser.md`
+  - 安装脚本不再只在后台尝试拉起本地工作台后立即结束，而是会等待 API / Web 真正就绪，并由安装阶段明确打开页面；首启失败会在安装窗口里直接暴露
+- `docs/changes/2026-08-04-local-single-user-update-health-check-and-auto-rollback.md`
+  - `local-single-user` 升级链补上“受控重启 -> API / Web 验活 -> 失败自动回滚”闭环；installer 新增 `-NoLaunch` 受控模式，避免 installer 与 updater 双重拉起本地工作台
 - `docs/changes/2026-08-03-version-page-log-focused-layout-and-oss-history.md`
   - 版本与升级页收口为“当前版本 / 最新版本”两张版本卡 + “系统更新日志”；OSS `latest.json` 同步补入 `appVersion` 与 `history`，后续更新记录可持续累积
 - `docs/changes/2026-08-02-local-single-user-open-register-and-local-data-root.md`
-  - `local-single-user` 安装态注册改为免邀请码，并在个人中心安全页补入本地资料目录设置；目录配置写入 `launcher-settings.json`，下次重启时迁移并切换到新的本地资料根
+  - 历史记录：曾将 `local-single-user` 安装态注册改为免邀请码，并在个人中心安全页补入本地资料目录设置；其中“免邀请码”口径已被 2026-08-10 新规则覆盖
 - `docs/changes/2026-07-28-personal-center-version-update.md`
   - 个人中心新增“版本与升级”页：后端通过 `system/update/*` 检查 OSS `latest.json`、预下载并校验 `AiOmniOps-local-single-user-win-x64.zip`，安装态再通过独立 updater 执行本地替换与重启
 - `docs/changes/2026-07-27-readme-install-guide-and-repo-slimming.md`

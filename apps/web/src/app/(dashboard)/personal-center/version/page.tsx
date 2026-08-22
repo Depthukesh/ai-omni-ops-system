@@ -191,10 +191,14 @@ export default function PersonalCenterVersionPage() {
 
   const latestRelease = status?.latest || null;
   const currentBuild = status?.current || null;
+  const updateSource = status?.source || null;
+  const guideOnlyMode = updateSource?.executionMode === "guide-only";
+  const updateGuide = latestRelease?.updateGuide || null;
   const isCurrentAlignedWithLatest =
     Boolean(currentBuild && latestRelease)
     && (
       (Boolean(currentBuild?.releaseTag) && currentBuild?.releaseTag === latestRelease?.tagName)
+      || (Boolean(currentBuild?.version) && Boolean(latestRelease?.appVersion) && currentBuild?.version === latestRelease?.appVersion)
       || (!status?.updateAvailable && status?.phase === "SUCCEEDED")
     );
   const hasPreparedPackage =
@@ -202,19 +206,24 @@ export default function PersonalCenterVersionPage() {
     && status?.downloadedReleaseTag === latestRelease?.tagName
     && status?.phase === "READY_TO_APPLY"
     && !isCurrentAlignedWithLatest;
+  const updateFlowBusy = status?.phase === "DOWNLOADING" || status?.phase === "APPLYING";
   const canDownload =
     Boolean(status?.supported)
+    && !guideOnlyMode
     && Boolean(currentBuild?.canApplyUpdate)
     && Boolean(latestRelease?.zipAsset)
     && Boolean(latestRelease?.checksumValue)
     && !isCurrentAlignedWithLatest
+    && !updateFlowBusy
     && Boolean(status?.updateAvailable || hasPreparedPackage);
   const canApply =
     Boolean(status?.supported)
+    && !guideOnlyMode
     && Boolean(currentBuild?.canApplyUpdate)
     && Boolean(latestRelease?.zipAsset)
     && Boolean(latestRelease?.checksumValue)
     && !isCurrentAlignedWithLatest
+    && !updateFlowBusy
     && Boolean(status?.updateAvailable || hasPreparedPackage);
 
   const statusPillClass = resolveStatusPillClass(status?.phase);
@@ -239,9 +248,13 @@ export default function PersonalCenterVersionPage() {
       <div className="panel-header">
         <div>
           <h2>版本与升级</h2>
-          <p className="panel-subtext">这里统一查看当前版本、最新版本，并直接完成检查、下载和升级。</p>
+          <p className="panel-subtext">
+            {guideOnlyMode
+              ? "这里统一查看当前版本、远端更新清单，并按指引执行 git pull、重建容器和 Skill 包同步。"
+              : "这里统一查看当前版本、最新版本，并直接完成检查、下载和升级。"}
+          </p>
         </div>
-        <span>{status?.source?.label || "阿里云 OSS"}</span>
+        <span>{updateSource?.label || "更新源"}</span>
       </div>
 
       <div className="personal-actions personal-toolbar-cluster" style={{ marginBottom: 16 }}>
@@ -257,13 +270,22 @@ export default function PersonalCenterVersionPage() {
         <button type="button" className="secondary-button" onClick={() => void handleCheck()} disabled={isLoading || isChecking || isDownloading || isApplying}>
           {isChecking ? "检查中..." : "检查更新"}
         </button>
-        <button type="button" className="secondary-button" onClick={() => void handleDownload()} disabled={!canDownload || isLoading || isChecking || isDownloading || isApplying}>
-          {isDownloading ? "下载中..." : "预下载安装包"}
-        </button>
-        <button type="button" className="primary-button" onClick={() => void handleApply()} disabled={!canApply || isLoading || isChecking || isDownloading || isApplying}>
-          {isApplying ? "升级中..." : "立即升级"}
-        </button>
+        {!guideOnlyMode ? (
+          <>
+            <button type="button" className="secondary-button" onClick={() => void handleDownload()} disabled={!canDownload || isLoading || isChecking || isDownloading || isApplying}>
+              {isDownloading ? "下载中..." : "预下载安装包"}
+            </button>
+            <button type="button" className="primary-button" onClick={() => void handleApply()} disabled={!canApply || isLoading || isChecking || isDownloading || isApplying}>
+              {status?.phase === "APPLYING" ? "升级进行中..." : isApplying ? "升级中..." : "立即升级"}
+            </button>
+          </>
+        ) : null}
       </div>
+      {status?.phase === "APPLYING" && !guideOnlyMode ? (
+        <p className="panel-subtext" style={{ marginTop: -6, marginBottom: 16 }}>
+          升级在后台静默执行，不会弹出 PowerShell 窗口；慢机器在“替换安装目录”阶段可能会更久，只要状态还在刷新就表示仍在继续，请不要重复点击。
+        </p>
+      ) : null}
 
       <div className="card-grid" style={{ marginBottom: 16 }}>
         <article className="entity-card" style={{ padding: 20 }}>
@@ -277,6 +299,9 @@ export default function PersonalCenterVersionPage() {
             <p className="panel-subtext" style={{ margin: 0, wordBreak: "break-all" }}>
               {currentPackageName}
             </p>
+            <span className="panel-subtext">
+              {currentBuild?.runtimeMode === "local-single-user" ? "安装态自动升级" : "标准运行态更新指引"}
+            </span>
             <span className="panel-subtext">{formatDateTime(currentBuild?.generatedAt || undefined)}</span>
           </div>
         </article>
@@ -297,6 +322,69 @@ export default function PersonalCenterVersionPage() {
         </article>
       </div>
 
+      {guideOnlyMode && updateGuide ? (
+        <article className="entity-card" style={{ marginBottom: 16 }}>
+          <div className="entity-card-head">
+            <div>
+              <strong>Docker 更新指引</strong>
+            </div>
+          </div>
+          <div style={{ display: "grid", gap: 14 }}>
+            {latestRelease?.summary ? (
+              <p className="panel-subtext" style={{ margin: 0 }}>
+                {latestRelease.summary}
+              </p>
+            ) : null}
+
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {updateGuide.requires.server ? <span className="archive-pill status-in_progress">需重建 server</span> : null}
+              {updateGuide.requires.web ? <span className="archive-pill status-in_progress">需重建 web</span> : null}
+              {updateGuide.requires.mixedcut ? <span className="archive-pill status-in_progress">需重建 mixedcut</span> : null}
+              {updateGuide.requires.skillPackage ? <span className="archive-pill status-in_progress">需重导 Skill ZIP</span> : null}
+              {updateGuide.requires.migration ? <span className="archive-pill status-pending">含数据迁移</span> : null}
+              {!updateGuide.requires.server && !updateGuide.requires.web && !updateGuide.requires.mixedcut && !updateGuide.requires.skillPackage && !updateGuide.requires.migration ? (
+                <span className="archive-pill status-paused">本次未声明额外动作</span>
+              ) : null}
+            </div>
+
+            {updateGuide.commands.length ? (
+              <div style={{ display: "grid", gap: 8 }}>
+                <strong style={{ fontSize: 15 }}>建议操作步骤</strong>
+                <pre style={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word", lineHeight: 1.7 }}>
+                  {updateGuide.commands.map((item, index) => `${index + 1}. ${item}`).join("\n")}
+                </pre>
+              </div>
+            ) : null}
+
+            {updateGuide.notices.length ? (
+              <div style={{ display: "grid", gap: 8 }}>
+                <strong style={{ fontSize: 15 }}>更新提醒</strong>
+                <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7 }}>
+                  {updateGuide.notices.map((item, index) => (
+                    <li key={`${item}-${index}`}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+
+            {updateGuide.changeLogUrl || updateGuide.skillPackageUrl ? (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+                {updateGuide.changeLogUrl ? (
+                  <a href={updateGuide.changeLogUrl} target="_blank" rel="noreferrer" className="secondary-button" style={{ textDecoration: "none" }}>
+                    查看更新说明
+                  </a>
+                ) : null}
+                {updateGuide.skillPackageUrl ? (
+                  <a href={updateGuide.skillPackageUrl} target="_blank" rel="noreferrer" className="secondary-button" style={{ textDecoration: "none" }}>
+                    下载最新 Skill ZIP
+                  </a>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        </article>
+      ) : null}
+
       <article className="entity-card">
         <div className="entity-card-head">
           <div>
@@ -306,20 +394,37 @@ export default function PersonalCenterVersionPage() {
         {changeLogs.length ? (
           <div style={{ display: "grid", gap: 12 }}>
             {changeLogs.map((item, index) => (
-              <article
+              <details
                 key={`${item.releaseTag || "log"}-${item.publishedAt}-${index}`}
                 style={{
-                  padding: "14px 16px",
                   borderRadius: 16,
                   border: "1px solid rgba(15, 23, 42, 0.08)",
                   background: "rgba(248, 250, 252, 0.9)",
+                  overflow: "hidden",
                 }}
+                open={index === 0}
               >
-                <div style={{ fontSize: 13, color: "#64748b", marginBottom: 8 }}>{formatDateTime(item.publishedAt)}</div>
-                <pre style={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word", fontFamily: "inherit", lineHeight: 1.7 }}>
-                  {item.content}
-                </pre>
-              </article>
+                <summary
+                  style={{
+                    listStyle: "none",
+                    cursor: "pointer",
+                    padding: "14px 16px",
+                    display: "grid",
+                    gap: 6,
+                  }}
+                >
+                  <div style={{ fontSize: 13, color: "#64748b" }}>{formatDateTime(item.publishedAt)}</div>
+                  <strong style={{ fontSize: 15, lineHeight: 1.4 }}>{formatChangeLogVersion(item)}</strong>
+                  <div className="panel-subtext" style={{ wordBreak: "break-all" }}>
+                    {item.releaseTag || "未记录打包名称"}
+                  </div>
+                </summary>
+                <div style={{ padding: "0 16px 14px" }}>
+                  <pre style={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word", fontFamily: "inherit", lineHeight: 1.7 }}>
+                    {item.content}
+                  </pre>
+                </div>
+              </details>
             ))}
           </div>
         ) : (
@@ -343,7 +448,7 @@ function formatPhaseLabel(phase?: string | null) {
     case "APPLYING":
       return "升级进行中";
     case "SUCCEEDED":
-      return "升级成功";
+      return "已是最新";
     case "FAILED":
       return "升级失败";
     case "UNSUPPORTED":
@@ -404,4 +509,12 @@ function resolveTransientLoadError(status: SystemUpdateStatus, error: unknown) {
     return "安装包仍在后台下载，已先展示最近一次升级状态，页面会自动重试。";
   }
   return error instanceof Error ? error.message : "版本信息暂时不可达，已先展示最近一次记录。";
+}
+
+function formatChangeLogVersion(item: NonNullable<SystemUpdateStatus["latest"]>["changeLogs"][number]) {
+  const appVersion = String(item.appVersion || "").trim();
+  if (appVersion) {
+    return `版本号 ${appVersion}`;
+  }
+  return "版本号未记录";
 }

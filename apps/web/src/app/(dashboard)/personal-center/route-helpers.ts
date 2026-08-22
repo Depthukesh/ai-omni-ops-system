@@ -1,4 +1,5 @@
 import type { OrderRecord, SystemUpdateStatus, TaskRecord } from "../../../services/personal-center";
+import { getRuntimeMode } from "../../../lib/runtime-mode";
 
 export const personalTaskStatusClassMap: Record<TaskRecord["taskStatus"], string> = {
   PENDING: "status-pending",
@@ -80,5 +81,8 @@ export function emitBrandInviteReadStateChanged() {
 }
 
 export function shouldShowVersionWorkspace(status?: SystemUpdateStatus | null) {
-  return Boolean(status?.supported && status.current.canApplyUpdate);
+  if (getRuntimeMode() === "local-single-user") {
+    return true;
+  }
+  return Boolean(status?.supported);
 }

@@ -7,6 +7,16 @@
     "apps/*",
     "packages/*"
   ],
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@ffmpeg-installer/linux-x64",
+      "@prisma/client",
+      "@prisma/engines",
+      "esbuild",
+      "prisma",
+      "sharp"
+    ]
+  },
   "scripts": {
     "dev:web": "npm --workspace apps/web run dev",
     "dev:web:stable": "node scripts/dev-web-stable.cjs",
