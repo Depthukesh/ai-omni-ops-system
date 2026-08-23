@@ -21,7 +21,7 @@
 
 ### 部分完成
 
-- mixedcut 已接入正式 compose 编排，但仍基于 `workspace-notes/mixedcut_integration_bundle` 样本源码构建
+- mixedcut 已接入正式 compose 编排，构建真源当前收口到仓库正式目录 `mixedcut_integration_bundle/`
 - 为避免 `mixedcut` 镜像构建阻塞主链，compose 默认启动已收口为 `postgres + server + web`，需要 mixedcut 时再显式启用 `mixedcut` profile
 - 主服务已能按 Docker 标准运行态读取宿主机挂载目录，但 OpenClaw / RunningHub / 其它上传链路尚未全部补完“宿主机显示路径 vs 容器实际路径”的统一映射
 
@@ -35,7 +35,7 @@
 ### 风险 / 不匹配
 
 - 现有仓库是 `Next.js + NestJS` 分离结构，实际落 Docker 时更自然是 `web + server + postgres + mixedcut` 四服务，而不是纯三容器
-- mixedcut 本地安装目录当前只有运行时 `config`，镜像构建仍要回到 `workspace-notes` 样本源码
+- mixedcut 运行时 `config` 与镜像构建源码已统一收口到仓库内 `mixedcut_integration_bundle/`
 - 若页面继续直接展示容器路径 `/data/...`，用户在 Windows 本地无法直接定位素材；因此必须保留 display path 映射层
 
 ## 2. 产品理解

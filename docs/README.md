@@ -60,6 +60,10 @@
 - 作用：记录重要改动的背景、范围、验证和后续事项
 - 要求：真实代码改动默认同步补一条变更记录
 - 最新补充：
+  - `docs/changes/2026-08-23-mixedcut-bundle-path-repo-fix.md`
+    - 修复 mixedcut / mixedcut-mcp 的 Docker 构建仍引用 `workspace-notes` 私有目录的问题；当前 mixedcut 构建真源已收口到仓库正式目录 `mixedcut_integration_bundle/`
+  - `docs/changes/2026-08-23-docker-standard-db-init-and-default-demo-brand.md`
+    - 给 Docker 标准运行态补 one-shot `db-init` 首启链，自动完成建表、邀请码同步和最小演示账号/品牌补齐；同时把默认演示品牌从具体商家名改为通用默认品牌
   - `docs/changes/2026-08-22-design-workspace-first-load-guard.md`
     - 设计工作台首屏改为只拉取历史列表，创建弹窗所需的模型/日历/产品配置延后到点击创建时再按需加载，并把设计历史窗口缩到最近 24 条
   - `docs/changes/2026-08-22-design-workspace-image-card-memory-guard.md`

@@ -89,11 +89,26 @@ docker/docker-compose.local-postgres-mixedcut.yml
 docker compose -f docker/docker-compose.local-postgres-mixedcut.yml up -d --build postgres server web
 ```
 
+首次启动会自动执行一次 `db-init`：
+
+- 自动建表
+- 自动同步注册邀请码
+- 自动准备演示账号 `13800000000 / 123456`
+- 自动补最小默认品牌，不再要求手动额外执行 `pnpm db:init`
+
+如果中途打断过首次启动，想手动补一次初始化，可以执行：
+
+```powershell
+docker compose -f docker/docker-compose.local-postgres-mixedcut.yml run --rm db-init
+```
+
 4. 如果需要 mixedcut，再启动：
 
 ```powershell
 docker compose -f docker/docker-compose.local-postgres-mixedcut.yml --profile mixedcut up -d --build mixedcut mixedcut-mcp
 ```
+
+当前仓库已自带 `mixedcut_integration_bundle/` 构建源码；新机器直接 `git clone` 后即可执行上面的命令，不再依赖本机私有的 `workspace-notes/mixedcut_integration_bundle` 目录。
 
 5. 打开：
 
@@ -227,7 +242,8 @@ pnpm smoke:openclaw:adapter
 ## 当前测试账号
 
 - 演示账号手机号：`13800000000`
-- 演示品牌：`武汉仟吉`
+- 演示密码：`123456`
+- 演示品牌：`默认演示品牌`
 
 ## 文档入口
 

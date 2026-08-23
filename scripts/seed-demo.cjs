@@ -13,6 +13,9 @@ const {
 const prisma = new PrismaClient();
 const DEMO_USER_ID = "usr_demo_001";
 const DEMO_BRAND_ID = "br_demo_001";
+const DEMO_BRAND_NAME = "默认演示品牌";
+const DEMO_BRAND_ACCOUNT_NAME = "默认演示品牌官方号";
+const DEMO_WECHAT_ACCOUNT_NAME = "默认演示品牌公众号";
 const REGISTRATION_INVITE_CODES = loadRegistrationInviteCodes();
 
 async function main() {
@@ -31,7 +34,9 @@ async function main() {
 
   await prisma.brand.deleteMany({
     where: {
-      brandName: "武汉仟吉",
+      brandName: {
+        in: [DEMO_BRAND_NAME, "武汉仟吉"],
+      },
       NOT: { id: DEMO_BRAND_ID },
     },
   });
@@ -62,22 +67,22 @@ async function main() {
     where: { id: DEMO_BRAND_ID },
     update: {
       ownerUserId: demoUser.id,
-      brandName: "武汉仟吉",
+      brandName: DEMO_BRAND_NAME,
       industry: "烘焙零售",
-      storeCount: 180,
-      foundedYear: 2000,
-      brandDescription: "区域烘焙品牌，线下门店基础较强，线上全域增长空间明显。",
-      enterpriseIntro: "当前聚焦品牌建档、采集、增长分析与半年营销规划。",
+      storeCount: 12,
+      foundedYear: 2024,
+      brandDescription: "通用演示品牌，用于首次安装后的登录、品牌建档和主链路体验。",
+      enterpriseIntro: "默认演示品牌，用于承接 Docker 标准运行态的首次初始化与主工作台联调。",
     },
     create: {
       id: DEMO_BRAND_ID,
       ownerUserId: demoUser.id,
-      brandName: "武汉仟吉",
+      brandName: DEMO_BRAND_NAME,
       industry: "烘焙零售",
-      storeCount: 180,
-      foundedYear: 2000,
-      brandDescription: "区域烘焙品牌，线下门店基础较强，线上全域增长空间明显。",
-      enterpriseIntro: "当前聚焦品牌建档、采集、增长分析与半年营销规划。",
+      storeCount: 12,
+      foundedYear: 2024,
+      brandDescription: "通用演示品牌，用于首次安装后的登录、品牌建档和主链路体验。",
+      enterpriseIntro: "默认演示品牌，用于承接 Docker 标准运行态的首次初始化与主工作台联调。",
     },
   });
 
@@ -168,16 +173,16 @@ async function main() {
       {
         brandId: brand.id,
         platform: PlatformType.XIAOHONGSHU,
-        accountName: "武汉仟吉烘焙",
+        accountName: DEMO_BRAND_ACCOUNT_NAME,
         accountLink: "https://www.xiaohongshu.com/user/profile/demo",
-        username: "武汉仟吉烘焙",
+        username: DEMO_BRAND_ACCOUNT_NAME,
       },
       {
         brandId: brand.id,
         platform: PlatformType.WECHAT_OA,
-        accountName: "武汉仟吉",
-        accountLink: "qianji-official",
-        username: "武汉仟吉",
+        accountName: DEMO_WECHAT_ACCOUNT_NAME,
+        accountLink: "demo-official",
+        username: DEMO_WECHAT_ACCOUNT_NAME,
       },
     ],
   });

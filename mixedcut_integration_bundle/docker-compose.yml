@@ -1,0 +1,48 @@
+services:
+  videoautocut:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: jjyb_ai_videoautocut
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      APP_HOST: 0.0.0.0
+      APP_PORT: "5000"
+      JJYB_MCP_PUBLIC_HOST: "127.0.0.1"
+      JJYB_MCP_PUBLIC_PORT: "5501"
+      JJYB_DISABLE_DESKTOP: "1"
+      JJYB_CONTAINER_MODE: "1"
+      TZ: Asia/Shanghai
+    volumes:
+      - ./config:/app/config
+      - ./database:/app/database
+      - ./logs:/app/logs
+      - ./output:/app/output
+      - ./outputs:/app/outputs
+      - ./storage:/app/storage
+      - ./temp:/app/temp
+      - ./uploads:/app/uploads
+
+  videoautocut-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile.mcp
+    container_name: jjyb_ai_videoautocut_mcp
+    restart: unless-stopped
+    depends_on:
+      videoautocut:
+        condition: service_started
+    ports:
+      - "5501:5501"
+    environment:
+      VIDEOAUTOCUT_BASE_URL: "http://videoautocut:5000"
+      VIDEOAUTOCUT_DB_PATH: "/app/database/jjyb_ai.db"
+      JJYB_MCP_HTTP_HOST: "0.0.0.0"
+      JJYB_MCP_HTTP_PORT: "5501"
+      JJYB_MCP_HTTP_PATH: "/mcp"
+      TZ: Asia/Shanghai
+    volumes:
+      - ./database:/app/database
+      - ./logs:/app/logs

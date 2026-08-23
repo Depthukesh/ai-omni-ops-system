@@ -1,5 +1,11 @@
 name: ai-omni-ops-local
 
+x-server-image: &server-image
+  build:
+    context: ..
+    dockerfile: docker/server.Dockerfile
+  image: ai-omni-ops-local-server
+
 services:
   postgres:
     image: postgres:16-bookworm
@@ -20,15 +26,48 @@ services:
       timeout: 5s
       retries: 10
 
+  db-init:
+    <<: *server-image
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      APP_RUNTIME_MODE: standard
+      SERVER_HOST: ${SERVER_HOST:-0.0.0.0}
+      PORT: ${APP_PORT:-3011}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-ai_omni_ops}?schema=public
+      WEB_PUBLIC_BASE_URL: ${WEB_PUBLIC_BASE_URL:-http://127.0.0.1:${HOST_WEB_PORT:-13001}}
+      NEXT_PUBLIC_WEB_BASE_URL: ${NEXT_PUBLIC_WEB_BASE_URL:-http://127.0.0.1:${HOST_WEB_PORT:-13001}}
+      API_PUBLIC_BASE_URL: ${API_PUBLIC_BASE_URL:-http://127.0.0.1:${HOST_API_PORT:-13011}/api}
+      WEB_API_BASE_URL: ${WEB_API_BASE_URL:-http://127.0.0.1:${HOST_API_PORT:-13011}}
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://127.0.0.1:${HOST_API_PORT:-13011}/api}
+      STORAGE_PROVIDER_MODE: ${STORAGE_PROVIDER_MODE:-local}
+      MATERIAL_LIBRARY_BASE_ROOT: ${MATERIAL_LIBRARY_BASE_ROOT:-/data/materials}
+      MATERIAL_LIBRARY_DISPLAY_ROOT: ${MATERIAL_LIBRARY_DISPLAY_ROOT:-D:\AiOmniOpsData\materials}
+      MANAGED_STORAGE_ROOT: ${MANAGED_STORAGE_ROOT:-/data/storage}
+      MANAGED_STORAGE_DISPLAY_ROOT: ${MANAGED_STORAGE_DISPLAY_ROOT:-D:\AiOmniOpsData\storage}
+      MIXEDCUT_INSTALL_ROOT: ${MIXEDCUT_INSTALL_ROOT:-/data/mixedcut}
+      MIXEDCUT_INTERNAL_BASE_URL: ${MIXEDCUT_INTERNAL_BASE_URL:-http://mixedcut:5000}
+      STANDARD_RUNTIME_UPDATE_MANIFEST_URL: ${STANDARD_RUNTIME_UPDATE_MANIFEST_URL:-}
+      JWT_SECRET: ${JWT_SECRET:-}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-}
+      OSS_ACCESS_KEY_ID: ${OSS_ACCESS_KEY_ID:-}
+      OSS_ACCESS_KEY_SECRET: ${OSS_ACCESS_KEY_SECRET:-}
+      OSS_BUCKET: ${OSS_BUCKET:-}
+      OSS_REGION: ${OSS_REGION:-}
+    command: ["sh", "-lc", "pnpm db:init:standard"]
+
   server:
-    build:
-      context: ..
-      dockerfile: docker/server.Dockerfile
+    <<: *server-image
     container_name: ai-omni-server
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
+      db-init:
+        condition: service_completed_successfully
     environment:
       NODE_ENV: production
       APP_RUNTIME_MODE: standard
@@ -85,7 +124,7 @@ services:
 
   mixedcut:
     build:
-      context: ../workspace-notes/mixedcut_integration_bundle
+      context: ../mixedcut_integration_bundle
       dockerfile: Dockerfile
     container_name: ai-omni-mixedcut
     restart: unless-stopped
@@ -113,7 +152,7 @@ services:
 
   mixedcut-mcp:
     build:
-      context: ../workspace-notes/mixedcut_integration_bundle
+      context: ../mixedcut_integration_bundle
       dockerfile: Dockerfile.mcp
     container_name: ai-omni-mixedcut-mcp
     restart: unless-stopped

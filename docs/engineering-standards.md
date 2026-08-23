@@ -171,6 +171,8 @@
 - 不允许在业务 service 中继续散读 `process.env`
 - 不允许继续手工 `new AppConfigService()` 绕开 DI
 - 如果标准 Docker 运行态需要把素材库、站内存储或 mixedcut 根目录挂到宿主机，必须统一通过配置模块读取容器路径与展示路径；不能在业务链路里硬编码 `/data/...` 或 Windows 盘符
+- 标准 Docker 运行态的首装链不能只把 `postgres / server / web` 拉起来就算完成；必须在 compose 主链中受控完成 schema 初始化、邀请码同步和最小演示账号/品牌补齐，优先收口为 one-shot `db-init` 服务，而不是再要求用户手动进容器执行 `pnpm db:init`
+- 标准 Docker 运行态的默认演示数据只能“补缺即止”，不能在每次 `server` 重启时重复执行会清空或重置品牌资料的破坏性 seed
 
 ### 5.3 品牌与权限校验
 

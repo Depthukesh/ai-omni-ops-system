@@ -846,12 +846,12 @@ export const database: MockDatabase = {
     {
       id: "br_demo_001",
       ownerUserId: "usr_demo_001",
-      brandName: "武汉仟吉",
+      brandName: "默认演示品牌",
       industry: "烘焙零售",
-      storeCount: 180,
-      foundedYear: 2000,
-      brandDescription: "区域烘焙品牌，线下门店基础较强，线上全域增长空间明显。",
-      enterpriseIntro: "当前聚焦品牌建档、采集、增长分析与半年营销规划。",
+      storeCount: 12,
+      foundedYear: 2024,
+      brandDescription: "通用演示品牌，用于首次安装后的登录、品牌建档和主链路体验。",
+      enterpriseIntro: "默认演示品牌，用于承接 Docker 标准运行态的首次初始化与主工作台联调。",
     },
   ],
   products: [
@@ -891,15 +891,15 @@ export const database: MockDatabase = {
       id: "acc_demo_001",
       brandId: "br_demo_001",
       platform: "XIAOHONGSHU",
-      accountName: "武汉仟吉烘焙",
+      accountName: "默认演示品牌官方号",
       accountLink: "https://www.xiaohongshu.com/user/profile/demo",
     },
     {
       id: "acc_demo_002",
       brandId: "br_demo_001",
       platform: "WECHAT_OA",
-      accountName: "武汉仟吉",
-      accountLink: "qianji-official",
+      accountName: "默认演示品牌公众号",
+      accountLink: "demo-official",
     },
   ],
   competitorAccounts: [
@@ -978,7 +978,7 @@ export const database: MockDatabase = {
       id: "ast_demo_xhs_brand_account_001",
       brandId: "br_demo_001",
       category: "PLATFORM_EXPORT",
-      title: "武汉仟吉烘焙",
+      title: "默认演示品牌官方号",
       description: "小红书品牌账号采集快照",
       sourceName: "小红书采集",
       metadataJson: {
@@ -997,7 +997,7 @@ export const database: MockDatabase = {
         collectedAt: "2026-05-02T09:10:00.000Z",
         raw: {
           userid: "xhs_brand_demo_001",
-          nickname: "武汉仟吉烘焙",
+          nickname: "默认演示品牌官方号",
           posted: 18,
           liked: 3680,
           collected: 920,
@@ -1048,7 +1048,7 @@ export const database: MockDatabase = {
       id: "ast_demo_xhs_note_001",
       brandId: "br_demo_001",
       category: "PLATFORM_EXPORT",
-      title: "武汉仟吉爆浆提拉米苏值得买吗？",
+      title: "默认演示品牌爆浆提拉米苏值得买吗？",
       description: "门店新品种草向图文笔记",
       sourceName: "小红书采集",
       fileUrl: "https://www.xiaohongshu.com/explore/demo-note-001",
@@ -1058,7 +1058,7 @@ export const database: MockDatabase = {
         noteId: "demo-note-001",
         noteUrl: "https://www.xiaohongshu.com/explore/demo-note-001",
         noteType: "nomal",
-        nickname: "武汉仟吉烘焙",
+        nickname: "默认演示品牌官方号",
         imageList: [DEMO_NOTE_IMAGE_1_URL, DEMO_NOTE_IMAGE_2_URL],
         externalUserId: "xhs_brand_demo_001",
         likeCount: 186,
@@ -1069,9 +1069,9 @@ export const database: MockDatabase = {
         videoUrl: undefined,
         collectedAt: "2026-05-02T09:15:00.000Z",
         raw: {
-          title: "武汉仟吉爆浆提拉米苏值得买吗？",
+          title: "默认演示品牌爆浆提拉米苏值得买吗？",
           type: "nomal",
-          nickname: "武汉仟吉烘焙",
+          nickname: "默认演示品牌官方号",
           images_list: [DEMO_NOTE_IMAGE_1_URL, DEMO_NOTE_IMAGE_2_URL],
           userid: "xhs_brand_demo_001",
           likes: 186,
@@ -1088,7 +1088,7 @@ export const database: MockDatabase = {
       id: "ast_demo_growth_report_001",
       brandId: "br_demo_001",
       category: "GENERATED_REPORT",
-      title: "武汉仟吉品牌增长报告",
+      title: "默认演示品牌增长报告",
       description: "围绕品牌现状、内容采集和增长机会形成的首版品牌增长报告。",
       sourceName: "系统生成",
       fileUrl: DEMO_BRAND_REPORT_FILE_URL,
@@ -1119,7 +1119,7 @@ export const database: MockDatabase = {
           competitorAccountCount: 1,
           brandNoteCount: 1
         },
-        htmlContent: "<section><h1>武汉仟吉品牌增长报告</h1><p>品牌线下基础较强，但公域内容供给和会员转化链路仍有明显提升空间。</p><h2>核心诊断</h2><ul><li>品牌产品力和门店覆盖具备基础优势，但线上内容资产积累不足。</li><li>小红书账号与竞品差距主要体现在持续更新频率和互动运营。</li><li>经营数据与行业报告说明节日礼赠和门店转化是近期增长重点。</li></ul><h2>增长机会</h2><ul><li>围绕节日礼赠场景做爆款产品种草内容矩阵。</li><li>用门店日常与新品体验提升用户评论互动率。</li><li>把品牌报告、营销日历和原创笔记串成标准内容生产链路。</li></ul><h2>下一步动作</h2><ul><li>完成小红书账号和品牌作品的固定周期采集。</li><li>生成首版小红书营销策划方案并同步到营销日历。</li><li>围绕核心产品完成原创笔记首轮投放测试。</li></ul></section>"
+        htmlContent: "<section><h1>默认演示品牌增长报告</h1><p>品牌线下基础较强，但公域内容供给和会员转化链路仍有明显提升空间。</p><h2>核心诊断</h2><ul><li>品牌产品力和门店覆盖具备基础优势，但线上内容资产积累不足。</li><li>小红书账号与竞品差距主要体现在持续更新频率和互动运营。</li><li>经营数据与行业报告说明节日礼赠和门店转化是近期增长重点。</li></ul><h2>增长机会</h2><ul><li>围绕节日礼赠场景做爆款产品种草内容矩阵。</li><li>用门店日常与新品体验提升用户评论互动率。</li><li>把品牌报告、营销日历和原创笔记串成标准内容生产链路。</li></ul><h2>下一步动作</h2><ul><li>完成小红书账号和品牌作品的固定周期采集。</li><li>生成首版小红书营销策划方案并同步到营销日历。</li><li>围绕核心产品完成原创笔记首轮投放测试。</li></ul></section>"
       }
     },
   ],
