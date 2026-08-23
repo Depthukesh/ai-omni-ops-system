@@ -60,6 +60,8 @@
 - 作用：记录重要改动的背景、范围、验证和后续事项
 - 要求：真实代码改动默认同步补一条变更记录
 - 最新补充：
+  - `docs/changes/2026-08-23-mixedcut-mcp-bundle-recovery.md`
+    - 修复公开仓库中 `mixedcut-mcp` 缺少 `Dockerfile.mcp` 与独立 MCP 运行文件、导致新机器无法构建的问题；当前仓库已补齐最小 HTTP MCP bridge
   - `docs/changes/2026-08-23-mixedcut-bundle-path-repo-fix.md`
     - 修复 mixedcut / mixedcut-mcp 的 Docker 构建仍引用 `workspace-notes` 私有目录的问题；当前 mixedcut 构建真源已收口到仓库正式目录 `mixedcut_integration_bundle/`
   - `docs/changes/2026-08-23-docker-standard-db-init-and-default-demo-brand.md`

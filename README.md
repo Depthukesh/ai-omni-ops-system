@@ -110,6 +110,17 @@ docker compose -f docker/docker-compose.local-postgres-mixedcut.yml --profile mi
 
 当前仓库已自带 `mixedcut_integration_bundle/` 构建源码；新机器直接 `git clone` 后即可执行上面的命令，不再依赖本机私有的 `workspace-notes/mixedcut_integration_bundle` 目录。
 
+当前仓库也已补齐 `mixedcut-mcp` 的独立 HTTP MCP bridge 运行文件；`--profile mixedcut` 会同时构建：
+
+- `mixedcut` 主服务
+- `mixedcut-mcp` MCP 连接器
+
+默认 MCP 地址：
+
+```text
+http://127.0.0.1:15501/mcp
+```
+
 5. 打开：
 
 ```text

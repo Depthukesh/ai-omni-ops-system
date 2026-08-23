@@ -221,8 +221,8 @@ docker compose down
 - Docker 现在采用“双容器”方案，主应用与 MCP 依赖隔离，避免 `zhipuai` 与 `mcp` 的 `PyJWT` 版本冲突。
 - 页面访问地址：`http://127.0.0.1:5000`
 - MCP 接入地址：`http://127.0.0.1:5501/mcp`
-- 在系统设置 → `MCP` 中生成安装令牌后，可直接复制 WorkBuddy / CodeBuddy / OpenClaw / Cursor / Claude Desktop 的 JSON 配置。
-- Docker 部署优先使用“生成令牌 + 复制 JSON”的 HTTP 接入方式；设置页中的 `stdio` 高级配置仅供本地源码运行场景使用。
+- 当前仓库内置的是可直接构建的 HTTP MCP bridge，默认暴露 `get_service_health`、`list_projects`、`upload_video_file`、`create_remix_task`、`get_task_progress` 五个工具。
+- 这次仓库交付优先保证 Docker 下 `mixedcut-mcp` 可以直接构建和启动；如果后续还要恢复“安装令牌 + JSON 配置生成”的完整设置页体验，需要再把对应前端模板与鉴权逻辑一起补回仓库。
 - `IndexTTS2` 本地声音复刻仍需额外准备 `models/index-tts/` 源码和权重，本仓库不会自动提供。
 
 如果你是从旧版单容器 MCP 方案升级，建议先执行一次：

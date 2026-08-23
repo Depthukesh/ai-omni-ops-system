@@ -198,3 +198,12 @@ D:\AiOmniOpsData
 - 默认启动主链：`docker compose --env-file .env.docker.example -f docker/docker-compose.local-postgres-mixedcut.yml up --build -d`
 - 需要 mixedcut 时再补：`--profile mixedcut`
 - 需要 mixedcut MCP 时再补：`--profile mixedcut-mcp`
+
+当前仓库内 `mixedcut_integration_bundle/` 已补齐：
+
+- `Dockerfile`
+- `Dockerfile.mcp`
+- `requirements-mcp.txt`
+- `mcp_server.py`
+
+也就是说，公开仓库 clone 后，`mixedcut-mcp` 不再只是 compose 里的占位服务，而是可以被真实构建的独立 HTTP MCP bridge。
