@@ -140,7 +140,6 @@
   - 营销策划方案
   - 数字人
   - RunningHub应用
-  - 视频混剪
   - 创作素材
   - 每日计划
   - 每日复盘
@@ -158,11 +157,6 @@
 
 - `/xiaohongshu` 已改为统一聚合壳层 `ContentAcquisitionWorkspace`
 - 外层导航只负责一级 / 二级切换，内层继续复用 `XiaohongshuWorkspaceShell`、`DouyinWorkspaceShell`、`WechatWorkspaceShell`
-- 某音/某号当前已在 `RunningHub应用` 下方补入独立 `视频混剪` 入口；该入口现在直接进入 mixedcut 主界面，不再停留在设置面板
-- mixedcut 的模型同步、`ai_config.json` 预览与一键下发，当前收口到 `个人中心 / 第三方接口配置 / 视频混剪设置`
-- `视频混剪` 工作区当前已补一条最小桥接：可手动勾选站内视频素材，由主站后端上传到 mixedcut 并直接创建混剪任务；任务完成后默认自动归档到统一的 `某音/某号` 作品列表
-- OpenClaw 当前已补 `get_mixedcut_media_assets`、`create_mixedcut_remix_task`、`get_mixedcut_remix_task_progress` 三个 MCP 工具；可直接复用站内视频、OpenClaw 创作素材，或把本机 `localFilePath / localFilePaths` 先归档到站内后再送 mixedcut
-- 这条链当前已同步到 OpenClaw MCP 与 Skill ZIP：Skill 已补 mixedcut 任务语义，能识别站内视频、本机 `localFilePath / localFilePaths` 与 OpenClaw 创作素材三类入口，并优先路由到 mixedcut 专用工具
 - 某书和公众号已补齐 OpenClaw 的创作素材、作品列表板块
 - OpenClaw 的创作素材、每日计划、每日复盘、作品列表现在都支持在内容详情下留言
 - 三个子板块下的 `创作素材` 现已统一补齐：
@@ -172,16 +166,9 @@
   - 入库时间
   - 存储位置（本地文件夹地址）
 - `创作素材` 当前统一按 `OpenClawCreativeMaterial` 真源回显，并由后端直接返回 `materialTags / materialCategory / sourceLabel / storageKey / localFilePath`
-- 站内素材当前已支持“手动选择 -> 主站后端上传 -> mixedcut 创建任务”的最小桥接；但还不是素材库自动同步，也还没有双向素材管理
 - 兼容直达入口 `/douyin`、`/wechat` 仍保留，但不再出现在顶栏主导航
 - 参考变更：`docs/changes/2026-08-11-content-acquisition-workbench-and-local-storage.md`
 - 参考变更：`docs/changes/2026-08-12-material-management-and-content-acquisition-materials.md`
-- 参考变更：`docs/changes/2026-08-21-content-acquisition-video-remix-workspace-and-mixedcut-platform.md`
-- 参考变更：`docs/changes/2026-08-22-video-remix-direct-entry-and-settings-split.md`
-- 参考变更：`docs/changes/2026-08-22-video-remix-site-media-bridge.md`
-- 参考变更：`docs/changes/2026-08-22-video-remix-archive-scope-and-project-list-expansion.md`
-- 参考变更：`docs/changes/2026-08-22-openclaw-mixedcut-mcp-local-file-bridge.md`
-- 参考变更：`docs/changes/2026-08-22-openclaw-mixedcut-skill-sync.md`
 
 ### 4.3 抖音工作台 `/douyin`
 
@@ -206,11 +193,6 @@
 - 创作侧素材选择已统一切到品牌增长策略 → 品牌增长报告 → 素材库
 - 视频与数字人能力已经接入
 - RunningHub 工作区继续复用通用应用清单；当前已扩充 MiniMax H3、Seedance、Qwen 字体设计、数字人、电商设计等多类应用示例，并同步暴露给 OpenClaw / MCP 的 `runninghub:list_apps`
-- 视频混剪工作区当前优先按同机目录使用 mixedcut：内容获客直接承载 mixedcut `/remix` 主界面；模型同步与 `ai_config.json` 下发改收口到个人中心 `视频混剪设置`，首轮覆盖 `LLM + 视觉 + 生图`
-- 主站后端当前会额外提供 mixedcut 素材桥接接口：列出当前品牌可用站内视频、上传到 mixedcut `/api/upload/video`、发起 `/api/remix/generate` 并代理进度查询；同一条链路会把成片自动归档到 `douyin` scope 的 `OpenClawVideoWork`，前台统一展示为 `某音/某号` 作品列表
-- mixedcut 容器运行态当前把根路由 `/` 收口到 `/remix`，Docker 健康检查统一走 `/api/health`，避免样本仓库缺失 `home.html / 404.html / 500.html` 时把容器直接打成 `unhealthy`
-- mixedcut `/remix` 页面底部最近项目区已去掉前端模板中的 `limit=5 / limit=20` 截断，当前会尽量展示后端返回的全部项目
-- Docker 下 `server` 调 mixedcut 时会显式使用 `MIXEDCUT_INTERNAL_BASE_URL`，默认走容器内地址 `http://mixedcut:5000`
 - 复刻短视频已拆成独立板块，创建后先按每 15 秒一段输出拉片分析、角色卡、分镜脚本、角色图、分镜图和一致性质检结果
 - 复刻短视频支持第二阶段一键生成分段视频，并通过 `ffmpeg` 自动拼接完整视频
 - 广告预审已接入火山引擎 VOD 广告预审链路，支持品牌级默认配置
@@ -218,10 +200,6 @@
 - 发布与视频号桥接能力位于同一工作台体系
 - 参考变更：`docs/changes/2026-08-07-douyin-runninghub-minimax-h3-fl2va-app-sync.md`
 - 参考变更：`docs/changes/2026-08-17-content-acquisition-runninghub-app-expansion.md`
-- 参考变更：`docs/changes/2026-08-21-content-acquisition-video-remix-workspace-and-mixedcut-platform.md`
-- 参考变更：`docs/changes/2026-08-21-mixedcut-ai-config-sync-from-third-party-models.md`
-- 参考变更：`docs/changes/2026-08-22-mixedcut-container-template-fallback-and-healthcheck-fix.md`
-- 参考变更：`docs/changes/2026-08-22-video-remix-archive-scope-and-project-list-expansion.md`
 - 当前主入口已并入 `/xiaohongshu` 的内容获客壳层
 
 ### 4.4 公众号工作台 `/wechat`
@@ -355,8 +333,6 @@
   - 技能中心
 - `/personal-center/third-party-platforms`
   - 第三方接口配置
-- `/personal-center/third-party-platforms/video-remix`
-  - 视频混剪设置
 - `/personal-center/openclaw`
   - OpenClaw 安装中心
 - `/personal-center/version`
@@ -372,7 +348,7 @@
 
 - 个人中心已新增独立“版本与升级”页，不再要求用户每次手工下载后再判断如何覆盖安装
 - `local-single-user` 安装态下，`版本与升级` 继续承接 OSS `latest.json` 检查、安装包下载校验和一键升级
-- Docker + PostgreSQL + mixedcut 标准运行态下，如果服务端配置了 `STANDARD_RUNTIME_UPDATE_MANIFEST_URL`，个人中心也会显示 `版本与升级`：该页面不会直接替用户升级容器，而是展示远端更新清单、建议命令、是否需重建 `server/web/mixedcut` 以及是否需重新导入 `skill-package.zip`
+- Docker + PostgreSQL 标准运行态下，如果服务端配置了 `STANDARD_RUNTIME_UPDATE_MANIFEST_URL`，个人中心也会显示 `版本与升级`：该页面不会直接替用户升级容器，而是展示远端更新清单、建议命令以及是否需重新导入 `skill-package.zip`
 - 个人中心概览卡片与二级导航现在会根据 `system/update/status` 前置显示版本提醒，提示当前是“有新版本 / 升级中 / 需处理 / 已同步”，避免用户必须先点进版本页才知道是否需要更新
 - 网站版和普通源码运行态如果没有配置更新清单，则仍不显示该入口，避免出现无法执行的空壳升级页
 - 后端通过 `system/update/*` 统一检查 OSS `latest.json`、识别 `AiOmniOps-local-single-user-win-x64.zip` 与 `.sha256`
@@ -400,14 +376,9 @@
   - 右侧技能详情与提示词编辑区限制在固定内容框内滚动，不再把整页持续向下撑长
 - `/personal-center/third-party-platforms` 当前继续保留统一配置页，但支持平台专属字段：
   - 软文街平台会额外展示 `API Key / 登录账号 / 登录密码`
-  - 其它平台仍保持原来的品牌共享单字段配置；视频混剪不再单独占一个平台项，而是直接复用这些品牌共享模型配置做 mixedcut 同步
-- `视频混剪设置` 之外，`内容获客 -> 视频混剪` 工作区会直接调用同模块下的 mixedcut 素材桥接接口，但这条链仍只负责任务发起，不承担素材库全量同步
-- `/personal-center/third-party-platforms/video-remix` 当前单独承接 mixedcut 的模型同步、`ai_config.json` 预览与一键下发
+- 其它平台仍保持原来的品牌共享单字段配置
 - 参考变更：`docs/changes/2026-08-16-personal-center-skill-center-grouped-nav-and-shell.md`
 - 参考变更：`docs/changes/2026-08-16-geo-third-party-media-delivery-and-ruanwenjie-integration.md`
-- 参考变更：`docs/changes/2026-08-21-content-acquisition-video-remix-workspace-and-mixedcut-platform.md`
-- 参考变更：`docs/changes/2026-08-21-mixedcut-ai-config-sync-from-third-party-models.md`
-- 参考变更：`docs/changes/2026-08-22-video-remix-direct-entry-and-settings-split.md`
   - 存储位置（本地文件夹地址）
 - `local-single-user` 安装态下，素材管理页顶部新增“素材库存储设置”：
   - 用户选择的是【素材库】外层根目录

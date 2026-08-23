@@ -32,7 +32,7 @@
   - 启动命令
   - compose 文件路径
   - OpenClaw 文档入口
-- 核对 `package.json` 当前脚本与 `docker/docker-compose.local-postgres-mixedcut.yml` 当前文件名、端口和服务名，确保 README 不再引用旧命令
+- 核对 `package.json` 当前脚本与 `docker/docker-compose.local-postgres.yml` 当前文件名、端口和服务名，确保 README 不再引用旧命令
 
 ## 5. 后续建议
 

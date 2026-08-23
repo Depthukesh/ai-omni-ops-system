@@ -3,7 +3,7 @@
 ## 背景
 
 - 之前个人中心的 `版本与升级` 只服务 `local-single-user` 安装态。
-- Docker + PostgreSQL + mixedcut 标准运行态虽然也需要让其他部署用户感知新版本，但系统里没有统一入口告诉用户：
+- Docker + PostgreSQL 标准运行态虽然也需要让其他部署用户感知新版本，但系统里没有统一入口告诉用户：
   - 当前版本是多少
   - 最新版本是多少
   - 这次需要重建哪些容器
@@ -22,7 +22,7 @@
 - `standard`
   - 当配置了 `STANDARD_RUNTIME_UPDATE_MANIFEST_URL` 时
   - `GET /system/update/status` 与 `POST /system/update/check` 会读取远端 JSON 清单
-  - 返回最新版本、更新摘要、是否要重建 `server/web/mixedcut`、是否要重新导入 `Skill ZIP`、建议执行命令
+  - 返回最新版本、更新摘要、是否要重新导入 `Skill ZIP`、建议执行命令
 
 ### 2. 个人中心版本页改为按运行态自适应
 
@@ -49,7 +49,7 @@
 
 更新：
 
-- `docker/docker-compose.local-postgres-mixedcut.yml`
+- `docker/docker-compose.local-postgres.yml`
 
 新增环境变量：
 
@@ -87,7 +87,6 @@
   "requires": {
     "server": true,
     "web": true,
-    "mixedcut": false,
     "skillPackage": true,
     "migration": false
   }
@@ -103,7 +102,7 @@
 - `apps/web/src/app/(dashboard)/personal-center/layout.tsx`
 - `apps/web/src/app/(dashboard)/personal-center/page.tsx`
 - `apps/web/src/app/(dashboard)/personal-center/route-helpers.ts`
-- `docker/docker-compose.local-postgres-mixedcut.yml`
+- `docker/docker-compose.local-postgres.yml`
 - `apps/web/public/update-manifests/docker-standard.latest.example.json`
 
 ## 验证

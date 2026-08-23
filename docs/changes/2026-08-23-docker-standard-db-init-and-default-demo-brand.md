@@ -5,7 +5,7 @@
 在另一台新笔记本按 README 直接执行：
 
 ```powershell
-docker compose -f docker/docker-compose.local-postgres-mixedcut.yml up -d --build postgres server web
+docker compose -f docker/docker-compose.local-postgres.yml up -d --build postgres server web
 ```
 
 后，登录页可以打开，但提交 `13800000000 / 123456` 会返回 `500 Internal server error`。
@@ -62,7 +62,7 @@ docker compose -f docker/docker-compose.local-postgres-mixedcut.yml up -d --buil
 
 更新：
 
-- `docker/docker-compose.local-postgres-mixedcut.yml`
+- `docker/docker-compose.local-postgres.yml`
 
 新增 `db-init` one-shot 服务，并让 `server` 显式依赖：
 
@@ -72,7 +72,7 @@ docker compose -f docker/docker-compose.local-postgres-mixedcut.yml up -d --buil
 这样首启命令仍然保持不变：
 
 ```powershell
-docker compose -f docker/docker-compose.local-postgres-mixedcut.yml up -d --build postgres server web
+docker compose -f docker/docker-compose.local-postgres.yml up -d --build postgres server web
 ```
 
 但执行路径已经变成：

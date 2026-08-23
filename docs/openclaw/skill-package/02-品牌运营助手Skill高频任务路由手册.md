@@ -277,14 +277,11 @@
 - `create_douyin_original_copy`
 - `create_douyin_remix_copy`
 
-### 3.13 抖音视频、视频混剪、数字人、RunningHub、广告预审
+### 3.13 抖音视频、数字人、RunningHub、广告预审
 
 典型问法：
 
 - 帮我做一条抖音视频
-- 帮我把这几个视频混剪成 15 秒
-- 帮我用 mixedcut 混一条短视频
-- 帮我把本机这个视频直接拿去混剪
 - 帮我用数字人做视频
 - 帮我用 RunningHub 跑这个应用
 - 帮我做广告预审
@@ -293,10 +290,6 @@
 
 - 通用抖音视频生产：
   - `manage_douyin_video_production`
-- mixedcut 视频混剪：
-  - `get_mixedcut_media_assets`
-  - `create_mixedcut_remix_task`
-  - `get_mixedcut_remix_task_progress`
 
 子路由：
 
@@ -307,19 +300,6 @@
 - 口型驱动：`section=lip_sync`
 - RunningHub：`section=runninghub`
 - 广告预审：`section=ad_preaudit`
-
-mixedcut 关键规则：
-
-1. 用户明确提到 `视频混剪`、`mixedcut`、`站内视频拿去混剪`、`本机视频拿去混剪` 时，优先走 mixedcut 专用工具，不要误路由到 `manage_douyin_video_production`
-2. 如果用户想先看可用素材，先 `get_mixedcut_media_assets`
-3. 发任务时优先判断素材来源：
-   - 站内视频：`mediaAssetIds`
-   - OpenClaw 创作素材：`creativeMaterialIds`
-   - 本机文件：
-     - `stdio MCP` 优先传 `localFilePath / localFilePaths`
-     - `streamableHttp` 只有在服务端当前运行环境能访问该路径时才适合直接传 `localFilePath / localFilePaths`；否则改用 `uploadItems.dataBase64`
-4. 本机文件会先归档成 OpenClaw 创作素材，再进入 mixedcut，不是直接绕过站内后端上传
-5. 任务创建成功后，继续用 `get_mixedcut_remix_task_progress` 轮询，不要把“已创建”误当成“已完成”
 
 RunningHub 关键规则：
 

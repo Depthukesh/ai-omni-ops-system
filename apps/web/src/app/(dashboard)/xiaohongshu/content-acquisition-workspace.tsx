@@ -83,7 +83,7 @@ const contentAcquisitionGroups: ContentAcquisitionGroup[] = [
   {
     key: "douyin",
     label: "某音/某号",
-    summary: "保留原抖音营销策划方案、数字人、RunningHub 应用与视频混剪入口，并把 OpenClaw 四个内容板块统一纳入内容获客。",
+    summary: "保留原抖音营销策划方案、数字人、RunningHub 应用，并把 OpenClaw 四个内容板块统一纳入内容获客。",
     pages: [
       {
         key: "douyin-plan",
@@ -105,13 +105,6 @@ const contentAcquisitionGroups: ContentAcquisitionGroup[] = [
         label: "RunningHub应用",
         description: "复用原某音/某号 RunningHub 应用工作区。",
         section: "runningHub",
-      },
-      {
-        key: "douyin-video-remix",
-        group: "douyin",
-        label: "视频混剪",
-        description: "直接进入 mixedcut 视频混剪主界面；模型同步与配置下发已收口到个人中心的“视频混剪设置”页。",
-        section: "videoRemix",
       },
       {
         key: "douyin-openclaw-creative-materials",

@@ -63,7 +63,6 @@ type RemoteReleaseInfo = {
     requires: {
       server: boolean;
       web: boolean;
-      mixedcut: boolean;
       skillPackage: boolean;
       migration: boolean;
     };
@@ -109,7 +108,6 @@ type StandardRuntimeLatestManifest = {
   requires?: {
     server?: boolean;
     web?: boolean;
-    mixedcut?: boolean;
     skillPackage?: boolean;
     migration?: boolean;
   };
@@ -345,7 +343,6 @@ function normalizeUpdateGuideFlags(
   return {
     server: Boolean(requires?.server),
     web: Boolean(requires?.web),
-    mixedcut: Boolean(requires?.mixedcut),
     skillPackage: Boolean(requires?.skillPackage),
     migration: Boolean(requires?.migration),
   };

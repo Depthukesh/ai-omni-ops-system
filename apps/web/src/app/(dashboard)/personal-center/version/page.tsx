@@ -242,8 +242,7 @@ export default function PersonalCenterVersionPage() {
       ? updateGuide.commands
       : [
           "git pull",
-          "docker compose -f docker/docker-compose.local-postgres-mixedcut.yml up -d --build server web",
-          "若本次更新涉及 mixedcut，再执行：docker compose -f docker/docker-compose.local-postgres-mixedcut.yml --profile mixedcut up -d --build mixedcut",
+          "docker compose -f docker/docker-compose.local-postgres.yml up -d --build server web",
           "若本次更新涉及 Skill ZIP，请从 OpenClaw 安装中心重新下载最新 skill-package.zip 并重新导入客户端",
         ])
     : [
@@ -257,7 +256,7 @@ export default function PersonalCenterVersionPage() {
       ? updateGuide.notices
       : [
           "Docker 标准运行态只负责通知和引导，不会直接替你升级容器。",
-          "如果本次更新涉及 mixedcut 或 Skill ZIP，请按页面提示完成额外同步，避免主站与 OpenClaw 版本不一致。",
+          "如果本次更新涉及 Skill ZIP，请按页面提示完成额外同步，避免主站与 OpenClaw 版本不一致。",
         ])
     : [
         "升级期间不要重复点击按钮；页面短暂断开通常表示升级进程已经接管。",
@@ -370,10 +369,9 @@ export default function PersonalCenterVersionPage() {
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
               {updateGuide.requires.server ? <span className="archive-pill status-in_progress">需重建 server</span> : null}
               {updateGuide.requires.web ? <span className="archive-pill status-in_progress">需重建 web</span> : null}
-              {updateGuide.requires.mixedcut ? <span className="archive-pill status-in_progress">需重建 mixedcut</span> : null}
               {updateGuide.requires.skillPackage ? <span className="archive-pill status-in_progress">需重导 Skill ZIP</span> : null}
               {updateGuide.requires.migration ? <span className="archive-pill status-pending">含数据迁移</span> : null}
-              {!updateGuide.requires.server && !updateGuide.requires.web && !updateGuide.requires.mixedcut && !updateGuide.requires.skillPackage && !updateGuide.requires.migration ? (
+              {!updateGuide.requires.server && !updateGuide.requires.web && !updateGuide.requires.skillPackage && !updateGuide.requires.migration ? (
                 <span className="archive-pill status-paused">本次未声明额外动作</span>
               ) : null}
             </div>

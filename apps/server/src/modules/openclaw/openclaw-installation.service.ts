@@ -620,7 +620,7 @@ description: AI 全域智能体网站能力总入口 Skill。先做网站功能�
 - 品牌档案、产品资料、平台账号、竞品账号、行业资料、业务资产
 - 品牌资料库、知识库、统一素材库、机会洞察、增长报告、半年营销规划
 - 小红书原创 / 二创 / 视频笔记 / 草稿接力
-- 抖音原创 / 二创 / 视频生产 / 视频混剪 mixedcut / 数字人 / RunningHub / 广告预审 / 发布会话
+- 抖音原创 / 二创 / 视频生产 / 数字人 / RunningHub / 广告预审 / 发布会话
 - 公众号工作流、正文 / 配图 / HTML 生成、发布确认、正式发布、历史回看
 - 设计工作台图片、HTML、PPT、视频方案任务
 - 团队成员、邀请链接、权限模板、品牌协作
@@ -666,20 +666,6 @@ description: AI 全域智能体网站能力总入口 Skill。先做网站功能�
   - \`lip_sync\`
   - \`runninghub\`
   - \`ad_preaudit\`
-
-当用户明确提到 \`视频混剪\`、\`mixedcut\`、\`把站内视频拿去混剪\`、\`把本机视频拿去混剪\` 时，不再走 \`manage_douyin_video_production\`，而是优先走：
-
-- \`get_mixedcut_media_assets\`
-- \`create_mixedcut_remix_task\`
-- \`get_mixedcut_remix_task_progress\`
-
-\`create_mixedcut_remix_task\` 当前支持三类来源：
-
-- 站内视频素材 \`mediaAssetIds\`
-- OpenClaw 创作素材 \`creativeMaterialIds\`
-- stdio MCP 下的本机 \`localFilePath / localFilePaths\`
-
-本机路径会先归档成 OpenClaw 创作素材，再复用主站 mixedcut bridge 发任务；不要把它理解成直接绕过网站后端上传到 mixedcut。
 
 #### RunningHub 固定顺序
 
@@ -987,31 +973,19 @@ description: AI 全域智能体网站能力总入口 Skill。先做网站功能�
 
 ### 3.3 抖音 \`/douyin\`
 
-当前承载原创文案、二创文案、AI 生视频、视频混剪、数字人、口型驱动、RunningHub、广告预审和发布工作流。
+当前承载原创文案、二创文案、AI 生视频、数字人、口型驱动、RunningHub、广告预审和发布工作流。
 
 当前优先 MCP：
 
 - \`create_douyin_original_copy\`
 - \`create_douyin_remix_copy\`
 - \`manage_douyin_video_production\`
-- \`get_mixedcut_media_assets\`
-- \`create_mixedcut_remix_task\`
-- \`get_mixedcut_remix_task_progress\`
 - \`create_douyin_mobile_publish_session\`
 - \`create_douyin_desktop_publish_session\`
 
 处理原则：
 
 - 普通视频、直接视频、混剪短视频、数字人、口型驱动、RunningHub、广告预审都优先从 \`manage_douyin_video_production\` 进入
-- 当用户明确提到 \`视频混剪\`、\`mixedcut\`、\`把站内视频拿去混剪\`、\`把本机视频拿去混剪\` 时，不再走 \`manage_douyin_video_production\`，而是优先走：
-  - \`get_mixedcut_media_assets\`
-  - \`create_mixedcut_remix_task\`
-  - \`get_mixedcut_remix_task_progress\`
-- \`create_mixedcut_remix_task\` 当前支持：
-  - 站内视频素材 \`mediaAssetIds\`
-  - OpenClaw 创作素材 \`creativeMaterialIds\`
-  - stdio MCP 下的本机 \`localFilePath / localFilePaths\`
-- 本机视频会先归档成 OpenClaw 创作素材，再复用主站 mixedcut bridge 发任务
 
 RunningHub 当前常见 appKey 示例：
 
@@ -1243,9 +1217,6 @@ RunningHub 当前常见 appKey 示例：
 - \`create_douyin_original_copy\`
 - \`create_douyin_remix_copy\`
 - \`manage_douyin_video_production\`
-- \`get_mixedcut_media_assets\`
-- \`create_mixedcut_remix_task\`
-- \`get_mixedcut_remix_task_progress\`
 - \`create_douyin_mobile_publish_session\`
 - \`create_douyin_desktop_publish_session\`
 
@@ -1275,9 +1246,6 @@ OpenClaw：
 - \`create_openclaw_creative_material\`
 - \`get_openclaw_video_works\`
 - \`create_openclaw_video_work\`
-- \`get_mixedcut_media_assets\`
-- \`create_mixedcut_remix_task\`
-- \`get_mixedcut_remix_task_progress\`
 
 素材管理补充：
 
@@ -1287,12 +1255,6 @@ OpenClaw：
 - \`create_openclaw_creative_material\` 支持 \`sourceKind\`：
   - \`material_library_upload\`：网站上传并写入本地素材库
   - \`openclaw_upload\`：OpenClaw 上传或外部归档素材
-- \`create_mixedcut_remix_task\` 支持：
-  - \`mediaAssetIds\`：直接复用站内视频素材
-  - \`creativeMaterialIds\`：直接复用 OpenClaw 创作素材
-  - \`uploadItems\`：直接上传文件内容
-  - stdio MCP 下也可直接传 \`localFilePath / localFilePaths\`
-- 当用户明确提到 \`视频混剪\` 或 \`mixedcut\` 时，优先走这组专用工具，不再误走 \`manage_douyin_video_production\`
 
 GEO获客：
 
@@ -1415,23 +1377,9 @@ GEO获客：
 - \`create_xiaohongshu_mobile_draft_session\`
 - \`create_xiaohongshu_desktop_draft_session\`
 
-抖音视频、视频混剪、数字人、RunningHub、广告预审：
+抖音视频、数字人、RunningHub、广告预审：
 
 - \`manage_douyin_video_production\`
-- \`get_mixedcut_media_assets\`
-- \`create_mixedcut_remix_task\`
-- \`get_mixedcut_remix_task_progress\`
-
-mixedcut 关键规则：
-
-1. 用户明确提到 \`视频混剪\`、\`mixedcut\`、\`站内视频拿去混剪\`、\`本机视频拿去混剪\` 时，优先走 mixedcut 专用工具，不要误路由到 \`manage_douyin_video_production\`
-2. 如果用户想先看可用素材，先 \`get_mixedcut_media_assets\`
-3. 发任务时优先判断素材来源：
-   - 站内视频：\`mediaAssetIds\`
-   - OpenClaw 创作素材：\`creativeMaterialIds\`
-   - 本机文件：stdio MCP 传 \`localFilePath / localFilePaths\`
-4. 本机文件会先归档成 OpenClaw 创作素材，再进入 mixedcut，不是直接绕过站内后端上传
-5. 任务创建成功后，继续用 \`get_mixedcut_remix_task_progress\` 轮询，不要把“已创建”误当成“已完成”
 
 RunningHub 关键规则：
 
@@ -1484,7 +1432,6 @@ OpenClaw 专区：
 - 音乐：\`create_volcengine_music_task\`、\`get_volcengine_music_task\`
 - 创作素材：\`get_openclaw_creative_materials\`、\`create_openclaw_creative_material\`
 - 视频作品：\`get_openclaw_video_works\`、\`create_openclaw_video_work\`
-- 视频混剪：\`get_mixedcut_media_assets\`、\`create_mixedcut_remix_task\`、\`get_mixedcut_remix_task_progress\`
 - 个人中心素材管理：\`list_personal_material_assets\`、\`get_local_material_storage_settings\`、\`update_local_material_storage_settings\`
 
 处理原则：

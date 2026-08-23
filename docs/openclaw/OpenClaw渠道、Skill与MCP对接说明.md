@@ -225,15 +225,6 @@ OpenClaw 通过 MCP 获取：
 - 抖音视频生产统一管理能力，包含数字人模板、公共语音库、我的自定义音色、音色克隆和纯 TTS 试听任务
 - OpenClaw 创作素材列表、保存与删除能力
 - OpenClaw 视频作品列表、保存、删除，以及从专区视频作品直接发起抖音电脑端发布会话
-- mixedcut 视频混剪能力，当前已补：
-  - `get_mixedcut_media_assets`
-  - `create_mixedcut_remix_task`
-  - `get_mixedcut_remix_task_progress`
-  - `create_mixedcut_remix_task` 可直接复用站内视频素材、OpenClaw 创作素材，或传本地文件：
-    - `stdio MCP` 下，`localFilePath / localFilePaths` 会先在客户端读取，再自动转成 `uploadItems`
-    - `streamableHttp` 下，也允许传 `localFilePath / localFilePaths`，但这是由服务端尝试读取当前服务运行环境里的路径；如果该文件只存在于客户端机器、而服务端不可访问，请改用 `uploadItems.dataBase64`
-  - 不论来自哪种入口，文件都会先归档到站内创作素材，再复用主站 mixedcut 桥接创建任务
-- mixedcut 当前也已同步到 Skill ZIP：主 Skill、工具矩阵和任务路由手册都已补 `视频混剪 / mixedcut / 本机路径直通` 语义，Skill 会优先把这类意图路由到 mixedcut 专用工具，而不是误走通用抖音视频生产
 - 公众号工作流的创建、Step 2-4 直写与生成、发布确认和正式发布
 - 公众号工作流统一管理工具 `manage_wechat_workflow`
 
@@ -312,13 +303,6 @@ OpenClaw 通过 MCP 获取：
   - `create_openclaw_video_work_douyin_desktop_publish_session`
   - 后续用 `get_douyin_desktop_publish_session` 跟进结果
 - 当前视频号发布仍通过工作台中的浏览器扩展半自动链路处理，不单独提供服务端 MCP 发布会话
-- mixedcut 的本地路径补充规则：
-  - `stdio MCP`
-    - `localFilePath / localFilePaths` 由客户端桥接层读取，所以最适合直接处理“当前这台电脑上的本机文件”
-  - `streamableHttp`
-    - 也允许传 `localFilePath / localFilePaths`
-    - 但路径解析发生在服务端，只对“当前服务运行环境可访问的文件路径”生效
-    - 如果服务端是 Docker，且文件并没有挂载进容器，就不能只传宿主机路径；这时应改走 `uploadItems.fileName + contentType + dataBase64`
 - 如果要调用 RunningHub：
   - 必须先 `list_apps`，再 `get_app_detail` 读取 `nodeInfoList` 模板，最后才 `generate`
   - 只回填模板里的 `fieldValue`，不要手改 `fieldData`

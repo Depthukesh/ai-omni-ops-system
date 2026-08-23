@@ -43,8 +43,6 @@
   - 当前结构收口与重构路线
 - `docs/production-stability-and-performance-remediation-plan.md`
   - 生产稳定性、部署降压、首屏性能和慢任务异步化治理方案
-- `docs/docker-postgresql-mixedcut-local-deployment-plan.md`
-  - 本地部署从 SQLite 单机收口到 Docker + PostgreSQL + mixedcut 的第一阶段开发方案，覆盖宿主机素材管理、共享挂载根和阶段拆分
 - `docs/wechat-infrastructure-refactor-plan.md`
   - 公众号 Step 2-5 单一事实源、服务拆分与底层改造方案
 - `docs/production-web-port-conflict-recovery.md`
@@ -60,10 +58,8 @@
 - 作用：记录重要改动的背景、范围、验证和后续事项
 - 要求：真实代码改动默认同步补一条变更记录
 - 最新补充：
-  - `docs/changes/2026-08-23-mixedcut-mcp-bundle-recovery.md`
-    - 修复公开仓库中 `mixedcut-mcp` 缺少 `Dockerfile.mcp` 与独立 MCP 运行文件、导致新机器无法构建的问题；当前仓库已补齐最小 HTTP MCP bridge
-  - `docs/changes/2026-08-23-mixedcut-bundle-path-repo-fix.md`
-    - 修复 mixedcut / mixedcut-mcp 的 Docker 构建仍引用 `workspace-notes` 私有目录的问题；当前 mixedcut 构建真源已收口到仓库正式目录 `mixedcut_integration_bundle/`
+  - `docs/changes/2026-08-23-remove-mixedcut-from-repo.md`
+    - 把 mixedcut 从主站、OpenClaw、Docker、README 与仓库资产里整仓下线，避免 GitHub 与后续部署继续暴露已废弃能力
   - `docs/changes/2026-08-23-docker-standard-db-init-and-default-demo-brand.md`
     - 给 Docker 标准运行态补 one-shot `db-init` 首启链，自动完成建表、邀请码同步和最小演示账号/品牌补齐；同时把默认演示品牌从具体商家名改为通用默认品牌
   - `docs/changes/2026-08-22-design-workspace-first-load-guard.md`
@@ -86,32 +82,12 @@
     - 修复公众号 Step 5 API 发布在 Docker 容器内回读站内封面图 / 正文图时误用宿主机 `13011` 端口、最终统一报 `fetch failed` 的问题
   - `docs/changes/2026-08-22-root-readme-refresh.md`
     - 重写仓库根目录 `README.md`，把首页说明从旧阶段单机链路收口为当前系统总览，并明确 Docker 标准运行态、OpenClaw 文档入口和当前真实能力边界
-  - `docs/changes/2026-08-22-video-remix-archive-scope-and-project-list-expansion.md`
-    - 视频混剪工作区默认把成片回流到统一的“某音/某号作品列表”，并把 mixedcut 页面里剩余的 `limit=5 / limit=20` 前端项目数截断一并放开
-  - `docs/changes/2026-08-22-mixedcut-http-mcp-local-filepath-compat.md`
-    - 收口 mixedcut 的 HTTP MCP 本地路径兼容问题：`create_mixedcut_remix_task` schema 正式声明 `localFilePath / localFilePaths`，并把 streamableHttp 下的服务端路径解析边界和 `uploadItems.dataBase64` 回退方式写清楚
   - `docs/changes/2026-08-22-docker-standard-version-update-guide-page.md`
-    - 把个人中心 `版本与升级` 从“仅 local-single-user 自动升级”扩展为双模式：安装态继续一键升级；Docker 标准运行态在配置远端更新清单后，可显示最新版本、容器重建命令、mixedcut/Skill 同步提醒和更新说明链接
+    - 把个人中心 `版本与升级` 从“仅 local-single-user 自动升级”扩展为双模式：安装态继续一键升级；Docker 标准运行态在配置远端更新清单后，可显示最新版本、容器重建命令、Skill 同步提醒和更新说明链接
   - `docs/changes/2026-08-22-personal-center-version-update-reminder.md`
     - 把个人中心里的版本提醒继续前置到概览卡片和二级导航，并让版本页固定展示更新方法，避免用户必须先点进版本页才知道有没有更新、该怎么更新
-  - `docs/changes/2026-08-22-openclaw-mixedcut-skill-sync.md`
-    - 把 mixedcut 从“仅 MCP 可调用”继续同步到 OpenClaw Skill ZIP：补齐主 Skill、工具矩阵、任务路由与安装中心 fallback，对 `视频混剪 / mixedcut / 本机 localFilePath` 给出统一语义
-  - `docs/changes/2026-08-22-openclaw-mixedcut-mcp-local-file-bridge.md`
-    - 给 OpenClaw 补 mixedcut MCP 工具，支持直接读取站内 mixedcut 素材、发起 mixedcut 任务、轮询进度，并在 stdio MCP 下把本机 `localFilePath / localFilePaths` 自动转成上传后先归档到站内创作素材
-  - `docs/changes/2026-08-22-video-remix-site-media-bridge.md`
-    - 在内容获客 `视频混剪` 工作区补站内视频手动桥接：支持勾选站内视频素材，由主站后端上传到 mixedcut 并直接创建混剪任务；同时给 Docker `server` 显式补 `MIXEDCUT_INTERNAL_BASE_URL`
-  - `docs/changes/2026-08-22-video-remix-direct-entry-and-settings-split.md`
-    - 把内容获客里的 `视频混剪` 从设置面板改成直接承载 mixedcut 主界面，并在个人中心 `第三方接口配置` 下新增独立 `视频混剪设置` 页面
   - `docs/changes/2026-08-22-docker-web-api-proxy-target-fix.md`
     - 修复 Docker 本地部署下 `ai-omni-web` 默认把 `/api/*` 代理到容器自身 `127.0.0.1:3011`，导致登录页报 `API 代理失败`；当前显式改为转发到 `server:3011`
-  - `docs/changes/2026-08-22-mixedcut-container-template-fallback-and-healthcheck-fix.md`
-    - 修复 mixedcut 容器因缺失 `home.html / 404.html / 500.html` 导致根路由 `500`、健康检查持续失败的问题；当前根路由收口到 `/remix`，Docker 健康检查改走 `/api/health`
-  - `docs/changes/2026-08-21-content-acquisition-video-remix-workspace-and-mixedcut-platform.md`
-    - 在内容获客 -> 某音/某号 下新增独立 `视频混剪` 入口，并把 mixedcut 作为独立 HTTP 服务接入个人中心第三方接口配置；当前支持按品牌维护 `服务地址 + 可选 API Key`
-  - `docs/changes/2026-08-21-mixedcut-ai-config-sync-from-third-party-models.md`
-    - 收口视频混剪接入方向：不再单独维护 `视频混剪服务` 平台配置，而是把个人中心现有第三方大模型同步到 mixedcut 的 `config/ai_config.json`
-  - `docs/changes/2026-08-21-docker-postgresql-mixedcut-local-deployment-phase-1.md`
-    - 启动 Docker + PostgreSQL + mixedcut 本地部署第一阶段，补标准运行态本地存储配置、宿主机路径展示映射和 compose 脚手架
   - `docs/changes/2026-08-21-openclaw-design-work-reference-material-id.md`
     - OpenClaw 设计工作台新增 `referenceMaterialId`，允许直接复用站内创作素材作为参考图，减少手动转公网 URL 或重复上传
   - `docs/changes/2026-08-22-openclaw-install-token-brand-mismatch-guard.md`
@@ -187,20 +163,12 @@
 
 ## 最近应优先关注的文档
 
-- `docs/changes/2026-08-22-video-remix-direct-entry-and-settings-split.md`
-  - 内容获客里的 `视频混剪` 当前直接进入 mixedcut 主界面；模型同步与配置下发改收口到 `个人中心 / 第三方接口配置 / 视频混剪设置`
+- `docs/changes/2026-08-23-remove-mixedcut-from-repo.md`
+  - 把 mixedcut 从主站、OpenClaw、Docker、README 与仓库资产里整仓下线；当前仓库与部署链不再包含 mixedcut
 - `docs/changes/2026-08-22-docker-web-api-proxy-target-fix.md`
   - 修复 Docker 本地部署下主站 `13001` 登录页能打开但提交时报 `API 代理失败` 的问题；当前 `web` 容器会把站内 `/api/*` 代理到 `server:3011`
-- `docs/changes/2026-08-22-mixedcut-container-template-fallback-and-healthcheck-fix.md`
-  - 修复 mixedcut 容器根路由模板缺失导致的 `500/unhealthy`；当前直达服务地址会收口到 `/remix`，容器健康检查统一走 `/api/health`
 - `docs/local-single-user-stability-delivery-refactor-plan.md`
   - `local-single-user` 稳定性交付重构的正式方案与分阶段开发计划；明确按“单一入口、单一状态、单一环境解析”推进，并将周期控制在可持续的小步闭环内
-- `docs/changes/2026-08-21-content-acquisition-video-remix-workspace-and-mixedcut-platform.md`
-  - 在内容获客 -> 某音/某号 下新增独立 `视频混剪` 入口，并把 mixedcut 作为独立 HTTP 服务接入个人中心第三方接口配置；当前支持按品牌维护 `服务地址 + 可选 API Key`
-- `docs/changes/2026-08-21-mixedcut-ai-config-sync-from-third-party-models.md`
-  - 收口视频混剪接入方向：不再单独维护 `视频混剪服务` 平台配置，而是把个人中心现有第三方大模型同步到 mixedcut 的 `config/ai_config.json`
-- `docs/changes/2026-08-21-docker-postgresql-mixedcut-local-deployment-phase-1.md`
-  - 启动 Docker + PostgreSQL + mixedcut 本地部署第一阶段，补标准运行态本地存储配置、宿主机路径展示映射和 compose 脚手架
 - `docs/changes/2026-08-21-openclaw-design-work-reference-material-id.md`
   - OpenClaw 设计工作台新增 `referenceMaterialId`，允许直接复用站内创作素材作为参考图，减少手动转公网 URL 或重复上传
 - `docs/changes/2026-08-17-local-single-user-stability-refactor-phase-1.md`

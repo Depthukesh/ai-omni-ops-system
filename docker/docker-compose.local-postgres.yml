@@ -48,8 +48,6 @@ services:
       MATERIAL_LIBRARY_DISPLAY_ROOT: ${MATERIAL_LIBRARY_DISPLAY_ROOT:-D:\AiOmniOpsData\materials}
       MANAGED_STORAGE_ROOT: ${MANAGED_STORAGE_ROOT:-/data/storage}
       MANAGED_STORAGE_DISPLAY_ROOT: ${MANAGED_STORAGE_DISPLAY_ROOT:-D:\AiOmniOpsData\storage}
-      MIXEDCUT_INSTALL_ROOT: ${MIXEDCUT_INSTALL_ROOT:-/data/mixedcut}
-      MIXEDCUT_INTERNAL_BASE_URL: ${MIXEDCUT_INTERNAL_BASE_URL:-http://mixedcut:5000}
       STANDARD_RUNTIME_UPDATE_MANIFEST_URL: ${STANDARD_RUNTIME_UPDATE_MANIFEST_URL:-}
       JWT_SECRET: ${JWT_SECRET:-}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-}
@@ -84,8 +82,6 @@ services:
       MATERIAL_LIBRARY_DISPLAY_ROOT: ${MATERIAL_LIBRARY_DISPLAY_ROOT:-D:\AiOmniOpsData\materials}
       MANAGED_STORAGE_ROOT: ${MANAGED_STORAGE_ROOT:-/data/storage}
       MANAGED_STORAGE_DISPLAY_ROOT: ${MANAGED_STORAGE_DISPLAY_ROOT:-D:\AiOmniOpsData\storage}
-      MIXEDCUT_INSTALL_ROOT: ${MIXEDCUT_INSTALL_ROOT:-/data/mixedcut}
-      MIXEDCUT_INTERNAL_BASE_URL: ${MIXEDCUT_INTERNAL_BASE_URL:-http://mixedcut:5000}
       STANDARD_RUNTIME_UPDATE_MANIFEST_URL: ${STANDARD_RUNTIME_UPDATE_MANIFEST_URL:-}
       JWT_SECRET: ${JWT_SECRET:-}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-}
@@ -118,57 +114,5 @@ services:
       NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://127.0.0.1:${HOST_API_PORT:-13011}/api}
       INTERNAL_API_BASE_URL: ${INTERNAL_API_BASE_URL:-http://server:3011/api}
       API_PROXY_TARGET: ${API_PROXY_TARGET:-http://server:3011/api}
-      NEXT_PUBLIC_MIXEDCUT_BASE_URL: ${NEXT_PUBLIC_MIXEDCUT_BASE_URL:-http://127.0.0.1:${HOST_MIXEDCUT_PORT:-15000}}
     ports:
       - "${HOST_WEB_PORT:-13001}:3001"
-
-  mixedcut:
-    build:
-      context: ../mixedcut_integration_bundle
-      dockerfile: Dockerfile
-    container_name: ai-omni-mixedcut
-    restart: unless-stopped
-    profiles: ["mixedcut"]
-    environment:
-      APP_HOST: 0.0.0.0
-      APP_PORT: "5000"
-      JJYB_MCP_PUBLIC_HOST: 127.0.0.1
-      JJYB_MCP_PUBLIC_PORT: "5501"
-      JJYB_DISABLE_DESKTOP: "1"
-      JJYB_CONTAINER_MODE: "1"
-      TZ: Asia/Shanghai
-    ports:
-      - "${HOST_MIXEDCUT_PORT:-15000}:5000"
-    volumes:
-      - ${AI_OMNI_HOST_MIXEDCUT_ROOT:-./local-data/mixedcut}/config:/app/config
-      - ${AI_OMNI_HOST_MIXEDCUT_ROOT:-./local-data/mixedcut}/database:/app/database
-      - ${AI_OMNI_HOST_MIXEDCUT_ROOT:-./local-data/mixedcut}/logs:/app/logs
-      - ${AI_OMNI_HOST_MIXEDCUT_ROOT:-./local-data/mixedcut}/output:/app/output
-      - ${AI_OMNI_HOST_MIXEDCUT_ROOT:-./local-data/mixedcut}/outputs:/app/outputs
-      - ${AI_OMNI_HOST_MIXEDCUT_ROOT:-./local-data/mixedcut}/storage:/app/storage
-      - ${AI_OMNI_HOST_MIXEDCUT_ROOT:-./local-data/mixedcut}/temp:/app/temp
-      - ${AI_OMNI_HOST_MIXEDCUT_ROOT:-./local-data/mixedcut}/uploads:/app/uploads
-      - ${AI_OMNI_HOST_MATERIALS_ROOT:-./local-data/materials}:/data/materials:ro
-
-  mixedcut-mcp:
-    build:
-      context: ../mixedcut_integration_bundle
-      dockerfile: Dockerfile.mcp
-    container_name: ai-omni-mixedcut-mcp
-    restart: unless-stopped
-    profiles: ["mixedcut", "mixedcut-mcp"]
-    depends_on:
-      mixedcut:
-        condition: service_started
-    environment:
-      VIDEOAUTOCUT_BASE_URL: http://mixedcut:5000
-      VIDEOAUTOCUT_DB_PATH: /app/database/jjyb_ai.db
-      JJYB_MCP_HTTP_HOST: 0.0.0.0
-      JJYB_MCP_HTTP_PORT: "5501"
-      JJYB_MCP_HTTP_PATH: /mcp
-      TZ: Asia/Shanghai
-    ports:
-      - "${HOST_MIXEDCUT_MCP_PORT:-15501}:5501"
-    volumes:
-      - ${AI_OMNI_HOST_MIXEDCUT_ROOT:-./local-data/mixedcut}/database:/app/database
-      - ${AI_OMNI_HOST_MIXEDCUT_ROOT:-./local-data/mixedcut}/logs:/app/logs

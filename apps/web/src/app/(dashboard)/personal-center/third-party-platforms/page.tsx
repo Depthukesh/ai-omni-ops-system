@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿"use client";
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿"use client";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -116,43 +116,7 @@ function isRuanwenjiePlatform(platform?: UserThirdPartyPlatformRecord) {
   return searchable.includes("api.kol.cn") || searchable.includes("ruanwenjie") || searchable.includes("软文街");
 }
 
-function isVideoRemixPlatform(platform?: UserThirdPartyPlatformRecord) {
-  const searchable = [platform?.id, platform?.name, platform?.baseUrl, platform?.tutorialUrl, platform?.remark].join(" ").toLowerCase();
-  return searchable.includes("视频混剪") || searchable.includes("mixedcut") || searchable.includes("videoautocut");
-}
-
-function parseVideoRemixCredential(value: string, fallbackBaseUrl = "") {
-  const normalized = normalizeString(value).trim();
-  if (!normalized) {
-    return {
-      baseUrl: fallbackBaseUrl,
-      apiKey: "",
-    };
-  }
-  try {
-    const parsed = JSON.parse(normalized) as Record<string, unknown>;
-    return {
-      baseUrl: normalizeString(parsed.baseUrl).trim() || fallbackBaseUrl,
-      apiKey: normalizeString(parsed.apiKey).trim(),
-    };
-  } catch {
-    return {
-      baseUrl: fallbackBaseUrl,
-      apiKey: normalized,
-    };
-  }
-}
-
 function parsePlatformDraft(platform: UserThirdPartyPlatformRecord): PlatformDraft {
-  if (isVideoRemixPlatform(platform)) {
-    const parsed = parseVideoRemixCredential(platform.apiKey, platform.baseUrl);
-    return {
-      apiKey: parsed.apiKey,
-      baseUrl: parsed.baseUrl,
-      mobile: "",
-      password: "",
-    };
-  }
   if (!isRuanwenjiePlatform(platform)) {
     return {
       apiKey: platform.apiKey,
@@ -192,17 +156,6 @@ function parsePlatformDraft(platform: UserThirdPartyPlatformRecord): PlatformDra
 }
 
 function buildPlatformSecretPayload(platform: UserThirdPartyPlatformRecord, draft: PlatformDraft) {
-  if (isVideoRemixPlatform(platform)) {
-    const baseUrl = draft.baseUrl.trim();
-    const apiKey = draft.apiKey.trim();
-    if (!baseUrl && !apiKey) {
-      return "";
-    }
-    return JSON.stringify({
-      baseUrl,
-      apiKey,
-    });
-  }
   if (!isRuanwenjiePlatform(platform)) {
     return draft.apiKey;
   }
@@ -217,25 +170,16 @@ function buildPlatformSecretPayload(platform: UserThirdPartyPlatformRecord, draf
 }
 
 function getConfiguredBadgeLabel(platform: UserThirdPartyPlatformRecord) {
-  if (isVideoRemixPlatform(platform)) {
-    return parseVideoRemixCredential(platform.apiKey, platform.baseUrl).baseUrl ? "已配置服务" : "未配置服务";
-  }
   return isRuanwenjiePlatform(platform)
     ? (platform.apiKey ? "已配置凭证" : "未配置凭证")
     : (platform.apiKey ? "已配置 Key" : "未配置 Key");
 }
 
 function getPlatformMetricTitle(platform: UserThirdPartyPlatformRecord) {
-  if (isVideoRemixPlatform(platform)) {
-    return "接入方式";
-  }
   return isChanjingPlatform(platform) ? "模板数" : "模型数";
 }
 
 function getPlatformMetricValue(platform: UserThirdPartyPlatformRecord) {
-  if (isVideoRemixPlatform(platform)) {
-    return "HTTP 服务";
-  }
   if (isChanjingPlatform(platform)) {
     if (platform.dynamicStats?.status === "ready" || platform.dynamicStats?.status === "partial") {
       return String(platform.dynamicStats.templateCount ?? 0);
@@ -246,16 +190,10 @@ function getPlatformMetricValue(platform: UserThirdPartyPlatformRecord) {
 }
 
 function getPlatformDefaultLabel(platform: UserThirdPartyPlatformRecord) {
-  if (isVideoRemixPlatform(platform)) {
-    return "服务入口";
-  }
   return isChanjingPlatform(platform) ? "定制数字人数" : "默认模型";
 }
 
 function getPlatformDefaultValue(platform: UserThirdPartyPlatformRecord) {
-  if (isVideoRemixPlatform(platform)) {
-    return parseVideoRemixCredential(platform.apiKey, platform.baseUrl).baseUrl || platform.baseUrl || "-";
-  }
   if (isChanjingPlatform(platform)) {
     if (platform.dynamicStats?.status === "ready" || platform.dynamicStats?.status === "partial") {
       return String(platform.dynamicStats.customPersonCount ?? 0);
@@ -296,16 +234,6 @@ function getDuoyuanxSummary(platform: UserThirdPartyPlatformRecord) {
   }
   const families = ["文本", "图像", "视频", "音频", "音乐"];
   return `当前展示的是多元探索统一网关能力，已预装 ${families.join(" / ")} 模型家族；配置同一份平台 Key 后，可按供应商作用域分别启用。`;
-}
-
-function getVideoRemixSummary(platform: UserThirdPartyPlatformRecord) {
-  if (!isVideoRemixPlatform(platform)) {
-    return "";
-  }
-  const parsed = parseVideoRemixCredential(platform.apiKey, platform.baseUrl);
-  return parsed.baseUrl
-    ? `当前品牌已绑定视频混剪服务地址 ${parsed.baseUrl}，后续工作台可以直接复用这份配置去对接 mixedcut HTTP 接口。`
-    : "视频混剪建议以独立 Docker 或本地 Python 服务运行；先在这里保存服务地址，内容获客里的“视频混剪”板块会复用这份品牌共享配置。";
 }
 
 export default function PersonalCenterThirdPartyPlatformsPage() {
@@ -387,10 +315,7 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
   const isDirty = selectedPlatform && selectedDraft ? serializedSelectedDraft !== selectedPlatform.apiKey : false;
   const selectedPlatformIsChanjing = isChanjingPlatform(selectedPlatform);
   const selectedPlatformIsRuanwenjie = isRuanwenjiePlatform(selectedPlatform);
-  const selectedPlatformIsVideoRemix = isVideoRemixPlatform(selectedPlatform);
-  const selectedPlatformLaunchUrl = selectedPlatformIsVideoRemix
-    ? (selectedDraft?.baseUrl || selectedPlatform?.baseUrl || "")
-    : (selectedPlatform?.websiteUrl || "");
+  const selectedPlatformLaunchUrl = selectedPlatform?.websiteUrl || "";
 
   async function loadPage() {
     setIsLoading(true);
@@ -579,9 +504,6 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
         <Link href="/personal-center" className="secondary-button">
           返回个人中心概览
         </Link>
-        <Link href="/personal-center/third-party-platforms/video-remix" className="secondary-button">
-          视频混剪设置
-        </Link>
         {adminSystemRoles.has(systemRole) ? (
           <Link href="/admin" className="primary-button">
             去后台接口供应商
@@ -654,7 +576,6 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
               </div>
               {isChanjingPlatform(platform) ? <p className="panel-subtext" style={{ marginTop: 12 }}>{getChanjingStatsSummary(platform)}</p> : null}
               {isDuoyuanxPlatform(platform) ? <p className="panel-subtext" style={{ marginTop: 12 }}>{getDuoyuanxSummary(platform)}</p> : null}
-              {isVideoRemixPlatform(platform) ? <p className="panel-subtext" style={{ marginTop: 12 }}>{getVideoRemixSummary(platform)}</p> : null}
             </button>
           ))}
           {!filteredPlatforms.length ? (
@@ -710,13 +631,11 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
                     ? "保存中..."
                     : selectedPlatformIsRuanwenjie
                       ? "保存品牌共享投放凭证"
-                      : selectedPlatformIsVideoRemix
-                        ? "保存视频混剪服务配置"
                         : "保存品牌共享 API Key"}
                 </button>
                 {selectedPlatformLaunchUrl ? (
                   <a href={selectedPlatformLaunchUrl} target="_blank" rel="noreferrer" className="secondary-button">
-                    {selectedPlatformIsVideoRemix ? "打开混剪服务" : "打开第三方平台"}
+                    打开第三方平台
                   </a>
                 ) : null}
                 {selectedPlatform.tutorialUrl ? (
@@ -748,8 +667,8 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
                 <strong style={{ wordBreak: "break-all" }}>{getPlatformDefaultValue(selectedPlatform)}</strong>
               </div>
               <div>
-                <span>{selectedPlatformIsVideoRemix ? "当前品牌服务鉴权" : selectedPlatformIsRuanwenjie ? "当前品牌投放凭证" : "当前品牌 API Key"}</span>
-                <strong>{selectedPlatformIsVideoRemix ? (selectedDraft.apiKey ? "已配置 API Key" : "未配置 API Key") : selectedPlatform.effectiveApiKeyMasked}</strong>
+                <span>{selectedPlatformIsRuanwenjie ? "当前品牌投放凭证" : "当前品牌 API Key"}</span>
+                <strong>{selectedPlatform.effectiveApiKeyMasked}</strong>
               </div>
               <div>
                 <span>最近更新时间</span>
@@ -768,60 +687,9 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
                 {getDuoyuanxSummary(selectedPlatform)}
               </div>
             ) : null}
-            {selectedPlatformIsVideoRemix ? (
-              <div className="personal-inline-hint" style={{ marginBottom: 16 }}>
-                <strong>视频混剪接入说明</strong>
-                {getVideoRemixSummary(selectedPlatform)}
-              </div>
-            ) : null}
 
             <div className="personal-list">
-              {selectedPlatformIsVideoRemix ? (
-                <>
-                  <div className="form-grid two-column">
-                    <label className="field">
-                      <span>服务地址</span>
-                      <input
-                        type="text"
-                        value={selectedDraft.baseUrl}
-                        onChange={(event) =>
-                          setDrafts((current) => ({
-                            ...current,
-                            [selectedPlatform.id]: {
-                              ...current[selectedPlatform.id],
-                              baseUrl: event.target.value,
-                            },
-                          }))
-                        }
-                        disabled={!canManage}
-                        placeholder="例如 http://127.0.0.1:5000"
-                      />
-                    </label>
-                    <label className="field">
-                      <span>API Key（可选）</span>
-                      <input
-                        type="password"
-                        value={selectedDraft.apiKey}
-                        onChange={(event) =>
-                          setDrafts((current) => ({
-                            ...current,
-                            [selectedPlatform.id]: {
-                              ...current[selectedPlatform.id],
-                              apiKey: event.target.value,
-                            },
-                          }))
-                        }
-                        disabled={!canManage}
-                        placeholder="如果视频混剪服务前面挂了鉴权网关，可在这里填写"
-                      />
-                    </label>
-                  </div>
-                  <div className="personal-inline-hint" style={{ marginBottom: 16 }}>
-                    <strong>推荐填写方式</strong>
-                    优先把 mixedcut 独立部署在 Docker 或本地 Python 服务上，然后把工作台实际可访问的 HTTP 地址填到这里；如果没有额外鉴权，API Key 可以留空。
-                  </div>
-                </>
-              ) : selectedPlatformIsRuanwenjie ? (
+              {selectedPlatformIsRuanwenjie ? (
                 <>
                   <div className="form-grid two-column">
                     <label className="field">
@@ -912,7 +780,7 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
               )}
 
               <div className="field">
-                <span>{selectedPlatformIsChanjing ? "动态统计" : selectedPlatformIsRuanwenjie ? "投放说明" : selectedPlatformIsVideoRemix ? "能力说明" : "大模型 ID"}</span>
+                <span>{selectedPlatformIsChanjing ? "动态统计" : selectedPlatformIsRuanwenjie ? "投放说明" : "大模型 ID"}</span>
                 <div className="admin-provider-chip-row" style={{ marginTop: 8 }}>
                   {selectedPlatformIsChanjing ? (
                     <>
@@ -925,13 +793,6 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
                       <span className="admin-provider-chip">拉媒体列表</span>
                       <span className="admin-provider-chip">选 GEO 文章</span>
                       <span className="admin-provider-chip">提交投放订单</span>
-                    </>
-                  ) : selectedPlatformIsVideoRemix ? (
-                    <>
-                      <span className="admin-provider-chip">上传素材</span>
-                      <span className="admin-provider-chip">发起混剪</span>
-                      <span className="admin-provider-chip">轮询进度</span>
-                      <span className="admin-provider-chip">导出剪映草稿</span>
                     </>
                   ) : selectedPlatform.modelIds.length ? (
                     selectedPlatform.modelIds.map((model) => (

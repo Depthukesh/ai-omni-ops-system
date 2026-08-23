@@ -153,7 +153,6 @@ import { type MediaLightboxState } from "../xiaohongshu/shared-types";
 import { DouyinAdPreAuditWorkspace } from "./ad-preaudit-workspace";
 import { DouyinDigitalHumanWorkspace } from "./digital-human-workspace";
 import { DouyinRunningHubWorkspace } from "./douyin-runninghub-workspace";
-import { DouyinVideoRemixWorkspace } from "./video-remix-workspace";
 import { formatDateTime } from "../xiaohongshu/datetime-helpers";
 import { renderMarkdownToHtml } from "../xiaohongshu/markdown-render";
 import { DouyinHotTopicCandidatesWorkspace as DouyinHotTopicCandidatesWorkspacePanel } from "./hot-topic-candidates-workspace";
@@ -184,7 +183,6 @@ export type DouyinSectionKey =
   | "videoDirect"
   | "digitalHuman"
   | "runningHub"
-  | "videoRemix"
   | "adPreAudit"
   | "openclawCreativeMaterials"
   | "openclawDailyPlan"
@@ -206,7 +204,6 @@ const douyinPrimarySections: Array<{ key: DouyinSectionKey; label: string; descr
   { key: "videoDirect", label: "AI生视频", description: "基于营销日历、统一素材库、产品与营销策划方案直接生成 Seedance 2.0 生视频提示词，确认后继续生成短视频。" },
   { key: "digitalHuman", label: "数字人", description: "对接蝉镜 OpenAPI，支持公共模板库、数字人口播视频创建、结果找回和作品中心管理。" },
   { key: "runningHub", label: "RunningHub应用", description: "独立承载 RunningHub AI 应用卡片、参数弹窗与作品中心，当前先接入 Animate 动作迁移应用。" },
-  { key: "videoRemix", label: "视频混剪", description: "直接承载 mixedcut 混剪主界面；模型同步与配置下发收口到个人中心的视频混剪设置页。" },
   { key: "adPreAudit", label: "广告预审", description: "对接火山引擎 VOD 广告预审，对已上传到 VOD 的 Vid 发起审核并查看通过、驳回和原因。" },
 ];
 const douyinOpenClawSections: Array<{ key: DouyinSectionKey; label: string; description: string }> = [
@@ -228,7 +225,6 @@ const douyinSectionPermissionMap: Record<DouyinSectionKey, BrandPermissionKey> =
   videoDirect: "douyin.videoDirect",
   digitalHuman: "douyin.digitalHuman",
   runningHub: "douyin.runningHub",
-  videoRemix: "douyin.runningHub",
   adPreAudit: "douyin.adPreAudit",
   openclawCreativeMaterials: "brandGrowth.report.topicLibrary",
   openclawDailyPlan: "brandGrowth.report.topicLibrary",
@@ -267,7 +263,6 @@ function createInitialSectionLoadState(): Record<DouyinSectionKey, boolean> {
     videoDirect: false,
     digitalHuman: false,
     runningHub: false,
-    videoRemix: false,
     adPreAudit: false,
     openclawCreativeMaterials: false,
     openclawDailyPlan: false,
@@ -1455,7 +1450,6 @@ export function DouyinWorkspaceShell(props: DouyinWorkspaceShellProps) {
       videoDirect: current.videoDirect || currentSectionKey === "videoDirect",
       digitalHuman: current.digitalHuman || shouldLoadDigitalHumanSupportWorkspace,
       runningHub: current.runningHub || currentSectionKey === "runningHub",
-      videoRemix: current.videoRemix || currentSectionKey === "videoRemix",
       adPreAudit: current.adPreAudit || shouldLoadAdPreAuditWorkspace,
       openclawCreativeMaterials: current.openclawCreativeMaterials || shouldLoadOpenClawCreativeMaterialWorkspace,
       openclawDailyPlan: current.openclawDailyPlan || shouldLoadOpenClawDailyPlanWorkspace,
@@ -3704,12 +3698,6 @@ export function DouyinWorkspaceShell(props: DouyinWorkspaceShellProps) {
                     canEdit={Boolean(permissionMap?.["douyin.runningHub"]?.edit)}
                     formatDateTime={formatDateTime}
                     materialLibraryItems={materialLibraryItems}
-                  />
-                ) : activeSection === "videoRemix" ? (
-                  <DouyinVideoRemixWorkspace
-                    brandId={activeBrandId}
-                    sectionLabel={currentSection.label}
-                    sectionDescription={currentSection.description}
                   />
                 ) : activeSection === "adPreAudit" ? (
                   <DouyinAdPreAuditWorkspace

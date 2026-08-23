@@ -17,7 +17,7 @@
 
 ### 1. 给 Docker web 容器显式注入内部 API 代理目标
 
-- `docker/docker-compose.local-postgres-mixedcut.yml`
+- `docker/docker-compose.local-postgres.yml`
   - 为 `web` 服务新增：
     - `INTERNAL_API_BASE_URL=http://server:3011/api`
     - `API_PROXY_TARGET=http://server:3011/api`
@@ -38,7 +38,7 @@
 
 - 业务 API 协议
 - 数据库结构
-- mixedcut 模型同步逻辑
+- 其它运行态配置逻辑
 
 ## 验证
 

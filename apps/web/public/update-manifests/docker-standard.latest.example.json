@@ -10,18 +10,16 @@
   "skillPackageUrl": "https://example.com/ai-omni-ops/openclaw/skill-package.zip",
   "commands": [
     "git pull",
-    "docker compose -f docker/docker-compose.local-postgres-mixedcut.yml up -d --build server web",
-    "若本次更新涉及 mixedcut，再执行：docker compose -f docker/docker-compose.local-postgres-mixedcut.yml --profile mixedcut up -d --build mixedcut",
+    "docker compose -f docker/docker-compose.local-postgres.yml up -d --build server web",
     "若本次更新涉及 Skill ZIP，请从安装中心重新下载最新 skill-package.zip 并重新导入客户端"
   ],
   "notices": [
     "这类页面只负责通知和引导，不会在 Docker 运行态直接替用户升级容器。",
-    "如果更新清单声明了 mixedcut 或 Skill ZIP，请按要求完成额外同步，否则主站和 OpenClaw 可能版本不一致。"
+    "如果更新清单声明了 Skill ZIP，请按要求完成额外同步，否则主站和 OpenClaw 可能版本不一致。"
   ],
   "requires": {
     "server": true,
     "web": true,
-    "mixedcut": false,
     "skillPackage": true,
     "migration": false
   },

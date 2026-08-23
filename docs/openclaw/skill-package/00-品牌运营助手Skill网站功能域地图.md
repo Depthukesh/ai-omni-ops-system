@@ -104,7 +104,6 @@
 - 原创文案
 - 二创文案
 - AI 生视频
-- 视频混剪
 - 数字人
 - 口型驱动
 - RunningHub
@@ -116,24 +115,12 @@
 - `create_douyin_original_copy`
 - `create_douyin_remix_copy`
 - `manage_douyin_video_production`
-- `get_mixedcut_media_assets`
-- `create_mixedcut_remix_task`
-- `get_mixedcut_remix_task_progress`
 - `create_douyin_mobile_publish_session`
 - `create_douyin_desktop_publish_session`
 
 处理原则：
 
 - 普通视频、直接视频、混剪短视频、数字人、口型驱动、RunningHub、广告预审都优先从 `manage_douyin_video_production` 进入
-- 当用户明确提到 `视频混剪`、`mixedcut`、`把站内视频拿去混剪`、`把本机视频拿去混剪` 时，不再走 `manage_douyin_video_production`，而是优先走：
-  - `get_mixedcut_media_assets`
-  - `create_mixedcut_remix_task`
-  - `get_mixedcut_remix_task_progress`
-- `create_mixedcut_remix_task` 当前支持三类来源：
-  - 站内视频素材 `mediaAssetIds`
-  - OpenClaw 创作素材 `creativeMaterialIds`
-  - stdio MCP 下的本机 `localFilePath / localFilePaths`
-- 本机视频不会直接绕过站内上传到 mixedcut，而是会先归档成 OpenClaw 创作素材，再复用主站 mixedcut bridge 发任务
 - 数字人语音试听属于 `section=digital_human`
 - RunningHub 属于 `section=runninghub`
 - 当前 RunningHub 已内置一组常见应用示例：

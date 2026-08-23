@@ -15,7 +15,7 @@
 - 连接入口：`prisma/schema.prisma`
 - 运行时客户端：`apps/server/src/prisma/prisma.service.ts`
 - 环境变量：`.env` / `.env.example` 中的 `DATABASE_URL`
-- Docker 本地部署第一阶段默认也继续使用 `PostgreSQL`，通过 `docker/docker-compose.local-postgres-mixedcut.yml` 单独拉起 `postgres` 服务，并把数据库目录挂载到宿主机
+- Docker 标准运行态默认也继续使用 `PostgreSQL`，通过 `docker/docker-compose.local-postgres.yml` 单独拉起 `postgres` 服务，并把数据库目录挂载到宿主机
 
 ### 2.2 初始化路径
 

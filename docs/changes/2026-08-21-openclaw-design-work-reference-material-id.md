@@ -2,7 +2,7 @@
 
 ## 背景
 
-- Docker + PostgreSQL + mixedcut 主链跑通后，下一步需要继续收口 OpenClaw 的本地素材协议。
+- Docker + PostgreSQL 主链跑通后，下一步需要继续收口 OpenClaw 的本地素材协议。
 - 现状里 `create_design_work` 只支持：
   - `referenceImageUrl`
   - `referenceImage.dataBase64`
@@ -26,16 +26,12 @@
 
 - 仅扩展 OpenClaw 设计工作台的参考图入参。
 - 不改数据库结构。
-- 不改 mixedcut 配置同步逻辑。
+- 不改其它第三方配置同步逻辑。
 - 不改现有 `referenceImageUrl` / `referenceImage` 行为。
 
 ## 验证
 
-- 通过真实接口验证 mixedcut 配置预览/同步：
-  - `GET /third-party-platforms/mixedcut-ai-config`
-  - `POST /third-party-platforms/mixedcut-ai-config/sync`
-- 确认宿主机已生成：
-  - `docker/local-data/mixedcut/config/ai_config.json`
+- 通过真实接口验证 OpenClaw 设计工作台参考图入参与落库链路
 - 确认当前空配置原因是：
   - `ApiProviderConfig` 活跃记录存在
   - `BrandThirdPartyPlatformSecret` 对 demo 品牌仍为 `0`

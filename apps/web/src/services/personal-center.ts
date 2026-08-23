@@ -1,6 +1,5 @@
 import type { PromptTemplateRecord, SkillConfigRecord } from "./admin";
 import { jsonRequest, request } from "./http";
-import type { OpenClawWorkspaceScope } from "./openclaw";
 import type { UserAccessFeatureKey } from "../../../../packages/shared/src/user-access";
 
 export type TaskStatus = "PENDING" | "QUEUED" | "RUNNING" | "SUCCESS" | "FAILED" | "CANCELLED";
@@ -148,70 +147,6 @@ export type GetMyThirdPartyPlatformsResponse = {
   platforms: UserThirdPartyPlatformRecord[];
 };
 
-export type MixedcutAiConfigSyncSource = {
-  capability: "llm" | "vision" | "image";
-  providerId: string;
-  providerName: string;
-  baseUrl: string;
-  model: string;
-  appliedField: string;
-};
-
-export type MixedcutAiConfigPreview = {
-  installRoot: string;
-  configFilePath: string;
-  configFileExists: boolean;
-  config: Record<string, unknown>;
-  sources: MixedcutAiConfigSyncSource[];
-  warnings: string[];
-};
-
-export type MixedcutMediaAssetRecord = {
-  id: string;
-  brandId?: string;
-  title: string;
-  mediaType: string;
-  assetUrl?: string;
-  sourceUrl?: string;
-  mimeType?: string;
-  fileSize?: number;
-  durationSec?: number;
-  createdAt: string;
-  updatedAt: string;
-};
-
-export type MixedcutUploadedVideoRecord = {
-  mediaAssetId: string;
-  title: string;
-  fileName: string;
-  mixedcutPath: string;
-};
-
-export type MixedcutRemixTaskRecord = {
-  taskId: string;
-  projectId?: string;
-  status: string;
-  progress: number;
-  error?: string;
-  videoUrl?: string;
-  videoPath?: string;
-  outputPath?: string;
-  duration?: number;
-  targetDurationSeconds?: number;
-  actualDurationSeconds?: number;
-  durationDeltaSeconds?: number;
-  durationWithinTolerance?: boolean;
-  videoCount?: number;
-  mode?: string;
-  editingMode?: string;
-  timeline: unknown[];
-  uploadedVideos?: MixedcutUploadedVideoRecord[];
-  openClawVideoWorkId?: string;
-  openClawVideoWorkWorkspaceScope?: string;
-  archiveStatus?: "saved" | "failed";
-  archiveMessage?: string;
-};
-
 export type UpdateUserSkillPayload = {
   displayName?: string | null;
   defaultModel?: string | null;
@@ -276,7 +211,6 @@ export type SystemUpdateLatestRelease = {
     requires: {
       server: boolean;
       web: boolean;
-      mixedcut: boolean;
       skillPackage: boolean;
       migration: boolean;
     };
@@ -631,37 +565,6 @@ export async function getMyThirdPartyPlatforms() {
 
 export async function updateMyThirdPartyPlatformSecret(platformId: string, payload: { apiKey?: string }) {
   return jsonRequest<UserThirdPartyPlatformRecord>(`/third-party-platforms/${platformId}/secret`, "PATCH", payload);
-}
-
-export async function getMyMixedcutAiConfigPreview() {
-  return request<MixedcutAiConfigPreview>("/third-party-platforms/mixedcut-ai-config");
-}
-
-export async function syncMyMixedcutAiConfig() {
-  return jsonRequest<MixedcutAiConfigPreview>("/third-party-platforms/mixedcut-ai-config/sync", "POST", {});
-}
-
-export async function getMyMixedcutMediaAssets() {
-  return request<{ items: MixedcutMediaAssetRecord[] }>("/third-party-platforms/mixedcut/media-assets");
-}
-
-export async function createMyMixedcutRemixTask(payload: {
-  mediaAssetIds: string[];
-  name?: string;
-  style?: "dynamic" | "calm" | "exciting";
-  targetDurationSeconds: number;
-  workspaceScope?: OpenClawWorkspaceScope;
-}) {
-  return jsonRequest<MixedcutRemixTaskRecord>("/third-party-platforms/mixedcut/remix-task", "POST", payload);
-}
-
-export async function getMyMixedcutRemixTaskProgress(taskId: string, options?: { workspaceScope?: OpenClawWorkspaceScope }) {
-  const query = new URLSearchParams();
-  if (options?.workspaceScope) {
-    query.set("workspaceScope", options.workspaceScope);
-  }
-  const suffix = query.toString() ? `?${query.toString()}` : "";
-  return request<MixedcutRemixTaskRecord>(`/third-party-platforms/mixedcut/remix-task/${taskId}${suffix}`);
 }
 
 export async function getSystemUpdateStatus() {

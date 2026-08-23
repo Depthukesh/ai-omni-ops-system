@@ -53,7 +53,7 @@
   - `local-single-user`
     - 固定显示“检查更新 -> 预下载安装包 -> 立即升级 -> 自动重启确认”的方法
   - `standard`
-    - 固定显示 `git pull`、`docker compose up -d --build ...`、mixedcut 重建与 Skill ZIP 重导的引导
+    - 固定显示 `git pull`、`docker compose up -d --build ...` 与 Skill ZIP 重导的引导
 - 即使当前已经是最新版本，也会保留方法说明，方便后续用户回看更新步骤。
 
 ## 影响范围

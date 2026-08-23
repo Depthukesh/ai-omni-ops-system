@@ -22,7 +22,7 @@
 - 品牌增长策略：品牌资料、收集数据、增长报告、半年营销规划、营销日历
 - 内容获客工作台：
   - 某书：营销策划、创作素材、每日计划、每日复盘、作品列表
-  - 某音/某号：营销策划、数字人、RunningHub、视频混剪、创作素材、作品列表
+  - 某音/某号：营销策划、数字人、RunningHub、创作素材、作品列表
   - 公众号：配置初始化、创作工作流、发布历史、创作素材、作品列表
 - 设计工作台：图片、HTML、PPT、视频方案
 - GEO 获客与全网获客工作台
@@ -40,13 +40,11 @@
 - PostgreSQL
 - 主站 `server`
 - 主站 `web`
-- 可选 `mixedcut`
-- 可选 `mixedcut-mcp`
 
 对应 compose 文件：
 
 ```text
-docker/docker-compose.local-postgres-mixedcut.yml
+docker/docker-compose.local-postgres.yml
 ```
 
 默认端口：
@@ -54,15 +52,12 @@ docker/docker-compose.local-postgres-mixedcut.yml
 - 主站前端：`13001`
 - 主站后端：`13011`
 - PostgreSQL：`15432`
-- mixedcut：`15000`
-- mixedcut MCP：`15501`
 
 当前标准运行态的重要特点：
 
-- 素材、受控存储、mixedcut 数据可统一挂到宿主机目录
+- 素材与受控存储可统一挂到宿主机目录
 - 个人中心 `版本与升级` 支持“更新通知 + 操作引导”
 - 配置 `STANDARD_RUNTIME_UPDATE_MANIFEST_URL` 后，可在页面看到更新说明、容器重建命令和 Skill 重导提醒
-- mixedcut 已接通主站素材桥接、任务创建、进度轮询和成片回流
 
 ### 2. local-single-user 单机安装态
 
@@ -86,7 +81,7 @@ docker/docker-compose.local-postgres-mixedcut.yml
 3. 启动主站
 
 ```powershell
-docker compose -f docker/docker-compose.local-postgres-mixedcut.yml up -d --build postgres server web
+docker compose -f docker/docker-compose.local-postgres.yml up -d --build postgres server web
 ```
 
 首次启动会自动执行一次 `db-init`：
@@ -99,35 +94,14 @@ docker compose -f docker/docker-compose.local-postgres-mixedcut.yml up -d --buil
 如果中途打断过首次启动，想手动补一次初始化，可以执行：
 
 ```powershell
-docker compose -f docker/docker-compose.local-postgres-mixedcut.yml run --rm db-init
+docker compose -f docker/docker-compose.local-postgres.yml run --rm db-init
 ```
 
-4. 如果需要 mixedcut，再启动：
-
-```powershell
-docker compose -f docker/docker-compose.local-postgres-mixedcut.yml --profile mixedcut up -d --build mixedcut mixedcut-mcp
-```
-
-当前仓库已自带 `mixedcut_integration_bundle/` 构建源码；新机器直接 `git clone` 后即可执行上面的命令，不再依赖本机私有的 `workspace-notes/mixedcut_integration_bundle` 目录。
-
-当前仓库也已补齐 `mixedcut-mcp` 的独立 HTTP MCP bridge 运行文件；`--profile mixedcut` 会同时构建：
-
-- `mixedcut` 主服务
-- `mixedcut-mcp` MCP 连接器
-
-默认 MCP 地址：
-
-```text
-http://127.0.0.1:15501/mcp
-```
-
-5. 打开：
+4. 打开：
 
 ```text
 http://127.0.0.1:13001
 ```
-
-如果只需要主站，不需要 mixedcut，可以不启用 `mixedcut` profile。
 
 ### 方式 B：源码开发运行
 
@@ -201,7 +175,6 @@ install-local-single-user.cmd
 - MCP 服务入口
 - Skill ZIP 导出
 - Skill 文档 fallback
-- mixedcut 相关 MCP 与 Skill 路由同步
 
 推荐直接阅读：
 
@@ -268,6 +241,6 @@ pnpm smoke:openclaw:adapter
 ## 说明
 
 - 这个仓库当前以 Windows 开发环境为主，但 Docker 标准运行态是优先推荐的对外交付方式
-- 如果你是给别人部署，请优先走 Docker + PostgreSQL + 可选 mixedcut
+- 如果你是给别人部署，请优先走 Docker + PostgreSQL 标准运行态
 - 如果你是做 OpenClaw 对接，不要只看根目录 README，直接进入 `docs/openclaw/`
 - 如果你要确认页面、模块和主链路，以 `docs/site-map.md` 为准，不要以历史截图或旧 README 为准
