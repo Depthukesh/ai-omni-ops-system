@@ -10,6 +10,7 @@ export type BrandPermissionFlags = {
 };
 export type BrandPermissionKey =
   | "brandGrowth.library.background"
+  | "brandGrowth.library.ipLibrary"
   | "brandGrowth.library.products"
   | "brandGrowth.library.survey"
   | "brandGrowth.library.industryFeeds"
@@ -64,6 +65,7 @@ export type BrandPermissionTreeNode = {
 };
 export type BrandArchiveStepKey =
   | "background"
+  | "ipLibrary"
   | "products"
   | "survey"
   | "platformAccounts"
@@ -80,6 +82,17 @@ export type BrandBackground = {
   foundedYear: number;
   brandDescription: string;
   enterpriseIntro: string;
+};
+
+export type BrandIpProfile = {
+  ipName: string;
+  imageUrls: string[];
+  ipPositioning: string;
+  ipStory: string;
+  ipValues: string;
+  ipStyle: string;
+  douyinAccountLink: string;
+  xiaohongshuAccountLink: string;
 };
 
 export type BrandProduct = {
@@ -558,6 +571,7 @@ let myBrandInvitesCache:
 
 export type BrandArchiveBundle = {
   brand: BrandBackground;
+  ipProfile: BrandIpProfile;
   products: BrandProduct[];
   survey: BrandSurveyAnswer[];
   platformAccounts: BrandAccount[];
@@ -573,6 +587,11 @@ export type BrandArchiveBundle = {
 };
 
 export type BrandProductImageUploadRecord = {
+  fileName: string;
+  imageUrl: string;
+};
+
+export type BrandIpImageUploadRecord = {
   fileName: string;
   imageUrl: string;
 };
@@ -689,9 +708,25 @@ export function normalizeBrandSurveyAnswers(answers: BrandSurveyAnswer[]): Brand
   });
 }
 
+export function normalizeBrandIpProfile(profile?: Partial<BrandIpProfile> | null): BrandIpProfile {
+  return {
+    ipName: profile?.ipName ?? "",
+    imageUrls: Array.isArray(profile?.imageUrls)
+      ? profile.imageUrls.filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+      : [],
+    ipPositioning: profile?.ipPositioning ?? "",
+    ipStory: profile?.ipStory ?? "",
+    ipValues: profile?.ipValues ?? "",
+    ipStyle: profile?.ipStyle ?? "",
+    douyinAccountLink: profile?.douyinAccountLink ?? "",
+    xiaohongshuAccountLink: profile?.xiaohongshuAccountLink ?? "",
+  };
+}
+
 export function normalizeBrandArchiveBundle(bundle: BrandArchiveBundle): BrandArchiveBundle {
   return {
     ...bundle,
+    ipProfile: normalizeBrandIpProfile(bundle.ipProfile),
     products: bundle.products.map((item) => ({
       id: item.id,
       productName: item.productName ?? "",
@@ -730,6 +765,19 @@ export const brandArchiveSeed: BrandArchiveBundle = {
     foundedYear: 2000,
     brandDescription: "区域烘焙品牌，线下门店基础较强，线上全域增长空间明显。",
     enterpriseIntro: "当前聚焦品牌建档、采集、增长分析与半年营销规划。",
+  },
+  ipProfile: {
+    ipName: "仟吉烘焙星球店长",
+    imageUrls: [
+      "https://oss.example.com/ip/qianji-shopkeeper-1.jpg",
+      "https://oss.example.com/ip/qianji-shopkeeper-2.jpg",
+    ],
+    ipPositioning: "陪伴城市家庭用户的温暖烘焙生活 IP",
+    ipStory: "以门店日常、节庆仪式感和家庭陪伴为主线，连接品牌产品与用户情绪价值。",
+    ipValues: "温暖、真诚、治愈、可靠",
+    ipStyle: "亲和、生活化、带一点节日仪式感",
+    douyinAccountLink: "https://www.douyin.com/user/demo-ip",
+    xiaohongshuAccountLink: "https://www.xiaohongshu.com/user/profile/demo-ip",
   },
   products: [
     {
@@ -813,6 +861,7 @@ export const brandArchiveSeed: BrandArchiveBundle = {
   ],
   steps: [
     { key: "background", name: "品牌背景资料", status: "ready", description: "品牌名称、行业、门店数量与品牌介绍。" },
+    { key: "ipLibrary", name: "IP资料库", status: "ready", description: "IP名称、故事、价值观、风格与平台账号链接。" },
     { key: "products", name: "产品资料库", status: "ready", description: "一行一个产品，沉淀价格、定位和使用场景。" },
     { key: "survey", name: "品牌运营情况调研", status: "in_progress", description: "围绕人货场资制度与业务诊断做结构化填写。" },
     { key: "platformAccounts", name: "品牌平台账号", status: "ready", description: "品牌自有账号，用于自动采集。" },
@@ -1041,6 +1090,12 @@ export async function updateBrandBackground(brandId: string | undefined, payload
   return jsonRequest<BrandBackground>(`/brands/${resolvedBrandId}/background`, "PATCH", payload);
 }
 
+export async function updateBrandIpProfile(brandId: string | undefined, payload: BrandIpProfile) {
+  const resolvedBrandId = resolveBrandId(brandId);
+  clearBrandArchiveCache(resolvedBrandId);
+  return jsonRequest<BrandIpProfile>(`/brands/${resolvedBrandId}/ip-profile`, "PATCH", payload);
+}
+
 export async function createBrandProduct(
   brandId: string | undefined,
   payload: Omit<BrandProduct, "id">,
@@ -1186,6 +1241,15 @@ export async function deleteBrandBusinessKnowledgeBaseFile(
 export async function uploadBrandProductImage(brandId: string | undefined, file: File): Promise<BrandProductImageUploadRecord> {
   const dataBase64 = await readFileAsBase64(file);
   return jsonRequest<BrandProductImageUploadRecord>(`/brands/${resolveBrandId(brandId)}/product-images`, "POST", {
+    fileName: file.name,
+    contentType: file.type || "image/jpeg",
+    dataBase64,
+  });
+}
+
+export async function uploadBrandIpImage(brandId: string | undefined, file: File): Promise<BrandIpImageUploadRecord> {
+  const dataBase64 = await readFileAsBase64(file);
+  return jsonRequest<BrandIpImageUploadRecord>(`/brands/${resolveBrandId(brandId)}/ip-images`, "POST", {
     fileName: file.name,
     contentType: file.type || "image/jpeg",
     dataBase64,

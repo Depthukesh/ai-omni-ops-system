@@ -32,6 +32,7 @@
 
 ## 3. 品牌与档案
 
+- `manage_brand_library`
 - `get_current_brand_context`
 - `get_brand_products`
 - `get_platform_accounts`
@@ -43,9 +44,23 @@
 
 适用场景：
 
+- 统一读取或维护品牌资料库
+- 读取或更新 `IP资料库`
+- 上传 IP 图片到品牌资料库
 - 看当前品牌是谁
 - 看品牌产品、平台账号、竞品、行业资料
 - 提取品牌档案摘要
+
+`manage_brand_library` 常用 action：
+
+- `get_archive_summary`
+- `get_ip_library`
+- `update_background`
+- `update_ip_library`
+- `upload_ip_image`
+- `create_product`
+- `replace_platform_accounts`
+- `create_knowledge_base_files`
 
 ## 4. 品牌资料库与采集
 
@@ -240,6 +255,7 @@
 - 上传品牌资料
 - 读取最近新增资料
 - 统一管理品牌资料库中的知识相关对象
+- 在同一入口下继续维护 `IP资料库` 等品牌归档对象
 
 ## 9. 小红书内容与发布
 

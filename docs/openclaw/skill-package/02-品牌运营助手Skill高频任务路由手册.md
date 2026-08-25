@@ -41,16 +41,20 @@
 - `get_recent_tasks_summary`
 - `get_failed_tasks_summary`
 
-### 3.2 看品牌档案、产品、竞品和行业资料
+### 3.2 看品牌档案、IP资料库、产品、竞品和行业资料
 
 典型问法：
 
 - 帮我提取品牌档案摘要
+- 帮我看下当前品牌 IP 资料
+- 帮我更新 IP 定位 / IP 故事 / IP 价值观
+- 帮我给 IP 资料库上传几张图片
 - 这个品牌主要卖什么
 - 帮我看竞品账号和行业资料
 
 优先工具：
 
+- `manage_brand_library`
 - `get_brand_archive_summary`
 - `get_brand_archive_survey`
 - `get_brand_products`
@@ -58,6 +62,13 @@
 - `get_brand_competitor_accounts`
 - `get_brand_industry_feeds`
 - `get_brand_business_assets`
+
+处理原则：
+
+- 只看 IP 资料时，优先 `manage_brand_library` + `action=get_ip_library`
+- 改 IP 字段时，优先 `manage_brand_library` + `action=update_ip_library`
+- 上传 IP 图片时，优先 `manage_brand_library` + `action=upload_ip_image`
+- 涉及整份品牌档案概览时，再配合 `get_brand_archive_summary`
 
 ### 3.3 维护知识库和资料
 

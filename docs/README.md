@@ -58,6 +58,8 @@
 - 作用：记录重要改动的背景、范围、验证和后续事项
 - 要求：真实代码改动默认同步补一条变更记录
 - 最新补充：
+  - `docs/changes/2026-08-25-brand-growth-ip-library.md`
+    - 品牌增长策略下的品牌资料库新增独立 `IP资料库` 子板块，补齐前后端落库、多图上传、MCP 与 Skill 路由说明
   - `docs/changes/2026-08-23-remove-mixedcut-from-repo.md`
     - 把 mixedcut 从主站、OpenClaw、Docker、README 与仓库资产里整仓下线，避免 GitHub 与后续部署继续暴露已废弃能力
   - `docs/changes/2026-08-23-docker-standard-db-init-and-default-demo-brand.md`
@@ -163,6 +165,8 @@
 
 ## 最近应优先关注的文档
 
+- `docs/changes/2026-08-25-brand-growth-ip-library.md`
+  - 品牌资料库新增独立 `IP资料库` 子板块，并把品牌 IP 资料统一收口到 `Brand.ipProfileJson` 与 `manage_brand_library` 链路
 - `docs/changes/2026-08-23-remove-mixedcut-from-repo.md`
   - 把 mixedcut 从主站、OpenClaw、Docker、README 与仓库资产里整仓下线；当前仓库与部署链不再包含 mixedcut
 - `docs/changes/2026-08-22-docker-web-api-proxy-target-fix.md`

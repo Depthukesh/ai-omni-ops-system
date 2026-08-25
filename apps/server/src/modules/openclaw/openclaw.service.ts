@@ -2645,11 +2645,11 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
   },
   {
     name: "manage_brand_library",
-    description: "统一管理品牌资料库，支持品牌背景、产品、问卷、账号、行业资料、业务资产、知识库和飞书绑定。",
+    description: "统一管理品牌资料库，支持品牌背景、IP资料库、产品、问卷、账号、行业资料、业务资产、知识库和飞书绑定。",
     inputSchema: {
       type: "object",
       properties: {
-        action: { type: "string", description: "例如 get_archive_summary、update_background、create_product、replace_platform_accounts、create_knowledge_base_files。" },
+        action: { type: "string", description: "例如 get_archive_summary、get_ip_library、update_background、update_ip_library、upload_ip_image、create_product、replace_platform_accounts、create_knowledge_base_files。" },
         productId: { type: "string" },
         knowledgeBaseId: { type: "string" },
         fileId: { type: "string" },
@@ -3522,10 +3522,11 @@ export class OpenClawService {
 
     return this.buildSummaryResponse({
       title: "品牌档案摘要",
-      summary: `当前品牌“${brand.brandName || brandId}”已沉淀 ${archive.products.length} 个产品、${archive.platformAccounts.length} 个平台账号、${archive.competitorAccounts.length} 个竞品账号和 ${archive.industryFeeds.length} 份行业资料。`,
+      summary: `当前品牌“${brand.brandName || brandId}”已沉淀 ${archive.products.length} 个产品、${archive.ipProfile.imageUrls.length} 张 IP 图片、${archive.platformAccounts.length} 个平台账号、${archive.competitorAccounts.length} 个竞品账号和 ${archive.industryFeeds.length} 份行业资料。`,
       highlights: [
         `行业：${brand.industry || "待补充"}`,
         `门店数：${brand.storeCount || 0}`,
+        `IP名称：${archive.ipProfile.ipName || "待补充"}`,
         `品牌问卷题数：${archive.survey.length}`,
         `业务资产数：${archive.businessAssets.length}`,
       ],
@@ -3533,6 +3534,7 @@ export class OpenClawService {
         brand,
         counts: {
           products: archive.products.length,
+          ipImages: archive.ipProfile.imageUrls.length,
           surveyAnswers: archive.survey.length,
           platformAccounts: archive.platformAccounts.length,
           competitorAccounts: archive.competitorAccounts.length,
@@ -3542,6 +3544,29 @@ export class OpenClawService {
         steps: archive.steps,
       },
       links: [{ label: "打开品牌档案", url: "/brand-growth/archive" }],
+      resourceKind: "brand_archive",
+    });
+  }
+
+  async getBrandIpLibrary(headers: HeadersMap) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandAccess(brandId, auth);
+
+    const archive = await this.brandsService.getArchive(brandId);
+    return this.buildSummaryResponse({
+      title: "IP资料库",
+      summary: archive.ipProfile.ipName
+        ? `当前品牌 IP 为“${archive.ipProfile.ipName}”，已上传 ${archive.ipProfile.imageUrls.length} 张图片。`
+        : "当前品牌还未填写 IP 资料库。",
+      highlights: [
+        `IP定位：${archive.ipProfile.ipPositioning || "待补充"}`,
+        `IP价值观：${archive.ipProfile.ipValues || "待补充"}`,
+        `IP风格：${archive.ipProfile.ipStyle || "待补充"}`,
+        `抖音账号：${archive.ipProfile.douyinAccountLink || "待补充"}`,
+      ],
+      data: archive.ipProfile,
+      links: [{ label: "打开品牌资料库", url: "/brand-growth" }],
       resourceKind: "brand_archive",
     });
   }
@@ -10001,6 +10026,8 @@ export class OpenClawService {
     switch (action) {
       case "get_archive_summary":
         return this.getBrandArchiveSummary(headers);
+      case "get_ip_library":
+        return this.getBrandIpLibrary(headers);
       case "get_archive_survey":
         return this.getBrandArchiveSurvey(headers, { limit: options?.limit });
       case "get_competitor_accounts":
@@ -10028,6 +10055,36 @@ export class OpenClawService {
         );
         return this.buildManagedOperationResponse({
           title: "品牌背景已更新",
+          action,
+          data: result,
+          url: "/brand-growth",
+          label: "打开品牌增长工作台",
+          resourceKind: "brand_archive",
+        });
+      }
+      case "update_ip_library": {
+        await this.authService.assertBrandPermission(brandId, "brandGrowth.library.ipLibrary", "edit", auth);
+        const result = await this.brandsService.updateIpProfile(
+          brandId,
+          payload as Parameters<BrandsService["updateIpProfile"]>[1],
+        );
+        return this.buildManagedOperationResponse({
+          title: "IP资料库已更新",
+          action,
+          data: result,
+          url: "/brand-growth",
+          label: "打开品牌增长工作台",
+          resourceKind: "brand_archive",
+        });
+      }
+      case "upload_ip_image": {
+        await this.authService.assertBrandPermission(brandId, "brandGrowth.library.ipLibrary", "edit", auth);
+        const result = await this.brandsService.uploadIpImage(
+          brandId,
+          payload as Parameters<BrandsService["uploadIpImage"]>[1],
+        );
+        return this.buildManagedOperationResponse({
+          title: "IP图片已上传",
           action,
           data: result,
           url: "/brand-growth",

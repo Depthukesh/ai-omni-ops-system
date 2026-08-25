@@ -225,6 +225,7 @@ model Brand {
   foundedYear        Int?
   brandDescription   String?
   enterpriseIntro    String?
+  ipProfileJson      Json?
   memberPermissionsJson Json?
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
@@ -1548,4 +1549,3 @@ model DigitalHumanScriptTemplate {
   @@index([brandId, updatedAt])
   @@map("digital_human_script_templates")
 }
-

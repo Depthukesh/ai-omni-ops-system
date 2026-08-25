@@ -28,6 +28,7 @@ export type MediaPreviewState = {
 
 export type BrandGrowthLibraryPageKey =
   | "background"
+  | "ipLibrary"
   | "products"
   | "survey"
   | "industryFeeds"

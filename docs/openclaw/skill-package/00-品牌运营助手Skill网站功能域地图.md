@@ -30,6 +30,7 @@
 当前承载：
 
 - 品牌资料库
+- IP资料库
 - 企业知识库
 - 小红书 / 抖音 / 公众号采集
 - 品牌增长报告
@@ -60,6 +61,13 @@
 - `get_openclaw_lobster_diaries`
 - `get_openclaw_creative_materials`
 - `get_openclaw_video_works`
+
+`manage_brand_library` 在品牌资料库域下当前优先承接：
+
+- 品牌背景读取与更新
+- `IP资料库` 读取、更新与图片上传
+- 产品资料、平台账号、竞品账号、行业资料、业务资产
+- 品牌知识库创建与文件上传
 
 其中 `manage_growth_reports` 当前已覆盖营销日历按日期补写能力：
 

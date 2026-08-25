@@ -252,6 +252,17 @@ export type UpdateBackgroundPayload = {
   enterpriseIntro?: string;
 };
 
+export type UpdateBrandIpProfilePayload = {
+  ipName?: string;
+  imageUrls?: string[];
+  ipPositioning?: string;
+  ipStory?: string;
+  ipValues?: string;
+  ipStyle?: string;
+  douyinAccountLink?: string;
+  xiaohongshuAccountLink?: string;
+};
+
 export type CreateProductPayload = {
   productName: string;
   productType?: string;
@@ -276,6 +287,17 @@ export type UploadBrandProductImagePayload = {
 };
 
 export type BrandProductImageUploadRecord = {
+  fileName: string;
+  imageUrl: string;
+};
+
+export type UploadBrandIpImagePayload = {
+  fileName: string;
+  contentType: string;
+  dataBase64: string;
+};
+
+export type BrandIpImageUploadRecord = {
   fileName: string;
   imageUrl: string;
 };
@@ -1437,6 +1459,24 @@ export class BrandsService {
     return this.updateBackgroundFromMock(id, payload);
   }
 
+  async updateIpProfile(id: string, payload: UpdateBrandIpProfilePayload) {
+    const normalizedPayload = this.normalizeBrandIpProfilePayload(payload);
+
+    if (await this.prismaService.canUseDatabase()) {
+      await this.ensureBrandExistsInDatabase(id);
+      await this.prismaService.brand.update({
+        where: { id },
+        data: {
+          ipProfileJson: normalizedPayload as Prisma.InputJsonValue,
+        },
+      });
+      return normalizedPayload;
+    }
+
+    this.assertLocalSingleUserBrandArchiveDatabaseAvailable();
+    return this.updateIpProfileFromMock(id, normalizedPayload);
+  }
+
   async createProduct(id: string, payload: CreateProductPayload) {
     if (await this.prismaService.canUseDatabase()) {
       await this.ensureBrandExistsInDatabase(id);
@@ -1537,11 +1577,42 @@ export class BrandsService {
     };
   }
 
+  async uploadIpImage(id: string, payload: UploadBrandIpImagePayload): Promise<BrandIpImageUploadRecord> {
+    await this.ensureBrandExistsInMockOrDatabase(id);
+
+    if (!payload.fileName || !payload.contentType || !payload.dataBase64) {
+      throw new ServiceUnavailableException("图片上传参数不完整");
+    }
+
+    if (!payload.contentType.startsWith("image/")) {
+      throw new ServiceUnavailableException("只支持上传图片文件");
+    }
+
+    const extension = this.resolveImageExtension(payload.fileName, payload.contentType);
+    const fileName = `${randomUUID()}${extension}`;
+    const storageKey = this.buildBrandIpImageStorageKey(id, fileName);
+    await this.ossStorageService.putObject(storageKey, Buffer.from(payload.dataBase64, "base64"), payload.contentType);
+
+    return {
+      fileName,
+      imageUrl: `${this.resolveServerBaseUrl()}/api/brands/${id}/ip-images/${encodeURIComponent(fileName)}`,
+    };
+  }
+
   async getProductImage(id: string, fileName: string) {
     const safeFileName = this.sanitizeStoredFileName(fileName);
     const file = await this.ossStorageService.getObject(this.buildBrandProductImageStorageKey(id, safeFileName));
     if (!file) {
       throw new NotFoundException("产品图片不存在");
+    }
+    return file;
+  }
+
+  async getIpImage(id: string, fileName: string) {
+    const safeFileName = this.sanitizeStoredFileName(fileName);
+    const file = await this.ossStorageService.getObject(this.buildBrandIpImageStorageKey(id, safeFileName));
+    if (!file) {
+      throw new NotFoundException("IP 图片不存在");
     }
     return file;
   }
@@ -2071,6 +2142,7 @@ export class BrandsService {
         { label: "媒体资产数", value: relatedMedia.length, tone: "blue" },
       ],
       archiveSteps: this.buildStepsFromCollections({
+        ipProfile: this.readObject((currentBrand as Record<string, unknown>).ipProfileJson),
         products: relatedProducts,
         survey,
         platformAccounts,
@@ -2126,7 +2198,11 @@ export class BrandsService {
     );
 
     return {
-      brand,
+      brand: {
+        ...brand,
+        ipProfileJson: this.normalizeBrandIpProfilePayload(this.readObject((brand as Record<string, unknown>).ipProfileJson)),
+      },
+      ipProfile: this.normalizeBrandIpProfilePayload(this.readObject((brand as Record<string, unknown>).ipProfileJson)),
       products,
       survey,
       platformAccounts,
@@ -2134,6 +2210,7 @@ export class BrandsService {
       industryFeeds,
       businessAssets,
       steps: this.buildStepsFromCollections({
+        ipProfile: this.readObject((brand as Record<string, unknown>).ipProfileJson),
         products,
         survey,
         platformAccounts,
@@ -3203,6 +3280,7 @@ export class BrandsService {
         brandDescription: brand.brandDescription ?? "",
         enterpriseIntro: brand.enterpriseIntro ?? "",
       },
+      ipProfile: this.normalizeBrandIpProfilePayload(brand.ipProfileJson),
       products,
       survey,
       platformAccounts,
@@ -3210,6 +3288,7 @@ export class BrandsService {
       industryFeeds,
       businessAssets,
       steps: this.buildStepsFromCollections({
+        ipProfile: this.readObject(brand.ipProfileJson),
         products,
         survey,
         platformAccounts,
@@ -3251,6 +3330,12 @@ export class BrandsService {
     });
 
     return brand;
+  }
+
+  private updateIpProfileFromMock(id: string, payload: UpdateBrandIpProfilePayload) {
+    const brand = this.getBrand(id) as Record<string, unknown>;
+    brand.ipProfileJson = this.normalizeBrandIpProfilePayload(payload);
+    return brand.ipProfileJson;
   }
 
   private createProductFromMock(id: string, payload: CreateProductPayload) {
@@ -3358,8 +3443,6 @@ export class BrandsService {
         this.prismaService,
         new ApiProvidersService(this.prismaService),
         new ChanjingOpenApiService(),
-        this.appConfigService,
-        this.ossStorageService,
       );
       this.knowledgeBasesServiceFallback = new KnowledgeBasesService(
         this.prismaService,
@@ -5233,6 +5316,7 @@ export class BrandsService {
   }
 
   private buildStepsFromCollections({
+    ipProfile,
     products,
     survey,
     platformAccounts,
@@ -5240,6 +5324,7 @@ export class BrandsService {
     industryFeeds,
     businessAssets,
   }: {
+    ipProfile?: Record<string, unknown> | UpdateBrandIpProfilePayload;
     products: Array<unknown>;
     survey: Array<unknown>;
     platformAccounts: Array<unknown>;
@@ -5253,6 +5338,12 @@ export class BrandsService {
         name: "品牌背景资料",
         status: "ready",
         description: "品牌名称、行业、门店数量、品牌介绍与企业介绍。",
+      },
+      {
+        key: "ipLibrary",
+        name: "IP资料库",
+        status: this.hasBrandIpProfileContent(ipProfile) ? "ready" : "pending",
+        description: "IP名称、照片、定位、故事、价值观、风格和平台账号链接。",
       },
       {
         key: "products",
@@ -5342,6 +5433,10 @@ export class BrandsService {
 
   private buildBrandProductImageStorageKey(brandId: string, fileName: string) {
     return `brands/${brandId}/product-images/${fileName}`;
+  }
+
+  private buildBrandIpImageStorageKey(brandId: string, fileName: string) {
+    return `brands/${brandId}/ip-images/${fileName}`;
   }
 
   private buildBrandAssetFileStorageKey(brandId: string, fileName: string) {
@@ -5644,6 +5739,34 @@ export class BrandsService {
   private readString(value: Record<string, unknown>, key: string) {
     const nextValue = value[key];
     return typeof nextValue === "string" ? nextValue : undefined;
+  }
+
+  private normalizeBrandIpProfilePayload(value: Prisma.JsonValue | Record<string, unknown> | UpdateBrandIpProfilePayload | null | undefined) {
+    const profile = this.readObject(value);
+    return {
+      ipName: this.readString(profile, "ipName") ?? "",
+      imageUrls: this.parseStringArrayJson(profile.imageUrls as Prisma.JsonValue | null | undefined),
+      ipPositioning: this.readString(profile, "ipPositioning") ?? "",
+      ipStory: this.readString(profile, "ipStory") ?? "",
+      ipValues: this.readString(profile, "ipValues") ?? "",
+      ipStyle: this.readString(profile, "ipStyle") ?? "",
+      douyinAccountLink: this.readString(profile, "douyinAccountLink") ?? "",
+      xiaohongshuAccountLink: this.readString(profile, "xiaohongshuAccountLink") ?? "",
+    };
+  }
+
+  private hasBrandIpProfileContent(value: Record<string, unknown> | UpdateBrandIpProfilePayload | null | undefined) {
+    const profile = this.normalizeBrandIpProfilePayload(value);
+    return Boolean(
+      profile.ipName ||
+      profile.ipPositioning ||
+      profile.ipStory ||
+      profile.ipValues ||
+      profile.ipStyle ||
+      profile.douyinAccountLink ||
+      profile.xiaohongshuAccountLink ||
+      profile.imageUrls.length,
+    );
   }
 
   private readNumber(value: Record<string, unknown>, key: string) {

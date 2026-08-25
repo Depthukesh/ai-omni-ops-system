@@ -223,6 +223,7 @@ model Brand {
   foundedYear        Int?
   brandDescription   String?
   enterpriseIntro    String?
+  ipProfileJson      Json?
   memberPermissionsJson Json?
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt

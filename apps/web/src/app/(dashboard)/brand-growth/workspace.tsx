@@ -116,6 +116,7 @@ import {
   type BrandArchiveStepKey,
   type BrandAsset,
   type BrandBackground,
+  type BrandIpProfile,
   type BrandPermissionKey,
   type BrandPermissionSettingsRecord,
   type CurrentUserProfile,
@@ -127,8 +128,10 @@ import {
   upsertFeishuAppConfig,
   upsertBrandFeishuBinding,
   uploadBrandAssetFile,
+  uploadBrandIpImage,
   uploadBrandProductImage,
   updateBrandBackground,
+  updateBrandIpProfile,
   updateBrandProduct,
 } from "../../../services/brand-growth";
 import {
@@ -181,6 +184,7 @@ import { isAuthFailure } from "../personal-center/route-helpers";
 
 const stepOrder: BrandArchiveStepKey[] = [
   "background",
+  "ipLibrary",
   "products",
   "survey",
   "industryFeeds",
@@ -277,6 +281,7 @@ const strategySections: Array<{
     label: "品牌资料库",
     pages: [
       { key: "background", label: "品牌背景资料", description: "维护品牌基础信息、企业介绍和建档底座。" },
+      { key: "ipLibrary", label: "IP资料库", description: "维护品牌 IP 的名称、照片、定位、故事、价值观、风格和账号链接。" },
       { key: "products", label: "产品资料库", description: "沉淀品牌产品、价格与场景信息。" },
       { key: "survey", label: "品牌运营情况", description: "记录品牌人货场、运营诊断与核心问题。" },
       { key: "industryFeeds", label: "第三方数据", description: "归集行业报告、市场信息与评论洞察。" },
@@ -319,6 +324,7 @@ const strategySections: Array<{
 const FEISHU_XHS_TEMPLATE_URL = "https://acn8dzidreuv.feishu.cn/base/Q4UNbUmY1acU9rsiYaAcobZwnte?from=from_copylink";
 const strategyPagePermissionMap: Record<StrategyPageKey, BrandPermissionKey> = {
   background: "brandGrowth.library.background",
+  ipLibrary: "brandGrowth.library.ipLibrary",
   products: "brandGrowth.library.products",
   survey: "brandGrowth.library.survey",
   platformAccounts: "brandGrowth.collection.xiaohongshuCollection",
@@ -361,6 +367,17 @@ function createEmptyArchiveBundle(): BrandArchiveBundle {
       foundedYear: new Date().getFullYear(),
       brandDescription: "",
       enterpriseIntro: "",
+    },
+    ipProfile: {
+      ...seed.ipProfile,
+      ipName: "",
+      imageUrls: [],
+      ipPositioning: "",
+      ipStory: "",
+      ipValues: "",
+      ipStyle: "",
+      douyinAccountLink: "",
+      xiaohongshuAccountLink: "",
     },
     products: [],
     survey: seed.survey.map((item) => ({
@@ -627,7 +644,7 @@ function isBrandArchiveStep(key: StrategyPageKey): key is BrandArchiveStepKey {
 }
 
 function isLibraryPageKey(key?: BrandArchiveStepKey): key is BrandGrowthLibraryPageKey {
-  return key === "background" || key === "products" || key === "survey" || key === "industryFeeds" || key === "businessAssets";
+  return key === "background" || key === "ipLibrary" || key === "products" || key === "survey" || key === "industryFeeds" || key === "businessAssets";
 }
 
 function getLoadScopeByPage(key: StrategyPageKey): BrandGrowthLoadScope {
@@ -1135,6 +1152,7 @@ export function BrandGrowthWorkspace() {
   const [isSavingCalendarItem, setIsSavingCalendarItem] = useState(false);
   const [calendarItemDraft, setCalendarItemDraft] = useState<XiaohongshuMarketingCalendarItem | null>(null);
   const [uploadingProductId, setUploadingProductId] = useState("");
+  const [uploadingIpImages, setUploadingIpImages] = useState(false);
   const [addingMaterialAssetId, setAddingMaterialAssetId] = useState("");
   const [extractingDouyinTranscriptAssetId, setExtractingDouyinTranscriptAssetId] = useState("");
   const [deletingDouyinAccountId, setDeletingDouyinAccountId] = useState("");
@@ -3950,6 +3968,13 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     }));
   }
 
+  function updateIpProfile<K extends keyof BrandIpProfile>(key: K, value: BrandIpProfile[K]) {
+    setArchive((current) => ({
+      ...current,
+      ipProfile: { ...current.ipProfile, [key]: value },
+    }));
+  }
+
   function updateProduct(index: number, key: keyof BrandProduct, value: string | number) {
     setArchive((current) => {
       const next = [...current.products];
@@ -3996,6 +4021,42 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
       setErrorMessage(`产品图片上传失败：${message}`);
     } finally {
       setUploadingProductId("");
+    }
+  }
+
+  async function handleUploadIpImage(files?: File[] | null) {
+    if (!files?.length) {
+      return;
+    }
+
+    const invalidFile = files.find((file) => !file.type.startsWith("image/"));
+    if (invalidFile) {
+      setErrorMessage("请上传图片格式文件。");
+      return;
+    }
+
+    setUploadingIpImages(true);
+    clearMessages();
+
+    try {
+      const uploadedUrls: string[] = [];
+      for (const file of files) {
+        const uploaded = await uploadBrandIpImage(archive.brand.id, file);
+        uploadedUrls.push(uploaded.imageUrl);
+      }
+      setArchive((current) => ({
+        ...current,
+        ipProfile: {
+          ...current.ipProfile,
+          imageUrls: Array.from(new Set([...current.ipProfile.imageUrls, ...uploadedUrls])),
+        },
+      }));
+      setNotice(`IP 图片上传成功，已追加 ${uploadedUrls.length} 张图片，请继续保存页面。`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "上传失败";
+      setErrorMessage(`IP 图片上传失败：${message}`);
+    } finally {
+      setUploadingIpImages(false);
     }
   }
 
@@ -4185,6 +4246,10 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
         });
       }
 
+      if (activeBrandPage === "ipLibrary") {
+        await updateBrandIpProfile(archive.brand.id, archive.ipProfile);
+      }
+
       if (activeBrandPage === "products") {
         for (const productId of removedProductIds) {
           await deleteBrandProduct(archive.brand.id, productId);
@@ -4234,7 +4299,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
       const currentStepName = archive.steps.find((step) => step.key === activeBrandPage)?.name ?? "当前页面";
       const currentIndex = stepOrder.indexOf(activeBrandPage);
       const nextStep = currentIndex >= 0 ? stepOrder[currentIndex + 1] : undefined;
-      if ((activeBrandPage === "products" || activeBrandPage === "survey") && nextStep) {
+      if ((activeBrandPage === "ipLibrary" || activeBrandPage === "products" || activeBrandPage === "survey") && nextStep) {
         switchPage(nextStep);
         setNotice(`已保存：${currentStepName}，已进入下一步`);
       } else {
@@ -4261,6 +4326,9 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
         archive={archive}
         statusText={getBrandArchiveStatusText}
         onUpdateBackground={updateBackground}
+        onUpdateIpProfile={updateIpProfile}
+        onUploadIpImage={handleUploadIpImage}
+        uploadingIpImages={uploadingIpImages}
         onAddProduct={() => setArchive((current) => ({ ...current, products: [...current.products, emptyProduct()] }))}
         onUpdateProduct={updateProduct}
         onRemoveProduct={removeProduct}
@@ -4641,7 +4709,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     if (activeBrandPage) {
       return (
         <button type="button" className="primary-button" onClick={() => void saveActivePage()} disabled={isSaving || isHydrating || !hasCurrentPageEditPermission}>
-          {isSaving ? "保存中..." : activeBrandPage === "products" || activeBrandPage === "survey" ? "保存并下一步" : "保存页面"}
+          {isSaving ? "保存中..." : activeBrandPage === "ipLibrary" || activeBrandPage === "products" || activeBrandPage === "survey" ? "保存并下一步" : "保存页面"}
         </button>
       );
     }

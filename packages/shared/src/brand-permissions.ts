@@ -10,6 +10,7 @@ export type BrandPermissionFlags = {
 
 export const BRAND_PERMISSION_KEYS = [
   "brandGrowth.library.background",
+  "brandGrowth.library.ipLibrary",
   "brandGrowth.library.products",
   "brandGrowth.library.survey",
   "brandGrowth.library.industryFeeds",
@@ -65,6 +66,7 @@ export const BRAND_PERMISSION_TREE = [
         label: "品牌资料库",
         items: [
           { key: "brandGrowth.library.background", label: "品牌背景资料" },
+          { key: "brandGrowth.library.ipLibrary", label: "IP资料库" },
           { key: "brandGrowth.library.products", label: "产品资料库" },
           { key: "brandGrowth.library.survey", label: "品牌运营情况" },
           { key: "brandGrowth.library.industryFeeds", label: "第三方数据" },

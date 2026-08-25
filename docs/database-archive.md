@@ -240,7 +240,8 @@
 
 - `Brand`
   - 用途：品牌主档
-  - 关键字段：`ownerUserId`、`brandName`、`industry`、`storeCount`、`foundedYear`、`brandDescription`
+  - 关键字段：`ownerUserId`、`brandName`、`industry`、`storeCount`、`foundedYear`、`brandDescription`、`enterpriseIntro`、`ipProfileJson`
+  - 补充说明：`ipProfileJson` 用于承接品牌资料库下独立 `IP资料库` 子板块，统一存储 `IP名称 / 多图照片 / 定位 / 故事 / 价值观 / 风格 / 抖音账号链接 / 小红书账号链接`，避免为单一归档对象额外拆出独立重表
 - `BrandMember`
   - 用途：品牌主账号与子用户协作关系
   - 关键字段：`brandId`、`userId`、`role`、`status`、`joinedAt`、`invitedByUserId`

@@ -18,6 +18,7 @@ export enum TaskStatus {
 
 export type BrandArchiveStepKey =
   | "background"
+  | "ipLibrary"
   | "products"
   | "survey"
   | "platformAccounts"
@@ -35,6 +36,17 @@ export type BrandBackground = {
   foundedYear: number;
   brandDescription: string;
   enterpriseIntro: string;
+};
+
+export type BrandIpProfile = {
+  ipName: string;
+  imageUrls: string[];
+  ipPositioning: string;
+  ipStory: string;
+  ipValues: string;
+  ipStyle: string;
+  douyinAccountLink: string;
+  xiaohongshuAccountLink: string;
 };
 
 export type BrandProduct = {
@@ -68,6 +80,7 @@ export type BrandAsset = {
 
 export type BrandArchiveBundle = {
   brand: BrandBackground;
+  ipProfile: BrandIpProfile;
   products: BrandProduct[];
   survey: BrandSurveyAnswer[];
   platformAccounts: BrandAccount[];

@@ -5,6 +5,7 @@ import {
   type AddBrandMemberPayload,
   type AcceptBrandInviteByCodePayload,
   type BrandAssetFileUploadRecord,
+  type BrandIpImageUploadRecord,
   type BrandProductImageUploadRecord,
   BrandsService,
   type CreateBrandBusinessKnowledgeBaseFilesPayload,
@@ -26,6 +27,8 @@ import {
   type UpdateProductPayload,
   type UpsertSurveyPayload,
   type TransferBrandOwnerPayload,
+  type UpdateBrandIpProfilePayload,
+  type UploadBrandIpImagePayload,
 } from "./brands.service";
 
 @Controller("brands")
@@ -234,6 +237,17 @@ export class BrandsController {
     return this.brandsService.updateBackground(id, payload);
   }
 
+  @Patch(":id/ip-profile")
+  async updateIpProfile(
+    @Param("id") id: string,
+    @Body() payload: UpdateBrandIpProfilePayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(id, "brandGrowth.library.ipLibrary", "edit", auth);
+    return this.brandsService.updateIpProfile(id, payload);
+  }
+
   @Post(":id/products")
   async createProduct(
     @Param("id") id: string,
@@ -256,6 +270,17 @@ export class BrandsController {
     return this.brandsService.uploadProductImage(id, payload);
   }
 
+  @Post(":id/ip-images")
+  async uploadIpImage(
+    @Param("id") id: string,
+    @Body() payload: UploadBrandIpImagePayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ): Promise<BrandIpImageUploadRecord> {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(id, "brandGrowth.library.ipLibrary", "edit", auth);
+    return this.brandsService.uploadIpImage(id, payload);
+  }
+
   @Get(":id/product-images/:fileName")
   async getProductImage(
     @Param("id") id: string,
@@ -263,6 +288,17 @@ export class BrandsController {
     @Res() response: { setHeader(name: string, value: string): unknown; send(body: Buffer): unknown },
   ) {
     const file = await this.brandsService.getProductImage(id, fileName);
+    response.setHeader("Content-Type", file.contentType);
+    return response.send(file.buffer);
+  }
+
+  @Get(":id/ip-images/:fileName")
+  async getIpImage(
+    @Param("id") id: string,
+    @Param("fileName") fileName: string,
+    @Res() response: { setHeader(name: string, value: string): unknown; send(body: Buffer): unknown },
+  ) {
+    const file = await this.brandsService.getIpImage(id, fileName);
     response.setHeader("Content-Type", file.contentType);
     return response.send(file.buffer);
   }

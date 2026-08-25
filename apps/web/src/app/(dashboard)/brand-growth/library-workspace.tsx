@@ -8,6 +8,7 @@ import type {
   BrandArchiveBundle,
   BrandAsset,
   BrandBackground,
+  BrandIpProfile,
   BrandProduct,
   BrandArchiveStatus,
 } from "../../../services/brand-growth";
@@ -45,6 +46,9 @@ export interface BrandGrowthLibraryWorkspaceProps {
   archive: BrandArchiveBundle;
   statusText: (status: BrandArchiveStatus) => string;
   onUpdateBackground: <K extends keyof BrandBackground>(key: K, value: BrandBackground[K]) => void;
+  onUpdateIpProfile: <K extends keyof BrandIpProfile>(key: K, value: BrandIpProfile[K]) => void;
+  onUploadIpImage: (files?: File[] | null) => void | Promise<void>;
+  uploadingIpImages: boolean;
   onAddProduct: () => void;
   onUpdateProduct: (index: number, key: keyof BrandProduct, value: string | number) => void;
   onRemoveProduct: (productId: string) => void;
@@ -272,6 +276,132 @@ export function BrandGrowthLibraryWorkspace(props: BrandGrowthLibraryWorkspacePr
             <textarea
               value={props.archive.brand.enterpriseIntro}
               onChange={(event) => props.onUpdateBackground("enterpriseIntro", event.target.value)}
+            />
+          </label>
+        </div>
+      </article>
+    );
+  }
+
+  if (props.activeBrandPage === "ipLibrary") {
+    return (
+      <article className="workspace-panel strategy-page-card">
+        <article className="reference-info-panel">
+          <div className="reference-info-head">
+            <div>
+              <strong>{props.archive.ipProfile.ipName || "IP资料库"}</strong>
+              <p>这里用于维护品牌 IP 的定位、故事、价值观、风格和平台账号链接。</p>
+            </div>
+            <span className="archive-pill status-ready">{props.activeStepName}</span>
+          </div>
+          <div className="reference-info-grid">
+            <div>
+              <span>IP名称</span>
+              <strong>{props.archive.ipProfile.ipName || "未填写"}</strong>
+            </div>
+            <div>
+              <span>图片数量</span>
+              <strong>{props.archive.ipProfile.imageUrls.length}</strong>
+            </div>
+            <div>
+              <span>抖音账号</span>
+              <strong>{props.archive.ipProfile.douyinAccountLink ? "已填写" : "未填写"}</strong>
+            </div>
+            <div>
+              <span>当前状态</span>
+              <strong>{props.statusText(props.activeStepStatus)}</strong>
+            </div>
+          </div>
+        </article>
+        <div className="form-grid two-column">
+          <label className="field">
+            <span>IP名称</span>
+            <input
+              value={props.archive.ipProfile.ipName}
+              onChange={(event) => props.onUpdateIpProfile("ipName", event.target.value)}
+            />
+          </label>
+          <label className="field">
+            <span>IP定位</span>
+            <input
+              value={props.archive.ipProfile.ipPositioning}
+              onChange={(event) => props.onUpdateIpProfile("ipPositioning", event.target.value)}
+            />
+          </label>
+          <label className="field field-full">
+            <span>IP照片</span>
+            <div className="product-image-upload-row">
+              <label className="secondary-button product-upload-trigger">
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="sr-only-file-input"
+                  onChange={(event) => {
+                    void props.onUploadIpImage(Array.from(event.target.files || []));
+                    event.currentTarget.value = "";
+                  }}
+                />
+                {props.uploadingIpImages ? "上传中..." : "上传图片"}
+              </label>
+              {props.archive.ipProfile.imageUrls[0] ? (
+                <a href={props.archive.ipProfile.imageUrls[0]} target="_blank" rel="noreferrer" className="secondary-button">
+                  查看首图
+                </a>
+              ) : null}
+            </div>
+            {props.archive.ipProfile.imageUrls.length ? (
+              <div className="product-image-preview-grid">
+                {props.archive.ipProfile.imageUrls.map((imageUrl, imageIndex) => (
+                  <div className="product-image-preview-shell" key={`ip-image-${imageIndex}`}>
+                    <img
+                      src={imageUrl}
+                      alt={`${props.archive.ipProfile.ipName || "IP资料"} 图片 ${imageIndex + 1}`}
+                      className="product-image-preview"
+                    />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <span className="field-hint">支持一次选择多张图片，上传后会自动追加到当前 IP 资料中。</span>
+            )}
+          </label>
+          <label className="field field-full">
+            <span>IP故事</span>
+            <textarea
+              rows={4}
+              value={props.archive.ipProfile.ipStory}
+              onChange={(event) => props.onUpdateIpProfile("ipStory", event.target.value)}
+            />
+          </label>
+          <label className="field">
+            <span>IP价值观</span>
+            <textarea
+              rows={3}
+              value={props.archive.ipProfile.ipValues}
+              onChange={(event) => props.onUpdateIpProfile("ipValues", event.target.value)}
+            />
+          </label>
+          <label className="field">
+            <span>IP风格</span>
+            <textarea
+              rows={3}
+              value={props.archive.ipProfile.ipStyle}
+              onChange={(event) => props.onUpdateIpProfile("ipStyle", event.target.value)}
+            />
+          </label>
+          <label className="field">
+            <span>IP抖音账号链接</span>
+            <input
+              value={props.archive.ipProfile.douyinAccountLink}
+              onChange={(event) => props.onUpdateIpProfile("douyinAccountLink", event.target.value)}
+            />
+          </label>
+          <label className="field">
+            <span>IP小红书账号链接</span>
+            <input
+              value={props.archive.ipProfile.xiaohongshuAccountLink}
+              onChange={(event) => props.onUpdateIpProfile("xiaohongshuAccountLink", event.target.value)}
             />
           </label>
         </div>
