@@ -1,6 +1,6 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { basename, resolve } from "node:path";
 import { BadRequestException, Injectable, NotFoundException, UnauthorizedException } from "@nestjs/common";
 import { database } from "../../common/mock-data";
 import { AppConfigService } from "../../config/app-config.service";
@@ -71,6 +71,9 @@ export type OpenClawInstallWorkspace = {
     steps: string[];
     fileName: string;
     downloadPath: string;
+    githubTreeUrl: string;
+    githubRef: string;
+    githubPrompt: string;
     notes: string[];
   };
   relationshipGuide: {
@@ -227,8 +230,14 @@ export class OpenClawInstallationService {
     const brand = me.brands.find((item) => item.id === brandId);
     const brandName = brand?.brandName || brandId;
     const fileName = this.buildSkillPackageFileName(brandName);
-    const skillMarkdown = this.buildBrandOperatorSkillMarkdown();
-    const installGuide = this.buildBrandOperatorSkillInstallGuide();
+    const skillMarkdown = this.readSkillPackageSourceMarkdown(
+      "docs/openclaw/skill-package/SKILL.md",
+      this.buildBrandOperatorSkillMarkdown(),
+    );
+    const installGuide = this.readSkillPackageSourceMarkdown(
+      "docs/openclaw/skill-package/README.md",
+      this.buildBrandOperatorSkillInstallGuide(),
+    );
     const AdmZip = require("adm-zip") as {
       new (): {
         addFile(entryName: string, content: Buffer): void;
@@ -239,9 +248,11 @@ export class OpenClawInstallationService {
     archive.addFile("SKILL.md", Buffer.from(skillMarkdown, "utf-8"));
     archive.addFile("README.md", Buffer.from(installGuide, "utf-8"));
     for (const doc of this.getSkillPackageSupportingDocs()) {
+      const content = this.readSkillPackageSourceMarkdown(doc.sourceRelativePath, doc.fallbackContent);
+      archive.addFile(basename(doc.sourceRelativePath), Buffer.from(content, "utf-8"));
       archive.addFile(
         doc.entryName,
-        Buffer.from(this.readSkillPackageSourceMarkdown(doc.sourceRelativePath, doc.fallbackContent), "utf-8"),
+        Buffer.from(content, "utf-8"),
       );
     }
 
@@ -328,6 +339,13 @@ export class OpenClawInstallationService {
     const installToken = input.rawToken || input.activeToken?.tokenPreview || "请先在网站中生成安装令牌";
     const headerValue = input.rawToken ? `Bearer ${input.rawToken}` : "Bearer 请先生成安装令牌";
     const docsBaseUrl = this.appConfigService.getWebPublicBaseUrl();
+    const skillGithubRef = this.getSkillPackageGithubRef();
+    const skillGithubTreeUrl = this.buildSkillPackageGithubTreeUrl(skillGithubRef);
+    const skillGithubPrompt = [
+      "请安装这个 GitHub Skill 目录：",
+      skillGithubTreeUrl,
+      `安装后绑定 MCP 服务器 ${mcpServerName}，地址 ${mcpUrl}，请求头使用 Authorization: ${headerValue} 和 x-brand-id: ${input.brandId}。`,
+    ].join(" ");
     return {
       brandId: input.brandId,
       brandName: input.brandName,
@@ -426,22 +444,26 @@ export class OpenClawInstallationService {
       },
       skillInstall: {
         title: "品牌运营助手 Skill 安装",
-        summary: "请直接下载 Skill ZIP 文件，再到客户端按上传方式导入。导入后它会作为统一的总入口 Skill，负责调度网站内的 MCP 能力。",
-        status: "beta",
-        statusLabel: "Beta",
+        summary: "现在支持两种安装方式：直接下载 Skill ZIP 上传到客户端，或把 GitHub Skill 目录链接连同一句安装指令发给 OpenClaw 自动安装。",
+        status: "ready",
+        statusLabel: "双通道",
         installTarget: "客户端 Skill 配置区",
         steps: [
           "先完成上方 MCP 安装，确认品牌令牌和 MCP 地址可用",
-          "下载下面提供的 Skill ZIP 文件，并在客户端按“上传技能”方式导入",
-          "导入后把该 Skill 绑定到 ai-omni-ops MCP，并确认允许调用站内工具",
+          "二选一：下载下面的 Skill ZIP 手动导入，或复制 Git 安装指令把 GitHub Skill 链接发给 OpenClaw",
+          "安装后把该 Skill 绑定到 ai-omni-ops MCP，并确认允许调用站内工具",
           "首次使用时先验证查询、生成和任务回读是否正常",
         ],
         fileName: this.buildSkillPackageFileName(input.brandName),
         downloadPath: "/api/openclaw/installation-hub/skill-package.zip",
+        githubTreeUrl: skillGithubTreeUrl,
+        githubRef: skillGithubRef,
+        githubPrompt: skillGithubPrompt,
         notes: [
+          "Git 安装与 ZIP 下载共用仓库里的同一套 Skill 真源：docs/openclaw/skill-package/。",
           "压缩包内包含根目录 SKILL.md、README.md，以及 docs/00-网站功能域地图.md、docs/01-MCP工具矩阵.md、docs/02-高频任务路由手册.md。",
+          "GitHub 链接默认指向当前对外交付分支；如后续切主分支或固定版本，可用 OPENCLAW_SKILL_GITHUB_REF 覆盖。",
           "ZIP 会优先读取仓库里的 Markdown 真源；如果部署环境缺少文档文件，会自动回退到内置完整版内容，而不是只给空白占位说明。",
-          "当前是统一总入口 Skill，不按不同软件拆分不同版本。",
         ],
       },
       relationshipGuide: {
@@ -1479,6 +1501,18 @@ GEO获客：
 ## 4. 一句话结论
 
 品牌运营助手要像一个网站总调度，而不是只会调几个孤立工具：先路由，再拿执行计划，再按域执行，不会做的明确说清楚并回网页。`;
+  }
+
+  private getSkillPackageGithubRepoUrl() {
+    return "https://github.com/Depthukesh/ai-omni-ops-system";
+  }
+
+  private getSkillPackageGithubRef() {
+    return String(process.env.OPENCLAW_SKILL_GITHUB_REF || "").trim() || "push_version_update_3384a55";
+  }
+
+  private buildSkillPackageGithubTreeUrl(ref: string) {
+    return `${this.getSkillPackageGithubRepoUrl()}/tree/${encodeURIComponent(ref)}/docs/openclaw/skill-package`;
   }
 
   private buildSkillPackageFileName(brandName: string) {

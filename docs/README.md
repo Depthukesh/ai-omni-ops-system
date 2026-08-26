@@ -165,6 +165,8 @@
 
 ## 最近应优先关注的文档
 
+- `docs/changes/2026-08-27-ip-voice-material-preview-openclaw-git-skill.md`
+  - 给品牌资料库 `IP资料库` 增加 `mp3` 且时长 `> 30 秒` 的语音上传；个人中心素材管理四类素材补齐 `查看` 预览；OpenClaw 安装中心新增 GitHub Skill 链接 + 一句安装指令，并继续保留 Skill ZIP 下载
 - `docs/changes/2026-08-25-brand-growth-ip-library.md`
   - 品牌资料库新增独立 `IP资料库` 子板块，并把品牌 IP 资料统一收口到 `Brand.ipProfileJson` 与 `manage_brand_library` 链路
 - `docs/changes/2026-08-23-remove-mixedcut-from-repo.md`

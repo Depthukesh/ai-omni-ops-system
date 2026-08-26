@@ -2649,7 +2649,7 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
     inputSchema: {
       type: "object",
       properties: {
-        action: { type: "string", description: "例如 get_archive_summary、get_ip_library、update_background、update_ip_library、upload_ip_image、create_product、replace_platform_accounts、create_knowledge_base_files。" },
+        action: { type: "string", description: "例如 get_archive_summary、get_ip_library、update_background、update_ip_library、upload_ip_image、upload_ip_voice、create_product、replace_platform_accounts、create_knowledge_base_files。" },
         productId: { type: "string" },
         knowledgeBaseId: { type: "string" },
         fileId: { type: "string" },
@@ -10085,6 +10085,21 @@ export class OpenClawService {
         );
         return this.buildManagedOperationResponse({
           title: "IP图片已上传",
+          action,
+          data: result,
+          url: "/brand-growth",
+          label: "打开品牌增长工作台",
+          resourceKind: "brand_archive",
+        });
+      }
+      case "upload_ip_voice": {
+        await this.authService.assertBrandPermission(brandId, "brandGrowth.library.ipLibrary", "edit", auth);
+        const result = await this.brandsService.uploadIpVoice(
+          brandId,
+          payload as Parameters<BrandsService["uploadIpVoice"]>[1],
+        );
+        return this.buildManagedOperationResponse({
+          title: "IP语音已上传",
           action,
           data: result,
           url: "/brand-growth",

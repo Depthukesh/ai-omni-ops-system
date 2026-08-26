@@ -49,6 +49,8 @@ export interface BrandGrowthLibraryWorkspaceProps {
   onUpdateIpProfile: <K extends keyof BrandIpProfile>(key: K, value: BrandIpProfile[K]) => void;
   onUploadIpImage: (files?: File[] | null) => void | Promise<void>;
   uploadingIpImages: boolean;
+  onUploadIpVoice: (file?: File | null) => void | Promise<void>;
+  uploadingIpVoice: boolean;
   onAddProduct: () => void;
   onUpdateProduct: (index: number, key: keyof BrandProduct, value: string | number) => void;
   onRemoveProduct: (productId: string) => void;
@@ -364,6 +366,39 @@ export function BrandGrowthLibraryWorkspace(props: BrandGrowthLibraryWorkspacePr
               </div>
             ) : (
               <span className="field-hint">支持一次选择多张图片，上传后会自动追加到当前 IP 资料中。</span>
+            )}
+          </label>
+          <label className="field field-full">
+            <span>IP语音</span>
+            <div className="product-image-upload-row">
+              <label className="secondary-button product-upload-trigger">
+                <input
+                  type="file"
+                  accept=".mp3,audio/mpeg"
+                  className="sr-only-file-input"
+                  onChange={(event) => {
+                    void props.onUploadIpVoice(event.target.files?.[0] || null);
+                    event.currentTarget.value = "";
+                  }}
+                />
+                {props.uploadingIpVoice ? "上传中..." : "上传语音"}
+              </label>
+              {props.archive.ipProfile.voiceUrl ? (
+                <a href={props.archive.ipProfile.voiceUrl} target="_blank" rel="noreferrer" className="secondary-button">
+                  查看语音
+                </a>
+              ) : null}
+            </div>
+            {props.archive.ipProfile.voiceUrl ? (
+              <div className="field-hint" style={{ display: "grid", gap: 10 }}>
+                <audio controls preload="metadata" src={props.archive.ipProfile.voiceUrl} style={{ width: "100%" }} />
+                <span>
+                  当前语音：{props.archive.ipProfile.voiceFileName || "已上传 MP3"}
+                  {props.archive.ipProfile.voiceDurationSec > 0 ? ` · ${props.archive.ipProfile.voiceDurationSec} 秒` : ""}
+                </span>
+              </div>
+            ) : (
+              <span className="field-hint">必须上传 mp3 格式，且时长需大于 30 秒。</span>
             )}
           </label>
           <label className="field field-full">

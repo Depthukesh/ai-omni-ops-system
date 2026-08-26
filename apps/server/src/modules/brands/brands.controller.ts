@@ -6,6 +6,7 @@ import {
   type AcceptBrandInviteByCodePayload,
   type BrandAssetFileUploadRecord,
   type BrandIpImageUploadRecord,
+  type BrandIpVoiceUploadRecord,
   type BrandProductImageUploadRecord,
   BrandsService,
   type CreateBrandBusinessKnowledgeBaseFilesPayload,
@@ -29,6 +30,7 @@ import {
   type TransferBrandOwnerPayload,
   type UpdateBrandIpProfilePayload,
   type UploadBrandIpImagePayload,
+  type UploadBrandIpVoicePayload,
 } from "./brands.service";
 
 @Controller("brands")
@@ -281,6 +283,17 @@ export class BrandsController {
     return this.brandsService.uploadIpImage(id, payload);
   }
 
+  @Post(":id/ip-voices")
+  async uploadIpVoice(
+    @Param("id") id: string,
+    @Body() payload: UploadBrandIpVoicePayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ): Promise<BrandIpVoiceUploadRecord> {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(id, "brandGrowth.library.ipLibrary", "edit", auth);
+    return this.brandsService.uploadIpVoice(id, payload);
+  }
+
   @Get(":id/product-images/:fileName")
   async getProductImage(
     @Param("id") id: string,
@@ -299,6 +312,17 @@ export class BrandsController {
     @Res() response: { setHeader(name: string, value: string): unknown; send(body: Buffer): unknown },
   ) {
     const file = await this.brandsService.getIpImage(id, fileName);
+    response.setHeader("Content-Type", file.contentType);
+    return response.send(file.buffer);
+  }
+
+  @Get(":id/ip-voices/:fileName")
+  async getIpVoice(
+    @Param("id") id: string,
+    @Param("fileName") fileName: string,
+    @Res() response: { setHeader(name: string, value: string): unknown; send(body: Buffer): unknown },
+  ) {
+    const file = await this.brandsService.getIpVoice(id, fileName);
     response.setHeader("Content-Type", file.contentType);
     return response.send(file.buffer);
   }

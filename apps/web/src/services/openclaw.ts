@@ -43,6 +43,9 @@ export type OpenClawInstallWorkspace = {
     steps: string[];
     fileName: string;
     downloadPath: string;
+    githubTreeUrl: string;
+    githubRef: string;
+    githubPrompt: string;
     notes: string[];
   };
   relationshipGuide: {

@@ -1,6 +1,8 @@
 import { execFile } from "node:child_process";
 import { randomBytes, randomUUID, scryptSync } from "node:crypto";
 import { existsSync } from "node:fs";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { extname, join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { BadRequestException, Injectable, NotFoundException, ServiceUnavailableException, UnauthorizedException } from "@nestjs/common";
@@ -255,6 +257,9 @@ export type UpdateBackgroundPayload = {
 export type UpdateBrandIpProfilePayload = {
   ipName?: string;
   imageUrls?: string[];
+  voiceUrl?: string;
+  voiceFileName?: string;
+  voiceDurationSec?: number;
   ipPositioning?: string;
   ipStory?: string;
   ipValues?: string;
@@ -300,6 +305,18 @@ export type UploadBrandIpImagePayload = {
 export type BrandIpImageUploadRecord = {
   fileName: string;
   imageUrl: string;
+};
+
+export type UploadBrandIpVoicePayload = {
+  fileName: string;
+  contentType: string;
+  dataBase64: string;
+};
+
+export type BrandIpVoiceUploadRecord = {
+  fileName: string;
+  audioUrl: string;
+  durationSec: number;
 };
 
 export type UploadBrandAssetFilePayload = {
@@ -1599,6 +1616,34 @@ export class BrandsService {
     };
   }
 
+  async uploadIpVoice(id: string, payload: UploadBrandIpVoicePayload): Promise<BrandIpVoiceUploadRecord> {
+    await this.ensureBrandExistsInMockOrDatabase(id);
+
+    if (!payload.fileName || !payload.contentType || !payload.dataBase64) {
+      throw new ServiceUnavailableException("语音上传参数不完整");
+    }
+
+    if (!this.isSupportedMp3Upload(payload.fileName, payload.contentType)) {
+      throw new ServiceUnavailableException("IP 语音只支持 mp3 格式");
+    }
+
+    const buffer = Buffer.from(payload.dataBase64, "base64");
+    const durationSec = await this.probeAudioDurationSec(buffer, payload.fileName);
+    if (durationSec <= 30) {
+      throw new ServiceUnavailableException("IP 语音时长必须大于 30 秒");
+    }
+
+    const fileName = `${randomUUID()}.mp3`;
+    const storageKey = this.buildBrandIpVoiceStorageKey(id, fileName);
+    await this.ossStorageService.putObject(storageKey, buffer, "audio/mpeg");
+
+    return {
+      fileName,
+      audioUrl: `${this.resolveServerBaseUrl()}/api/brands/${id}/ip-voices/${encodeURIComponent(fileName)}`,
+      durationSec,
+    };
+  }
+
   async getProductImage(id: string, fileName: string) {
     const safeFileName = this.sanitizeStoredFileName(fileName);
     const file = await this.ossStorageService.getObject(this.buildBrandProductImageStorageKey(id, safeFileName));
@@ -1613,6 +1658,15 @@ export class BrandsService {
     const file = await this.ossStorageService.getObject(this.buildBrandIpImageStorageKey(id, safeFileName));
     if (!file) {
       throw new NotFoundException("IP 图片不存在");
+    }
+    return file;
+  }
+
+  async getIpVoice(id: string, fileName: string) {
+    const safeFileName = this.sanitizeStoredFileName(fileName);
+    const file = await this.ossStorageService.getObject(this.buildBrandIpVoiceStorageKey(id, safeFileName));
+    if (!file) {
+      throw new NotFoundException("IP 语音不存在");
     }
     return file;
   }
@@ -5439,6 +5493,10 @@ export class BrandsService {
     return `brands/${brandId}/ip-images/${fileName}`;
   }
 
+  private buildBrandIpVoiceStorageKey(brandId: string, fileName: string) {
+    return `brands/${brandId}/ip-voices/${fileName}`;
+  }
+
   private buildBrandAssetFileStorageKey(brandId: string, fileName: string) {
     return `brands/${brandId}/asset-files/${fileName}`;
   }
@@ -5463,6 +5521,12 @@ export class BrandsService {
       default:
         return ".jpg";
     }
+  }
+
+  private isSupportedMp3Upload(fileName: string, contentType: string) {
+    const extension = extname(fileName).toLowerCase();
+    const normalizedType = String(contentType || "").trim().toLowerCase();
+    return extension === ".mp3" || normalizedType === "audio/mpeg" || normalizedType === "audio/mp3";
   }
 
   private resolveStoredExtension(fileName: string) {
@@ -5517,6 +5581,44 @@ export class BrandsService {
         return "application/vnd.rar";
       default:
         return "application/octet-stream";
+    }
+  }
+
+  private async probeAudioDurationSec(buffer: Buffer, fileName: string) {
+    const binary = String(process.env.FFPROBE_BINARY || "").trim() || "ffprobe";
+    const tempRoot = await mkdtemp(join(tmpdir(), "brand-ip-audio-probe-"));
+    const tempFilePath = join(tempRoot, `source${extname(fileName).toLowerCase() || ".mp3"}`);
+
+    try {
+      await writeFile(tempFilePath, buffer);
+      const result = await execFileAsync(
+        binary,
+        [
+          "-v",
+          "error",
+          "-show_entries",
+          "format=duration",
+          "-of",
+          "default=noprint_wrappers=1:nokey=1",
+          tempFilePath,
+        ],
+        { windowsHide: true },
+      );
+      const parsed = Number.parseFloat(String(result.stdout || "").trim());
+      if (!Number.isFinite(parsed) || parsed <= 0) {
+        throw new ServiceUnavailableException("无法识别当前 MP3 的时长");
+      }
+      return Math.max(1, Math.ceil(parsed));
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        throw new ServiceUnavailableException("服务端缺少 ffprobe，暂时无法校验 IP 语音时长");
+      }
+      if (error instanceof ServiceUnavailableException) {
+        throw error;
+      }
+      throw new ServiceUnavailableException("IP 语音时长校验失败，请更换文件后重试");
+    } finally {
+      await rm(tempRoot, { recursive: true, force: true }).catch(() => false);
     }
   }
 
@@ -5746,6 +5848,9 @@ export class BrandsService {
     return {
       ipName: this.readString(profile, "ipName") ?? "",
       imageUrls: this.parseStringArrayJson(profile.imageUrls as Prisma.JsonValue | null | undefined),
+      voiceUrl: this.readString(profile, "voiceUrl") ?? "",
+      voiceFileName: this.readString(profile, "voiceFileName") ?? "",
+      voiceDurationSec: this.readNumber(profile, "voiceDurationSec"),
       ipPositioning: this.readString(profile, "ipPositioning") ?? "",
       ipStory: this.readString(profile, "ipStory") ?? "",
       ipValues: this.readString(profile, "ipValues") ?? "",
@@ -5765,6 +5870,9 @@ export class BrandsService {
       profile.ipStyle ||
       profile.douyinAccountLink ||
       profile.xiaohongshuAccountLink ||
+      profile.voiceUrl ||
+      profile.voiceFileName ||
+      profile.voiceDurationSec > 0 ||
       profile.imageUrls.length,
     );
   }

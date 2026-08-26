@@ -18,6 +18,7 @@ import {
 import { buildPersonalCenterLoginPath, formatCollaboratorRoleLabel, formatDateTime, isAuthFailure } from "../route-helpers";
 
 type MaterialCategoryFilter = OpenClawCreativeMaterialCategory;
+type MaterialPreviewKind = "image" | "video" | "audio" | "text" | "file";
 
 const materialCategoryFilters: Array<{
   key: MaterialCategoryFilter;
@@ -29,6 +30,56 @@ const materialCategoryFilters: Array<{
   { key: "audio", label: "语音", description: "语音、配乐、音频类素材" },
   { key: "video", label: "视频", description: "视频片段与成片素材" },
 ];
+
+function getMaterialPreviewKind(item: OpenClawCreativeMaterialRecord): MaterialPreviewKind {
+  if (item.materialCategory === "image") {
+    return "image";
+  }
+  if (item.materialCategory === "video") {
+    return "video";
+  }
+  if (item.materialCategory === "audio") {
+    return "audio";
+  }
+  if (item.materialCategory === "text") {
+    return "text";
+  }
+
+  const mimeType = String(item.mimeType || "").toLowerCase();
+  const materialType = String(item.materialType || "").toLowerCase();
+  const fileUrl = String(item.fileUrl || "").toLowerCase();
+  if (mimeType.startsWith("image/") || /\.(png|jpg|jpeg|gif|webp|bmp|svg)$/.test(fileUrl)) {
+    return "image";
+  }
+  if (mimeType.startsWith("video/") || /\.(mp4|mov|webm|m4v|avi)$/.test(fileUrl)) {
+    return "video";
+  }
+  if (mimeType.startsWith("audio/") || /\.(mp3|wav|m4a|aac|ogg|flac)$/.test(fileUrl)) {
+    return "audio";
+  }
+  if (item.textContent || materialType === "text" || materialType === "script" || materialType === "copy") {
+    return "text";
+  }
+  return "file";
+}
+
+function getMaterialFileLabel(item: OpenClawCreativeMaterialRecord) {
+  if (item.fileName) {
+    return item.fileName;
+  }
+  if (item.fileUrl) {
+    try {
+      const url = new URL(item.fileUrl);
+      return decodeURIComponent(url.pathname.split("/").filter(Boolean).pop() || item.fileUrl);
+    } catch {
+      return item.fileUrl;
+    }
+  }
+  if (item.textContent) {
+    return `文本内容 ${item.textContent.length} 字`;
+  }
+  return "-";
+}
 
 export default function PersonalCenterOrdersPage() {
   const router = useRouter();
@@ -46,6 +97,7 @@ export default function PersonalCenterOrdersPage() {
   const [isPickingStorageFolder, setIsPickingStorageFolder] = useState(false);
   const [notice, setNotice] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  const [selectedMaterial, setSelectedMaterial] = useState<OpenClawCreativeMaterialRecord | null>(null);
 
   useEffect(() => {
     const session = readAuthSession();
@@ -229,9 +281,11 @@ export default function PersonalCenterOrdersPage() {
   }, [activeCategory, materials, search]);
 
   const activeCategoryMeta = materialCategoryFilters.find((item) => item.key === activeCategory) || materialCategoryFilters[0];
+  const previewKind = selectedMaterial ? getMaterialPreviewKind(selectedMaterial) : "file";
 
   return (
-    <section className="panel personal-center-panel">
+    <>
+      <section className="panel personal-center-panel">
       <div className="panel-header">
         <div>
           <h2>素材管理</h2>
@@ -378,6 +432,7 @@ export default function PersonalCenterOrdersPage() {
                     <th>素材来源</th>
                     <th>入库时间</th>
                     <th>存储位置</th>
+                    <th>操作</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -408,6 +463,13 @@ export default function PersonalCenterOrdersPage() {
                           {item.localFilePath || "-"}
                         </span>
                       </td>
+                      <td className="openclaw-record-table__action-cell">
+                        <div className="openclaw-record-table__actions">
+                          <button type="button" className="secondary-button" onClick={() => setSelectedMaterial(item)}>
+                            查看
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -432,6 +494,67 @@ export default function PersonalCenterOrdersPage() {
           )}
         </div>
       </div>
-    </section>
+      </section>
+
+      {selectedMaterial ? (
+        <div className="openclaw-diary-dialog-backdrop" onClick={() => setSelectedMaterial(null)}>
+          <div className="openclaw-diary-dialog" onClick={(event) => event.stopPropagation()}>
+            <div className="openclaw-diary-dialog__head">
+              <div>
+                <strong>{selectedMaterial.title || "素材预览"}</strong>
+                <p>{selectedMaterial.sourceLabel} · {selectedMaterial.materialType || "未标注类型"}</p>
+              </div>
+              <button type="button" className="secondary-button" onClick={() => setSelectedMaterial(null)}>
+                关闭
+              </button>
+            </div>
+            <div className="openclaw-diary-dialog__meta">
+              <span>入库时间：{formatDateTime(selectedMaterial.createdAt)}</span>
+              <span>更新时间：{formatDateTime(selectedMaterial.updatedAt)}</span>
+            </div>
+            <div className="openclaw-diary-dialog__meta">
+              <span>素材标签：{selectedMaterial.materialTags.join(" / ") || selectedMaterial.materialType || "未分类"}</span>
+              <span>存储位置：{selectedMaterial.localFilePath || "当前记录未绑定本地副本"}</span>
+            </div>
+            {selectedMaterial.description ? (
+              <div className="openclaw-diary-dialog__content">{selectedMaterial.description}</div>
+            ) : null}
+            <div className="openclaw-diary-dialog__content">
+              {previewKind === "image" && selectedMaterial.fileUrl ? (
+                <img src={selectedMaterial.fileUrl} alt={selectedMaterial.title} className="media-preview-image" />
+              ) : previewKind === "video" && selectedMaterial.fileUrl ? (
+                <video controls preload="metadata" className="xhs-material-lightbox-video" src={selectedMaterial.fileUrl} />
+              ) : previewKind === "audio" && selectedMaterial.fileUrl ? (
+                <audio controls preload="metadata" src={selectedMaterial.fileUrl} style={{ width: "100%" }} />
+              ) : previewKind === "text" ? (
+                <pre style={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word", fontFamily: "inherit" }}>
+                  {selectedMaterial.textContent || "暂无文本内容"}
+                </pre>
+              ) : (
+                <div>
+                  当前素材暂不支持站内预览。
+                  {selectedMaterial.fileUrl ? (
+                    <div style={{ marginTop: 12 }}>
+                      <a href={selectedMaterial.fileUrl} target="_blank" rel="noreferrer" className="xhs-material-detail-button">
+                        打开素材文件
+                      </a>
+                    </div>
+                  ) : null}
+                </div>
+              )}
+            </div>
+            {selectedMaterial.fileUrl ? (
+              <div className="openclaw-diary-dialog__meta">
+                <span>文件：{getMaterialFileLabel(selectedMaterial)}</span>
+                {selectedMaterial.storageKey ? <span>存储键：{selectedMaterial.storageKey}</span> : null}
+                <a href={selectedMaterial.fileUrl} target="_blank" rel="noreferrer" className="note-data-link">
+                  新窗口打开
+                </a>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+    </>
   );
 }

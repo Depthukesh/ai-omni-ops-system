@@ -49,6 +49,7 @@
 - 帮我看下当前品牌 IP 资料
 - 帮我更新 IP 定位 / IP 故事 / IP 价值观
 - 帮我给 IP 资料库上传几张图片
+- 帮我给 IP 资料库上传一段品牌语音
 - 这个品牌主要卖什么
 - 帮我看竞品账号和行业资料
 
@@ -68,6 +69,8 @@
 - 只看 IP 资料时，优先 `manage_brand_library` + `action=get_ip_library`
 - 改 IP 字段时，优先 `manage_brand_library` + `action=update_ip_library`
 - 上传 IP 图片时，优先 `manage_brand_library` + `action=upload_ip_image`
+- 上传 IP 语音时，优先 `manage_brand_library` + `action=upload_ip_voice`
+- IP 语音当前要求：`mp3` 且时长 `> 30 秒`
 - 涉及整份品牌档案概览时，再配合 `get_brand_archive_summary`
 
 ### 3.3 维护知识库和资料

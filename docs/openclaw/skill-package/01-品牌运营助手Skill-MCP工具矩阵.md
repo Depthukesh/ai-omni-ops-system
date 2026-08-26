@@ -47,6 +47,7 @@
 - 统一读取或维护品牌资料库
 - 读取或更新 `IP资料库`
 - 上传 IP 图片到品牌资料库
+- 上传 IP 语音到品牌资料库（仅 mp3，且时长需大于 30 秒）
 - 看当前品牌是谁
 - 看品牌产品、平台账号、竞品、行业资料
 - 提取品牌档案摘要
@@ -58,6 +59,7 @@
 - `update_background`
 - `update_ip_library`
 - `upload_ip_image`
+- `upload_ip_voice`
 - `create_product`
 - `replace_platform_accounts`
 - `create_knowledge_base_files`

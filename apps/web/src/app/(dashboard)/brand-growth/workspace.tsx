@@ -129,6 +129,7 @@ import {
   upsertBrandFeishuBinding,
   uploadBrandAssetFile,
   uploadBrandIpImage,
+  uploadBrandIpVoice,
   uploadBrandProductImage,
   updateBrandBackground,
   updateBrandIpProfile,
@@ -372,6 +373,9 @@ function createEmptyArchiveBundle(): BrandArchiveBundle {
       ...seed.ipProfile,
       ipName: "",
       imageUrls: [],
+      voiceUrl: "",
+      voiceFileName: "",
+      voiceDurationSec: 0,
       ipPositioning: "",
       ipStory: "",
       ipValues: "",
@@ -1153,6 +1157,7 @@ export function BrandGrowthWorkspace() {
   const [calendarItemDraft, setCalendarItemDraft] = useState<XiaohongshuMarketingCalendarItem | null>(null);
   const [uploadingProductId, setUploadingProductId] = useState("");
   const [uploadingIpImages, setUploadingIpImages] = useState(false);
+  const [uploadingIpVoice, setUploadingIpVoice] = useState(false);
   const [addingMaterialAssetId, setAddingMaterialAssetId] = useState("");
   const [extractingDouyinTranscriptAssetId, setExtractingDouyinTranscriptAssetId] = useState("");
   const [deletingDouyinAccountId, setDeletingDouyinAccountId] = useState("");
@@ -4060,6 +4065,41 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     }
   }
 
+  async function handleUploadIpVoice(file?: File | null) {
+    if (!file) {
+      return;
+    }
+
+    const fileName = String(file.name || "").toLowerCase();
+    const fileType = String(file.type || "").toLowerCase();
+    if (!fileName.endsWith(".mp3") && fileType !== "audio/mpeg" && fileType !== "audio/mp3") {
+      setErrorMessage("IP 语音只支持 mp3 格式。");
+      return;
+    }
+
+    setUploadingIpVoice(true);
+    clearMessages();
+
+    try {
+      const uploaded = await uploadBrandIpVoice(archive.brand.id, file);
+      setArchive((current) => ({
+        ...current,
+        ipProfile: {
+          ...current.ipProfile,
+          voiceUrl: uploaded.audioUrl,
+          voiceFileName: uploaded.fileName,
+          voiceDurationSec: uploaded.durationSec,
+        },
+      }));
+      setNotice(`IP 语音上传成功，当前时长 ${uploaded.durationSec} 秒，请继续保存页面。`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "上传失败";
+      setErrorMessage(`IP 语音上传失败：${message}`);
+    } finally {
+      setUploadingIpVoice(false);
+    }
+  }
+
   function updateSurvey(key: string, value: string) {
     setArchive((current) => {
       const next = [...current.survey];
@@ -4329,6 +4369,8 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
         onUpdateIpProfile={updateIpProfile}
         onUploadIpImage={handleUploadIpImage}
         uploadingIpImages={uploadingIpImages}
+        onUploadIpVoice={handleUploadIpVoice}
+        uploadingIpVoice={uploadingIpVoice}
         onAddProduct={() => setArchive((current) => ({ ...current, products: [...current.products, emptyProduct()] }))}
         onUpdateProduct={updateProduct}
         onRemoveProduct={removeProduct}

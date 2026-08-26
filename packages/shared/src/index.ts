@@ -41,6 +41,9 @@ export type BrandBackground = {
 export type BrandIpProfile = {
   ipName: string;
   imageUrls: string[];
+  voiceUrl: string;
+  voiceFileName: string;
+  voiceDurationSec: number;
   ipPositioning: string;
   ipStory: string;
   ipValues: string;

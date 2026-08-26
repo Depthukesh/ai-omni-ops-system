@@ -329,10 +329,10 @@ export default function PersonalCenterOpenClawPage() {
 
       <div className="personal-context-banner">
         <div>
-          <strong>当前安装流程按“生成令牌 - 复制 MCP 配置 - 下载 Skill ZIP”执行</strong>
+          <strong>当前安装流程按“生成令牌 - 复制 MCP 配置 - Git 或 ZIP 二选一安装 Skill”执行</strong>
           <p>
             {workspace?.canManage
-              ? "品牌管理员可以在这里重置正式安装令牌，并把统一配置分发给成员。普通成员只需要复制片段完成接入。"
+              ? "品牌管理员可以在这里重置正式安装令牌，并把统一配置分发给成员。普通成员只需要复制片段，并任选 Git 安装或 ZIP 导入完成接入。"
               : "当前账号可以查看当前品牌的 MCP 配置和 Skill 安装说明；如需重置令牌，请联系品牌管理员。"}
           </p>
         </div>
@@ -354,6 +354,15 @@ export default function PersonalCenterOpenClawPage() {
               disabled={isDownloadingSkill}
             >
               {isDownloadingSkill ? "下载中..." : "下载 Skill ZIP"}
+            </button>
+          ) : null}
+          {workspace?.skillInstall?.githubTreeUrl ? (
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() => void handleCopy(workspace.skillInstall.githubTreeUrl, "skill-github-url")}
+            >
+              {copiedKey === "skill-github-url" ? "已复制 Git 链接" : "复制 Git Skill 链接"}
             </button>
           ) : null}
         </div>
@@ -481,6 +490,12 @@ export default function PersonalCenterOpenClawPage() {
               <span>安装位置</span>
               <strong>{workspace?.skillInstall?.installTarget || "客户端 Skill 配置区"}</strong>
             </div>
+            {workspace?.skillInstall?.githubRef ? (
+              <div className="openclaw-install-target">
+                <span>Git 分支</span>
+                <strong>{workspace.skillInstall.githubRef}</strong>
+              </div>
+            ) : null}
           </div>
 
           <div className="openclaw-skill-steps">
@@ -502,10 +517,38 @@ export default function PersonalCenterOpenClawPage() {
             </div>
           ) : null}
 
+          {workspace?.skillInstall?.githubTreeUrl ? (
+            <div className="openclaw-skill-download-hint">
+              <span>Git 安装</span>
+              <strong style={{ wordBreak: "break-all" }}>{workspace.skillInstall.githubTreeUrl}</strong>
+              <p>把下面这句安装指令连同 Git Skill 链接直接发给 OpenClaw，它就可以按仓库里的 Skill 目录自行安装。</p>
+              <div className="personal-context-actions" style={{ marginTop: 12, flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => void handleCopy(workspace.skillInstall.githubPrompt, "skill-github-prompt")}
+                >
+                  {copiedKey === "skill-github-prompt" ? "已复制安装指令" : "复制一句安装指令"}
+                </button>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => void handleCopy(workspace.skillInstall.githubTreeUrl, "skill-github-url-card")}
+                >
+                  {copiedKey === "skill-github-url-card" ? "已复制 Git 链接" : "复制 Git Skill 链接"}
+                </button>
+              </div>
+              <label className="field" style={{ marginTop: 12 }}>
+                <span>给 OpenClaw 的一句安装指令</span>
+                <textarea value={workspace.skillInstall.githubPrompt} rows={5} readOnly spellCheck={false} />
+              </label>
+            </div>
+          ) : null}
+
           <div className="openclaw-skill-download-hint">
-            <span>下载文件</span>
+            <span>ZIP 下载</span>
             <strong>{workspace?.skillInstall?.fileName || "brand-operator-skill.zip"}</strong>
-            <p>压缩包内包含 `SKILL.md` 与 README 导入说明，按客户端“上传技能”方式导入即可。</p>
+            <p>压缩包内包含 `SKILL.md`、`README.md` 和配套 docs，按客户端“上传技能”方式导入即可。</p>
           </div>
         </article>
       </div>

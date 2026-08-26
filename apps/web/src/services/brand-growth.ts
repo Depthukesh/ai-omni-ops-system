@@ -87,6 +87,9 @@ export type BrandBackground = {
 export type BrandIpProfile = {
   ipName: string;
   imageUrls: string[];
+  voiceUrl: string;
+  voiceFileName: string;
+  voiceDurationSec: number;
   ipPositioning: string;
   ipStory: string;
   ipValues: string;
@@ -596,6 +599,12 @@ export type BrandIpImageUploadRecord = {
   imageUrl: string;
 };
 
+export type BrandIpVoiceUploadRecord = {
+  fileName: string;
+  audioUrl: string;
+  durationSec: number;
+};
+
 export type BrandAssetFileUploadRecord = {
   fileName: string;
   fileUrl: string;
@@ -714,6 +723,11 @@ export function normalizeBrandIpProfile(profile?: Partial<BrandIpProfile> | null
     imageUrls: Array.isArray(profile?.imageUrls)
       ? profile.imageUrls.filter((value): value is string => typeof value === "string" && value.trim().length > 0)
       : [],
+    voiceUrl: profile?.voiceUrl ?? "",
+    voiceFileName: profile?.voiceFileName ?? "",
+    voiceDurationSec: typeof profile?.voiceDurationSec === "number" && Number.isFinite(profile.voiceDurationSec)
+      ? Math.max(0, profile.voiceDurationSec)
+      : 0,
     ipPositioning: profile?.ipPositioning ?? "",
     ipStory: profile?.ipStory ?? "",
     ipValues: profile?.ipValues ?? "",
@@ -772,6 +786,9 @@ export const brandArchiveSeed: BrandArchiveBundle = {
       "https://oss.example.com/ip/qianji-shopkeeper-1.jpg",
       "https://oss.example.com/ip/qianji-shopkeeper-2.jpg",
     ],
+    voiceUrl: "",
+    voiceFileName: "",
+    voiceDurationSec: 0,
     ipPositioning: "陪伴城市家庭用户的温暖烘焙生活 IP",
     ipStory: "以门店日常、节庆仪式感和家庭陪伴为主线，连接品牌产品与用户情绪价值。",
     ipValues: "温暖、真诚、治愈、可靠",
@@ -1252,6 +1269,15 @@ export async function uploadBrandIpImage(brandId: string | undefined, file: File
   return jsonRequest<BrandIpImageUploadRecord>(`/brands/${resolveBrandId(brandId)}/ip-images`, "POST", {
     fileName: file.name,
     contentType: file.type || "image/jpeg",
+    dataBase64,
+  });
+}
+
+export async function uploadBrandIpVoice(brandId: string | undefined, file: File): Promise<BrandIpVoiceUploadRecord> {
+  const dataBase64 = await readFileAsBase64(file);
+  return jsonRequest<BrandIpVoiceUploadRecord>(`/brands/${resolveBrandId(brandId)}/ip-voices`, "POST", {
+    fileName: file.name,
+    contentType: file.type || "audio/mpeg",
     dataBase64,
   });
 }
