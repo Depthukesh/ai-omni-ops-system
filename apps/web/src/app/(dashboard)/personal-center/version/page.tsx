@@ -193,6 +193,7 @@ export default function PersonalCenterVersionPage() {
   const currentBuild = status?.current || null;
   const updateSource = status?.source || null;
   const guideOnlyMode = updateSource?.executionMode === "guide-only";
+  const repoGuideMode = updateSource?.kind === "repo";
   const updateGuide = latestRelease?.updateGuide || null;
   const isCurrentAlignedWithLatest =
     Boolean(currentBuild && latestRelease)
@@ -233,7 +234,9 @@ export default function PersonalCenterVersionPage() {
   const methodGuideSummary = guideOnlyMode
     ? latestRelease?.summary || (status?.updateAvailable
       ? "检测到 Docker 标准运行态新版本，请按下面的 git pull、容器重建和 Skill 同步步骤完成更新。"
-      : "当前版本已同步；后续有新版本时，这里会继续展示 git pull、容器重建和 Skill 同步方法。")
+      : repoGuideMode
+        ? "当前先展示仓库内最近版本记录、Docker 更新命令和同步提醒；配置远端更新清单后，这里还会自动提示是否有新版本。"
+        : "当前版本已同步；后续有新版本时，这里会继续展示 git pull、容器重建和 Skill 同步方法。")
     : status?.updateAvailable
       ? "建议先检查更新，再预下载安装包并执行一键升级。升级完成后，系统会自动重启本地工作台。"
       : "当前已经是最新版本；后续检测到新版本时，仍按“检查更新 -> 预下载安装包 -> 立即升级”完成更新。";
@@ -282,7 +285,9 @@ export default function PersonalCenterVersionPage() {
           <h2>版本与升级</h2>
           <p className="panel-subtext">
             {guideOnlyMode
-              ? "这里统一查看当前版本、远端更新清单，并按指引执行 git pull、重建容器和 Skill 包同步。"
+              ? repoGuideMode
+                ? "这里统一查看当前版本、最近版本记录，并按指引执行 git pull、重建容器和 Skill 包同步。"
+                : "这里统一查看当前版本、远端更新清单，并按指引执行 git pull、重建容器和 Skill 包同步。"
               : "这里统一查看当前版本、最新版本，并直接完成检查、下载和升级。"}
           </p>
         </div>
@@ -454,7 +459,7 @@ export default function PersonalCenterVersionPage() {
           </div>
         ) : (
           <p className="panel-subtext" style={{ margin: 0 }}>
-            暂无系统更新日志
+            {repoGuideMode ? "当前还没有可展示的版本记录，后续补充 docs/changes 后会自动展示在这里。" : "暂无系统更新日志"}
           </p>
         )}
       </article>

@@ -224,7 +224,7 @@ export type SystemUpdateStatus = {
   current: SystemUpdateCurrentBuild;
   latest: SystemUpdateLatestRelease | null;
   source: {
-    kind: "oss" | "manifest";
+    kind: "oss" | "manifest" | "repo";
     label: string;
     manifestUrl: string;
     publicBaseUrl: string;

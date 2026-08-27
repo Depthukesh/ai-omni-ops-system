@@ -107,6 +107,7 @@ export function resolveVersionWorkspaceBadge(status?: SystemUpdateStatus | null)
 export function resolveVersionWorkspaceSummary(status?: SystemUpdateStatus | null) {
   const latestVersion = status?.latest?.appVersion || status?.latest?.tagName || status?.current?.version || "未获取";
   const guideOnlyMode = status?.source?.executionMode === "guide-only";
+  const repoGuideMode = status?.source?.kind === "repo";
   if (!status?.supported) {
     return {
       value: "更新通知",
@@ -138,7 +139,9 @@ export function resolveVersionWorkspaceSummary(status?: SystemUpdateStatus | nul
   return {
     value: "已是最新",
     description: guideOnlyMode
-      ? "当前版本已同步；后续有新版本时，这里会提醒 git pull 和容器重建方法。"
+      ? repoGuideMode
+        ? "当前展示最近版本记录和 Docker 更新命令；配置远端清单后，这里还能自动提醒新版本。"
+        : "当前版本已同步；后续有新版本时，这里会提醒 git pull 和容器重建方法。"
       : "当前版本已同步；后续有新版本时，这里会提醒下载安装并执行升级。",
   };
 }

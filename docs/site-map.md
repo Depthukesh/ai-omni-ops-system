@@ -355,16 +355,18 @@
 
 - 个人中心已新增独立“版本与升级”页，不再要求用户每次手工下载后再判断如何覆盖安装
 - `local-single-user` 安装态下，`版本与升级` 继续承接 OSS `latest.json` 检查、安装包下载校验和一键升级
-- Docker + PostgreSQL 标准运行态下，如果服务端配置了 `STANDARD_RUNTIME_UPDATE_MANIFEST_URL`，个人中心也会显示 `版本与升级`：该页面不会直接替用户升级容器，而是展示远端更新清单、建议命令以及是否需重新导入 `skill-package.zip`
+- Docker + PostgreSQL 标准运行态下，个人中心当前也会显示 `版本与升级`：
+  - 未配置 `STANDARD_RUNTIME_UPDATE_MANIFEST_URL` 时，页面至少展示仓库内最近 `docs/changes/*.md` 版本记录、当前部署分支的 Docker 更新命令，以及 Skill/MCP 同步提醒
+  - 已配置 `STANDARD_RUNTIME_UPDATE_MANIFEST_URL` 时，再额外展示远端更新清单、是否有新版本、建议命令以及是否需重新导入 `skill-package.zip`
 - 个人中心概览卡片与二级导航现在会根据 `system/update/status` 前置显示版本提醒，提示当前是“有新版本 / 升级中 / 需处理 / 已同步”，避免用户必须先点进版本页才知道是否需要更新
-- 网站版和普通源码运行态如果没有配置更新清单，则仍不显示该入口，避免出现无法执行的空壳升级页
+- 标准运行态没有远端清单时，页面会退回“仓库更新指引”模式，不再出现空白版本页
 - 后端通过 `system/update/*` 统一检查 OSS `latest.json`、识别 `AiOmniOps-local-single-user-win-x64.zip` 与 `.sha256`
 - 当前源码运行态允许查看最新发布信息，但会明确提示“不是安装态发布包，暂不支持一键升级”
 - 当前安装态会把升级包先落到 `LOCAL_APP_DATA_ROOT/updates`，完成 SHA256 校验后再由独立 updater 停机、替换安装目录、重启本地工作台，并在 API / Web 都通过验活后才标记升级成功；apply-run 阶段执行的 updater 现在会优先从刚下载的目标发布包里提取，而不是继续复用当前安装版本自带脚本；若新版本起不来，updater 会自动回滚到安装前 backup 并恢复上一版本；为避免磁盘空间被历史垃圾目录耗尽，updater 会在安装前先预清理历史遗留的 `downloads/*`、`extract-*`、旧 `apply-runs/*` 临时目录，并在成功后再复清一次，同时回收安装目录旁遗留的 `AiOmniOps-backup-*` 备份目录；安装器日志已统一回到 `LOCAL_APP_DATA_ROOT/logs`，历史遗留的 `%LOCALAPPDATA%\AiOmniOps` 安装/升级痕迹也会一起回收，避免长期占满 C 盘
 - Docker 标准运行态当前约定的更新闭环是：
-  - 发布端更新远端 JSON 清单
-  - 用户端在 `版本与升级` 页面看到新版本
-  - 按页面给出的 `git pull`、`docker compose up -d --build ...` 和 Skill 重导说明完成同步
+  - 未配远端清单时：用户端仍可先在 `版本与升级` 页面查看最近版本记录、`git pull` 与 `docker compose up -d --build ...` 指令
+  - 发布端如果同步更新远端 JSON 清单，用户端还会在 `版本与升级` 页面进一步看到“有新版本”提醒
+  - 更新后按页面给出的 Skill / MCP 同步说明完成收口
 - 参考变更：`docs/changes/2026-08-22-docker-standard-version-update-guide-page.md`
 - 参考变更：`docs/changes/2026-08-22-personal-center-version-update-reminder.md`
 - 安装、升级、自启与修复脚本当前统一以 `runtime/local-single-user-runtime.json` 里的 `browserUrl / previewUrl / apiHealthUrl` 作为页面入口与验活真值，不再把 `127.0.0.1:3001` 当成固定页面地址

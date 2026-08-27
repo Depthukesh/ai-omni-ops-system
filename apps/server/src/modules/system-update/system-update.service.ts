@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { closeSync, createReadStream, createWriteStream, existsSync, openSync, readFileSync } from "node:fs";
-import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 import { spawn } from "node:child_process";
 import { Readable } from "node:stream";
@@ -143,7 +143,7 @@ type LatestReleaseResult = {
 };
 
 type UpdateSourceInfo = {
-  kind: "oss" | "manifest";
+  kind: "oss" | "manifest" | "repo";
   label: string;
   manifestUrl: string;
   publicBaseUrl: string;
@@ -161,6 +161,27 @@ type GitHubReleaseApiResponse = {
     size?: number;
     browser_download_url?: string;
   }>;
+};
+
+type GitWorkspaceInfo = {
+  branchName: string | null;
+  shortCommitSha: string | null;
+  fullCommitSha: string | null;
+  remoteUrl: string | null;
+};
+
+type ChangeDocEntry = {
+  fileName: string;
+  title: string;
+  publishedAt: string;
+  content: string;
+  changeLogUrl: string | null;
+  likelyRequires: {
+    server: boolean;
+    web: boolean;
+    skillPackage: boolean;
+    migration: boolean;
+  };
 };
 
 type ApplyUpdateResult = {
@@ -757,6 +778,7 @@ export class SystemUpdateService {
 
     const packageJson = safeReadJson<{ version?: string }>(packageJsonPath);
     const manifest = safeReadJson<{ generatedAt?: string; name?: string; releaseTag?: string; appVersion?: string }>(manifestPath);
+    const gitInfo = this.readGitWorkspaceInfo(projectRoot);
     const canApplyUpdate =
       process.platform === "win32"
       && runtimeMode === "local-single-user"
@@ -776,8 +798,8 @@ export class SystemUpdateService {
       version: String(manifest?.appVersion || packageJson?.version || "").trim() || "0.1.0",
       runtimeMode,
       generatedAt: normalizeIsoDate(manifest?.generatedAt),
-      buildName: String(manifest?.name || "").trim() || null,
-      releaseTag: String(manifest?.releaseTag || "").trim() || null,
+      buildName: String(manifest?.name || "").trim() || this.buildGitDisplayName(gitInfo),
+      releaseTag: String(manifest?.releaseTag || "").trim() || this.buildGitReleaseTag(gitInfo),
       installRoot: canApplyUpdate ? installRootCandidate : null,
       projectRoot,
       canApplyUpdate,
@@ -803,7 +825,9 @@ export class SystemUpdateService {
         };
       }
       const result = source.executionMode === "guide-only"
-        ? await this.fetchStandardRuntimeLatestRelease(source, checkedAt)
+        ? source.kind === "manifest"
+          ? await this.fetchStandardRuntimeLatestRelease(source, checkedAt)
+          : await this.buildStandardRuntimeFallbackRelease(source, current, checkedAt)
         : await this.fetchLocalSingleUserLatestRelease(source, checkedAt);
 
       this.latestReleaseCache = {
@@ -929,6 +953,73 @@ export class SystemUpdateService {
       result.release.invalidReason = "远端 standard 更新清单缺少 latestVersion/appVersion、releaseTag 或 commands，当前无法生成更新指引。";
     }
     return result;
+  }
+
+  private async buildStandardRuntimeFallbackRelease(
+    source: UpdateSourceInfo,
+    current: CurrentBuildInfo,
+    checkedAt: string,
+  ): Promise<LatestReleaseResult> {
+    const gitInfo = this.readGitWorkspaceInfo(current.projectRoot);
+    const changeDocs = await this.readRecentChangeDocs(current.projectRoot, gitInfo, 8);
+    const recentSkillRelated = changeDocs.some((item) => item.likelyRequires.skillPackage);
+    const recentMigrationRelated = changeDocs.some((item) => item.likelyRequires.migration);
+    const branchName = gitInfo.branchName || "main";
+    const composePath = "docker/docker-compose.local-postgres.yml";
+    const releaseTag = current.releaseTag || this.buildGitReleaseTag(gitInfo) || "current-workspace";
+    const summary = [
+      "当前标准运行态未配置远端更新清单，先展示仓库内最近版本记录、Docker 更新命令和同步提醒。",
+      "如果希望页面自动提示“有新版本”，请继续配置 STANDARD_RUNTIME_UPDATE_MANIFEST_URL。",
+    ].join(" ");
+
+    return {
+      checkedAt,
+      errorMessage: null,
+      release: {
+        tagName: releaseTag,
+        appVersion: current.version || null,
+        name: "标准运行态本地更新指引",
+        htmlUrl: source.publicBaseUrl || gitInfo.remoteUrl || "",
+        publishedAt: changeDocs[0]?.publishedAt || current.generatedAt || checkedAt,
+        body: summary,
+        summary,
+        changeLogs: changeDocs.map((item) => ({
+          releaseTag: item.title,
+          appVersion: null,
+          publishedAt: item.publishedAt,
+          content: item.content,
+        })),
+        zipAsset: null,
+        checksumAsset: null,
+        checksumValue: null,
+        updateGuide: {
+          commands: [
+            `git pull origin ${branchName}`,
+            `docker compose -f "${composePath}" up -d --build server web`,
+            recentMigrationRelated ? `docker compose -f "${composePath}" run --rm db-init` : "如本次更新涉及 schema 或初始化链，再执行：docker compose -f \"docker/docker-compose.local-postgres.yml\" run --rm db-init",
+          ],
+          notices: [
+            "Docker 标准运行态只负责版本提醒和更新指引，不会直接替你升级容器。",
+            recentSkillRelated
+              ? "最近版本记录里包含 Skill / MCP 相关改动，更新后请到个人中心 -> OpenClaw 安装中心重新同步对应 Skill 或安装说明。"
+              : "如果本次改动涉及 Skill / MCP，请在更新完成后到个人中心 -> OpenClaw 安装中心同步最新 Skill 安装方式。",
+            gitInfo.remoteUrl
+              ? `当前仓库远端：${gitInfo.remoteUrl}`
+              : "当前仓库远端地址未能自动识别，若你的代码来自其它分支，请把 git pull 的分支名改成你自己的部署分支。",
+          ],
+          requires: {
+            server: true,
+            web: true,
+            skillPackage: recentSkillRelated,
+            migration: recentMigrationRelated,
+          },
+          changeLogUrl: changeDocs[0]?.changeLogUrl || null,
+          skillPackageUrl: null,
+        },
+        isValid: true,
+        invalidReason: null,
+      },
+    };
   }
 
   private async fetchLatestReleasePayload(owner: string, repo: string): Promise<GitHubReleaseApiResponse> {
@@ -1190,6 +1281,9 @@ export class SystemUpdateService {
     if (latest && !latest.isValid) {
       return latest.invalidReason || "远端升级版本元数据不完整，当前已阻止继续推荐该版本。";
     }
+    if (current.runtimeMode !== "local-single-user" && !this.appConfigService.getStandardRuntimeUpdateManifestUrl()) {
+      return "当前展示的是仓库内最近版本记录、Docker 更新命令和同步提醒；如需自动检测新版本，请配置 STANDARD_RUNTIME_UPDATE_MANIFEST_URL。";
+    }
     if (this.isCurrentBuildAligned(current, latest || null) && !updateAvailable) {
       return "当前安装版本已经和最新版本对齐。";
     }
@@ -1394,14 +1488,21 @@ export class SystemUpdateService {
   }
 
   private supportsUpdateWorkspace(current: CurrentBuildInfo) {
-    return current.runtimeMode === "local-single-user" || Boolean(this.appConfigService.getStandardRuntimeUpdateManifestUrl());
+    return current.runtimeMode === "local-single-user" || current.runtimeMode === "standard";
   }
 
   private getUpdateSourceInfo(current: CurrentBuildInfo): UpdateSourceInfo | null {
     if (current.runtimeMode !== "local-single-user") {
       const manifestUrl = String(this.appConfigService.getStandardRuntimeUpdateManifestUrl() || "").trim();
       if (!manifestUrl) {
-        return null;
+        const gitInfo = this.readGitWorkspaceInfo(current.projectRoot);
+        return {
+          kind: "repo",
+          label: "仓库更新指引",
+          manifestUrl: "",
+          publicBaseUrl: gitInfo.remoteUrl || current.projectRoot,
+          executionMode: "guide-only",
+        };
       }
       return {
         kind: "manifest",
@@ -1425,6 +1526,158 @@ export class SystemUpdateService {
       manifestUrl,
       publicBaseUrl,
       executionMode: "auto-apply",
+    };
+  }
+
+  private readGitWorkspaceInfo(projectRoot: string): GitWorkspaceInfo {
+    const gitRoot = join(projectRoot, ".git");
+    const headPath = join(gitRoot, "HEAD");
+    try {
+      const headContent = readFileSync(headPath, "utf8").replace(/^\uFEFF+/, "").trim();
+      if (!headContent) {
+        return { branchName: null, shortCommitSha: null, fullCommitSha: null, remoteUrl: this.readGitRemoteUrl(projectRoot) };
+      }
+
+      if (headContent.startsWith("ref:")) {
+        const ref = headContent.replace(/^ref:\s*/, "").trim();
+        const fullCommitSha = this.readGitRefCommit(projectRoot, ref);
+        return {
+          branchName: ref.split("/").pop() || null,
+          shortCommitSha: fullCommitSha ? fullCommitSha.slice(0, 8) : null,
+          fullCommitSha,
+          remoteUrl: this.readGitRemoteUrl(projectRoot),
+        };
+      }
+
+      const fullCommitSha = headContent || null;
+      return {
+        branchName: null,
+        shortCommitSha: fullCommitSha ? fullCommitSha.slice(0, 8) : null,
+        fullCommitSha,
+        remoteUrl: this.readGitRemoteUrl(projectRoot),
+      };
+    } catch {
+      return { branchName: null, shortCommitSha: null, fullCommitSha: null, remoteUrl: this.readGitRemoteUrl(projectRoot) };
+    }
+  }
+
+  private readGitRefCommit(projectRoot: string, ref: string) {
+    const gitRoot = join(projectRoot, ".git");
+    const refPath = join(gitRoot, ...ref.split("/"));
+    try {
+      const value = readFileSync(refPath, "utf8").replace(/^\uFEFF+/, "").trim();
+      if (value) {
+        return value;
+      }
+    } catch {
+      // Fall back to packed-refs when the loose ref file does not exist.
+    }
+
+    try {
+      const packedRefs = readFileSync(join(gitRoot, "packed-refs"), "utf8").replace(/^\uFEFF+/, "");
+      const line = packedRefs
+        .split(/\r?\n/)
+        .find((item) => item && !item.startsWith("#") && !item.startsWith("^") && item.endsWith(` ${ref}`));
+      if (!line) {
+        return null;
+      }
+      return line.split(" ")[0]?.trim() || null;
+    } catch {
+      return null;
+    }
+  }
+
+  private readGitRemoteUrl(projectRoot: string) {
+    try {
+      const configPath = join(projectRoot, ".git", "config");
+      const content = readFileSync(configPath, "utf8").replace(/^\uFEFF+/, "");
+      const match = content.match(/\[remote "origin"\][^\[]*?url = (.+)/m);
+      return match?.[1]?.trim() || null;
+    } catch {
+      return null;
+    }
+  }
+
+  private buildGitReleaseTag(gitInfo: GitWorkspaceInfo) {
+    if (gitInfo.branchName && gitInfo.shortCommitSha) {
+      return `${gitInfo.branchName}@${gitInfo.shortCommitSha}`;
+    }
+    return gitInfo.shortCommitSha || gitInfo.branchName || null;
+  }
+
+  private buildGitDisplayName(gitInfo: GitWorkspaceInfo) {
+    if (gitInfo.branchName && gitInfo.shortCommitSha) {
+      return `${gitInfo.branchName} (${gitInfo.shortCommitSha})`;
+    }
+    return gitInfo.shortCommitSha || gitInfo.branchName || null;
+  }
+
+  private async readRecentChangeDocs(projectRoot: string, gitInfo: GitWorkspaceInfo, limit: number): Promise<ChangeDocEntry[]> {
+    const changesRoot = join(projectRoot, "docs", "changes");
+    try {
+      const entries = await readdir(changesRoot, { withFileTypes: true });
+      const markdownFiles = entries
+        .filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith(".md"))
+        .map((entry) => entry.name)
+        .sort((left, right) => right.localeCompare(left, "zh-CN"));
+
+      const selected = markdownFiles.slice(0, Math.max(1, limit));
+      const docs = await Promise.all(
+        selected.map(async (fileName) => {
+          const content = (await readFile(join(changesRoot, fileName), "utf8")).replace(/^\uFEFF+/, "");
+          const title = content.match(/^#\s+(.+)$/m)?.[1]?.trim() || fileName.replace(/\.md$/i, "");
+          const preview = this.extractChangeDocPreview(content);
+          const publishedAt = this.extractChangeDocPublishedAt(fileName) || new Date().toISOString();
+          return {
+            fileName,
+            title,
+            publishedAt,
+            content: preview,
+            changeLogUrl: this.buildChangeDocUrl(gitInfo, fileName),
+            likelyRequires: this.detectChangeDocRequirements(`${title}\n${preview}`),
+          } satisfies ChangeDocEntry;
+        }),
+      );
+      return docs;
+    } catch {
+      return [];
+    }
+  }
+
+  private extractChangeDocPreview(content: string) {
+    const lines = content
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .filter((line) => !line.startsWith("#") && !line.startsWith("##"));
+    return lines.slice(0, 4).join("\n");
+  }
+
+  private extractChangeDocPublishedAt(fileName: string) {
+    const match = fileName.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!match) {
+      return null;
+    }
+    return new Date(`${match[1]}-${match[2]}-${match[3]}T00:00:00+08:00`).toISOString();
+  }
+
+  private buildChangeDocUrl(gitInfo: GitWorkspaceInfo, fileName: string) {
+    const remoteUrl = String(gitInfo.remoteUrl || "").trim();
+    if (!remoteUrl.includes("github.com")) {
+      return null;
+    }
+    const normalizedRemote = remoteUrl.replace(/\.git$/i, "").replace(/^git@github\.com:/i, "https://github.com/");
+    const branchName = gitInfo.branchName || "main";
+    return `${normalizedRemote}/blob/${encodeURIComponent(branchName)}/docs/changes/${encodeURIComponent(fileName)}`;
+  }
+
+  private detectChangeDocRequirements(text: string) {
+    const normalized = String(text || "").toLowerCase();
+    return {
+      server: /(server|api|后端|controller|service|docker|compose|启动|upgrade|更新)/.test(normalized),
+      web: /(web|页面|前端|个人中心|工作台|ui|layout|workspace)/.test(normalized),
+      skillPackage: /(skill|mcp|openclaw)/.test(normalized),
+      migration: /(schema|迁移|migration|db-init|数据库|prisma)/.test(normalized),
     };
   }
 

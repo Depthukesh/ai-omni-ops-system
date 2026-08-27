@@ -132,7 +132,7 @@ flowchart TD
     H1 --> H15["验活失败自动回滚安装前 backup"]
     H1 --> H16["apply-run 从目标发布包提取最新 updater；updater 安装前预清理并在成功后复清历史 downloads/* / extract-* / 旧 apply-runs/* / AiOmniOps-backup-* / 历史 %LOCALAPPDATA%\\AiOmniOps 痕迹"]
     H1 --> H17["安装 / 升级 / 自启 / 修复脚本统一读取 runtime metadata 的 browserUrl / previewUrl 做入口与验活"]
-    H1 --> H18["standard 运行态配置 STANDARD_RUNTIME_UPDATE_MANIFEST_URL 后，页面展示远端更新清单、容器重建命令和 Skill 重新导入提醒"]
+    H1 --> H18["standard 运行态默认展示仓库版本记录 + Docker 更新命令；配置 STANDARD_RUNTIME_UPDATE_MANIFEST_URL 后再叠加远端更新清单与新版本提醒"]
     H --> H3["重复双击 start-local-single-user.cmd"]
     H3 --> H31["已健康运行时直接复用现有实例"]
     H3 --> H32["首次启动未完成时等待当前启动锁释放"]
