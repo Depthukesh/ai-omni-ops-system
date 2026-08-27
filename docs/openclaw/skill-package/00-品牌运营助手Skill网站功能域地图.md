@@ -56,6 +56,7 @@
 - `get_brand_growth_material_library_items`
 - `get_xiaohongshu_collection_workspace`
 - `get_douyin_collection_workspace`
+- `extract_douyin_work_transcript`
 - `get_wechat_collection_workspace`
 - `get_openclaw_daily_plans`
 - `get_openclaw_lobster_diaries`
@@ -81,6 +82,18 @@
 - 营销日历：`get_brand_growth_marketing_calendar_workspace`、`generate_brand_growth_marketing_calendar`、`update_brand_growth_marketing_calendar`
 - 选题库：`get_brand_growth_topic_library_workspace`、`generate_brand_growth_topic_candidates`、`update_brand_growth_topic_library`
 - 素材库：`get_brand_growth_material_library_items`
+
+抖音采集补充：
+
+- `get_douyin_collection_workspace` 当前会把抖音采集作品的：
+  - 站内预览地址
+  - 原始作品地址
+  - 视频缓存状态
+  - 本地或 OSS 存储位置
+  - 视频文案提取状态
+  一起返回给 Skill
+- `extract_douyin_work_transcript` 用于在额度恢复或异常收口后，重新触发某条抖音采集作品的视频文案提取
+- 当用户反馈“预览打不开”时，Skill 应优先把它理解为受控预览链路问题，而不是简单外部链接失效
 
 ### 3.2 小红书 `/xiaohongshu`
 

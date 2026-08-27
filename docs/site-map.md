@@ -128,10 +128,13 @@
   - 服务端真实校验时长必须 `> 30 秒`
   - 语音文件走受控品牌存储接口读取，不直接暴露裸文件路径
 - 抖音采集作品的视频预览缓存现在统一走受控副本链路：网页态继续可读 OSS，缺 OSS 的本地运行态则通过 `collectors/douyin` 受控媒体接口读取本地副本，不再因为没有 OSS 而丢失预览
+- 抖音采集表格当前会直接回显视频存储位置；若视频缓存失败或过期，页面会同时保留原作品回看入口，方便判断问题到底出在站内副本还是源作品
+- 抖音采集视频文案提取当前会记录状态更新时间；当上游额度不足或任务长时间卡住时，会自动收口为可重试失败态，并支持在补充 API Key 额度后重新提取
 - 小红书 / 抖音收集数据中的“评论数据”卡片现已补齐“从评论提取账号链接”动作，可直接把作品链接补拉为评论数据，再按关键词筛出评论用户并沉淀为目标用户账号链接结果，供 OpenClaw 与人工验证共用
 - 参考变更：`docs/changes/2026-08-15-brand-growth-comment-target-user-openclaw-chain.md`
 - 参考变更：`docs/changes/2026-08-25-brand-growth-ip-library.md`
 - 参考变更：`docs/changes/2026-08-27-ip-voice-material-preview-openclaw-git-skill.md`
+- 参考变更：`docs/changes/2026-08-27-douyin-collection-preview-and-transcript-retry-ux.md`
 
 ### 4.2 内容获客工作台 `/xiaohongshu`
 

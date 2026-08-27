@@ -521,6 +521,8 @@ export type DouyinCollectedWorkRecord = {
   coverUrl?: string;
   imageList?: string[];
   videoUrl?: string;
+  videoSourceUrl?: string;
+  videoStoragePath?: string;
   hashtags?: string[];
   publishTimeText?: string;
   durationMs?: number;
@@ -551,6 +553,7 @@ export type DouyinCollectedWorkRecord = {
   transcriptSource?: string;
   transcriptStatus?: "PENDING" | "SUCCESS" | "FAILED";
   transcriptLastError?: string;
+  transcriptStatusUpdatedAt?: string;
   transcribedAt?: string;
   isInMaterialLibrary?: boolean;
   materialAddedAt?: string;
@@ -694,6 +697,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
   private static readonly DAILY_HOTSPOT_JOB_NAME = "collectors.daily-hotspots.sync";
   private static readonly DOUYIN_VIDEO_CACHE_CLEANUP_JOB_NAME = "collectors.douyin-video-cache.cleanup";
   private static readonly DOUYIN_VIDEO_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+  private static readonly DOUYIN_TRANSCRIPT_PENDING_STALE_MS = 15 * 60 * 1000;
   private static readonly MATHMIND_API_BASE_URL = "https://api.mathmind.cn";
   private static readonly DOUYIN_TRANSCRIPT_POLL_INTERVAL_MS = 3000;
   private static readonly DOUYIN_TRANSCRIPT_POLL_MAX_ATTEMPTS = 40;
@@ -900,7 +904,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       this.getDouyinCityOptionsSafe(brandId),
     ]);
     if (await this.prismaService.canUseDatabase()) {
-      const assets = await this.listCollectorAssets(brandId);
+      const assets = await this.reconcileStaleDouyinTranscriptStates(brandId, await this.listCollectorAssets(brandId));
       this.schedulePendingDouyinVideoCaches(assets);
       return this.buildDouyinWorkspaceFromAssets(assets, contentTags, cityOptions);
     }
@@ -1596,6 +1600,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     await this.updateCollectorAssetMeta(brandId, assetId, {
       transcriptStatus: "PENDING",
       transcriptLastError: "",
+      transcriptStatusUpdatedAt: new Date().toISOString(),
     });
     try {
       const result = await this.glmOpenService.extractVideoTranscript(brandId, transcriptSourceUrl, {
@@ -1606,6 +1611,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
         transcriptSource: result.model || "glm-5v-turbo",
         transcriptStatus: "SUCCESS",
         transcriptLastError: "",
+        transcriptStatusUpdatedAt: new Date().toISOString(),
         transcribedAt: new Date().toISOString(),
       });
     } catch (error) {
@@ -1613,6 +1619,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       await this.updateCollectorAssetMeta(brandId, assetId, {
         transcriptStatus: "FAILED",
         transcriptLastError: message,
+        transcriptStatusUpdatedAt: new Date().toISOString(),
       });
       throw error;
     }
@@ -1624,10 +1631,12 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
   }
 
   private resolveDouyinTranscriptVideoUrl(asset: AssetRecord, meta: Record<string, unknown>) {
-    return this.resolveDouyinVideoPlaybackUrl(asset, meta)
+    const directVideoUrl = this.resolveDouyinVideoPlaybackUrl(asset, meta)
       || this.readMetaString(meta, "videoSourceUrl")
-      || this.readMetaString(meta, "videoUrl")
-      || "";
+      || this.readMetaString(meta, "videoUrl");
+    if (directVideoUrl) {
+      return directVideoUrl;
+    }
 
     const workUrl =
       this.normalizeDouyinShareUrl(this.readMetaString(meta, "workUrl"))
@@ -2475,6 +2484,8 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       coverUrl: this.readMetaString(meta, "coverUrl") || undefined,
       imageList: this.readMetaStringArray(meta, "imageList"),
       videoUrl: this.resolveDouyinVideoPlaybackUrl(asset, meta),
+      videoSourceUrl: this.readMetaString(meta, "videoSourceUrl") || this.readMetaString(meta, "videoUrl") || undefined,
+      videoStoragePath: this.resolveDouyinVideoStoragePath(meta) || undefined,
       hashtags: this.readMetaStringArray(meta, "hashtags"),
       publishTimeText: this.readMetaString(meta, "publishTimeText") || undefined,
       durationMs: this.readMetaNumber(meta, "durationMs"),
@@ -2505,6 +2516,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       transcriptSource: this.readMetaString(meta, "transcriptSource") || undefined,
       transcriptStatus: (this.readMetaString(meta, "transcriptStatus") as DouyinCollectedWorkRecord["transcriptStatus"]) || undefined,
       transcriptLastError: this.readMetaString(meta, "transcriptLastError") || undefined,
+      transcriptStatusUpdatedAt: this.readMetaString(meta, "transcriptStatusUpdatedAt") || undefined,
       transcribedAt: this.readMetaString(meta, "transcribedAt") || undefined,
       isInMaterialLibrary: this.readMetaBoolean(meta, "inMaterialLibrary") || undefined,
       materialAddedAt: this.readMetaString(meta, "materialAddedAt") || undefined,
@@ -2603,6 +2615,17 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     } catch {
       return undefined;
     }
+  }
+
+  private resolveDouyinVideoStoragePath(meta: Record<string, unknown>) {
+    const storageKey = this.readMetaString(meta, "videoStorageKey");
+    if (!storageKey) {
+      return "";
+    }
+    if (this.ossStorageService.isUsingLocalFallback()) {
+      return this.ossStorageService.getLocalObjectDisplayPath(storageKey) || this.ossStorageService.getLocalObjectPath(storageKey) || "";
+    }
+    return `OSS / ${storageKey}`;
   }
 
   private buildDouyinVideoCacheMetadata(metadata: Record<string, unknown>) {
@@ -2835,6 +2858,9 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     if (transcriptStatus === "FAILED" && transcriptSource !== "mathmind-video-tools") {
       return false;
     }
+    if (this.isDouyinTranscriptPendingStale(meta)) {
+      return false;
+    }
     return Boolean(this.resolveDouyinTranscriptVideoUrl(asset, meta));
   }
 
@@ -2849,8 +2875,43 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     await this.updateCollectorAssetMeta(asset.brandId, asset.id, {
       transcriptStatus: "PENDING",
       transcriptLastError: "",
+      transcriptStatusUpdatedAt: new Date().toISOString(),
     });
     return this.getCollectorAssetById(asset.brandId, asset.id);
+  }
+
+  private async reconcileStaleDouyinTranscriptStates(brandId: string, assets: AssetRecord[]) {
+    const normalizedAssets: AssetRecord[] = [];
+    for (const asset of assets) {
+      const meta = this.asMeta(asset.metadataJson);
+      if (!this.isDouyinTranscriptPendingStale(meta) || this.readMetaString(meta, "transcript")) {
+        normalizedAssets.push(asset);
+        continue;
+      }
+      await this.updateCollectorAssetMeta(brandId, asset.id, {
+        transcriptStatus: "FAILED",
+        transcriptLastError:
+          this.readMetaString(meta, "transcriptLastError")
+          || "上次视频文案提取长时间没有完成，已自动结束。请检查 API Key 状态后重新提取。",
+        transcriptStatusUpdatedAt: new Date().toISOString(),
+      });
+      normalizedAssets.push(await this.getCollectorAssetById(brandId, asset.id));
+    }
+    return normalizedAssets;
+  }
+
+  private isDouyinTranscriptPendingStale(meta: Record<string, unknown>) {
+    if (this.readMetaString(meta, "transcriptStatus") !== "PENDING") {
+      return false;
+    }
+    const startedAt =
+      this.readMetaString(meta, "transcriptStatusUpdatedAt")
+      || this.readMetaString(meta, "collectedAt");
+    const timestamp = Date.parse(startedAt || "");
+    if (!Number.isFinite(timestamp)) {
+      return false;
+    }
+    return Date.now() - timestamp > CollectorsService.DOUYIN_TRANSCRIPT_PENDING_STALE_MS;
   }
 
   private async cleanupExpiredDouyinVideoCaches() {

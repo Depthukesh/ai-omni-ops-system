@@ -213,6 +213,9 @@
 - 帮我同步一下
 - 帮我更新公众号文章统计
 - 帮我删掉采集错的数据
+- 这个抖音视频预览为什么打不开
+- 帮我看这个抖音视频实际存到了哪里
+- 上次抖音视频文案一直卡在提取中，现在充值后帮我重新提取
 
 优先工具：
 
@@ -221,6 +224,7 @@
   - `sync_xiaohongshu_*`
 - 抖音：
   - `get_douyin_collection_workspace`
+  - `extract_douyin_work_transcript`
   - `sync_douyin_*`
 - 公众号：
   - `get_wechat_collection_workspace`
@@ -233,6 +237,24 @@
   - `delete_xhs_collected_note`
   - `delete_douyin_collected_work`
   - `delete_wechat_collected_article`
+
+处理原则补充：
+
+- 用户问“视频存哪里了”时，优先先读 `get_douyin_collection_workspace`
+  - 看 `videoStoragePath`
+  - 看 `videoUrl`
+  - 看 `videoSourceUrl`
+- 用户问“为什么网页里打开预览失败”时，不要只盯着外部下载地址：
+  - 当前网页预览优先依赖站内受控副本
+  - 若受控副本未就绪、已过期或曾失败，应同时把原作品地址和缓存状态告诉用户
+- 用户问“为什么一直是提取中”时，优先查看：
+  - `transcriptStatus`
+  - `transcriptStatusUpdatedAt`
+  - `transcriptLastError`
+- 如果错误里出现余额不足、欠费、quota、credit、balance 等信息，应直接告诉用户：
+  - 这是上游 GLM Key 额度问题
+  - 充值后可再次调用 `extract_douyin_work_transcript`
+- 如果状态长期停在 `PENDING`，当前后端会自动把超时任务收口成可重试失败态；Skill 不需要继续把它描述成“还在正常处理中”
 
 ### 3.9 统一素材库
 

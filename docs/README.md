@@ -58,6 +58,8 @@
 - 作用：记录重要改动的背景、范围、验证和后续事项
 - 要求：真实代码改动默认同步补一条变更记录
 - 最新补充：
+  - `docs/changes/2026-08-27-douyin-collection-preview-and-transcript-retry-ux.md`
+    - 收口品牌增长策略里抖音采集作品的站内受控视频预览、本地/OSS 存储位置回显、文案提取卡住超时回收，以及余额恢复后的重新提取体验，并同步 OpenClaw / MCP / Skill 新增 `extract_douyin_work_transcript`
   - `docs/changes/2026-08-25-brand-growth-ip-library.md`
     - 品牌增长策略下的品牌资料库新增独立 `IP资料库` 子板块，补齐前后端落库、多图上传、MCP 与 Skill 路由说明
   - `docs/changes/2026-08-23-remove-mixedcut-from-repo.md`

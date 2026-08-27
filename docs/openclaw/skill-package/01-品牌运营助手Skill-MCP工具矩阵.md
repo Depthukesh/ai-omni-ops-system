@@ -81,6 +81,7 @@
 ### 4.2 抖音采集
 
 - `get_douyin_collection_workspace`
+- `extract_douyin_work_transcript`
 - `sync_douyin_brand_accounts`
 - `sync_douyin_competitor_accounts`
 - `sync_douyin_benchmark_works`
@@ -91,6 +92,27 @@
 - `sync_douyin_high_completion_rate_works`
 - `sync_douyin_high_like_rate_works`
 - `sync_douyin_city_hotspots`
+
+补充说明：
+
+- `get_douyin_collection_workspace`
+  - 读取抖音采集工作区聚合结果
+  - 当前会同时返回：
+    - 视频受控预览地址
+    - 原始作品地址
+    - 本地或 OSS 存储位置
+    - 视频文案提取状态与最近错误
+  - 当网页里看到“打开预览”时，真正的预览优先走站内受控副本，不再要求外部裸链长期可用
+- `extract_douyin_work_transcript`
+  - 为指定抖音采集作品重新提取视频文案
+  - 适用于：
+    - 上次因 API Key 余额不足而失败
+    - 上次长时间停在“提取中”，现在想重新提取
+    - 已补充额度，想直接重试
+  - 调用前优先先读 `get_douyin_collection_workspace` 确认：
+    - `assetId`
+    - 当前视频是否已有可用预览或原作品地址
+    - `transcriptStatus` / `transcriptLastError`
 
 ### 4.3 公众号采集
 

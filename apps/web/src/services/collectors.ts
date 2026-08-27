@@ -218,6 +218,8 @@ export type DouyinCollectedWorkRecord = {
   coverUrl?: string;
   imageList?: string[];
   videoUrl?: string;
+  videoSourceUrl?: string;
+  videoStoragePath?: string;
   hashtags?: string[];
   publishTimeText?: string;
   durationMs?: number;
@@ -248,6 +250,7 @@ export type DouyinCollectedWorkRecord = {
   transcriptSource?: string;
   transcriptStatus?: "PENDING" | "SUCCESS" | "FAILED";
   transcriptLastError?: string;
+  transcriptStatusUpdatedAt?: string;
   transcribedAt?: string;
   rawFields?: Record<string, unknown>;
   isInMaterialLibrary?: boolean;

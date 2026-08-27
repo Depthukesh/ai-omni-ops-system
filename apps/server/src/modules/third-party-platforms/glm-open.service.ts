@@ -385,8 +385,9 @@ export class GlmOpenService {
   private async readJsonResponse(response: Response, requestPath: string) {
     if (!response.ok) {
       const snippet = await this.readResponseSnippet(response);
+      const normalizedMessage = this.normalizeProviderErrorMessage(response.status, snippet);
       throw new ServiceUnavailableException(
-        `GLM 请求失败 ${requestPath}：${response.status}${snippet ? `，${snippet}` : ""}`,
+        normalizedMessage || `GLM 请求失败 ${requestPath}：${response.status}${snippet ? `，${snippet}` : ""}`,
       );
     }
     return await response.json() as Record<string, unknown>;
@@ -413,6 +414,23 @@ export class GlmOpenService {
     }
     const message = error instanceof Error ? error.message : "未知错误";
     return new ServiceUnavailableException(`GLM 网络请求失败：${requestPath}${message ? `，${message}` : ""}`);
+  }
+
+  private normalizeProviderErrorMessage(status: number, snippet: string) {
+    const normalized = String(snippet || "").toLowerCase();
+    if (
+      status === 402
+      || /余额|欠费|充值|insufficient|quota|credit|balance|bill|payment/i.test(normalized)
+    ) {
+      return "GLM 平台当前 API Key 余额不足，请充值后重新提取视频文案。";
+    }
+    if (status === 401 || /invalid api key|unauthorized|鉴权|token/i.test(normalized)) {
+      return "GLM 平台 API Key 无效或未授权，请先到个人中心检查第三方接口配置。";
+    }
+    if (status === 429 || /rate limit|too many requests|频率|限流/i.test(normalized)) {
+      return "GLM 平台当前请求过于频繁，请稍后重试。";
+    }
+    return "";
   }
 
   private extractChatMessageText(payload: Record<string, unknown>) {

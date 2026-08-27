@@ -2892,6 +2892,18 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
     },
   },
   {
+    name: "extract_douyin_work_transcript",
+    description: "为抖音采集作品提取视频文案；如果上次因为额度不足或任务卡住失败，补充 API Key 额度后可再次调用。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        assetId: { type: "string", description: "抖音采集作品 ID。" },
+      },
+      required: ["assetId"],
+      additionalProperties: false,
+    },
+  },
+  {
     name: "delete_wechat_collected_article",
     description: "删除公众号采集的品牌文章、对标文章或微信搜一搜文章。",
     inputSchema: {
@@ -7504,6 +7516,39 @@ export class OpenClawService {
       title: "抖音采集作品已删除",
       summary: `作品 ${assetId} 已从采集数据中删除。`,
       highlights: [`已删除 ID：${assetId}`],
+      data: result,
+      links: [{ label: "打开品牌增长工作台", url: "/brand-growth" }],
+      resultStatus: "COMPLETED",
+      resourceKind: "douyin_collection",
+    });
+  }
+
+  async extractDouyinWorkTranscript(
+    headers: HeadersMap,
+    options?: {
+      assetId?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.collection.douyinCollection", "edit", auth);
+
+    const assetId = String(options?.assetId || "").trim();
+    if (!assetId) {
+      throw new BadRequestException("请提供 assetId");
+    }
+    const result = await this.collectorsService.extractDouyinWorkTranscript(brandId, assetId);
+
+    return this.buildSummaryResponse({
+      title: "抖音视频文案已提取",
+      summary: result.item.transcript
+        ? `作品 ${assetId} 的视频文案已提取完成。`
+        : `作品 ${assetId} 当前还没有返回可用的视频文案。`,
+      highlights: [
+        `作品 ID：${assetId}`,
+        result.item.transcript ? `文案长度：${result.item.transcript.length} 字` : "文案长度：未返回",
+        result.item.videoStoragePath ? `视频存储：${result.item.videoStoragePath}` : "视频存储：当前未返回本地副本路径",
+      ],
       data: result,
       links: [{ label: "打开品牌增长工作台", url: "/brand-growth" }],
       resultStatus: "COMPLETED",
@@ -13550,6 +13595,10 @@ export class OpenClawService {
         });
       case "delete_douyin_collected_work":
         return this.deleteDouyinCollectedWork(headers, {
+          assetId: typeof toolArgs.assetId === "string" ? toolArgs.assetId : undefined,
+        });
+      case "extract_douyin_work_transcript":
+        return this.extractDouyinWorkTranscript(headers, {
           assetId: typeof toolArgs.assetId === "string" ? toolArgs.assetId : undefined,
         });
       case "delete_wechat_collected_article":

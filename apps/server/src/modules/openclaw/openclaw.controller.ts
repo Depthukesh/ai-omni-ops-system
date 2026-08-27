@@ -648,6 +648,16 @@ export class OpenClawController {
     return this.openClawService.syncDouyinCityHotspots(headers, payload);
   }
 
+  @Post("brand-growth/douyin-collection/transcripts/extract")
+  async extractDouyinWorkTranscript(
+    @Headers() headers: HeadersMap,
+    @Body() payload?: {
+      assetId?: string;
+    },
+  ) {
+    return this.openClawService.extractDouyinWorkTranscript(headers, payload);
+  }
+
   @Post("skills/:skillId/reset")
   async resetSkillToPlatformBaseline(
     @Headers() headers: HeadersMap,

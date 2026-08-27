@@ -2369,6 +2369,21 @@ function formatOptionalCount(value?: number) {
   return value.toLocaleString("zh-CN");
 }
 
+function isTranscriptPendingExpired(item: DouyinCollectedWorkRecord) {
+  if (item.transcriptStatus !== "PENDING") {
+    return false;
+  }
+  const timestamp = Date.parse(item.transcriptStatusUpdatedAt || "");
+  if (!Number.isFinite(timestamp)) {
+    return false;
+  }
+  return Date.now() - timestamp > 15 * 60 * 1000;
+}
+
+function isQuotaOrBalanceError(message?: string) {
+  return /余额|欠费|充值|insufficient|quota|credit|balance|bill|payment/i.test(String(message || ""));
+}
+
 function DouyinVideoPreviewCell(props: {
   item: DouyinCollectedWorkRecord;
   onPreviewMedia: ValueAction<MediaPreviewState>;
@@ -2376,30 +2391,58 @@ function DouyinVideoPreviewCell(props: {
   const { item } = props;
   if (item.videoUrl) {
     return (
-      <a
-        href={item.videoUrl}
-        className="note-data-link"
-        onClick={(event) => {
-          event.preventDefault();
-          void props.onPreviewMedia({
-            url: item.videoUrl!,
-            title: item.title || item.workId || "抖音视频预览",
-            type: "VIDEO",
-          });
-        }}
-      >
-        打开预览
-      </a>
+      <div className="stack gap-8">
+        <a
+          href={item.videoUrl}
+          className="note-data-link"
+          onClick={(event) => {
+            event.preventDefault();
+            void props.onPreviewMedia({
+              url: item.videoUrl!,
+              title: item.title || item.workId || "抖音视频预览",
+              type: "VIDEO",
+            });
+          }}
+        >
+          打开预览
+        </a>
+        <span className="panel-subtext" title={item.videoStoragePath || item.videoSourceUrl || ""}>
+          {item.videoStoragePath ? `存储：${item.videoStoragePath}` : "当前已生成站内受控预览"}
+        </span>
+      </div>
     );
   }
   if (item.videoCacheStatus === "PENDING") {
-    return <span className="note-data-link">缓存中</span>;
+    return (
+      <div className="stack gap-8">
+        <span className="note-data-link">缓存中</span>
+        {item.videoSourceUrl ? <span className="panel-subtext">源地址已记录，缓存完成后可预览。</span> : null}
+      </div>
+    );
   }
   if (item.videoCacheStatus === "FAILED") {
-    return <span className="note-data-link" title={item.videoCacheLastError || undefined}>缓存失败</span>;
+    return (
+      <div className="stack gap-8">
+        <span className="note-data-link" title={item.videoCacheLastError || undefined}>缓存失败</span>
+        {item.workUrl ? (
+          <a href={item.workUrl} target="_blank" rel="noreferrer" className="note-data-link">
+            打开原作品
+          </a>
+        ) : null}
+      </div>
+    );
   }
   if (item.videoCacheStatus === "EXPIRED") {
-    return <span className="note-data-link">缓存已过期</span>;
+    return (
+      <div className="stack gap-8">
+        <span className="note-data-link">缓存已过期</span>
+        {item.workUrl ? (
+          <a href={item.workUrl} target="_blank" rel="noreferrer" className="note-data-link">
+            打开原作品
+          </a>
+        ) : null}
+      </div>
+    );
   }
   return <span>-</span>;
 }
@@ -2454,8 +2497,9 @@ function DouyinTranscriptCell(props: {
 }) {
   const { item } = props;
   const hasTranscript = Boolean(item.transcript?.trim());
-  const isExtracting = props.extractingAssetId === item.id || item.transcriptStatus === "PENDING";
-  const canExtract = Boolean(item.videoUrl) || item.videoCacheStatus === "READY";
+  const pendingExpired = isTranscriptPendingExpired(item);
+  const isExtracting = props.extractingAssetId === item.id || (item.transcriptStatus === "PENDING" && !pendingExpired);
+  const canExtract = Boolean(item.videoUrl || item.videoSourceUrl || item.workUrl) || item.videoCacheStatus === "READY";
   const [copied, setCopied] = useState(false);
 
   if (!canExtract && !hasTranscript) {
@@ -2496,16 +2540,30 @@ function DouyinTranscriptCell(props: {
         className="note-inline-button"
         onClick={() => void props.onExtract(item)}
         disabled={isExtracting}
+        title={
+          pendingExpired
+            ? "上次提取长时间没有完成，当前已允许重新提取。"
+            : item.transcriptLastError || undefined
+        }
       >
-        {isExtracting ? "提取中..." : "提取文案"}
+        {isExtracting ? "提取中..." : item.transcriptStatus === "FAILED" || pendingExpired ? "重新提取" : "提取文案"}
       </button>
+      {!hasTranscript && pendingExpired ? (
+        <span
+          className="transcript-error-pill"
+          title="上次提取长时间没有完成，可能是 API Key 额度不足、网络中断或上游任务卡住。补充额度后可直接重新提取。"
+          aria-label="上次提取长时间没有完成，可能是 API Key 额度不足、网络中断或上游任务卡住。补充额度后可直接重新提取。"
+        >
+          可重试
+        </span>
+      ) : null}
       {!hasTranscript && item.transcriptStatus === "FAILED" && item.transcriptLastError ? (
         <span
           className="transcript-error-pill"
           title={item.transcriptLastError}
           aria-label={item.transcriptLastError}
         >
-          提取失败
+          {isQuotaOrBalanceError(item.transcriptLastError) ? "待充值后重试" : "提取失败"}
         </span>
       ) : null}
     </div>
@@ -2693,7 +2751,7 @@ function DouyinBrandWorksTable(props: {
             <th>推荐</th>
             <th>图文列表</th>
             <th>作品类型</th>
-            <th>视频下载地址</th>
+            <th>视频预览/存储</th>
             <th>视频文案</th>
             <th>采集时间</th>
           </tr>

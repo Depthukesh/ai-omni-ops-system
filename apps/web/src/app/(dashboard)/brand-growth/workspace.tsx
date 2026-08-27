@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import { getStoredCurrentBrandId } from "../../../services/auth-session";
 import { getMe } from "../../../services/auth";
+import { API_BASE_URL, requestBlobByUrl } from "../../../services/http";
 import {
   formatCalendarDate,
   formatCalendarListValue,
@@ -97,7 +98,6 @@ import {
   getWechatMpBenchmarkWorkspace,
   getWechatSearchWorkspace,
 } from "../../../services/collectors";
-import { API_BASE_URL } from "../../../services/http";
 import {
   brandArchiveSeed,
   createBrandProduct,
@@ -1185,6 +1185,57 @@ export function BrandGrowthWorkspace() {
       : mediaPreview.title
     : "";
   const previewDownloadUrl = mediaPreview?.downloadUrl || previewUrl;
+  const previewProtectedUrl = isProtectedMediaSource(previewUrl) ? previewUrl : "";
+  const [resolvedPreviewUrl, setResolvedPreviewUrl] = useState("");
+  const [resolvedPreviewFileName, setResolvedPreviewFileName] = useState("");
+  const [previewLoadError, setPreviewLoadError] = useState("");
+  useEffect(() => {
+    if (!mediaPreview || !previewUrl) {
+      setResolvedPreviewUrl("");
+      setResolvedPreviewFileName("");
+      setPreviewLoadError("");
+      return;
+    }
+    if (!previewProtectedUrl) {
+      setResolvedPreviewUrl(previewUrl);
+      setResolvedPreviewFileName(mediaPreview.downloadName || buildMediaFileNameFromUrl(previewDownloadUrl));
+      setPreviewLoadError("");
+      return;
+    }
+
+    let active = true;
+    let currentObjectUrl = "";
+    setResolvedPreviewUrl("");
+    setResolvedPreviewFileName("");
+    setPreviewLoadError("");
+
+    void requestBlobByUrl(previewProtectedUrl)
+      .then(({ blob, fileName }) => {
+        if (!active) {
+          return;
+        }
+        currentObjectUrl = URL.createObjectURL(blob);
+        setResolvedPreviewUrl(currentObjectUrl);
+        setResolvedPreviewFileName(fileName);
+      })
+      .catch((error: unknown) => {
+        if (!active) {
+          return;
+        }
+        setResolvedPreviewUrl("");
+        setResolvedPreviewFileName("");
+        setPreviewLoadError(error instanceof Error ? error.message : "附件加载失败");
+      });
+
+    return () => {
+      active = false;
+      if (currentObjectUrl) {
+        URL.revokeObjectURL(currentObjectUrl);
+      }
+    };
+  }, [mediaPreview, previewDownloadUrl, previewProtectedUrl, previewUrl]);
+  const previewDisplayUrl = resolvedPreviewUrl || (!previewProtectedUrl ? previewUrl : "");
+  const previewDisplayDownloadUrl = resolvedPreviewUrl || previewDownloadUrl;
   const [loadedScopes, setLoadedScopes] = useState<Record<BrandGrowthLoadScope, boolean>>({
     library: false,
     collection: false,
@@ -5032,20 +5083,26 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
                 </button>
               </div>
             ) : null}
-            {previewType === "VIDEO" ? (
-              <video controls preload="metadata" className="xhs-material-lightbox-video" src={previewUrl} />
+            {previewLoadError ? (
+              <div className="panel-subtext" style={{ padding: "32px 0" }}>{previewLoadError}</div>
+            ) : previewType === "VIDEO" ? (
+              <video controls preload="metadata" className="xhs-material-lightbox-video" src={previewDisplayUrl} />
             ) : (
-              <img src={previewUrl} alt={previewTitle} className="media-preview-image" />
+              <img src={previewDisplayUrl} alt={previewTitle} className="media-preview-image" />
             )}
             <div className="media-preview-footer">
               <span>{previewTitle}</span>
               <div className="strategy-inline-actions">
-                <a href={previewDownloadUrl} download={mediaPreview.downloadName || undefined} className="secondary-button">
-                  下载
-                </a>
-                <a href={previewUrl} target="_blank" rel="noreferrer" className="note-data-link">
-                  新窗口打开
-                </a>
+                {previewDisplayDownloadUrl ? (
+                  <a href={previewDisplayDownloadUrl} download={mediaPreview.downloadName || resolvedPreviewFileName || undefined} className="secondary-button">
+                    下载
+                  </a>
+                ) : null}
+                {previewDisplayUrl ? (
+                  <a href={previewDisplayUrl} target="_blank" rel="noreferrer" className="note-data-link">
+                    新窗口打开
+                  </a>
+                ) : null}
               </div>
             </div>
           </div>
@@ -5053,6 +5110,30 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
       ) : null}
     </main>
   );
+}
+
+function isProtectedMediaSource(sourceUrl?: string) {
+  if (!sourceUrl) {
+    return false;
+  }
+  const normalized = sourceUrl.trim().toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+  return normalized.startsWith("/")
+    || normalized.startsWith(API_BASE_URL.toLowerCase())
+    || normalized.includes("/api/collectors/")
+    || normalized.includes("/api/brand-growth/");
+}
+
+function buildMediaFileNameFromUrl(sourceUrl: string) {
+  try {
+    const resolved = new URL(sourceUrl, "https://local.invalid");
+    const segment = resolved.pathname.split("/").filter(Boolean).pop();
+    return segment || "asset";
+  } catch {
+    return "asset";
+  }
 }
 
 function cloneMarketingCalendarItem(item: XiaohongshuMarketingCalendarItem): XiaohongshuMarketingCalendarItem {
