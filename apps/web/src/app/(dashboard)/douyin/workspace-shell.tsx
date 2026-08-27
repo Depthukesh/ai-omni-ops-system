@@ -1923,7 +1923,14 @@ export function DouyinWorkspaceShell(props: DouyinWorkspaceShellProps) {
       addedCount += 1;
       nextItems.unshift({
         id: `topic-library-${item.id}`,
+        topicTitle: item.title,
         topicContent: item.title,
+        topicPlatform: "抖音",
+        contentFormat: "视频",
+        presentationFormat: "结合热点切口包装为短视频选题",
+        topicGoal: "提升内容曝光与互动效率",
+        expertSkill: "",
+        reusable: false,
         topicDescription: item.description?.trim() || latestHotTopicResult.summary || `来自 ${selectedHotTopicDate} 热点找选题结果`,
         selectedAt: new Date().toISOString(),
         source: "GENERATED",
@@ -1947,32 +1954,34 @@ export function DouyinWorkspaceShell(props: DouyinWorkspaceShellProps) {
     selectedTopicIds,
   ]);
 
-  const handleAddManualTopic = useCallback(async (payload: { topicContent: string; topicDescription: string }) => {
+  const handleSaveTopic = useCallback(async (item: DouyinTopicLibraryItem) => {
     if (!canEditTopicLibrary) {
       setErrorMessage("当前账号只有查看权限，不能写入选题库。");
       return;
     }
-    const topicContent = payload.topicContent.trim();
-    if (!topicContent) {
-      setErrorMessage("请输入选题内容。");
+    const topicTitle = item.topicTitle.trim();
+    const topicContent = item.topicContent.trim();
+    if (!topicTitle || !topicContent) {
+      setErrorMessage("请先填写完整的选题标题和选题内容。");
       return;
     }
     const existing = hotTopicWorkspace.topicLibrary || [];
-    const exists = existing.some((item) => item.topicContent.trim().toLowerCase() === topicContent.toLowerCase());
+    const exists = existing.some((current) => (
+      current.id !== item.id
+      && current.topicPlatform === item.topicPlatform
+      && current.topicTitle.trim().toLowerCase() === topicTitle.toLowerCase()
+    ));
     if (exists) {
-      setNotice("相同选题已存在于当前品牌选题库中。");
+      setNotice("同平台下相同标题的选题已存在于当前品牌选题库中。");
       return;
     }
-    await saveTopicLibrary([
-      {
-        id: `topic-library-manual-${Date.now()}`,
-        topicContent,
-        topicDescription: payload.topicDescription.trim() || "手动添加选题",
-        selectedAt: new Date().toISOString(),
-        source: "MANUAL",
-      },
-      ...existing,
-    ], "选题已添加到当前品牌选题库。");
+    const hasExisting = existing.some((current) => current.id === item.id);
+    await saveTopicLibrary(
+      hasExisting
+        ? existing.map((current) => (current.id === item.id ? item : current))
+        : [item, ...existing],
+      hasExisting ? "选题已更新。" : "选题已添加到当前品牌选题库。",
+    );
   }, [canEditTopicLibrary, hotTopicWorkspace.topicLibrary, saveTopicLibrary]);
 
   const handleDeleteTopic = useCallback(async (topicId: string) => {
@@ -3476,7 +3485,7 @@ export function DouyinWorkspaceShell(props: DouyinWorkspaceShellProps) {
                     onRefresh={async () => {
                       await refreshHotTopicWorkspace();
                     }}
-                    onAddManualTopic={handleAddManualTopic}
+                    onSaveTopic={handleSaveTopic}
                     onDeleteTopic={handleDeleteTopic}
                     formatDateTime={formatDateTime}
                     hotTopicProps={{
@@ -3506,7 +3515,7 @@ export function DouyinWorkspaceShell(props: DouyinWorkspaceShellProps) {
                     history={originalCopyWorkspace.history}
                     latestTask={originalCopyWorkspace.latestTask}
                     calendarOptions={originalCopyWorkspace.calendarOptions.map((item) => ({ id: item.id, label: item.label }))}
-                    topicOptions={originalCopyWorkspace.topicOptions.map((item) => ({ id: item.id, label: item.topicContent }))}
+                    topicOptions={originalCopyWorkspace.topicOptions.map((item) => ({ id: item.id, label: item.topicTitle || item.topicContent }))}
                     hasMarketingPlan={originalCopyWorkspace.hasMarketingPlan}
                     marketingPlanTitle={originalCopyWorkspace.marketingPlanTitle}
                     onRefresh={async () => {
@@ -3642,7 +3651,7 @@ export function DouyinWorkspaceShell(props: DouyinWorkspaceShellProps) {
                     remixCopyHistory={remixCopyWorkspace.history}
                     remixCopyTaskStatus={remixCopyWorkspace.latestTask?.taskStatus}
                     originalCopyCalendarOptions={originalCopyWorkspace.calendarOptions.map((item) => ({ id: item.id, label: item.label }))}
-                    originalCopyTopicOptions={originalCopyWorkspace.topicOptions.map((item) => ({ id: item.id, label: item.topicContent }))}
+                    originalCopyTopicOptions={originalCopyWorkspace.topicOptions.map((item) => ({ id: item.id, label: item.topicTitle || item.topicContent }))}
                     remixCopyProductOptions={remixCopyWorkspace.productOptions.map((item) => ({ id: item.id, label: item.productName }))}
                     templateTagGroups={digitalHumanTemplateTags}
                     templates={digitalHumanTemplates}

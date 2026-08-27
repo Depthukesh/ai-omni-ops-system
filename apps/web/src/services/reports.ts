@@ -276,10 +276,18 @@ export type DouyinHotTopicCandidateItem = {
 
 export type DouyinTopicLibraryItem = {
   id: string;
+  topicTitle: string;
   topicContent: string;
-  topicDescription: string;
+  topicPlatform: "抖音" | "视频号" | "小红书" | "公众号";
+  contentFormat: "图文" | "视频" | "长文章";
+  presentationFormat: string;
+  topicGoal: string;
+  expertSkill: string;
+  reusable: boolean;
+  reuseCycle?: string;
   selectedAt: string;
-  source?: "GENERATED" | "MANUAL";
+  topicDescription?: string;
+  source?: "GENERATED" | "MANUAL" | "OPENCLAW";
   sourceDate?: string;
 };
 
@@ -310,6 +318,7 @@ export type DouyinOriginalCopyRecord = {
   copyTypeLabel: string;
   content: string;
   topicId: string;
+  topicTitle?: string;
   topicContent: string;
   topicDescription?: string;
   calendarItemId?: string;

@@ -204,6 +204,7 @@
 - 用户只说“做营销方案 / 营销规划 / 报告”时，优先让 `manage_growth_reports` 先做统一编排
 - 用户明确只要某一份单体产物时，再走专用创建工具
 - 用户明确提到“品牌增长可视化报告 / 营销日历 / 选题库 / 素材库”时，优先走对应的品牌增长语义别名工具，不再混用 `xiaohongshu_*` 或 `douyin_*` 命名
+- 选题库支持人工与 OpenClaw 共用同一份结构化记录；OpenClaw 侧优先用 `create_brand_growth_topic_library_item`、`update_brand_growth_topic_library_item`、`delete_brand_growth_topic_library_item` 做单条增删改
 
 ### 3.8 看和同步采集数据
 

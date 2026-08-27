@@ -14,7 +14,7 @@ export interface DouyinTopicLibraryWorkspaceProps {
   items: DouyinTopicLibraryItem[];
   isSaving: boolean;
   onRefresh: () => void | Promise<void>;
-  onAddManualTopic: (payload: { topicContent: string; topicDescription: string }) => void | Promise<void>;
+  onSaveTopic: (item: DouyinTopicLibraryItem) => void | Promise<void>;
   onDeleteTopic: (topicId: string) => void | Promise<void>;
   formatDateTime: OptionalDateFormatter;
   hotTopicProps?: {
@@ -32,6 +32,28 @@ export interface DouyinTopicLibraryWorkspaceProps {
     onAddSelectedTopics: () => void | Promise<void>;
   };
 }
+
+type TopicEditorMode = "create" | "edit" | "view";
+
+type TopicFormDraft = {
+  id: string;
+  topicTitle: string;
+  topicContent: string;
+  topicPlatform: DouyinTopicLibraryItem["topicPlatform"];
+  contentFormat: DouyinTopicLibraryItem["contentFormat"];
+  presentationFormat: string;
+  topicGoal: string;
+  expertSkill: string;
+  reusable: boolean;
+  reuseCycle: string;
+  topicDescription: string;
+  selectedAt: string;
+  source?: DouyinTopicLibraryItem["source"];
+  sourceDate?: string;
+};
+
+const TOPIC_PLATFORM_OPTIONS: Array<DouyinTopicLibraryItem["topicPlatform"]> = ["抖音", "视频号", "小红书", "公众号"];
+const CONTENT_FORMAT_OPTIONS: Array<DouyinTopicLibraryItem["contentFormat"]> = ["图文", "视频", "长文章"];
 
 function getHotTopicTaskStatusClass(status?: DouyinHotTopicCandidatesTaskRecord["taskStatus"]) {
   if (status === "SUCCESS") {
@@ -65,12 +87,40 @@ function getHotTopicTaskStatusText(task?: DouyinHotTopicCandidatesTaskRecord) {
   return task.taskStatus;
 }
 
+function getTopicSourceLabel(source?: DouyinTopicLibraryItem["source"]) {
+  if (source === "GENERATED") {
+    return "热点生成";
+  }
+  if (source === "OPENCLAW") {
+    return "OpenClaw";
+  }
+  return "人工创建";
+}
+
+function createTopicFormDraft(item?: DouyinTopicLibraryItem): TopicFormDraft {
+  return {
+    id: item?.id || `topic-library-${Date.now()}`,
+    topicTitle: item?.topicTitle || item?.topicContent || "",
+    topicContent: item?.topicContent || "",
+    topicPlatform: item?.topicPlatform || "抖音",
+    contentFormat: item?.contentFormat || "视频",
+    presentationFormat: item?.presentationFormat || "",
+    topicGoal: item?.topicGoal || "",
+    expertSkill: item?.expertSkill || "",
+    reusable: Boolean(item?.reusable),
+    reuseCycle: item?.reuseCycle || "",
+    topicDescription: item?.topicDescription || "",
+    selectedAt: item?.selectedAt || new Date().toISOString(),
+    source: item?.source,
+    sourceDate: item?.sourceDate,
+  };
+}
+
 export function DouyinTopicLibraryWorkspace(props: DouyinTopicLibraryWorkspaceProps) {
   const [page, setPage] = useState(1);
-  const [isAddingTopic, setIsAddingTopic] = useState(false);
-  const [manualTopicContent, setManualTopicContent] = useState("");
-  const [manualTopicDescription, setManualTopicDescription] = useState("");
   const [isHotTopicExpanded, setIsHotTopicExpanded] = useState(true);
+  const [editorMode, setEditorMode] = useState<TopicEditorMode | null>(null);
+  const [draft, setDraft] = useState<TopicFormDraft>(() => createTopicFormDraft());
 
   const hotProps = props.hotTopicProps;
   const isHotTopicTaskActive =
@@ -98,17 +148,64 @@ export function DouyinTopicLibraryWorkspace(props: DouyinTopicLibraryWorkspacePr
     setPage(1);
   }, [props.items.length]);
 
-  async function handleManualSubmit() {
-    const topicContent = manualTopicContent.trim();
-    const topicDescription = manualTopicDescription.trim();
+  function openCreateEditor() {
+    setDraft(createTopicFormDraft());
+    setEditorMode("create");
+  }
+
+  function openTopicViewer(item: DouyinTopicLibraryItem, mode: Exclude<TopicEditorMode, "create">) {
+    setDraft(createTopicFormDraft(item));
+    setEditorMode(mode);
+  }
+
+  function closeEditor() {
+    setEditorMode(null);
+    setDraft(createTopicFormDraft());
+  }
+
+  function updateDraft<K extends keyof TopicFormDraft>(key: K, value: TopicFormDraft[K]) {
+    setDraft((current) => ({
+      ...current,
+      [key]: value,
+      ...(key === "reusable" && !value ? { reuseCycle: "" } : {}),
+    }));
+  }
+
+  async function handleSaveTopic() {
+    const topicTitle = draft.topicTitle.trim();
+    const topicContent = draft.topicContent.trim();
+    if (!topicTitle) {
+      window.alert("请先填写选题标题。");
+      return;
+    }
     if (!topicContent) {
       window.alert("请先填写选题内容。");
       return;
     }
-    await props.onAddManualTopic({ topicContent, topicDescription });
-    setManualTopicContent("");
-    setManualTopicDescription("");
-    setIsAddingTopic(false);
+    if (draft.reusable && !draft.reuseCycle.trim()) {
+      window.alert("已开启复用时，请填写复用周期。");
+      return;
+    }
+    await props.onSaveTopic({
+      id: draft.id,
+      topicTitle,
+      topicContent,
+      topicPlatform: draft.topicPlatform,
+      contentFormat: draft.contentFormat,
+      presentationFormat: draft.presentationFormat.trim(),
+      topicGoal: draft.topicGoal.trim(),
+      expertSkill: draft.expertSkill.trim(),
+      reusable: draft.reusable,
+      reuseCycle: draft.reusable ? draft.reuseCycle.trim() : undefined,
+      selectedAt: draft.selectedAt || new Date().toISOString(),
+      topicDescription: draft.topicDescription.trim()
+        || draft.topicGoal.trim()
+        || draft.presentationFormat.trim()
+        || undefined,
+      source: editorMode === "create" ? "MANUAL" : draft.source || "MANUAL",
+      sourceDate: draft.sourceDate,
+    });
+    closeEditor();
   }
 
   async function handleDeleteTopic(topicId: string) {
@@ -136,10 +233,10 @@ export function DouyinTopicLibraryWorkspace(props: DouyinTopicLibraryWorkspacePr
           <button
             type="button"
             className="primary-button"
-            onClick={() => setIsAddingTopic((current) => !current)}
+            onClick={openCreateEditor}
             disabled={!props.canEdit || props.isSaving}
           >
-            {isAddingTopic ? "收起添加" : "添加选题"}
+            添加选题
           </button>
         </div>
       </div>
@@ -254,9 +351,9 @@ export function DouyinTopicLibraryWorkspace(props: DouyinTopicLibraryWorkspacePr
       <article className="light-data-panel report-editor-panel report-editor-panel--compact">
         <div className="report-editor-head">
           <div>
-            <strong>抖音选题库</strong>
+            <strong>选题库</strong>
             <p className="panel-subtext" style={{ margin: 0 }}>
-              当前品牌独立存储的选题沉淀页，一行展示一条记录，超过 20 条自动分页。
+              当前品牌独立存储的人机共创选题库，人工创建与 OpenClaw 写入的选题都会沉淀到同一份结构化记录里。
             </p>
           </div>
           <div className="report-editor-actions">
@@ -270,67 +367,210 @@ export function DouyinTopicLibraryWorkspace(props: DouyinTopicLibraryWorkspacePr
 
         {!props.canEdit ? <div className="report-inline-tip">当前账号只有查看权限，不能新增品牌选题。</div> : null}
 
-        {isAddingTopic ? (
+        {editorMode ? (
           <section className="light-data-panel" style={{ display: "grid", gap: 12 }}>
+            <div className="report-editor-head">
+              <strong>
+                {editorMode === "create" ? "新增选题" : editorMode === "edit" ? "编辑选题" : "查看选题"}
+              </strong>
+              <span className={`archive-pill ${editorMode === "view" ? "status-pending" : "status-ready"}`}>
+                {editorMode === "view" ? "只读" : "可编辑"}
+              </span>
+            </div>
+            <label style={{ display: "grid", gap: 6 }}>
+              <span className="status-text">选题标题</span>
+              <input
+                value={draft.topicTitle}
+                onChange={(event) => updateDraft("topicTitle", event.target.value)}
+                placeholder="例如：秋季新品如何用短剧情境带货"
+                disabled={props.isSaving || editorMode === "view"}
+              />
+            </label>
             <label style={{ display: "grid", gap: 6 }}>
               <span className="status-text">选题内容</span>
-              <input
-                value={manualTopicContent}
-                onChange={(event) => setManualTopicContent(event.target.value)}
-                placeholder="请输入选题内容"
-                disabled={props.isSaving}
+              <textarea
+                value={draft.topicContent}
+                onChange={(event) => updateDraft("topicContent", event.target.value)}
+                placeholder="请输入选题要点、脚本方向或核心表达"
+                rows={3}
+                disabled={props.isSaving || editorMode === "view"}
+              />
+            </label>
+            <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
+              <label style={{ display: "grid", gap: 6 }}>
+                <span className="status-text">选题平台</span>
+                <select
+                  value={draft.topicPlatform}
+                  onChange={(event) => updateDraft("topicPlatform", event.target.value as TopicFormDraft["topicPlatform"])}
+                  disabled={props.isSaving || editorMode === "view"}
+                >
+                  {TOPIC_PLATFORM_OPTIONS.map((item) => (
+                    <option key={item} value={item}>
+                      {item}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label style={{ display: "grid", gap: 6 }}>
+                <span className="status-text">内容形式</span>
+                <select
+                  value={draft.contentFormat}
+                  onChange={(event) => updateDraft("contentFormat", event.target.value as TopicFormDraft["contentFormat"])}
+                  disabled={props.isSaving || editorMode === "view"}
+                >
+                  {CONTENT_FORMAT_OPTIONS.map((item) => (
+                    <option key={item} value={item}>
+                      {item}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label style={{ display: "grid", gap: 6 }}>
+                <span className="status-text">是否可复用</span>
+                <select
+                  value={draft.reusable ? "yes" : "no"}
+                  onChange={(event) => updateDraft("reusable", event.target.value === "yes")}
+                  disabled={props.isSaving || editorMode === "view"}
+                >
+                  <option value="no">否</option>
+                  <option value="yes">是</option>
+                </select>
+              </label>
+            </div>
+            <label style={{ display: "grid", gap: 6 }}>
+              <span className="status-text">呈现形式</span>
+              <textarea
+                value={draft.presentationFormat}
+                onChange={(event) => updateDraft("presentationFormat", event.target.value)}
+                placeholder="例如：通过剧情短片带出产品卖点，再引导门店转化"
+                rows={2}
+                disabled={props.isSaving || editorMode === "view"}
               />
             </label>
             <label style={{ display: "grid", gap: 6 }}>
-              <span className="status-text">选题说明</span>
+              <span className="status-text">选题目的</span>
               <textarea
-                value={manualTopicDescription}
-                onChange={(event) => setManualTopicDescription(event.target.value)}
-                placeholder="请输入选题说明"
-                rows={3}
-                disabled={props.isSaving}
+                value={draft.topicGoal}
+                onChange={(event) => updateDraft("topicGoal", event.target.value)}
+                placeholder="例如：提升产品销量及品牌曝光"
+                rows={2}
+                disabled={props.isSaving || editorMode === "view"}
               />
             </label>
+            <label style={{ display: "grid", gap: 6 }}>
+              <span className="status-text">调用专家/技能</span>
+              <input
+                value={draft.expertSkill}
+                onChange={(event) => updateDraft("expertSkill", event.target.value)}
+                placeholder="例如：本地商家抖音增长专家 / 爆款脚本技能"
+                disabled={props.isSaving || editorMode === "view"}
+              />
+            </label>
+            <label style={{ display: "grid", gap: 6 }}>
+              <span className="status-text">复用周期</span>
+              <input
+                value={draft.reuseCycle}
+                onChange={(event) => updateDraft("reuseCycle", event.target.value)}
+                placeholder={draft.reusable ? "例如：每周一次 / 每月一次" : "未开启复用时可留空"}
+                disabled={props.isSaving || editorMode === "view" || !draft.reusable}
+              />
+            </label>
+            {editorMode !== "create" ? (
+              <div style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
+                <div className="report-inline-tip">来源：{getTopicSourceLabel(draft.source)}</div>
+                <div className="report-inline-tip">入库时间：{props.formatDateTime(draft.selectedAt)}</div>
+              </div>
+            ) : null}
             <div className="strategy-inline-actions" style={{ justifyContent: "flex-end" }}>
-              <button type="button" className="secondary-button" onClick={() => setIsAddingTopic(false)} disabled={props.isSaving}>
-                取消
+              <button type="button" className="secondary-button" onClick={closeEditor} disabled={props.isSaving}>
+                {editorMode === "view" ? "关闭" : "取消"}
               </button>
-              <button type="button" className="primary-button" onClick={() => void handleManualSubmit()} disabled={!props.canEdit || props.isSaving}>
-                保存选题
-              </button>
+              {editorMode === "view" ? null : (
+                <button type="button" className="primary-button" onClick={() => void handleSaveTopic()} disabled={!props.canEdit || props.isSaving}>
+                  保存选题
+                </button>
+              )}
             </div>
           </section>
         ) : null}
 
         {!props.items.length ? (
-          <div className="note-empty-state">当前品牌选题库还没有内容。请先从上方"热点找选题"勾选加入，或点击右上角"添加选题"手动补充。</div>
+          <div className="note-empty-state">
+            {hotProps
+              ? '当前品牌选题库还没有内容。请先从上方"热点找选题"勾选加入，或点击右上角"添加选题"手动补充，也可以由 OpenClaw 直接写入。'
+              : '当前品牌选题库还没有内容。请点击右上角"添加选题"手动补充，或由 OpenClaw 直接写入。'}
+          </div>
         ) : (
           <>
             <div style={{ overflowX: "auto" }}>
               <table className="soft-table douyin-data-table douyin-topic-library-table">
                 <thead>
                   <tr>
-                    <th>选题内容</th>
-                    <th>选题说明</th>
-                    <th>入选时间</th>
+                    <th>选题</th>
+                    <th>平台 / 形式</th>
+                    <th>目的 / 复用</th>
+                    <th>来源</th>
+                    <th>入库时间</th>
                     <th>操作</th>
                   </tr>
                 </thead>
                 <tbody>
                   {paginatedItems.map((item) => (
                     <tr key={item.id}>
-                      <td className="table-cell-wide">{item.topicContent || "-"}</td>
-                      <td className="table-cell-wide">{item.topicDescription || "-"}</td>
+                      <td className="table-cell-wide">
+                        <div style={{ display: "grid", gap: 6 }}>
+                          <strong>{item.topicTitle || item.topicContent || "-"}</strong>
+                          <div>{item.topicContent || "-"}</div>
+                          {item.presentationFormat ? (
+                            <p className="panel-subtext" style={{ margin: 0 }}>
+                              {item.presentationFormat}
+                            </p>
+                          ) : null}
+                        </div>
+                      </td>
+                      <td>
+                        <div style={{ display: "grid", gap: 6 }}>
+                          <span>{item.topicPlatform}</span>
+                          <span className="panel-subtext">{item.contentFormat}</span>
+                          {item.expertSkill ? <span className="panel-subtext">{item.expertSkill}</span> : null}
+                        </div>
+                      </td>
+                      <td className="table-cell-wide">
+                        <div style={{ display: "grid", gap: 6 }}>
+                          <span>{item.topicGoal || "-"}</span>
+                          <span className="panel-subtext">
+                            {item.reusable ? `可复用${item.reuseCycle ? ` · ${item.reuseCycle}` : ""}` : "不复用"}
+                          </span>
+                        </div>
+                      </td>
+                      <td>{getTopicSourceLabel(item.source)}</td>
                       <td>{props.formatDateTime(item.selectedAt)}</td>
                       <td>
-                        <button
-                          type="button"
-                          className="note-inline-button"
-                          onClick={() => void handleDeleteTopic(item.id)}
-                          disabled={!props.canEdit || props.isSaving}
-                        >
-                          删除
-                        </button>
+                        <div className="strategy-inline-actions" style={{ justifyContent: "flex-start" }}>
+                          <button
+                            type="button"
+                            className="note-inline-button"
+                            onClick={() => openTopicViewer(item, "view")}
+                          >
+                            查看
+                          </button>
+                          <button
+                            type="button"
+                            className="note-inline-button"
+                            onClick={() => openTopicViewer(item, "edit")}
+                            disabled={!props.canEdit || props.isSaving}
+                          >
+                            编辑
+                          </button>
+                          <button
+                            type="button"
+                            className="note-inline-button"
+                            onClick={() => void handleDeleteTopic(item.id)}
+                            disabled={!props.canEdit || props.isSaving}
+                          >
+                            删除
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}

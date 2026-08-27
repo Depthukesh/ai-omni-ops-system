@@ -662,6 +662,9 @@ const OPENCLAW_WEBSITE_FUNCTION_CATALOG: OpenClawWebsiteFunctionCatalogItem[] = 
       "get_brand_growth_topic_library_workspace",
       "generate_brand_growth_topic_candidates",
       "update_brand_growth_topic_library",
+      "create_brand_growth_topic_library_item",
+      "update_brand_growth_topic_library_item",
+      "delete_brand_growth_topic_library_item",
       "get_brand_growth_material_library_items",
     ],
   },
@@ -1958,6 +1961,51 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
           additionalProperties: true,
         },
       },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "create_brand_growth_topic_library_item",
+    description: "向当前品牌选题库新增一条结构化选题，默认按 OpenClaw 来源入库。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        item: {
+          type: "object",
+          description: "单条选题对象，建议包含选题标题、选题内容、选题平台、内容形式、呈现形式、选题目的、调用专家/技能、是否可复用、复用周期等字段。",
+          additionalProperties: true,
+        },
+      },
+      required: ["item"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "update_brand_growth_topic_library_item",
+    description: "更新当前品牌选题库中指定 ID 的一条选题。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        topicId: { type: "string", description: "要更新的选题 ID。" },
+        item: {
+          type: "object",
+          description: "要覆盖到该选题上的字段。",
+          additionalProperties: true,
+        },
+      },
+      required: ["topicId", "item"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "delete_brand_growth_topic_library_item",
+    description: "删除当前品牌选题库中指定 ID 的一条选题。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        topicId: { type: "string", description: "要删除的选题 ID。" },
+      },
+      required: ["topicId"],
       additionalProperties: false,
     },
   },
@@ -9030,6 +9078,48 @@ export class OpenClawService {
     });
   }
 
+  async createBrandGrowthTopicLibraryItem(
+    headers: HeadersMap,
+    options?: {
+      item?: Record<string, unknown>;
+    },
+  ) {
+    return this.manageGrowthReports(headers, {
+      action: "create_douyin_topic_library_item",
+      payload: options?.item ? { item: options.item } : undefined,
+    });
+  }
+
+  async updateBrandGrowthTopicLibraryItem(
+    headers: HeadersMap,
+    options?: {
+      topicId?: string;
+      item?: Record<string, unknown>;
+    },
+  ) {
+    return this.manageGrowthReports(headers, {
+      action: "update_douyin_topic_library_item",
+      payload: {
+        topicId: options?.topicId,
+        item: options?.item,
+      },
+    });
+  }
+
+  async deleteBrandGrowthTopicLibraryItem(
+    headers: HeadersMap,
+    options?: {
+      topicId?: string;
+    },
+  ) {
+    return this.manageGrowthReports(headers, {
+      action: "delete_douyin_topic_library_item",
+      payload: {
+        topicId: options?.topicId,
+      },
+    });
+  }
+
   async getBrandGrowthMaterialLibraryItems(
     headers: HeadersMap,
     options?: {
@@ -10713,6 +10803,110 @@ export class OpenClawService {
         );
         return this.buildManagedOperationResponse({
           title: "选题库已更新",
+          action,
+          data: result,
+          url: "/brand-growth",
+          label: "打开品牌增长策略",
+          resourceKind: "report",
+        });
+      }
+      case "create_douyin_topic_library_item": {
+        await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "edit", auth);
+        const item = payload.item && typeof payload.item === "object" && !Array.isArray(payload.item)
+          ? payload.item as Record<string, unknown>
+          : undefined;
+        if (!item) {
+          throw new BadRequestException("请提供 item 作为新增选题内容");
+        }
+        const workspace = await this.reportsService.getDouyinHotTopicCandidatesWorkspace(brandId);
+        const result = await this.reportsService.updateDouyinTopicLibrary(brandId, {
+          items: [
+            {
+              id: typeof item.id === "string" && item.id.trim() ? item.id.trim() : `openclaw-topic-${Date.now()}`,
+              topicTitle: typeof item.topicTitle === "string" && item.topicTitle.trim()
+                ? item.topicTitle.trim()
+                : (typeof item.topicContent === "string" && item.topicContent.trim() ? item.topicContent.trim() : "OpenClaw 选题"),
+              topicContent: typeof item.topicContent === "string" && item.topicContent.trim()
+                ? item.topicContent.trim()
+                : (typeof item.topicTitle === "string" && item.topicTitle.trim() ? item.topicTitle.trim() : "OpenClaw 选题"),
+              topicPlatform: item.topicPlatform === "视频号" || item.topicPlatform === "小红书" || item.topicPlatform === "公众号"
+                ? item.topicPlatform
+                : "抖音",
+              contentFormat: item.contentFormat === "图文" || item.contentFormat === "长文章"
+                ? item.contentFormat
+                : "视频",
+              presentationFormat: typeof item.presentationFormat === "string" ? item.presentationFormat.trim() : "",
+              topicGoal: typeof item.topicGoal === "string" ? item.topicGoal.trim() : "",
+              expertSkill: typeof item.expertSkill === "string" ? item.expertSkill.trim() : "",
+              reusable: Boolean(item.reusable),
+              reuseCycle: typeof item.reuseCycle === "string" && item.reuseCycle.trim() ? item.reuseCycle.trim() : undefined,
+              selectedAt: typeof item.selectedAt === "string" && item.selectedAt.trim() ? item.selectedAt.trim() : new Date().toISOString(),
+              topicDescription: typeof item.topicDescription === "string" && item.topicDescription.trim() ? item.topicDescription.trim() : undefined,
+              source: "OPENCLAW",
+              sourceDate: typeof item.sourceDate === "string" && item.sourceDate.trim() ? item.sourceDate.trim() : undefined,
+            },
+            ...(workspace.topicLibrary || []),
+          ],
+        });
+        return this.buildManagedOperationResponse({
+          title: "选题已创建",
+          action,
+          data: result,
+          url: "/brand-growth",
+          label: "打开品牌增长策略",
+          resourceKind: "report",
+        });
+      }
+      case "update_douyin_topic_library_item": {
+        await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "edit", auth);
+        const topicId = String(payload.topicId || "").trim();
+        const item = payload.item && typeof payload.item === "object" && !Array.isArray(payload.item)
+          ? payload.item as Record<string, unknown>
+          : undefined;
+        if (!topicId || !item) {
+          throw new BadRequestException("请提供 topicId 和 item 作为更新选题内容");
+        }
+        const workspace = await this.reportsService.getDouyinHotTopicCandidatesWorkspace(brandId);
+        const existing = workspace.topicLibrary || [];
+        if (!existing.some((current) => current.id === topicId)) {
+          throw new BadRequestException("未找到要更新的选题");
+        }
+        const result = await this.reportsService.updateDouyinTopicLibrary(brandId, {
+          items: existing.map((current) => (current.id === topicId
+            ? {
+                ...current,
+                ...item,
+                id: topicId,
+                selectedAt: typeof item.selectedAt === "string" && item.selectedAt.trim() ? item.selectedAt.trim() : current.selectedAt,
+                source: current.source || "OPENCLAW",
+              }
+            : current)),
+        });
+        return this.buildManagedOperationResponse({
+          title: "选题已更新",
+          action,
+          data: result,
+          url: "/brand-growth",
+          label: "打开品牌增长策略",
+          resourceKind: "report",
+        });
+      }
+      case "delete_douyin_topic_library_item": {
+        await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "edit", auth);
+        const topicId = String(payload.topicId || "").trim();
+        if (!topicId) {
+          throw new BadRequestException("请提供 topicId");
+        }
+        const workspace = await this.reportsService.getDouyinHotTopicCandidatesWorkspace(brandId);
+        const existing = workspace.topicLibrary || [];
+        if (!existing.some((current) => current.id === topicId)) {
+          throw new BadRequestException("未找到要删除的选题");
+        }
+        const result = await this.reportsService.updateDouyinTopicLibrary(brandId, {
+          items: existing.filter((current) => current.id !== topicId),
+        });
+        return this.buildManagedOperationResponse({
+          title: "选题已删除",
           action,
           data: result,
           url: "/brand-growth",
@@ -13483,6 +13677,23 @@ export class OpenClawService {
           payload: toolArgs.payload && typeof toolArgs.payload === "object" && !Array.isArray(toolArgs.payload)
             ? toolArgs.payload as Record<string, unknown>
             : undefined,
+        });
+      case "create_brand_growth_topic_library_item":
+        return this.createBrandGrowthTopicLibraryItem(headers, {
+          item: toolArgs.item && typeof toolArgs.item === "object" && !Array.isArray(toolArgs.item)
+            ? toolArgs.item as Record<string, unknown>
+            : undefined,
+        });
+      case "update_brand_growth_topic_library_item":
+        return this.updateBrandGrowthTopicLibraryItem(headers, {
+          topicId: typeof toolArgs.topicId === "string" ? toolArgs.topicId : undefined,
+          item: toolArgs.item && typeof toolArgs.item === "object" && !Array.isArray(toolArgs.item)
+            ? toolArgs.item as Record<string, unknown>
+            : undefined,
+        });
+      case "delete_brand_growth_topic_library_item":
+        return this.deleteBrandGrowthTopicLibraryItem(headers, {
+          topicId: typeof toolArgs.topicId === "string" ? toolArgs.topicId : undefined,
         });
       case "get_brand_growth_material_library_items":
         return this.getBrandGrowthMaterialLibraryItems(headers, {

@@ -308,7 +308,7 @@ const strategySections: Array<{
       { key: "visualGrowthReport", label: "品牌增长可视化报告", description: "输出图表化的品牌增长可视化结果。" },
       { key: "annualMarketingPlan", label: "半年营销规划", description: "形成未来半年节奏、战役安排与重点营销规划。" },
       { key: "xiaohongshuMarketingCalendar", label: "营销日历", description: "基于品牌背景资料、机会洞察总报告和品牌增长报告生成品牌全平台营销日历。" },
-      { key: "reportTopicLibrary", label: "选题库", description: "承接营销日历后的选题沉淀与热点选题管理，支持生成热点选题、勾选加入选题库和手动补充选题。" },
+      { key: "reportTopicLibrary", label: "选题库", description: "沉淀人工与 OpenClaw 共用的结构化选题，支持查看、编辑、删除与跨平台复用。" },
       { key: "reportMaterialLibrary", label: "素材库", description: "统一归集小红书与抖音素材，供所有平台创作作品共用。" },
     ],
   },
@@ -2813,7 +2813,14 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
       const selectedItems = latestDouyinTopicResult.items.filter((item) => selectedDouyinTopicIds.includes(item.id));
       const additions: DouyinTopicLibraryItem[] = selectedItems.map((item, index) => ({
         id: item.id,
+        topicTitle: item.title.trim(),
         topicContent: item.title.trim(),
+        topicPlatform: "抖音",
+        contentFormat: "视频",
+        presentationFormat: "结合热点切口包装为短视频选题",
+        topicGoal: "提升内容曝光与互动效率",
+        expertSkill: "",
+        reusable: false,
         topicDescription: item.description?.trim() || latestDouyinTopicResult.summary || `来自 ${selectedDouyinTopicDate} 热点选题`,
         selectedAt: new Date().toISOString(),
         source: "GENERATED",
@@ -2834,7 +2841,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     }
   }
 
-  async function handleAddManualDouyinTopic(payload: { topicContent: string; topicDescription: string }) {
+  async function handleSaveDouyinTopic(item: DouyinTopicLibraryItem) {
     if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.report.topicLibrary"]?.edit) {
       setErrorMessage("当前账号没有编辑选题库的权限。");
       return;
@@ -2842,18 +2849,14 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     clearMessages();
     try {
       const existing = douyinTopicLibraryWorkspace.topicLibrary || [];
-      const nextItem: DouyinTopicLibraryItem = {
-        id: `manual_${Date.now()}`,
-        topicContent: payload.topicContent.trim(),
-        topicDescription: payload.topicDescription.trim(),
-        selectedAt: new Date().toISOString(),
-        source: "MANUAL",
-      };
-      await saveDouyinTopicLibrary([...existing, nextItem]);
-      setNotice("已添加选题。");
+      const nextItems = existing.some((current) => current.id === item.id)
+        ? existing.map((current) => (current.id === item.id ? item : current))
+        : [item, ...existing];
+      await saveDouyinTopicLibrary(nextItems);
+      setNotice(existing.some((current) => current.id === item.id) ? "已更新选题。" : "已添加选题。");
     } catch (error) {
       const message = error instanceof Error ? error.message : "保存失败";
-      setErrorMessage(`添加选题失败：${message}`);
+      setErrorMessage(`保存选题失败：${message}`);
     }
   }
 
@@ -4648,25 +4651,9 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
           onRefresh={async () => {
             await refreshDouyinTopicLibraryWorkspace(selectedDouyinTopicDate);
           }}
-          onAddManualTopic={handleAddManualDouyinTopic}
+          onSaveTopic={handleSaveDouyinTopic}
           onDeleteTopic={handleDeleteDouyinTopic}
           formatDateTime={formatDateTime}
-          hotTopicProps={{
-            canEdit: hasCurrentPageEditPermission,
-            availableDates: douyinTopicLibraryWorkspace.availableDates,
-            selectedDate: selectedDouyinTopicDate,
-            latest: latestDouyinTopicResult,
-            latestTask: latestDouyinTopicTask,
-            selectedTopicIds: selectedDouyinTopicIds,
-            isSavingTopicLibrary: isSavingDouyinTopicLibrary,
-            onRefresh: async () => {
-              await refreshDouyinTopicLibraryWorkspace(selectedDouyinTopicDate);
-            },
-            onDateChange: handleDouyinTopicDateChange,
-            onGenerate: handleGenerateDouyinTopicCandidates,
-            onToggleTopic: handleToggleDouyinTopic,
-            onAddSelectedTopics: handleAddSelectedDouyinTopics,
-          }}
         />
       );
     }

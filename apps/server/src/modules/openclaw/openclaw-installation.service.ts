@@ -1198,6 +1198,9 @@ RunningHub 当前常见 appKey 示例：
 - \`get_brand_growth_topic_library_workspace\`
 - \`generate_brand_growth_topic_candidates\`
 - \`update_brand_growth_topic_library\`
+- \`create_brand_growth_topic_library_item\`
+- \`update_brand_growth_topic_library_item\`
+- \`delete_brand_growth_topic_library_item\`
 - \`get_brand_growth_material_library_items\`
 
 任务与反馈：

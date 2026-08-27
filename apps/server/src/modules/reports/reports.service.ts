@@ -276,10 +276,18 @@ type DouyinHotTopicCandidatesAssetMeta = {
 
 type DouyinTopicLibraryItem = {
   id: string;
+  topicTitle: string;
   topicContent: string;
-  topicDescription: string;
+  topicPlatform: "抖音" | "视频号" | "小红书" | "公众号";
+  contentFormat: "图文" | "视频" | "长文章";
+  presentationFormat: string;
+  topicGoal: string;
+  expertSkill: string;
+  reusable: boolean;
+  reuseCycle?: string;
   selectedAt: string;
-  source?: "GENERATED" | "MANUAL";
+  topicDescription?: string;
+  source?: "GENERATED" | "MANUAL" | "OPENCLAW";
   sourceDate?: string;
 };
 
@@ -306,6 +314,7 @@ type DouyinOriginalCopyAssetMeta = {
   copyTypeLabel: string;
   content: string;
   topicId: string;
+  topicTitle?: string;
   topicContent: string;
   topicDescription?: string;
   calendarItemId?: string;
@@ -563,6 +572,7 @@ export type DouyinOriginalCopyRecord = {
   copyTypeLabel: string;
   content: string;
   topicId: string;
+  topicTitle?: string;
   topicContent: string;
   topicDescription?: string;
   calendarItemId?: string;
@@ -810,6 +820,7 @@ type DouyinOriginalCopyModelResult = {
   copyType: DouyinOriginalCopyType;
   copyTypeLabel: string;
   topicId: string;
+  topicTitle?: string;
   topicContent: string;
   topicDescription?: string;
   calendarItemId?: string;
@@ -2054,7 +2065,7 @@ export class ReportsService {
         await this.prismaService.businessAsset.update({
           where: { id: current.id },
           data: {
-            title: "抖音选题库",
+            title: "选题库",
             description: summary,
             metadataJson: {
               kind: "DOUYIN_TOPIC_LIBRARY",
@@ -2069,7 +2080,7 @@ export class ReportsService {
           data: {
             brandId,
             category: AssetCategory.GENERATED_CONTENT,
-            title: "抖音选题库",
+            title: "选题库",
             description: summary,
             metadataJson: {
               kind: "DOUYIN_TOPIC_LIBRARY",
@@ -2095,7 +2106,7 @@ export class ReportsService {
     if (existingIndex >= 0) {
       database.assets[existingIndex] = {
         ...database.assets[existingIndex],
-        title: "抖音选题库",
+        title: "选题库",
         description: summary,
         metadataJson,
       };
@@ -2104,7 +2115,7 @@ export class ReportsService {
         id: createId("ast"),
         brandId,
         category: "GENERATED_CONTENT",
-        title: "抖音选题库",
+        title: "选题库",
         description: summary,
         sourceName: "系统生成",
         metadataJson,
@@ -4879,6 +4890,7 @@ export class ReportsService {
       const calendarRecord = this.readNestedRecord(currentTaskRow, ["calendarItem"]);
       const injectMarketingPlan = Boolean(currentTaskRow.injectMarketingPlan);
       const userRequirement = this.readMetaString(currentTaskRow, "userRequirement") || undefined;
+      const topicTitle = this.readRecordString(topicRecord, "topicTitle") || this.readRecordString(topicRecord, "title");
       const topicContent = this.readRecordString(topicRecord, "topicContent");
       const topicId = this.readRecordString(topicRecord, "id");
       if (!copyType || !DOUYIN_ORIGINAL_COPY_TYPE_CONFIG[copyType]) {
@@ -4899,6 +4911,7 @@ export class ReportsService {
         topic: topicContent || topicId
           ? {
               id: topicId || `topic-${this.createSlug(topicContent || "none")}`,
+              topicTitle: topicTitle || topicContent || "不选择选题",
               topicContent: topicContent || "不选择选题",
               topicDescription: this.readRecordString(topicRecord, "topicDescription") || undefined,
             }
@@ -5762,6 +5775,7 @@ export class ReportsService {
             copyTypeLabel: report.copyTypeLabel,
             content: report.content,
             topicId: report.topicId,
+            topicTitle: report.topicTitle,
             topicContent: report.topicContent,
             topicDescription: report.topicDescription,
             calendarItemId: report.calendarItemId,
@@ -5793,6 +5807,7 @@ export class ReportsService {
         copyTypeLabel: report.copyTypeLabel,
         content: report.content,
         topicId: report.topicId,
+        topicTitle: report.topicTitle,
         topicContent: report.topicContent,
         topicDescription: report.topicDescription,
         calendarItemId: report.calendarItemId,
@@ -7027,6 +7042,7 @@ export class ReportsService {
     archive: Awaited<ReturnType<BrandsService["getArchive"]>>;
     topic?: {
       id: string;
+      topicTitle?: string;
       topicContent: string;
       topicDescription?: string;
     };
@@ -8932,6 +8948,11 @@ export class ReportsService {
     const inputScope = this.readNestedRecord(inputPayload, ["inputScope"]);
     const calendarDate = this.readRecordString(calendarItem, "date");
     const calendarTopicName = this.readRecordString(calendarItem, "topicName");
+    const topicTitle = this.readRecordString(topic, "topicTitle")
+      || this.readRecordString(topic, "title")
+      || this.readRecordString(topic, "topicContent")
+      || calendarTopicName
+      || "不选择选题";
     const topicContent = this.readRecordString(topic, "topicContent") || calendarTopicName || "不选择选题";
     const topicId = this.readRecordString(topic, "id") || (calendarDate || calendarTopicName
       ? `calendar-${this.createSlug([calendarDate, calendarTopicName].filter(Boolean).join("-"))}`
@@ -8947,7 +8968,7 @@ export class ReportsService {
       throw new ServiceUnavailableException("抖音原创文案解析失败：模型输出了工作流/文件操作内容，而不是最终文案正文");
     }
 
-    const fallbackTitle = `${topicContent || "抖音原创文案"}｜${copyTypeLabel}`;
+    const fallbackTitle = `${topicTitle || topicContent || "抖音原创文案"}｜${copyTypeLabel}`;
     const reportMarkdown = normalizedMarkdown.startsWith("# ")
       ? normalizedMarkdown
       : `# ${fallbackTitle}\n\n${normalizedMarkdown}`;
@@ -8964,6 +8985,7 @@ export class ReportsService {
       copyType,
       copyTypeLabel,
       topicId,
+      topicTitle,
       topicContent,
       topicDescription: this.readRecordString(topic, "topicDescription") || undefined,
       calendarItemId: this.readRecordString(calendarItem, "id") || undefined,
@@ -10325,6 +10347,7 @@ ${normalizedMarkdown}`;
     archive: Awaited<ReturnType<BrandsService["getArchive"]>>,
     topic: {
       id: string;
+      topicTitle?: string;
       topicContent: string;
       topicDescription?: string;
     } | undefined,
@@ -10374,6 +10397,7 @@ ${normalizedMarkdown}`;
         selectedTopic: topic
           ? {
               id: topic.id,
+              topicTitle: topic.topicTitle || topic.topicContent,
               topicContent: topic.topicContent,
               topicDescription: topic.topicDescription || "",
             }
@@ -13493,26 +13517,75 @@ ${normalizedMarkdown}`;
       if (!item) {
         continue;
       }
-      const topicContent = String(item.topicContent ?? item.title ?? "").trim();
-      if (!topicContent) {
+      const topicTitle = String(item.topicTitle ?? item.title ?? item.topicName ?? item.topicContent ?? "").trim();
+      const topicContent = String(item.topicContent ?? item.description ?? topicTitle).trim();
+      if (!topicTitle && !topicContent) {
         continue;
       }
-      const dedupeKey = topicContent.toLowerCase();
+      const resolvedTopicTitle = topicTitle || topicContent;
+      const resolvedTopicContent = topicContent || resolvedTopicTitle;
+      const topicPlatform = this.normalizeDouyinTopicPlatform(item.topicPlatform);
+      const dedupeKey = `${topicPlatform}|${resolvedTopicTitle}|${resolvedTopicContent}`.toLowerCase();
       if (uniqueMap.has(dedupeKey)) {
         continue;
       }
-      const topicDescription = String(item.topicDescription ?? item.description ?? "").trim() || "未填写选题说明";
+      const presentationFormat = String(item.presentationFormat ?? item.presentation ?? item.expressionFocus ?? "").trim();
+      const topicGoal = String(item.topicGoal ?? item.goal ?? item.target ?? "").trim();
+      const expertSkill = String(item.expertSkill ?? item.skill ?? item.expert ?? "").trim();
+      const topicDescription = String(item.topicDescription ?? item.description ?? topicGoal ?? presentationFormat).trim() || undefined;
       const selectedAt = String(item.selectedAt ?? item.generatedAt ?? "").trim() || new Date().toISOString();
+      const reusable = this.normalizeDouyinTopicReusable(item.reusable ?? item.isReusable ?? item.reuseable);
+      const reuseCycle = String(item.reuseCycle ?? item.repeatCycle ?? "").trim() || undefined;
       uniqueMap.set(dedupeKey, {
-        id: String(item.id ?? "").trim() || `topic-library-${index + 1}-${this.createSlug(topicContent)}`,
-        topicContent,
+        id: String(item.id ?? "").trim() || `topic-library-${index + 1}-${this.createSlug(`${topicPlatform}-${resolvedTopicTitle}`)}`,
+        topicTitle: resolvedTopicTitle,
+        topicContent: resolvedTopicContent,
+        topicPlatform,
+        contentFormat: this.normalizeDouyinTopicContentFormat(item.contentFormat ?? item.contentType ?? item.noteType),
+        presentationFormat,
+        topicGoal,
+        expertSkill,
+        reusable,
+        reuseCycle: reusable ? reuseCycle : undefined,
         topicDescription,
         selectedAt,
-        source: String(item.source ?? "").trim() === "GENERATED" ? "GENERATED" : "MANUAL",
+        source: this.normalizeDouyinTopicLibrarySource(item.source),
         sourceDate: String(item.sourceDate ?? "").trim() || undefined,
       });
     }
     return [...uniqueMap.values()];
+  }
+
+  private normalizeDouyinTopicPlatform(value: unknown): DouyinTopicLibraryItem["topicPlatform"] {
+    const normalized = String(value ?? "").trim();
+    if (normalized === "视频号" || normalized === "小红书" || normalized === "公众号") {
+      return normalized;
+    }
+    return "抖音";
+  }
+
+  private normalizeDouyinTopicContentFormat(value: unknown): DouyinTopicLibraryItem["contentFormat"] {
+    const normalized = String(value ?? "").trim();
+    if (normalized === "图文" || normalized === "长文章") {
+      return normalized;
+    }
+    return "视频";
+  }
+
+  private normalizeDouyinTopicReusable(value: unknown) {
+    if (typeof value === "boolean") {
+      return value;
+    }
+    const normalized = String(value ?? "").trim().toLowerCase();
+    return normalized === "true" || normalized === "1" || normalized === "yes" || normalized === "y" || normalized === "是";
+  }
+
+  private normalizeDouyinTopicLibrarySource(value: unknown): DouyinTopicLibraryItem["source"] {
+    const normalized = String(value ?? "").trim();
+    if (normalized === "GENERATED" || normalized === "OPENCLAW") {
+      return normalized;
+    }
+    return "MANUAL";
   }
 
   private buildDouyinOriginalCopyCalendarOptions(calendars: XiaohongshuMarketingCalendarRecord[]): DouyinOriginalCopyCalendarOption[] {
@@ -14142,6 +14215,7 @@ ${normalizedMarkdown}`;
       copyTypeLabel: this.readMetaString(meta, "copyTypeLabel") || "原创文案",
       content: this.readMetaString(meta, "content"),
       topicId: this.readMetaString(meta, "topicId"),
+      topicTitle: this.readMetaString(meta, "topicTitle") || undefined,
       topicContent: this.readMetaString(meta, "topicContent"),
       topicDescription: this.readMetaString(meta, "topicDescription") || undefined,
       calendarItemId: this.readMetaString(meta, "calendarItemId") || undefined,

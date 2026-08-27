@@ -53,6 +53,9 @@
 - `get_brand_growth_topic_library_workspace`
 - `generate_brand_growth_topic_candidates`
 - `update_brand_growth_topic_library`
+- `create_brand_growth_topic_library_item`
+- `update_brand_growth_topic_library_item`
+- `delete_brand_growth_topic_library_item`
 - `get_brand_growth_material_library_items`
 - `get_xiaohongshu_collection_workspace`
 - `get_douyin_collection_workspace`
@@ -80,7 +83,7 @@
 
 - 可视化报告：`get_brand_growth_visual_report_workspace`、`generate_brand_growth_visual_report`
 - 营销日历：`get_brand_growth_marketing_calendar_workspace`、`generate_brand_growth_marketing_calendar`、`update_brand_growth_marketing_calendar`
-- 选题库：`get_brand_growth_topic_library_workspace`、`generate_brand_growth_topic_candidates`、`update_brand_growth_topic_library`
+- 选题库：`get_brand_growth_topic_library_workspace`、`generate_brand_growth_topic_candidates`、`update_brand_growth_topic_library`、`create_brand_growth_topic_library_item`、`update_brand_growth_topic_library_item`、`delete_brand_growth_topic_library_item`
 - 素材库：`get_brand_growth_material_library_items`
 
 抖音采集补充：

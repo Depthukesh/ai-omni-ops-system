@@ -58,6 +58,8 @@
 - 作用：记录重要改动的背景、范围、验证和后续事项
 - 要求：真实代码改动默认同步补一条变更记录
 - 最新补充：
+  - `docs/changes/2026-08-27-brand-growth-topic-library-generalization.md`
+    - 把 `品牌增长报告 -> 选题库` 从旧抖音热点沉淀页升级为人工与 OpenClaw 共用的结构化选题库；品牌增长页去掉“热门找选题”区，并同步补齐查看 / 编辑 / 删除与 MCP / Skill 单条 CRUD
   - `docs/changes/2026-08-27-douyin-collection-preview-and-transcript-retry-ux.md`
     - 收口品牌增长策略里抖音采集作品的站内受控视频预览、本地/OSS 存储位置回显、文案提取卡住超时回收，以及余额恢复后的重新提取体验，并同步 OpenClaw / MCP / Skill 新增 `extract_douyin_work_transcript`
   - `docs/changes/2026-08-25-brand-growth-ip-library.md`
@@ -167,6 +169,8 @@
 
 ## 最近应优先关注的文档
 
+- `docs/changes/2026-08-27-brand-growth-topic-library-generalization.md`
+  - 把 `品牌增长报告 -> 选题库` 收口为结构化选题库：品牌增长页去掉热点板块，人工与 OpenClaw 共用同一份选题记录，并新增单条增删改的 MCP / Skill 路由
 - `docs/changes/2026-08-27-standard-version-workspace-fallback-guide.md`
   - 把个人中心 `版本与升级` 在标准运行态下从“纯 manifest 依赖”补成“仓库版本记录 + Docker 更新命令 + Skill/MCP 同步提醒”的回退模式；即使没有远端清单，也不再显示空壳版本页
 - `docs/changes/2026-08-27-ip-voice-material-preview-openclaw-git-skill.md`
