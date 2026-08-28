@@ -8,7 +8,15 @@
 
 随后容器不断重启，浏览器访问 `http://127.0.0.1:13001` 只看到 `ERR_EMPTY_RESPONSE`。
 
-真实原因不是 Next.js 业务代码，而是当前 `docker/web.Dockerfile` 运行命令仍然使用：
+第一轮修复已经把 `web` 运行命令从 `pnpm exec next start` 改成直接执行 `next` 二进制，但在真实用户机器继续验证时，仍发现：
+
+- `docker compose build web` 可能先失败在 `RUN pnpm install ...`
+- 失败后 `docker compose up` 会继续复用本地旧镜像
+- 用户看到的现象仍然像“运行时继续刷 `Corepack is about to download ...`”
+
+所以真实根因不只是运行命令，还包括 Docker 镜像构建阶段本身仍然依赖 `corepack` 解析 `pnpm`。
+
+历史上的直接触发点是 `docker/web.Dockerfile` 运行命令仍然使用：
 
 - `pnpm --filter web exec next start ...`
 
@@ -16,39 +24,63 @@
 
 ## 本次改动
 
-### 1. web 容器运行时不再依赖 pnpm
+### 1. 构建期不再依赖 corepack
 
 更新：
 
 - `docker/web.Dockerfile`
-
-改动：
-
-- 构建阶段显式执行 `corepack prepare pnpm@10.0.0 --activate`
-- 容器启动命令从 `pnpm --filter web exec next start ...` 改成直接执行镜像内已安装的：
-  - `node apps/web/node_modules/next/dist/bin/next start --hostname 0.0.0.0 -p 3001`
-
-效果：
-
-- `web` 容器启动时不再需要联网下载 `pnpm`
-- 即使用户机器运行时代理不稳定，只要镜像已经构建完成，前端容器仍可正常启动
-
-### 2. server 镜像同步把 pnpm 固定在构建期准备好
-
-更新：
-
 - `docker/server.Dockerfile`
 
 改动：
 
-- 把 `corepack enable` 补成 `corepack enable && corepack prepare pnpm@10.0.0 --activate`
+- 删除 `corepack enable && corepack prepare pnpm@10.0.0 --activate`
+- 改为在镜像构建阶段直接执行：
+  - `npm install -g pnpm@10.0.0`
 
 效果：
 
-- `db-init`、`server` 相关的 `pnpm` 运行链也不再依赖容器启动期临时解析包管理器
-- 标准 Docker 运行态的一次性初始化链更稳
+- `pnpm` 通过明确安装的全局二进制提供
+- 构建阶段不再额外走 `corepack` 解析链
 
-### 3. 工程规则升级
+### 2. 运行期继续避免 pnpm
+
+更新：
+
+- `docker/web.Dockerfile`
+- `docker/docker-compose.local-postgres.yml`
+
+改动：
+
+- `web` 容器运行命令从 `pnpm --filter web exec next start ...` 改成直接执行镜像内已安装的：
+  - `node apps/web/node_modules/next/dist/bin/next start --hostname 0.0.0.0 -p 3001`
+- `db-init` 命令从：
+  - `pnpm db:init:standard`
+  改成：
+  - `npm run db:init:standard`
+
+效果：
+
+- `web` 与 `db-init` 运行时都不再依赖 `pnpm` / `corepack`
+- 即使用户机器 Docker 运行时代理不稳定，也不会在容器启动阶段反复命中 `Corepack is about to download ...`
+
+### 3. 构建脚本同步切到 npm run
+
+更新：
+
+- `docker/web.Dockerfile`
+- `docker/server.Dockerfile`
+
+改动：
+
+- `pnpm build:web` 改成 `npm run build:web`
+- `pnpm prisma:generate && pnpm build:server` 改成 `npm run prisma:generate && npm run build:server`
+
+效果：
+
+- 构建阶段除 `pnpm install` 外，不再继续把 `pnpm` 作为脚本入口
+- 启动链更贴近 Node 自带的 `npm` 运行口径
+
+### 4. 工程规则升级
 
 更新：
 
@@ -56,13 +88,15 @@
 
 新增规则：
 
-- 标准 Docker 运行态的容器启动命令不能继续依赖运行时外网下载 `pnpm` / `corepack` 元数据
-- 这类包管理器必须在镜像构建阶段准备好，避免用户现场因为代理、Docker 运行时网络或 npm registry 抖动而出现“镜像已构建，但容器启动即退出”
+- 标准 Docker 运行态的容器不能继续依赖 `corepack` 在构建期或运行期临时解析 `pnpm`
+- 包管理器必须在镜像构建阶段通过确定性方式准备好
+- 运行时尽量直接执行应用或 `npm run ...`
 
 ## 影响范围
 
 - `docker/web.Dockerfile`
 - `docker/server.Dockerfile`
+- `docker/docker-compose.local-postgres.yml`
 - `docs/engineering-standards.md`
 
 ## 验证
@@ -70,7 +104,8 @@
 建议本地按以下顺序验证：
 
 ```powershell
-docker compose -f docker/docker-compose.local-postgres.yml build server web
+docker compose -f docker/docker-compose.local-postgres.yml down --remove-orphans
+docker compose -f docker/docker-compose.local-postgres.yml build --no-cache server web
 docker compose -f docker/docker-compose.local-postgres.yml up -d postgres server web
 docker compose -f docker/docker-compose.local-postgres.yml ps
 docker compose -f docker/docker-compose.local-postgres.yml logs --tail=100 web
