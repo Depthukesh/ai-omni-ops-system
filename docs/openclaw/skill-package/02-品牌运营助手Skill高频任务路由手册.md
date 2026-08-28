@@ -344,6 +344,10 @@ RunningHub 关键规则：
 2. 再 `get_app_detail`
 3. 从返回的 `nodeInfoList` 模板里回填参数
 4. 最后 `generate`
+5. 如果节点是图片、音频、视频上传位：
+   - 传本地文件时，把 `localFilePath` 放在节点对象顶层
+   - 传文件内容时，走 `upload.fileName / upload.contentType / upload.dataBase64`
+   - 不要把 `{ localFilePath: ... }`、`{ fileName, contentType, dataBase64 }` 这类对象直接塞进 `fieldValue / fieldData`
 
 当前可直接识别的 RunningHub 示例：
 

@@ -13,6 +13,7 @@
       "@prisma/client",
       "@prisma/engines",
       "esbuild",
+      "ffprobe-static",
       "prisma",
       "sharp"
     ]

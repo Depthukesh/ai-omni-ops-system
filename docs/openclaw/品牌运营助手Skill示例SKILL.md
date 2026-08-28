@@ -392,6 +392,7 @@
 - 对图片、音频、视频上传节点，服务端都会先把文件上传到 RunningHub，再把 RunningHub 官方返回的可用路径回填给对应节点
 - 对标准图片上传节点（例如 `LoadImage` 且模板 `fieldData` 内含 `image_upload`），不要再把网站 URL 手动写进 `fieldValue`；应交给服务端上传并回填
 - 不要把 `localFilePath=...` 这段字面文本塞进 `fieldValue` 或 `fieldData`；那只是兼容旧写法，标准写法仍然是独立字段 `localFilePath`
+- 也不要把 `{ localFilePath: ... }`、`{ fileName, contentType, dataBase64 }` 这类对象直接塞进 `fieldValue / fieldData`；服务端会把这种错误写法直接拦截，避免最终落成 `[object Object]`
 - 不要手动修改模板里的 `fieldData`；尤其不要保留或手填 `example.png` 这类占位值，保持 `get_app_detail` 返回模板原样即可
 - 不要猜测 `nodeId`，也不要在 `nodeInfoList` 为空时直接调用 `generate`
 - 当前常见 RunningHub appKey 示例：

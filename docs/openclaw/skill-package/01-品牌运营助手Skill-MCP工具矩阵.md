@@ -345,6 +345,12 @@ RunningHub 当前常见 appKey 示例：
 - `qwen-image-chinese-font-design`
 - `qwen-font-design-8step`
 
+RunningHub 上传节点补充规则：
+
+- 图片、音频、视频上传节点要么在节点对象顶层传 `localFilePath`，要么传 `upload.fileName / upload.contentType / upload.dataBase64`
+- 不要把 `{ localFilePath: ... }`、`{ fileName, contentType, dataBase64 }` 这类对象直接塞进 `fieldValue` 或 `fieldData`
+- 如果把对象误塞进 `fieldValue / fieldData`，服务端现在会直接拦截，并提示这会被错误串成 `[object Object]`
+
 ### 10.3 发布会话
 
 - `create_douyin_mobile_publish_session`

@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { extname, join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { BadRequestException, Injectable, NotFoundException, ServiceUnavailableException, UnauthorizedException } from "@nestjs/common";
+import ffprobeStatic from "ffprobe-static";
 import { AssetCategory, BrandInviteStatus, BrandMemberRole, BrandMemberStatus, PlatformType, Prisma } from "@prisma/client";
 import {
   BRAND_PERMISSION_TREE,
@@ -47,6 +48,18 @@ const BRAND_GROWTH_KNOWLEDGE_TARGET_ID = "brand-growth-workbench";
 const BRAND_GROWTH_KNOWLEDGE_TARGET_NAME = "品牌增长工作台";
 const BRAND_BUSINESS_ASSETS_KB_PREFIX = "kb_brand_business_assets_";
 const BRAND_BUSINESS_ASSETS_SLUG_PREFIX = "brand-business-assets-";
+
+function resolveFfprobeBinary() {
+  const envBinary = String(process.env.FFPROBE_BINARY || "").trim();
+  if (envBinary) {
+    return envBinary;
+  }
+  const bundledBinary = String(ffprobeStatic?.path || "").trim();
+  if (bundledBinary && existsSync(bundledBinary)) {
+    return bundledBinary;
+  }
+  return "ffprobe";
+}
 
 type BusinessAssetKnowledgeMetadata = {
   sourceName?: string;
@@ -5585,7 +5598,7 @@ export class BrandsService {
   }
 
   private async probeAudioDurationSec(buffer: Buffer, fileName: string) {
-    const binary = String(process.env.FFPROBE_BINARY || "").trim() || "ffprobe";
+    const binary = resolveFfprobeBinary();
     const tempRoot = await mkdtemp(join(tmpdir(), "brand-ip-audio-probe-"));
     const tempFilePath = join(tempRoot, `source${extname(fileName).toLowerCase() || ".mp3"}`);
 

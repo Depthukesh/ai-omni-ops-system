@@ -3,7 +3,6 @@ FROM node:22-bookworm-slim
 WORKDIR /app
 
 RUN npm install -g pnpm@10.0.0
-RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
 
 COPY package.json pnpm-workspace.yaml ./
 COPY apps/server/package.json apps/server/package.json
