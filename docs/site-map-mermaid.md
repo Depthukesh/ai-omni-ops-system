@@ -179,6 +179,7 @@ flowchart TD
     C2 --> C24["第二阶段：逐段生成视频"]
     C2 --> C25["ffmpeg 拼接完整视频"]
     C5 --> C51["MiniMax H3 / Seedance / Qwen 字体设计 / 数字人 / 电商设计等 RunningHub 应用清单"]
+    C5 --> C52["上传节点强校验：localFilePath / upload.*；对象型 fieldValue 直接拦截"]
 
     B --> B1["某书：营销策划方案 / 创作素材 / 每日计划 / 每日复盘 / 作品列表"]
     B --> B2["某音/某号：营销策划方案 / 数字人 / RunningHub应用 / 创作素材 / 每日计划 / 每日复盘 / 作品列表"]

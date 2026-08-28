@@ -17,6 +17,7 @@ import {
 } from "@nestjs/common";
 import { MediaType, Prisma, TaskStatus } from "@prisma/client";
 import ffmpegInstaller from "@ffmpeg-installer/ffmpeg";
+import ffprobeStatic from "ffprobe-static";
 import { createId, database, type ApiProviderRecord } from "../../common/mock-data";
 import { XHS_IMAGE_ANALYSIS_PROMPT_FALLBACK } from "../../common/prompt-fallbacks";
 import { readPromptSourceBundle } from "../../common/prompt-source-loader";
@@ -261,6 +262,18 @@ function resolveFfmpegBinary() {
     return bundledBinary;
   }
   return "ffmpeg";
+}
+
+function resolveFfprobeBinary() {
+  const envBinary = String(process.env.FFPROBE_BINARY || "").trim();
+  if (envBinary) {
+    return envBinary;
+  }
+  const bundledBinary = String(ffprobeStatic?.path || "").trim();
+  if (bundledBinary && existsSync(bundledBinary)) {
+    return bundledBinary;
+  }
+  return "ffprobe";
 }
 
 type UploadFilePayload = {
@@ -23062,20 +23075,111 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
 
   private normalizeRunningHubNodeInfoList(nodeInfoList?: RunningHubNodeSubmissionEntry[]) {
     return (nodeInfoList || [])
-      .map((item) => ({
-        nodeId: String(item?.nodeId || "").trim(),
-        nodeName: String(item?.nodeName || "").trim() || undefined,
-        fieldName: String(item?.fieldName || "").trim(),
-        fieldValue: this.normalizeRunningHubFieldValue(
-          typeof item?.fieldValue === "string" ? item.fieldValue : item?.fieldValue == null ? undefined : String(item.fieldValue),
-        ),
-        fieldData: typeof item?.fieldData === "string" ? item.fieldData : item?.fieldData == null ? undefined : String(item.fieldData),
-        fieldType: String(item?.fieldType || "").trim().toUpperCase() || undefined,
-        description: String(item?.description || "").trim() || undefined,
-        descriptionEn: String(item?.descriptionEn || "").trim() || undefined,
-        upload: item?.upload,
-      }))
+      .map((item) => {
+        this.assertRunningHubMediaNodeDoesNotUseObjectField(item, "fieldValue", item?.fieldValue);
+        this.assertRunningHubMediaNodeDoesNotUseObjectField(item, "fieldData", item?.fieldData);
+        return {
+          nodeId: String(item?.nodeId || "").trim(),
+          nodeName: String(item?.nodeName || "").trim() || undefined,
+          fieldName: String(item?.fieldName || "").trim(),
+          fieldValue: this.normalizeRunningHubFieldValue(
+            typeof item?.fieldValue === "string" ? item.fieldValue : item?.fieldValue == null ? undefined : String(item.fieldValue),
+          ),
+          fieldData: typeof item?.fieldData === "string" ? item.fieldData : item?.fieldData == null ? undefined : String(item.fieldData),
+          fieldType: String(item?.fieldType || "").trim().toUpperCase() || undefined,
+          description: String(item?.description || "").trim() || undefined,
+          descriptionEn: String(item?.descriptionEn || "").trim() || undefined,
+          upload: item?.upload,
+        };
+      })
       .filter((item) => item.nodeId && item.fieldName);
+  }
+
+  private assertRunningHubMediaNodeDoesNotUseObjectField(
+    item: {
+      nodeId?: string;
+      nodeName?: string;
+      fieldName?: string;
+      fieldType?: string;
+      fieldData?: string;
+      description?: string;
+      descriptionEn?: string;
+      upload?: UploadFilePayload;
+    },
+    fieldKey: "fieldValue" | "fieldData",
+    rawValue: unknown,
+  ) {
+    if (item.upload || !this.isRunningHubLikelyMediaUploadNode(item) || !this.isRunningHubObjectLikeFieldValue(rawValue)) {
+      return;
+    }
+    const nodeLabel = String(item.nodeName || item.fieldName || item.nodeId || "").trim() || "media";
+    const mediaLabel = this.getRunningHubMediaNodeLabel(item);
+    throw new BadRequestException(
+      `RunningHub ${mediaLabel}节点 ${nodeLabel} 的 ${fieldKey} 不能直接传对象。请改为在该节点对象顶层传 localFilePath，或传 upload.fileName / upload.contentType / upload.dataBase64；不要把 { localFilePath: ... }、{ fileName: ... } 这类对象直接塞进 ${fieldKey}，否则会被错误串成 [object Object]。`,
+    );
+  }
+
+  private isRunningHubObjectLikeFieldValue(value: unknown) {
+    if (value && typeof value === "object") {
+      return true;
+    }
+    return String(value || "").trim() === "[object Object]";
+  }
+
+  private isRunningHubLikelyMediaUploadNode(item: {
+    fieldName?: string;
+    nodeName?: string;
+    fieldType?: string;
+    fieldData?: string;
+    description?: string;
+    descriptionEn?: string;
+  }) {
+    if (this.isRunningHubImageUploadNode(item)) {
+      return true;
+    }
+    const haystack = [
+      item.fieldName,
+      item.nodeName,
+      item.fieldType,
+      item.fieldData,
+      item.description,
+      item.descriptionEn,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    return /audio|voice|music|song|sound|loadaudio|uploadaudio|歌曲|语音|音频|配音|伴奏|bgm|video|movie|clip|视频|影像/.test(haystack);
+  }
+
+  private getRunningHubMediaNodeLabel(item: {
+    fieldName?: string;
+    nodeName?: string;
+    fieldType?: string;
+    fieldData?: string;
+    description?: string;
+    descriptionEn?: string;
+  }) {
+    if (this.isRunningHubImageUploadNode(item)) {
+      return "图片";
+    }
+    const haystack = [
+      item.fieldName,
+      item.nodeName,
+      item.fieldType,
+      item.fieldData,
+      item.description,
+      item.descriptionEn,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    if (/audio|voice|music|song|sound|loadaudio|uploadaudio|歌曲|语音|音频|配音|伴奏|bgm/.test(haystack)) {
+      return "音频";
+    }
+    if (/video|movie|clip|视频|影像/.test(haystack)) {
+      return "视频";
+    }
+    return "媒体";
   }
 
   private buildRunningHubWorkMeta(params: {
@@ -25147,7 +25251,7 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
     if (!params.sourceUrl && !params.upload) {
       return undefined;
     }
-    const binary = String(process.env.FFPROBE_BINARY || "").trim() || "ffprobe";
+    const binary = resolveFfprobeBinary();
     const tempRoot = await mkdtemp(join(tmpdir(), "video-duration-probe-"));
     try {
       const extension = params.upload

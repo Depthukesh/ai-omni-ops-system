@@ -17,6 +17,7 @@
     "adm-zip": "^0.5.17",
     "ali-oss": "^6.23.0",
     "express": "^4.21.2",
+    "ffprobe-static": "^3.1.0",
     "iconv-lite": "^0.4.24",
     "nodemailer": "^8.0.7",
     "prisma": "^6.16.1",
