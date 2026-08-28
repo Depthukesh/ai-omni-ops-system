@@ -120,3 +120,22 @@ docker compose -f docker/docker-compose.local-postgres.yml logs --tail=100 web
 ## 结果
 
 这次修复后，标准 Docker 运行态的前端容器启动链从“运行时还要联网取包管理器”收口为“构建时准备好、运行时只启动应用”，更适合真实用户机器的一次性安装与长期更新场景。
+
+## 补充修复：web 容器启动目录
+
+在真实用户机器继续验证时，又进一步暴露出一个更靠后的问题：
+
+- `web` 容器不再刷 `Corepack is about to download ...`
+- 但启动日志改成：
+  - `Could not find a production build in the '.next' directory`
+
+这说明镜像已经完成 `next build`，但 `next start` 启动时所处工作目录不对：它在 `/app` 查找 `.next`，而真正产物位于 `/app/apps/web/.next`。
+
+因此继续补了一刀：
+
+- 更新 `docker/web.Dockerfile`
+- `CMD` 从直接在 `/app` 下执行 `next start`
+- 改成先 `cd /app/apps/web`，再执行：
+  - `node node_modules/next/dist/bin/next start --hostname 0.0.0.0 -p 3001`
+
+这样 `next start` 会在正确目录下查找 `.next`，`web` 容器就不会再因为“生产构建目录找错位置”而重启。
