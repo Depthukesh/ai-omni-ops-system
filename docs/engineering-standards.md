@@ -172,6 +172,7 @@
 - 不允许继续手工 `new AppConfigService()` 绕开 DI
 - 如果标准 Docker 运行态需要把素材库或站内存储根目录挂到宿主机，必须统一通过配置模块读取容器路径与展示路径；不能在业务链路里硬编码 `/data/...` 或 Windows 盘符
 - 标准 Docker 运行态的首装链不能只把 `postgres / server / web` 拉起来就算完成；必须在 compose 主链中受控完成 schema 初始化、邀请码同步和最小演示账号/品牌补齐，优先收口为 one-shot `db-init` 服务，而不是再要求用户手动进容器执行 `pnpm db:init`
+- 标准 Docker 运行态的容器启动命令不能继续依赖运行时外网下载 `pnpm` / `corepack` 元数据；像 `web`、`db-init`、`server` 这类容器需要的包管理器必须在镜像构建阶段就准备好，避免用户机器网络、代理或 npm registry 抖动导致容器“镜像已构建但启动即退出”
 - 标准 Docker 运行态的默认演示数据只能“补缺即止”，不能在每次 `server` 重启时重复执行会清空或重置品牌资料的破坏性 seed
 
 ### 5.3 品牌与权限校验

@@ -5,7 +5,7 @@ ENV PATH=/pnpm:$PATH
 
 WORKDIR /app
 
-RUN corepack enable
+RUN corepack enable && corepack prepare pnpm@10.0.0 --activate
 RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
 
 COPY package.json pnpm-workspace.yaml ./
