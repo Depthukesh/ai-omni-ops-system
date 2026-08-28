@@ -59,6 +59,30 @@ docker/docker-compose.local-postgres.yml
 - 个人中心 `版本与升级` 支持“更新通知 + 操作引导”
 - 配置 `STANDARD_RUNTIME_UPDATE_MANIFEST_URL` 后，可在页面看到更新说明、容器重建命令和 Skill 重导提醒
 
+安装这套标准运行态前，电脑至少需要：
+
+- `Git for Windows`
+  - 用于下载项目代码与后续执行 `git pull`
+- `WSL 2`
+  - Docker Desktop 在 Windows 下推荐依赖的 Linux 运行环境
+- `Docker Desktop for Windows`
+  - 用于拉起 `postgres / server / web` 容器
+
+安装完成后的最小自检命令：
+
+```powershell
+git --version
+wsl --status
+docker version
+```
+
+额外依赖提醒：
+
+- 需要可访问 GitHub 与 Docker Hub 的网络
+- 如果当前网络依赖代理，Git 与 Docker Desktop 都要分别配置代理
+- 首次启动至少需要可用的 `13001`、`13011`、`15432` 端口
+- 首次拉镜像与构建容器时，需要预留足够磁盘空间
+
 ### 2. local-single-user 单机安装态
 
 适合本地单机交付，不要求用户机器预装 Node。
@@ -76,9 +100,35 @@ docker/docker-compose.local-postgres.yml
 
 ### 方式 A：Docker 标准运行态
 
-1. 安装依赖与 Docker Desktop
-2. 准备环境变量
-3. 启动主站
+1. 安装并确认必备软件
+
+```powershell
+git --version
+wsl --status
+docker version
+```
+
+2. 下载项目代码
+
+```powershell
+cd "D:\aiproject"
+git clone https://github.com/Depthukesh/ai-omni-ops-system.git
+cd "D:\aiproject\ai-omni-ops-system"
+```
+
+如果你要切到指定分支，例如当前线上交付分支，可以执行：
+
+```powershell
+git pull origin push_version_update_3384a55
+```
+
+3. 准备环境变量
+
+```powershell
+Copy-Item .env.docker.example .env
+```
+
+4. 启动主站
 
 ```powershell
 docker compose -f docker/docker-compose.local-postgres.yml up -d --build postgres server web
@@ -97,11 +147,33 @@ docker compose -f docker/docker-compose.local-postgres.yml up -d --build postgre
 docker compose -f docker/docker-compose.local-postgres.yml run --rm db-init
 ```
 
-4. 打开：
+5. 打开：
 
 ```text
 http://127.0.0.1:13001
 ```
+
+6. 默认演示账号
+
+```text
+手机号：13800000000
+密码：123456
+```
+
+7. 更新步骤与命令
+
+```powershell
+git pull origin push_version_update_3384a55
+docker compose -f docker/docker-compose.local-postgres.yml up -d --build server web
+```
+
+如果这次更新涉及 schema 初始化链，额外补一次：
+
+```powershell
+docker compose -f docker/docker-compose.local-postgres.yml run --rm db-init
+```
+
+如果这次更新涉及 OpenClaw Skill / MCP，同步后再到个人中心 `OpenClaw 安装中心` 按页面提示重新导出或重新导入最新 Skill 包。
 
 ### 方式 B：源码开发运行
 

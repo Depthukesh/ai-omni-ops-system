@@ -14,6 +14,54 @@ import {
 import { buildPersonalCenterLoginPath, formatDateTime, isAuthFailure, shouldShowVersionWorkspace } from "../route-helpers";
 
 const SYSTEM_UPDATE_STATUS_CACHE_KEY = "aiomniops-system-update-status-cache";
+const STANDARD_RUNTIME_SOFTWARE_GUIDE = [
+  {
+    title: "Git for Windows",
+    description: "用于下载项目代码和后续执行 `git pull` 更新。",
+    install: [
+      "下载安装 Git for Windows，安装完成后重新打开 PowerShell。",
+      "执行 `git --version`，能看到版本号说明 Git 已装好。",
+    ],
+  },
+  {
+    title: "WSL 2",
+    description: "Docker Desktop 在 Windows 下推荐依赖的 Linux 运行环境。",
+    install: [
+      "管理员 PowerShell 执行 `wsl --install`，按提示重启电脑。",
+      "执行 `wsl --status`，确认默认版本与 WSL 状态正常。",
+    ],
+  },
+  {
+    title: "Docker Desktop",
+    description: "负责拉起 PostgreSQL、server、web 三个容器。",
+    install: [
+      "下载安装 Docker Desktop for Windows，并保持 `Use WSL 2` 相关默认选项。",
+      "启动后执行 `docker version`，确认 Docker Engine 已正常运行。",
+    ],
+  },
+] as const;
+
+const STANDARD_RUNTIME_DEPENDENCY_NOTICES = [
+  "需要可访问 GitHub 与 Docker Hub 的网络；如果当前网络依赖代理，Git 与 Docker Desktop 都要分别配置代理。",
+  "首次启动至少需要可用的 13001、13011、15432 端口，以及足够磁盘空间拉取镜像和保存容器数据。",
+  "如果 `docker compose up` 首次执行被中断，补跑一次 `db-init` 就能把建表、邀请码与演示账号补齐。",
+] as const;
+
+const STANDARD_RUNTIME_INSTALL_COMMANDS = [
+  "cd \"D:\\aiproject\"",
+  "git clone https://github.com/Depthukesh/ai-omni-ops-system.git",
+  "cd \"D:\\aiproject\\ai-omni-ops-system\"",
+  "Copy-Item .env.docker.example .env",
+  "docker compose -f docker/docker-compose.local-postgres.yml up -d --build postgres server web",
+  "如果首次初始化被打断，再执行：docker compose -f docker/docker-compose.local-postgres.yml run --rm db-init",
+  "浏览器打开：http://127.0.0.1:13001",
+] as const;
+
+const STANDARD_RUNTIME_INSTALL_NOTICES = [
+  "默认演示账号：13800000000 / 123456。",
+  "如果 `git` 命令不存在，通常是 Git 没进 PATH；重开终端或使用 Git 的完整路径后再试。",
+  "如果 Docker 拉镜像失败，多半是 Docker Desktop 还没有配置 HTTPS 代理。",
+] as const;
 
 export default function PersonalCenterVersionPage() {
   const router = useRouter();
@@ -415,6 +463,83 @@ export default function PersonalCenterVersionPage() {
         </div>
       </article>
 
+      {guideOnlyMode ? (
+        <>
+          <article className="entity-card" style={{ marginBottom: 16 }}>
+            <div className="entity-card-head">
+              <div>
+                <strong>安装前需要的软件与依赖</strong>
+              </div>
+            </div>
+            <div style={{ display: "grid", gap: 14 }}>
+              <div style={{ display: "grid", gap: 12 }}>
+                {STANDARD_RUNTIME_SOFTWARE_GUIDE.map((item) => (
+                  <div
+                    key={item.title}
+                    style={{
+                      borderRadius: 16,
+                      border: "1px solid rgba(15, 23, 42, 0.08)",
+                      background: "rgba(248, 250, 252, 0.85)",
+                      padding: "14px 16px",
+                      display: "grid",
+                      gap: 8,
+                    }}
+                  >
+                    <strong style={{ fontSize: 15 }}>{item.title}</strong>
+                    <p className="panel-subtext" style={{ margin: 0 }}>
+                      {item.description}
+                    </p>
+                    <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7 }}>
+                      {item.install.map((step) => (
+                        <li key={step}>{step}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ display: "grid", gap: 8 }}>
+                <strong style={{ fontSize: 15 }}>额外依赖提醒</strong>
+                <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7 }}>
+                  {STANDARD_RUNTIME_DEPENDENCY_NOTICES.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </article>
+
+          <article className="entity-card" style={{ marginBottom: 16 }}>
+            <div className="entity-card-head">
+              <div>
+                <strong>标准运行态安装步骤</strong>
+              </div>
+            </div>
+            <div style={{ display: "grid", gap: 14 }}>
+              <p className="panel-subtext" style={{ margin: 0 }}>
+                当前推荐安装方式是 Docker 标准运行态：先下载项目代码，再通过 PostgreSQL、server、web 三个容器启动完整系统。
+              </p>
+
+              <div style={{ display: "grid", gap: 8 }}>
+                <strong style={{ fontSize: 15 }}>安装命令</strong>
+                <pre style={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word", lineHeight: 1.7 }}>
+                  {STANDARD_RUNTIME_INSTALL_COMMANDS.map((item, index) => `${index + 1}. ${item}`).join("\n")}
+                </pre>
+              </div>
+
+              <div style={{ display: "grid", gap: 8 }}>
+                <strong style={{ fontSize: 15 }}>安装提醒</strong>
+                <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7 }}>
+                  {STANDARD_RUNTIME_INSTALL_NOTICES.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </article>
+        </>
+      ) : null}
+
       <article className="entity-card">
         <div className="entity-card-head">
           <div>
@@ -545,6 +670,10 @@ function formatChangeLogVersion(item: NonNullable<SystemUpdateStatus["latest"]>[
   const appVersion = String(item.appVersion || "").trim();
   if (appVersion) {
     return `版本号 ${appVersion}`;
+  }
+  const releaseTag = String(item.releaseTag || "").trim();
+  if (releaseTag) {
+    return `版本标识 ${releaseTag}`;
   }
   return "版本号未记录";
 }

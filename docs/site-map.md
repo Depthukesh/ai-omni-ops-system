@@ -372,8 +372,13 @@
   - 未配远端清单时：用户端仍可先在 `版本与升级` 页面查看最近版本记录、`git pull` 与 `docker compose up -d --build ...` 指令
   - 发布端如果同步更新远端 JSON 清单，用户端还会在 `版本与升级` 页面进一步看到“有新版本”提醒
   - 更新后按页面给出的 Skill / MCP 同步说明完成收口
+- 标准运行态的 `版本与升级` 页面当前还会固定展示：
+  - 安装前需要的软件与依赖（Git、WSL 2、Docker Desktop）
+  - 下载项目代码、复制 `.env`、启动容器、补跑 `db-init` 的完整安装命令
+  - 标准运行态更新命令与 Skill / MCP 同步提醒
 - 参考变更：`docs/changes/2026-08-22-docker-standard-version-update-guide-page.md`
 - 参考变更：`docs/changes/2026-08-22-personal-center-version-update-reminder.md`
+- 参考变更：`docs/changes/2026-08-28-version-workspace-install-guide-and-readme-refresh.md`
 - 安装、升级、自启与修复脚本当前统一以 `runtime/local-single-user-runtime.json` 里的 `browserUrl / previewUrl / apiHealthUrl` 作为页面入口与验活真值，不再把 `127.0.0.1:3001` 当成固定页面地址
 - `local-single-user` 安装态访问 `/` 时，前端会直接重定向到 `/brand-growth`；安装态不再把官网营销首页作为默认落地页，避免独立发布包里根路由因为首页模板读取失败而直接掉进 `/error`
 - `start-local-single-user.cmd` 现在按“健康实例复用 + 启动加锁”工作：如果当前本地工作台已经可用，重复双击只会复用现有实例；如果首次启动仍在拉起中，后续重复启动会等待当前启动完成，而不是并发重建运行时目录

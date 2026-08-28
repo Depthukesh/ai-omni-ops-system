@@ -58,6 +58,8 @@
 - 作用：记录重要改动的背景、范围、验证和后续事项
 - 要求：真实代码改动默认同步补一条变更记录
 - 最新补充：
+  - `docs/changes/2026-08-28-version-workspace-install-guide-and-readme-refresh.md`
+    - 给个人中心 `版本与升级` 补齐标准运行态的版本号回退显示、安装前软件/依赖说明、下载项目与安装命令，并同步把根 `README.md` 改成一套可直接照抄的安装/更新步骤
   - `docs/changes/2026-08-27-brand-growth-topic-library-generalization.md`
     - 把 `品牌增长报告 -> 选题库` 从旧抖音热点沉淀页升级为人工与 OpenClaw 共用的结构化选题库；品牌增长页去掉“热门找选题”区，并同步补齐查看 / 编辑 / 删除与 MCP / Skill 单条 CRUD
   - `docs/changes/2026-08-27-douyin-collection-preview-and-transcript-retry-ux.md`
@@ -169,6 +171,8 @@
 
 ## 最近应优先关注的文档
 
+- `docs/changes/2026-08-28-version-workspace-install-guide-and-readme-refresh.md`
+  - 版本页标准运行态补齐“版本号 + 安装前软件/依赖 + 下载项目/安装/更新命令”，并同步刷新根 `README.md`
 - `docs/changes/2026-08-27-brand-growth-topic-library-generalization.md`
   - 把 `品牌增长报告 -> 选题库` 收口为结构化选题库：品牌增长页去掉热点板块，人工与 OpenClaw 共用同一份选题记录，并新增单条增删改的 MCP / Skill 路由
 - `docs/changes/2026-08-27-standard-version-workspace-fallback-guide.md`

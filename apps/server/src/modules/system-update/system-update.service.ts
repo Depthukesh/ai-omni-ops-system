@@ -985,7 +985,7 @@ export class SystemUpdateService {
         summary,
         changeLogs: changeDocs.map((item) => ({
           releaseTag: item.title,
-          appVersion: null,
+          appVersion: current.version || null,
           publishedAt: item.publishedAt,
           content: item.content,
         })),
