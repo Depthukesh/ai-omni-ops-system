@@ -5,7 +5,7 @@ ENV PATH=/pnpm:$PATH
 
 WORKDIR /app
 
-RUN corepack enable
+RUN corepack enable && corepack prepare pnpm@10.0.0 --activate
 
 COPY package.json pnpm-workspace.yaml ./
 COPY apps/server/package.json apps/server/package.json
@@ -22,4 +22,4 @@ RUN pnpm build:web
 
 EXPOSE 3001
 
-CMD ["pnpm", "--filter", "web", "exec", "next", "start", "--hostname", "0.0.0.0", "-p", "3001"]
+CMD ["node", "apps/web/node_modules/next/dist/bin/next", "start", "--hostname", "0.0.0.0", "-p", "3001"]

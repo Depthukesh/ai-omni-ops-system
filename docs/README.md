@@ -58,6 +58,8 @@
 - 作用：记录重要改动的背景、范围、验证和后续事项
 - 要求：真实代码改动默认同步补一条变更记录
 - 最新补充：
+  - `docs/changes/2026-08-28-docker-web-corepack-runtime-download-fix.md`
+    - 修复标准 Docker 运行态 `web` 容器在运行期反复输出 `Corepack is about to download ...`、导致前端容器持续重启的问题；当前已收口为构建期准备 `pnpm`，运行时直接启动 Next.js
   - `docs/changes/2026-08-28-version-workspace-install-guide-and-readme-refresh.md`
     - 给个人中心 `版本与升级` 补齐标准运行态的版本号回退显示、安装前软件/依赖说明、下载项目与安装命令，并同步把根 `README.md` 改成一套可直接照抄的安装/更新步骤
   - `docs/changes/2026-08-27-brand-growth-topic-library-generalization.md`
@@ -171,6 +173,8 @@
 
 ## 最近应优先关注的文档
 
+- `docs/changes/2026-08-28-docker-web-corepack-runtime-download-fix.md`
+  - 标准 Docker 运行态修复 `web` 容器运行期依赖 `corepack` 下载 `pnpm` 的问题；镜像构建完成后，容器启动不再反复联网取 `pnpm`
 - `docs/changes/2026-08-28-version-workspace-install-guide-and-readme-refresh.md`
   - 版本页标准运行态补齐“版本号 + 安装前软件/依赖 + 下载项目/安装/更新命令”，并同步刷新根 `README.md`
 - `docs/changes/2026-08-27-brand-growth-topic-library-generalization.md`
