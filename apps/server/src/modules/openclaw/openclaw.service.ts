@@ -6689,6 +6689,11 @@ export class OpenClawService {
       throw new BadRequestException(`未找到可用的创作素材参考图：${referenceMaterialId}`);
     }
     const resolvedSpec = this.resolveCreateDesignWorkSpec(module, options);
+    const resolvedModelSelection = await this.resolveOpenClawDesignModelSelection(
+      brandId,
+      module,
+      String(options?.modelSelection || "").trim(),
+    );
 
     // #region debug-point A:create-design-entry
     void this.reportOpenClaw502DebugEvent({
@@ -6700,7 +6705,7 @@ export class OpenClawService {
         brandId,
         module,
         designType: String(options?.designType || "").trim() || "",
-        modelSelection: String(options?.modelSelection || "").trim() || "",
+        modelSelection: resolvedModelSelection || "",
         imageSize: resolvedSpec || "",
         hasReferenceImage: Boolean(options?.referenceImage?.dataBase64),
         hasReferenceImageUrl: Boolean(explicitReferenceImageUrl),
@@ -6725,7 +6730,7 @@ export class OpenClawService {
           }
           : undefined,
         referenceImageUrl: resolvedReferenceImageUrl || undefined,
-        modelSelection: String(options?.modelSelection || "").trim() || undefined,
+        modelSelection: resolvedModelSelection || undefined,
         spec: resolvedSpec,
         additionalInstruction: this.normalizeSafeInstruction(
           options?.additionalInstruction || options?.styleHint,
@@ -6746,6 +6751,7 @@ export class OpenClawService {
           taskId: result.taskId,
           taskStatus: result.taskStatus,
           status: result.status,
+          modelSelection: resolvedModelSelection || "",
         },
       });
       // #endregion
@@ -6788,6 +6794,30 @@ export class OpenClawService {
       // #endregion
       throw error;
     }
+  }
+
+  private async resolveOpenClawDesignModelSelection(
+    brandId: string,
+    module: string,
+    requestedSelection: string,
+  ) {
+    const normalizedRequestedSelection = String(requestedSelection || "").trim();
+    if (normalizedRequestedSelection || module !== "image") {
+      return normalizedRequestedSelection;
+    }
+    const workspace = await this.worksService.getDesignWorkspaceOptions(brandId);
+    const imageModels = workspace.moduleOptions.image?.models || [];
+    const preferredDuoyuanxOption = imageModels.find((item) =>
+      String(item.providerName || "").includes("多元探索") && String(item.modelName || "").trim() === "gpt-image-2",
+    );
+    if (preferredDuoyuanxOption?.selectionKey) {
+      return preferredDuoyuanxOption.selectionKey;
+    }
+    const firstDuoyuanxOption = imageModels.find((item) => String(item.providerName || "").includes("多元探索"));
+    if (firstDuoyuanxOption?.selectionKey) {
+      return firstDuoyuanxOption.selectionKey;
+    }
+    return imageModels.find((item) => item.recommended)?.selectionKey || imageModels[0]?.selectionKey || "";
   }
 
   async getXiaohongshuMarketingCalendarOptions(

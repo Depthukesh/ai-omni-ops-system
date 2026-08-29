@@ -179,6 +179,8 @@
   - 标准 Docker 运行态修复 `web` 容器运行期依赖 `corepack` 下载 `pnpm` 的问题；镜像构建完成后，容器启动不再反复联网取 `pnpm`
 - `docs/changes/2026-08-28-runninghub-media-node-object-field-guard.md`
   - 给 RunningHub 媒体上传节点补对象型 `fieldValue / fieldData` 拦截，并同步 OpenClaw MCP / Skill 约束，避免 `LoadAudio` 最终收到 `[object Object]`
+- `docs/changes/2026-08-29-openclaw-design-default-duoyuanx-route.md`
+  - OpenClaw `create_design_work` 在图片模块未显式传 `modelSelection` 时，默认优先尝试工作台模型列表里的多元探索 `gpt-image-2`，避免继续被技能旧默认值锁到 `Right Codes`
 - `docs/changes/2026-08-28-version-workspace-install-guide-and-readme-refresh.md`
   - 版本页标准运行态补齐“版本号 + 安装前软件/依赖 + 下载项目/安装/更新命令”，并同步刷新根 `README.md`
 - `docs/changes/2026-08-27-brand-growth-topic-library-generalization.md`
