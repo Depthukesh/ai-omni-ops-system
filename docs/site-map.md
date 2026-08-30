@@ -113,7 +113,7 @@
 - 品牌增长报告
   - 品牌增长报告、可视化报告、半年营销规划、营销日历、选题库、素材库（统一素材库）
 - OpenClaw专区
-  - 龙虾日记（仅 OpenClaw Agent 创建，页面侧只支持查看与删除）
+  - 龙虾日记 / 每周复盘（仅 OpenClaw Agent 创建，页面侧支持查看后直接编辑与留言）
 
 当前特点：
 
@@ -146,7 +146,7 @@
   - 营销策划方案
   - 创作素材
   - 每日计划
-  - 每日复盘
+  - 每周复盘
   - 作品列表
 - 某音/某号
   - 营销策划方案
@@ -154,7 +154,7 @@
   - RunningHub应用
   - 创作素材
   - 每日计划
-  - 每日复盘
+  - 每周复盘
   - 作品列表
 - 公众号
   - 配置初始化
@@ -162,7 +162,7 @@
   - 发布历史
   - 创作素材
   - 每日计划
-  - 每日复盘
+  - 每周复盘
   - 作品列表
 
 当前特点：
@@ -170,7 +170,8 @@
 - `/xiaohongshu` 已改为统一聚合壳层 `ContentAcquisitionWorkspace`
 - 外层导航只负责一级 / 二级切换，内层继续复用 `XiaohongshuWorkspaceShell`、`DouyinWorkspaceShell`、`WechatWorkspaceShell`
 - 某书和公众号已补齐 OpenClaw 的创作素材、作品列表板块
-- OpenClaw 的创作素材、每日计划、每日复盘、作品列表现在都支持在内容详情下留言
+- OpenClaw 的创作素材、每日计划、每周复盘、作品列表现在都支持在内容详情下留言；其中每周复盘还支持在查看弹窗里直接编辑并保存
+- 参考变更：`docs/changes/2026-08-30-openclaw-weekly-review-and-version-history-fix.md`
 - 三个子板块下的 `创作素材` 现已统一补齐：
   - 标题
   - 素材标签
@@ -378,6 +379,7 @@
   - 安装前需要的软件与依赖（Git、WSL 2、Docker Desktop）
   - 下载项目代码、复制 `.env`、启动容器、补跑 `db-init` 的完整安装命令
   - 标准运行态更新命令与 Skill / MCP 同步提醒
+- 参考变更：`docs/changes/2026-08-30-openclaw-weekly-review-and-version-history-fix.md`
 - 参考变更：`docs/changes/2026-08-22-docker-standard-version-update-guide-page.md`
 - 参考变更：`docs/changes/2026-08-22-personal-center-version-update-reminder.md`
 - 参考变更：`docs/changes/2026-08-28-version-workspace-install-guide-and-readme-refresh.md`

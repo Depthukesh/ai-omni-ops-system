@@ -38,7 +38,7 @@
 - 营销日历
 - 选题库
 - 统一素材库
-- OpenClaw 的每日计划、每日复盘、创作素材、视频作品
+- OpenClaw 的每日计划、每周复盘、创作素材、视频作品
 
 当前优先 MCP：
 
@@ -63,6 +63,7 @@
 - `get_wechat_collection_workspace`
 - `get_openclaw_daily_plans`
 - `get_openclaw_lobster_diaries`
+- `update_openclaw_lobster_diary`
 - `get_openclaw_creative_materials`
 - `get_openclaw_video_works`
 

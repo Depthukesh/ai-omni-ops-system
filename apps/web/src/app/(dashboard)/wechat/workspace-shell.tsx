@@ -12,6 +12,7 @@ import {
   getOpenClawDailyPlanWorkspace,
   getOpenClawLobsterDiaryWorkspace,
   getOpenClawVideoWorkWorkspace,
+  updateOpenClawLobsterDiary,
   type OpenClawCreativeMaterialWorkspace as OpenClawCreativeMaterialWorkspaceRecord,
   type OpenClawDailyPlanWorkspace as OpenClawDailyPlanWorkspaceRecord,
   type OpenClawLobsterDiaryWorkspace as OpenClawLobsterDiaryWorkspaceRecord,
@@ -99,7 +100,7 @@ const wechatPrimarySections: Array<{ key: WechatSectionKey; label: string; descr
 const wechatOpenClawSections: Array<{ key: WechatSectionKey; label: string; description: string }> = [
   { key: "openclawCreativeMaterials", label: "创作素材", description: "展示由 OpenClaw 调用站内第三方平台能力后生成并保存的文本、图片、视频、语音和 BGM 等素材。" },
   { key: "openclawDailyPlan", label: "每日计划", description: "展示由 OpenClaw Agent 创建的每日计划记录，页面只支持查看与删除。" },
-  { key: "openclawLobsterDiary", label: "每日复盘", description: "展示由 OpenClaw Agent 创建的每日复盘记录，页面只支持查看与删除。" },
+  { key: "openclawLobsterDiary", label: "每周复盘", description: "展示由 OpenClaw Agent 创建的每周复盘记录，支持查看后直接编辑并在内容下留言。" },
   { key: "openclawVideoWorks", label: "作品列表", description: "展示由 OpenClaw 最终整合生成的成片与作品记录，可查看、删除并继续发布。" },
 ];
 const wechatSections = [...wechatPrimarySections, ...wechatOpenClawSections];
@@ -533,6 +534,7 @@ export function WechatWorkspaceShell(props: WechatWorkspaceShellProps) {
   const [deletingOpenClawCreativeMaterialId, setDeletingOpenClawCreativeMaterialId] = useState("");
   const [deletingOpenClawDailyPlanId, setDeletingOpenClawDailyPlanId] = useState("");
   const [deletingOpenClawDiaryId, setDeletingOpenClawDiaryId] = useState("");
+  const [updatingOpenClawDiaryId, setUpdatingOpenClawDiaryId] = useState("");
   const [deletingOpenClawVideoWorkId, setDeletingOpenClawVideoWorkId] = useState("");
   const [retryingPublishHistoryId, setRetryingPublishHistoryId] = useState("");
   const [publishingDraftId, setPublishingDraftId] = useState("");
@@ -618,7 +620,7 @@ export function WechatWorkspaceShell(props: WechatWorkspaceShellProps) {
       : activeSection === "openclawDailyPlan"
       ? "当前展示由 OpenClaw Agent 在公众号板块下创建的每日计划记录，可只读查看并手动删除。"
       : activeSection === "openclawLobsterDiary"
-        ? "当前展示由 OpenClaw Agent 在公众号板块下创建的每日复盘记录，可只读查看并手动删除。"
+        ? "当前展示由 OpenClaw Agent 在公众号板块下创建的每周复盘记录，点击查看后可直接编辑并在下方留言。"
         : activeSection === "openclawVideoWorks"
           ? "当前展示由 OpenClaw 在公众号板块下汇总的作品列表，可查看作品详情、删除，并在内容下直接留言。"
         : currentSection.description;
@@ -692,7 +694,7 @@ export function WechatWorkspaceShell(props: WechatWorkspaceShellProps) {
     if (diaryResult.status === "fulfilled") {
       setOpenClawLobsterDiaryWorkspace(diaryResult.value);
     } else {
-      failedLabels.push("每日复盘");
+      failedLabels.push("每周复盘");
       setOpenClawLobsterDiaryWorkspace({ items: [], total: 0 });
     }
 
@@ -1336,11 +1338,39 @@ export function WechatWorkspaceShell(props: WechatWorkspaceShellProps) {
     try {
       const response = await deleteOpenClawLobsterDiary(diaryId, brandId, "wechat");
       setOpenClawLobsterDiaryWorkspace(response.workspace);
-      setNotice("每日复盘已删除。");
+      setNotice("每周复盘已删除。");
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "删除每日复盘失败。");
+      setErrorMessage(error instanceof Error ? error.message : "删除每周复盘失败。");
     } finally {
       setDeletingOpenClawDiaryId("");
+    }
+  }
+
+  async function handleUpdateOpenClawDiary(
+    diaryId: string,
+    payload: {
+      diaryDate: string;
+      title: string;
+      content: string;
+    },
+  ) {
+    setUpdatingOpenClawDiaryId(diaryId);
+    setErrorMessage("");
+    setNotice("");
+    try {
+      const response = await updateOpenClawLobsterDiary(diaryId, brandId, {
+        workspaceScope: "wechat",
+        ...payload,
+      });
+      setOpenClawLobsterDiaryWorkspace(response.workspace);
+      setNotice("每周复盘已保存。");
+      return response.item;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "保存每周复盘失败。";
+      setErrorMessage(message);
+      throw error;
+    } finally {
+      setUpdatingOpenClawDiaryId("");
     }
   }
 
@@ -1448,10 +1478,13 @@ export function WechatWorkspaceShell(props: WechatWorkspaceShellProps) {
                 sectionLabel={currentSection.label}
                 sectionDescription={currentSection.description}
                 isLoading={isLoading}
+                canEdit
                 canDelete
                 items={openClawLobsterDiaryWorkspace.items}
                 deletingDiaryId={deletingOpenClawDiaryId}
+                updatingDiaryId={updatingOpenClawDiaryId}
                 onRefresh={refreshOpenClawWorkspaces}
+                onUpdate={handleUpdateOpenClawDiary}
                 onDelete={handleDeleteOpenClawDiary}
                 formatDateTime={formatWechatHistoryTime}
               />

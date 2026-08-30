@@ -199,6 +199,23 @@ export async function deleteOpenClawLobsterDiary(diaryId: string, brandId: strin
   );
 }
 
+export async function updateOpenClawLobsterDiary(
+  diaryId: string,
+  brandId: string,
+  payload: {
+    workspaceScope: OpenClawWorkspaceScope;
+    diaryDate?: string;
+    title?: string;
+    content?: string;
+  },
+) {
+  return jsonRequest<{ item: OpenClawLobsterDiaryRecord; workspace: OpenClawLobsterDiaryWorkspace }>(
+    `/openclaw/brands/${brandId}/lobster-diaries/${diaryId}`,
+    "PATCH",
+    payload,
+  );
+}
+
 export type OpenClawDailyPlanRecord = {
   id: string;
   brandId: string;

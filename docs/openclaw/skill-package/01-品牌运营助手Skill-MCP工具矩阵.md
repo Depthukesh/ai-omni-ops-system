@@ -421,10 +421,11 @@ RunningHub 上传节点补充规则：
 
 ## 14. OpenClaw 专区
 
-### 14.1 每日复盘
+### 14.1 每周复盘
 
 - `get_openclaw_lobster_diaries`
 - `create_openclaw_lobster_diary`
+- `update_openclaw_lobster_diary`
 - `delete_openclaw_lobster_diary`
 
 ### 14.2 每日计划

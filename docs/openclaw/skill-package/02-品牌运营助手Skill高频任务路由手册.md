@@ -429,16 +429,17 @@ RunningHub 关键规则：
 
 典型问法：
 
-- 帮我写每日计划/每日复盘
+- 帮我写每日计划/每周复盘
 - 帮我生成音乐并保存素材
 - 帮我把结果存进创作素材
 - 帮我把最终视频保存到视频作品
 
 优先工具：
 
-- 每日复盘：
+- 每周复盘：
   - `get_openclaw_lobster_diaries`
   - `create_openclaw_lobster_diary`
+  - `update_openclaw_lobster_diary`
   - `delete_openclaw_lobster_diary`
 - 每日计划：
   - `get_openclaw_daily_plans`

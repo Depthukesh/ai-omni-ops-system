@@ -147,6 +147,62 @@ export class OpenClawLobsterDiaryService {
     return existing;
   }
 
+  async updateDiary(payload: {
+    brandId: string;
+    workspaceScope?: string;
+    diaryId: string;
+    diaryDate?: string;
+    title?: string;
+    content?: string;
+  }): Promise<OpenClawLobsterDiaryRecord> {
+    const brandId = this.requireText(payload.brandId, "缺少品牌 ID");
+    const workspaceScope = normalizeOpenClawWorkspaceScope(payload.workspaceScope);
+    const diaryId = this.requireText(payload.diaryId, "缺少日记 ID");
+    const existing = await this.findRecordById(brandId, workspaceScope, diaryId);
+    if (!existing) {
+      throw new NotFoundException("龙虾日记不存在或已删除");
+    }
+
+    const diaryDate = this.normalizeDiaryDate(payload.diaryDate || existing.diaryDate);
+    const title = this.requireText(payload.title ?? existing.title, "请填写标题", 120);
+    const content = this.requireText(payload.content ?? existing.content, "请填写内容", 20_000);
+
+    if (await this.prismaService.canUseDatabase()) {
+      await this.ensureTableReady();
+      await this.prismaService.$executeRaw`
+        UPDATE "OpenClawLobsterDiary"
+        SET "diaryDate" = ${diaryDate},
+            "title" = ${title},
+            "content" = ${content},
+            "updatedAt" = CURRENT_TIMESTAMP
+        WHERE "brandId" = ${brandId}
+          AND "workspaceScope" = ${workspaceScope}
+          AND "id" = ${diaryId}
+      `;
+      const stored = await this.findRecordById(brandId, workspaceScope, diaryId);
+      if (!stored) {
+        throw new NotFoundException("龙虾日记更新后未找到记录");
+      }
+      return stored;
+    }
+
+    const index = this.fallbackItems.findIndex(
+      (item) => item.brandId === brandId && item.workspaceScope === workspaceScope && item.id === diaryId,
+    );
+    if (index < 0) {
+      throw new NotFoundException("龙虾日记不存在或已删除");
+    }
+    const updated: OpenClawLobsterDiaryStoredRecord = {
+      ...this.fallbackItems[index],
+      diaryDate,
+      title,
+      content,
+      updatedAt: new Date().toISOString(),
+    };
+    this.fallbackItems.splice(index, 1, updated);
+    return updated;
+  }
+
   private async listRecords(
     brandId: string,
     workspaceScope: string | undefined,

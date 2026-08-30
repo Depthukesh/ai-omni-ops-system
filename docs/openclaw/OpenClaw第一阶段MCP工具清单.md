@@ -131,6 +131,7 @@ OpenClaw 调用任何工具时，服务端都必须基于绑定关系解析：
 - OpenClaw 专区：
   - `get_openclaw_lobster_diaries`
   - `create_openclaw_lobster_diary`
+  - `update_openclaw_lobster_diary`
   - `delete_openclaw_lobster_diary`
 - 统一素材库：
   - `get_unified_material_library_items`

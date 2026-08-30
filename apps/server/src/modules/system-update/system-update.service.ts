@@ -173,6 +173,7 @@ type GitWorkspaceInfo = {
 type ChangeDocEntry = {
   fileName: string;
   title: string;
+  appVersion: string | null;
   publishedAt: string;
   content: string;
   changeLogUrl: string | null;
@@ -985,7 +986,7 @@ export class SystemUpdateService {
         summary,
         changeLogs: changeDocs.map((item) => ({
           releaseTag: item.title,
-          appVersion: current.version || null,
+          appVersion: item.appVersion,
           publishedAt: item.publishedAt,
           content: item.content,
         })),
@@ -1627,10 +1628,12 @@ export class SystemUpdateService {
           const content = (await readFile(join(changesRoot, fileName), "utf8")).replace(/^\uFEFF+/, "");
           const title = content.match(/^#\s+(.+)$/m)?.[1]?.trim() || fileName.replace(/\.md$/i, "");
           const preview = this.extractChangeDocPreview(content);
+          const appVersion = this.extractChangeDocAppVersion(content);
           const publishedAt = this.extractChangeDocPublishedAt(fileName) || new Date().toISOString();
           return {
             fileName,
             title,
+            appVersion,
             publishedAt,
             content: preview,
             changeLogUrl: this.buildChangeDocUrl(gitInfo, fileName),
@@ -1651,6 +1654,15 @@ export class SystemUpdateService {
       .filter(Boolean)
       .filter((line) => !line.startsWith("#") && !line.startsWith("##"));
     return lines.slice(0, 4).join("\n");
+  }
+
+  private extractChangeDocAppVersion(content: string) {
+    const normalized = String(content || "");
+    const match = normalized.match(
+      /(?:appVersion\s*[:=]\s*|版本号\s*)(\d+\.\d+\.\d+)|"(?:appVersion|version)"\s*:\s*"(\d+\.\d+\.\d+)"/i,
+    );
+    const version = match?.[1] || match?.[2] || "";
+    return version.trim() || null;
   }
 
   private extractChangeDocPublishedAt(fileName: string) {

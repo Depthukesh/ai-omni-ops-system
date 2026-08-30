@@ -171,6 +171,7 @@ import {
 import {
   deleteOpenClawLobsterDiary,
   getOpenClawLobsterDiaryWorkspace,
+  updateOpenClawLobsterDiary,
   type OpenClawLobsterDiaryWorkspace as OpenClawLobsterDiaryWorkspaceRecord,
   deleteOpenClawDailyPlan,
   getOpenClawDailyPlanWorkspace,
@@ -317,7 +318,7 @@ const strategySections: Array<{
     label: "OpenClaw专区",
     pages: [
       { key: "openclawDailyPlan", label: "每日计划", description: "展示由 OpenClaw Agent 创建的每日计划记录，页面只支持查看与删除。" },
-      { key: "openclawLobsterDiary", label: "每日复盘", description: "展示由 OpenClaw Agent 创建的每日复盘记录，页面只支持查看与删除。" },
+      { key: "openclawLobsterDiary", label: "每周复盘", description: "展示由 OpenClaw Agent 创建的每周复盘记录，支持查看后直接编辑并在内容下留言。" },
     ],
   },
 ];
@@ -1141,6 +1142,7 @@ export function BrandGrowthWorkspace() {
   const [isSyncingDailyHotspots, setIsSyncingDailyHotspots] = useState(false);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [deletingOpenClawLobsterDiaryId, setDeletingOpenClawLobsterDiaryId] = useState("");
+  const [updatingOpenClawLobsterDiaryId, setUpdatingOpenClawLobsterDiaryId] = useState("");
   const [deletingOpenClawDailyPlanId, setDeletingOpenClawDailyPlanId] = useState("");
   const [isGeneratingOpportunityInsight, setIsGeneratingOpportunityInsight] = useState(false);
   const [isSavingReport, setIsSavingReport] = useState(false);
@@ -2051,7 +2053,7 @@ export function BrandGrowthWorkspace() {
         if (openClawLobsterDiaryResult.status === "fulfilled") {
           setOpenClawLobsterDiaryWorkspace(openClawLobsterDiaryResult.value);
         } else {
-          partialFailures.push("每日复盘");
+          partialFailures.push("每周复盘");
         }
 
         if (openClawDailyPlanResult.status === "fulfilled") {
@@ -3531,12 +3533,46 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     try {
       const response = await deleteOpenClawLobsterDiary(diaryId, activeBrandId || archive.brand.id, "brand_growth");
       setOpenClawLobsterDiaryWorkspace(response.workspace);
-      setNotice("已删除龙虾日记。");
+      setNotice("已删除每周复盘。");
     } catch (error) {
       const message = error instanceof Error ? error.message : "删除失败";
-      setErrorMessage(`删除每日复盘失败：${message}`);
+      setErrorMessage(`删除每周复盘失败：${message}`);
     } finally {
       setDeletingOpenClawLobsterDiaryId("");
+    }
+  }
+
+  async function handleUpdateOpenClawDiary(
+    diaryId: string,
+    payload: {
+      diaryDate: string;
+      title: string;
+      content: string;
+    },
+  ) {
+    if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.report.topicLibrary"]?.edit) {
+      throw new Error("当前账号没有编辑每周复盘的权限。");
+    }
+    if (!diaryId) {
+      throw new Error("缺少每周复盘 ID。");
+    }
+
+    setUpdatingOpenClawLobsterDiaryId(diaryId);
+    clearMessages();
+    try {
+      const response = await updateOpenClawLobsterDiary(diaryId, activeBrandId || archive.brand.id, {
+        workspaceScope: "brand_growth",
+        ...payload,
+      });
+      setOpenClawLobsterDiaryWorkspace(response.workspace);
+      setNotice("每周复盘已保存。");
+      return response.item;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "保存失败";
+      setErrorMessage(`保存每周复盘失败：${message}`);
+      throw error;
+    } finally {
+      setUpdatingOpenClawLobsterDiaryId("");
     }
   }
 
@@ -4698,12 +4734,15 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
           sectionLabel={currentPage.label}
           sectionDescription={currentPage.description}
           isLoading={isHydrating}
+          canEdit={hasCurrentPageEditPermission}
           canDelete={hasCurrentPageEditPermission}
           items={openClawLobsterDiaryWorkspace.items}
           deletingDiaryId={deletingOpenClawLobsterDiaryId}
+          updatingDiaryId={updatingOpenClawLobsterDiaryId}
           onRefresh={async () => {
             await loadArchive({ targetPage: activePage, force: true });
           }}
+          onUpdate={handleUpdateOpenClawDiary}
           onDelete={handleDeleteOpenClawDiary}
           formatDateTime={formatDateTime}
         />

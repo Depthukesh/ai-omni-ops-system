@@ -64,6 +64,7 @@ import {
   getOpenClawDailyPlanWorkspace,
   getOpenClawLobsterDiaryWorkspace,
   getOpenClawVideoWorkWorkspace,
+  updateOpenClawLobsterDiary,
   type OpenClawCreativeMaterialWorkspace as OpenClawCreativeMaterialWorkspaceRecord,
   type OpenClawDailyPlanWorkspace as OpenClawDailyPlanWorkspaceRecord,
   type OpenClawLobsterDiaryWorkspace as OpenClawLobsterDiaryWorkspaceRecord,
@@ -209,7 +210,7 @@ const douyinPrimarySections: Array<{ key: DouyinSectionKey; label: string; descr
 const douyinOpenClawSections: Array<{ key: DouyinSectionKey; label: string; description: string }> = [
   { key: "openclawCreativeMaterials", label: "创作素材", description: "展示由 OpenClaw 调用站内第三方平台能力后生成并保存的文本、图片、视频、语音和 BGM 等素材。" },
   { key: "openclawDailyPlan", label: "每日计划", description: "展示由 OpenClaw Agent 创建的每日计划记录，页面只支持查看与删除。" },
-  { key: "openclawLobsterDiary", label: "每日复盘", description: "展示由 OpenClaw Agent 创建的每日复盘记录，页面只支持查看与删除。" },
+  { key: "openclawLobsterDiary", label: "每周复盘", description: "展示由 OpenClaw Agent 创建的每周复盘记录，支持查看后直接编辑并在内容下留言。" },
   { key: "openclawVideoWorks", label: "作品列表", description: "展示由 OpenClaw 最终整合生成的成片，可查看、删除，并接入抖音与视频号发布插件。" },
 ];
 const douyinSections = [...douyinPrimarySections, ...douyinOpenClawSections];
@@ -389,6 +390,7 @@ export function DouyinWorkspaceShell(props: DouyinWorkspaceShellProps) {
   const [deletingOpenClawCreativeMaterialId, setDeletingOpenClawCreativeMaterialId] = useState("");
   const [deletingOpenClawDailyPlanId, setDeletingOpenClawDailyPlanId] = useState("");
   const [deletingOpenClawDiaryId, setDeletingOpenClawDiaryId] = useState("");
+  const [updatingOpenClawDiaryId, setUpdatingOpenClawDiaryId] = useState("");
   const [deletingOpenClawVideoWorkId, setDeletingOpenClawVideoWorkId] = useState("");
   const [selectedMaterialId, setSelectedMaterialId] = useState("");
   const [materialPreviewIndexMap, setMaterialPreviewIndexMap] = useState<Record<string, number>>({});
@@ -606,7 +608,7 @@ export function DouyinWorkspaceShell(props: DouyinWorkspaceShellProps) {
       : activeSection === "openclawDailyPlan"
       ? "当前展示由 OpenClaw Agent 在抖音板块下创建的每日计划记录，可只读查看并手动删除。"
       : activeSection === "openclawLobsterDiary"
-        ? "当前展示由 OpenClaw Agent 在抖音板块下创建的每日复盘记录，可只读查看并手动删除。"
+        ? "当前展示由 OpenClaw Agent 在抖音板块下创建的每周复盘记录，点击查看后可直接编辑并在下方留言。"
         : activeSection === "openclawVideoWorks"
           ? "当前展示由 OpenClaw 最终整合生成的视频作品，支持查看、删除，并接入抖音与视频号发布插件。"
         : "当前开放营销策划方案、选题库、原创文案、二创文案、AI 生视频（故事板）、AI 生视频、数字人和广告预审，可直接复用品牌增长策略里沉淀的统一素材库、每日热点与品牌资料。";
@@ -1276,7 +1278,7 @@ export function DouyinWorkspaceShell(props: DouyinWorkspaceShellProps) {
         setOpenClawLobsterDiaryWorkspace(openClawLobsterDiaryResult.value);
       } else {
         hasFallback = true;
-        failedInterfaceNames.push("OpenClaw 每日复盘");
+        failedInterfaceNames.push("OpenClaw 每周复盘");
         setOpenClawLobsterDiaryWorkspace({ items: [], total: 0 });
       }
     }
@@ -3276,7 +3278,7 @@ export function DouyinWorkspaceShell(props: DouyinWorkspaceShellProps) {
 
   const handleDeleteOpenClawDiary = useCallback(async (diaryId: string) => {
     if (!canEditCurrentSection) {
-      setErrorMessage("当前账号只有查看权限，不能删除每日复盘。");
+      setErrorMessage("当前账号只有查看权限，不能删除每周复盘。");
       return;
     }
     setDeletingOpenClawDiaryId(diaryId);
@@ -3285,11 +3287,42 @@ export function DouyinWorkspaceShell(props: DouyinWorkspaceShellProps) {
     try {
       const response = await deleteOpenClawLobsterDiary(diaryId, activeBrandId, "douyin");
       setOpenClawLobsterDiaryWorkspace(response.workspace);
-      setNotice("每日复盘已删除。");
+      setNotice("每周复盘已删除。");
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "删除每日复盘失败。");
+      setErrorMessage(error instanceof Error ? error.message : "删除每周复盘失败。");
     } finally {
       setDeletingOpenClawDiaryId("");
+    }
+  }, [activeBrandId, canEditCurrentSection]);
+
+  const handleUpdateOpenClawDiary = useCallback(async (
+    diaryId: string,
+    payload: {
+      diaryDate: string;
+      title: string;
+      content: string;
+    },
+  ) => {
+    if (!canEditCurrentSection) {
+      throw new Error("当前账号只有查看权限，不能编辑每周复盘。");
+    }
+    setUpdatingOpenClawDiaryId(diaryId);
+    setErrorMessage("");
+    setNotice("");
+    try {
+      const response = await updateOpenClawLobsterDiary(diaryId, activeBrandId, {
+        workspaceScope: "douyin",
+        ...payload,
+      });
+      setOpenClawLobsterDiaryWorkspace(response.workspace);
+      setNotice("每周复盘已保存。");
+      return response.item;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "保存每周复盘失败。";
+      setErrorMessage(message);
+      throw error;
+    } finally {
+      setUpdatingOpenClawDiaryId("");
     }
   }, [activeBrandId, canEditCurrentSection]);
 
@@ -3428,10 +3461,13 @@ export function DouyinWorkspaceShell(props: DouyinWorkspaceShellProps) {
                     sectionLabel={currentSection.label}
                     sectionDescription={currentSection.description}
                     isLoading={isLoading}
+                    canEdit={canEditCurrentSection}
                     canDelete={canEditCurrentSection}
                     items={openClawLobsterDiaryWorkspace.items}
                     deletingDiaryId={deletingOpenClawDiaryId}
+                    updatingDiaryId={updatingOpenClawDiaryId}
                     onRefresh={loadWorkspace}
+                    onUpdate={handleUpdateOpenClawDiary}
                     onDelete={handleDeleteOpenClawDiary}
                     formatDateTime={formatDateTime}
                   />

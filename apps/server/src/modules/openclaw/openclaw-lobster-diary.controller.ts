@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Headers, Param, Post, Query, UnauthorizedException } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Headers, Param, Patch, Post, Query, UnauthorizedException } from "@nestjs/common";
 import { AuthService } from "../auth/auth.service";
 import { OpenClawLobsterDiaryService } from "./openclaw-lobster-diary.service";
 
@@ -71,6 +71,38 @@ export class OpenClawLobsterDiaryController {
     await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "edit", auth);
     const item = await this.openClawLobsterDiaryService.deleteDiary(brandId, workspaceScope, diaryId);
     const workspace = await this.openClawLobsterDiaryService.listWorkspace(brandId, workspaceScope);
+    return {
+      item,
+      workspace,
+    };
+  }
+
+  @Patch(":diaryId")
+  async updateDiary(
+    @Headers() headers: HeadersMap,
+    @Param("brandId") brandId: string,
+    @Param("diaryId") diaryId: string,
+    @Body() payload?: {
+      workspaceScope?: string;
+      diaryDate?: string;
+      title?: string;
+      content?: string;
+    },
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    if (!auth) {
+      throw new UnauthorizedException("登录态已失效");
+    }
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "edit", auth);
+    const item = await this.openClawLobsterDiaryService.updateDiary({
+      brandId,
+      diaryId,
+      workspaceScope: payload?.workspaceScope,
+      diaryDate: payload?.diaryDate,
+      title: payload?.title,
+      content: payload?.content,
+    });
+    const workspace = await this.openClawLobsterDiaryService.listWorkspace(brandId, payload?.workspaceScope);
     return {
       item,
       workspace,

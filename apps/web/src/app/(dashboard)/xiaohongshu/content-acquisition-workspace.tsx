@@ -67,8 +67,8 @@ const contentAcquisitionGroups: ContentAcquisitionGroup[] = [
       {
         key: "xiaohongshu-openclaw-lobster-diary",
         group: "xiaohongshu",
-        label: "每日复盘",
-        description: "查看 OpenClaw 在某书板块生成的每日复盘，并支持用户在内容下留言。",
+        label: "每周复盘",
+        description: "查看 OpenClaw 在某书板块生成的每周复盘，点击查看后可直接修改并支持在内容下留言。",
         section: "openclawLobsterDiary",
       },
       {
@@ -123,8 +123,8 @@ const contentAcquisitionGroups: ContentAcquisitionGroup[] = [
       {
         key: "douyin-openclaw-lobster-diary",
         group: "douyin",
-        label: "每日复盘",
-        description: "查看 OpenClaw 在某音/某号板块生成的每日复盘，并支持用户在内容下留言。",
+        label: "每周复盘",
+        description: "查看 OpenClaw 在某音/某号板块生成的每周复盘，点击查看后可直接修改并支持在内容下留言。",
         section: "openclawLobsterDiary",
       },
       {
@@ -179,8 +179,8 @@ const contentAcquisitionGroups: ContentAcquisitionGroup[] = [
       {
         key: "wechat-openclaw-lobster-diary",
         group: "wechat",
-        label: "每日复盘",
-        description: "查看 OpenClaw 在公众号板块生成的每日复盘，并支持用户在内容下留言。",
+        label: "每周复盘",
+        description: "查看 OpenClaw 在公众号板块生成的每周复盘，点击查看后可直接修改并支持在内容下留言。",
         section: "openclawLobsterDiary",
       },
       {
