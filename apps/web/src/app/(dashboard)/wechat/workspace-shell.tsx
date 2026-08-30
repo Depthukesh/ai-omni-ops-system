@@ -7,15 +7,19 @@ import {
   deleteOpenClawCreativeMaterial,
   deleteOpenClawDailyPlan,
   deleteOpenClawLobsterDiary,
+  deleteOpenClawStrategyOptimization,
   deleteOpenClawVideoWork,
   getOpenClawCreativeMaterialWorkspace,
   getOpenClawDailyPlanWorkspace,
   getOpenClawLobsterDiaryWorkspace,
+  getOpenClawStrategyOptimizationWorkspace,
   getOpenClawVideoWorkWorkspace,
+  updateOpenClawStrategyOptimization,
   updateOpenClawLobsterDiary,
   type OpenClawCreativeMaterialWorkspace as OpenClawCreativeMaterialWorkspaceRecord,
   type OpenClawDailyPlanWorkspace as OpenClawDailyPlanWorkspaceRecord,
   type OpenClawLobsterDiaryWorkspace as OpenClawLobsterDiaryWorkspaceRecord,
+  type OpenClawStrategyOptimizationWorkspace as OpenClawStrategyOptimizationWorkspaceRecord,
   type OpenClawVideoWorkWorkspace as OpenClawVideoWorkWorkspaceRecord,
 } from "../../../services/openclaw";
 import {
@@ -63,6 +67,7 @@ import {
 import { OpenClawCreativeMaterialWorkspace } from "../brand-growth/openclaw-creative-material-workspace";
 import { OpenClawDailyPlanWorkspace } from "../brand-growth/openclaw-daily-plan-workspace";
 import { OpenClawLobsterDiaryWorkspace } from "../brand-growth/openclaw-lobster-diary-workspace";
+import { OpenClawStrategyOptimizationWorkspace } from "../brand-growth/openclaw-strategy-optimization-workspace";
 import { OpenClawVideoWorkspace } from "../brand-growth/openclaw-video-workspace";
 
 export type WechatSectionKey =
@@ -72,6 +77,7 @@ export type WechatSectionKey =
   | "openclawCreativeMaterials"
   | "openclawDailyPlan"
   | "openclawLobsterDiary"
+  | "openclawStrategyOptimization"
   | "openclawVideoWorks";
 
 export interface WechatWorkspaceShellProps {
@@ -101,6 +107,7 @@ const wechatOpenClawSections: Array<{ key: WechatSectionKey; label: string; desc
   { key: "openclawCreativeMaterials", label: "创作素材", description: "展示由 OpenClaw 调用站内第三方平台能力后生成并保存的文本、图片、视频、语音和 BGM 等素材。" },
   { key: "openclawDailyPlan", label: "每日计划", description: "展示由 OpenClaw Agent 创建的每日计划记录，页面只支持查看与删除。" },
   { key: "openclawLobsterDiary", label: "每周复盘", description: "展示由 OpenClaw Agent 创建的每周复盘记录，支持查看后直接编辑并在内容下留言。" },
+  { key: "openclawStrategyOptimization", label: "策略优化记录", description: "展示由 OpenClaw 在每周复盘后生成的策略优化记录，支持查看、编辑、留言和删除。" },
   { key: "openclawVideoWorks", label: "作品列表", description: "展示由 OpenClaw 最终整合生成的成片与作品记录，可查看、删除并继续发布。" },
 ];
 const wechatSections = [...wechatPrimarySections, ...wechatOpenClawSections];
@@ -109,6 +116,7 @@ function isWechatOpenClawSection(sectionKey: WechatSectionKey) {
   return sectionKey === "openclawCreativeMaterials"
     || sectionKey === "openclawDailyPlan"
     || sectionKey === "openclawLobsterDiary"
+    || sectionKey === "openclawStrategyOptimization"
     || sectionKey === "openclawVideoWorks";
 }
 
@@ -515,6 +523,8 @@ export function WechatWorkspaceShell(props: WechatWorkspaceShellProps) {
     useState<OpenClawCreativeMaterialWorkspaceRecord>({ items: [], total: 0 });
   const [openClawDailyPlanWorkspace, setOpenClawDailyPlanWorkspace] = useState<OpenClawDailyPlanWorkspaceRecord>({ items: [], total: 0 });
   const [openClawLobsterDiaryWorkspace, setOpenClawLobsterDiaryWorkspace] = useState<OpenClawLobsterDiaryWorkspaceRecord>({ items: [], total: 0 });
+  const [openClawStrategyOptimizationWorkspace, setOpenClawStrategyOptimizationWorkspace] =
+    useState<OpenClawStrategyOptimizationWorkspaceRecord>({ items: [], total: 0 });
   const [openClawVideoWorkWorkspace, setOpenClawVideoWorkWorkspace] =
     useState<OpenClawVideoWorkWorkspaceRecord>({ items: [], total: 0 });
   const [selectedWorkflowId, setSelectedWorkflowId] = useState("");
@@ -535,6 +545,8 @@ export function WechatWorkspaceShell(props: WechatWorkspaceShellProps) {
   const [deletingOpenClawDailyPlanId, setDeletingOpenClawDailyPlanId] = useState("");
   const [deletingOpenClawDiaryId, setDeletingOpenClawDiaryId] = useState("");
   const [updatingOpenClawDiaryId, setUpdatingOpenClawDiaryId] = useState("");
+  const [deletingOpenClawStrategyOptimizationId, setDeletingOpenClawStrategyOptimizationId] = useState("");
+  const [updatingOpenClawStrategyOptimizationId, setUpdatingOpenClawStrategyOptimizationId] = useState("");
   const [deletingOpenClawVideoWorkId, setDeletingOpenClawVideoWorkId] = useState("");
   const [retryingPublishHistoryId, setRetryingPublishHistoryId] = useState("");
   const [publishingDraftId, setPublishingDraftId] = useState("");
@@ -621,6 +633,8 @@ export function WechatWorkspaceShell(props: WechatWorkspaceShellProps) {
       ? "当前展示由 OpenClaw Agent 在公众号板块下创建的每日计划记录，可只读查看并手动删除。"
       : activeSection === "openclawLobsterDiary"
         ? "当前展示由 OpenClaw Agent 在公众号板块下创建的每周复盘记录，点击查看后可直接编辑并在下方留言。"
+        : activeSection === "openclawStrategyOptimization"
+          ? "当前展示由 OpenClaw 在公众号板块下根据每周复盘生成的策略优化记录，支持查看、编辑、留言和删除。"
         : activeSection === "openclawVideoWorks"
           ? "当前展示由 OpenClaw 在公众号板块下汇总的作品列表，可查看作品详情、删除，并在内容下直接留言。"
         : currentSection.description;
@@ -669,10 +683,11 @@ export function WechatWorkspaceShell(props: WechatWorkspaceShellProps) {
 
   async function refreshOpenClawWorkspaces(options?: { showNotice?: boolean }) {
     setErrorMessage("");
-    const [creativeMaterialResult, dailyPlanResult, diaryResult, videoWorkResult] = await Promise.allSettled([
+    const [creativeMaterialResult, dailyPlanResult, diaryResult, strategyOptimizationResult, videoWorkResult] = await Promise.allSettled([
       getOpenClawCreativeMaterialWorkspace(brandId, "wechat"),
       getOpenClawDailyPlanWorkspace(brandId, "wechat"),
       getOpenClawLobsterDiaryWorkspace(brandId, "wechat"),
+      getOpenClawStrategyOptimizationWorkspace(brandId, "wechat"),
       getOpenClawVideoWorkWorkspace(brandId, "wechat"),
     ]);
     const failedLabels: string[] = [];
@@ -696,6 +711,13 @@ export function WechatWorkspaceShell(props: WechatWorkspaceShellProps) {
     } else {
       failedLabels.push("每周复盘");
       setOpenClawLobsterDiaryWorkspace({ items: [], total: 0 });
+    }
+
+    if (strategyOptimizationResult.status === "fulfilled") {
+      setOpenClawStrategyOptimizationWorkspace(strategyOptimizationResult.value);
+    } else {
+      failedLabels.push("策略优化记录");
+      setOpenClawStrategyOptimizationWorkspace({ items: [], total: 0 });
     }
 
     if (videoWorkResult.status === "fulfilled") {
@@ -740,6 +762,7 @@ export function WechatWorkspaceShell(props: WechatWorkspaceShellProps) {
           openClawCreativeMaterialResult,
           openClawDailyPlanResult,
           openClawLobsterDiaryResult,
+          openClawStrategyOptimizationResult,
           openClawVideoWorkResult,
         ] =
           await Promise.allSettled([
@@ -754,6 +777,7 @@ export function WechatWorkspaceShell(props: WechatWorkspaceShellProps) {
             getOpenClawCreativeMaterialWorkspace(brandId, "wechat"),
             getOpenClawDailyPlanWorkspace(brandId, "wechat"),
             getOpenClawLobsterDiaryWorkspace(brandId, "wechat"),
+            getOpenClawStrategyOptimizationWorkspace(brandId, "wechat"),
             getOpenClawVideoWorkWorkspace(brandId, "wechat"),
           ]);
 
@@ -796,6 +820,11 @@ export function WechatWorkspaceShell(props: WechatWorkspaceShellProps) {
         );
         setOpenClawLobsterDiaryWorkspace(
           openClawLobsterDiaryResult.status === "fulfilled" ? openClawLobsterDiaryResult.value : { items: [], total: 0 },
+        );
+        setOpenClawStrategyOptimizationWorkspace(
+          openClawStrategyOptimizationResult.status === "fulfilled"
+            ? openClawStrategyOptimizationResult.value
+            : { items: [], total: 0 },
         );
         setOpenClawVideoWorkWorkspace(
           openClawVideoWorkResult.status === "fulfilled" ? openClawVideoWorkResult.value : { items: [], total: 0 },
@@ -1374,6 +1403,47 @@ export function WechatWorkspaceShell(props: WechatWorkspaceShellProps) {
     }
   }
 
+  async function handleDeleteOpenClawStrategyOptimization(recordId: string) {
+    setDeletingOpenClawStrategyOptimizationId(recordId);
+    setErrorMessage("");
+    try {
+      const response = await deleteOpenClawStrategyOptimization(recordId, brandId, "wechat");
+      setOpenClawStrategyOptimizationWorkspace(response.workspace);
+      setNotice("策略优化记录已删除。");
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "删除策略优化记录失败。");
+    } finally {
+      setDeletingOpenClawStrategyOptimizationId("");
+    }
+  }
+
+  async function handleUpdateOpenClawStrategyOptimization(
+    recordId: string,
+    payload: {
+      title: string;
+      content: string;
+    },
+  ) {
+    setUpdatingOpenClawStrategyOptimizationId(recordId);
+    setErrorMessage("");
+    setNotice("");
+    try {
+      const response = await updateOpenClawStrategyOptimization(recordId, brandId, {
+        workspaceScope: "wechat",
+        ...payload,
+      });
+      setOpenClawStrategyOptimizationWorkspace(response.workspace);
+      setNotice("策略优化记录已保存。");
+      return response.item;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "保存策略优化记录失败。";
+      setErrorMessage(message);
+      throw error;
+    } finally {
+      setUpdatingOpenClawStrategyOptimizationId("");
+    }
+  }
+
   async function handleDeleteOpenClawVideoWork(workId: string) {
     setDeletingOpenClawVideoWorkId(workId);
     setErrorMessage("");
@@ -1486,6 +1556,23 @@ export function WechatWorkspaceShell(props: WechatWorkspaceShellProps) {
                 onRefresh={refreshOpenClawWorkspaces}
                 onUpdate={handleUpdateOpenClawDiary}
                 onDelete={handleDeleteOpenClawDiary}
+                formatDateTime={formatWechatHistoryTime}
+              />
+            ) : null}
+
+            {activeSection === "openclawStrategyOptimization" ? (
+              <OpenClawStrategyOptimizationWorkspace
+                sectionLabel={currentSection.label}
+                sectionDescription={currentSection.description}
+                isLoading={isLoading}
+                canEdit
+                canDelete
+                items={openClawStrategyOptimizationWorkspace.items}
+                deletingRecordId={deletingOpenClawStrategyOptimizationId}
+                updatingRecordId={updatingOpenClawStrategyOptimizationId}
+                onRefresh={refreshOpenClawWorkspaces}
+                onUpdate={handleUpdateOpenClawStrategyOptimization}
+                onDelete={handleDeleteOpenClawStrategyOptimization}
                 formatDateTime={formatWechatHistoryTime}
               />
             ) : null}

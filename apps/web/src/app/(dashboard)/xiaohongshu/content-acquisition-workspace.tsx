@@ -41,7 +41,7 @@ const contentAcquisitionGroups: ContentAcquisitionGroup[] = [
   {
     key: "xiaohongshu",
     label: "某书",
-    summary: "保留原小红书营销策划方案，并把 OpenClaw 回填的素材、计划、复盘和作品收口到同一组导航。",
+    summary: "保留原小红书营销策划方案，并把 OpenClaw 回填的素材、计划、复盘、策略优化和作品收口到同一组导航。",
     pages: [
       {
         key: "xiaohongshu-plan",
@@ -72,6 +72,13 @@ const contentAcquisitionGroups: ContentAcquisitionGroup[] = [
         section: "openclawLobsterDiary",
       },
       {
+        key: "xiaohongshu-openclaw-strategy-optimization",
+        group: "xiaohongshu",
+        label: "策略优化记录",
+        description: "查看 OpenClaw 在某书板块根据每周复盘生成的策略优化记录，支持查看、编辑、留言和删除。",
+        section: "openclawStrategyOptimization",
+      },
+      {
         key: "xiaohongshu-openclaw-video-works",
         group: "xiaohongshu",
         label: "作品列表",
@@ -83,7 +90,7 @@ const contentAcquisitionGroups: ContentAcquisitionGroup[] = [
   {
     key: "douyin",
     label: "某音/某号",
-    summary: "保留原抖音营销策划方案、数字人、RunningHub 应用，并把 OpenClaw 四个内容板块统一纳入内容获客。",
+    summary: "保留原抖音营销策划方案、数字人、RunningHub 应用，并把 OpenClaw 五个内容板块统一纳入内容获客。",
     pages: [
       {
         key: "douyin-plan",
@@ -126,6 +133,13 @@ const contentAcquisitionGroups: ContentAcquisitionGroup[] = [
         label: "每周复盘",
         description: "查看 OpenClaw 在某音/某号板块生成的每周复盘，点击查看后可直接修改并支持在内容下留言。",
         section: "openclawLobsterDiary",
+      },
+      {
+        key: "douyin-openclaw-strategy-optimization",
+        group: "douyin",
+        label: "策略优化记录",
+        description: "查看 OpenClaw 在某音/某号板块根据每周复盘生成的策略优化记录，支持查看、编辑、留言和删除。",
+        section: "openclawStrategyOptimization",
       },
       {
         key: "douyin-openclaw-video-works",
@@ -182,6 +196,13 @@ const contentAcquisitionGroups: ContentAcquisitionGroup[] = [
         label: "每周复盘",
         description: "查看 OpenClaw 在公众号板块生成的每周复盘，点击查看后可直接修改并支持在内容下留言。",
         section: "openclawLobsterDiary",
+      },
+      {
+        key: "wechat-openclaw-strategy-optimization",
+        group: "wechat",
+        label: "策略优化记录",
+        description: "查看 OpenClaw 在公众号板块根据每周复盘生成的策略优化记录，支持查看、编辑、留言和删除。",
+        section: "openclawStrategyOptimization",
       },
       {
         key: "wechat-openclaw-video-works",

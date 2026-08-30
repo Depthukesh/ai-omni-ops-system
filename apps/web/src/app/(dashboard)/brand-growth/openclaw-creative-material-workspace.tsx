@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { type OpenClawCreativeMaterialRecord } from "../../../services/openclaw";
 import { OpenClawCommentThread } from "./openclaw-comment-thread";
 
 type OptionalDateFormatter = (value?: string) => string;
+const PAGE_SIZE = 20;
 
 export interface OpenClawCreativeMaterialWorkspaceProps {
   sectionLabel: string;
@@ -76,11 +77,24 @@ function getMaterialTagLabel(item: OpenClawCreativeMaterialRecord) {
 
 export function OpenClawCreativeMaterialWorkspace(props: OpenClawCreativeMaterialWorkspaceProps) {
   const [selectedMaterial, setSelectedMaterial] = useState<OpenClawCreativeMaterialRecord | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const sortedItems = useMemo(
     () => [...props.items].sort((left, right) => right.createdAt.localeCompare(left.createdAt)),
     [props.items],
   );
+  const totalPages = Math.max(1, Math.ceil(sortedItems.length / PAGE_SIZE));
+  const currentRangeStart = sortedItems.length ? (currentPage - 1) * PAGE_SIZE + 1 : 0;
+  const currentRangeEnd = sortedItems.length ? Math.min(currentPage * PAGE_SIZE, sortedItems.length) : 0;
+  const pagedItems = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return sortedItems.slice(start, start + PAGE_SIZE);
+  }, [currentPage, sortedItems]);
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
   const previewKind = selectedMaterial ? getPreviewKind(selectedMaterial) : "file";
 
@@ -108,60 +122,88 @@ export function OpenClawCreativeMaterialWorkspace(props: OpenClawCreativeMateria
             当前还没有创作素材。请由 OpenClaw 生成并保存素材后再来此查看。
           </div>
         ) : (
-          <div className="table-scroll-shell openclaw-record-table-shell">
-            <table className="soft-table openclaw-record-table">
-              <thead>
-                <tr>
-                  <th>标题</th>
-                  <th>素材标签</th>
-                  <th>素材来源</th>
-                  <th>入库时间</th>
-                  <th>存储位置</th>
-                  <th>操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sortedItems.map((item) => (
-                  <tr key={item.id}>
-                    <td className="openclaw-record-table__text-cell">
-                      <span className="openclaw-record-table__text" title={item.title}>{item.title || "-"}</span>
-                    </td>
-                    <td className="openclaw-record-table__text-cell">
-                      <div className="material-tag-list">
-                        {getMaterialTagLabel(item).map((tag) => (
-                          <span key={`${item.id}-${tag}`} className="material-tag-chip" title={tag}>
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
-                    </td>
-                    <td className="openclaw-record-table__text-cell">
-                      <span className="openclaw-record-table__text" title={item.sourceLabel}>{item.sourceLabel}</span>
-                    </td>
-                    <td>{props.formatDateTime(item.createdAt)}</td>
-                    <td className="openclaw-record-table__text-cell">
-                      <span className="openclaw-record-table__text" title={item.localFilePath || "-"}>{item.localFilePath || "-"}</span>
-                    </td>
-                    <td className="openclaw-record-table__action-cell">
-                      <div className="openclaw-record-table__actions">
-                        <button type="button" className="secondary-button" onClick={() => setSelectedMaterial(item)}>
-                          查看
-                        </button>
-                        <button
-                          type="button"
-                          className="note-inline-button"
-                          onClick={() => void props.onDelete(item.id)}
-                          disabled={!props.canDelete || props.deletingMaterialId === item.id}
-                        >
-                          {props.deletingMaterialId === item.id ? "删除中..." : "删除"}
-                        </button>
-                      </div>
-                    </td>
+          <>
+            <div className="note-pagination-bar" style={{ marginBottom: 12 }}>
+              <div className="note-pagination-summary">
+                当前显示 {currentRangeStart}-{currentRangeEnd} 条，第 {currentPage}/{totalPages} 页，每页 {PAGE_SIZE} 条
+              </div>
+              <div className="note-pagination-actions">
+                <button type="button" className="note-page-button" disabled={currentPage <= 1} onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}>
+                  上一页
+                </button>
+                {Array.from({ length: totalPages }, (_, index) => index + 1)
+                  .slice(Math.max(0, currentPage - 3), Math.max(0, currentPage - 3) + 5)
+                  .map((pageNumber) => (
+                    <button
+                      key={`creative-material-page-${pageNumber}`}
+                      type="button"
+                      className={`note-page-button ${pageNumber === currentPage ? "is-active" : ""}`}
+                      onClick={() => setCurrentPage(pageNumber)}
+                    >
+                      {pageNumber}
+                    </button>
+                  ))}
+                <button type="button" className="note-page-button" disabled={currentPage >= totalPages} onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}>
+                  下一页
+                </button>
+              </div>
+            </div>
+
+            <div className="table-scroll-shell openclaw-record-table-shell">
+              <table className="soft-table openclaw-record-table">
+                <thead>
+                  <tr>
+                    <th>标题</th>
+                    <th>素材标签</th>
+                    <th>素材来源</th>
+                    <th>入库时间</th>
+                    <th>存储位置</th>
+                    <th>操作</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {pagedItems.map((item) => (
+                    <tr key={item.id}>
+                      <td className="openclaw-record-table__text-cell">
+                        <span className="openclaw-record-table__text" title={item.title}>{item.title || "-"}</span>
+                      </td>
+                      <td className="openclaw-record-table__text-cell">
+                        <div className="material-tag-list">
+                          {getMaterialTagLabel(item).map((tag) => (
+                            <span key={`${item.id}-${tag}`} className="material-tag-chip" title={tag}>
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      </td>
+                      <td className="openclaw-record-table__text-cell">
+                        <span className="openclaw-record-table__text" title={item.sourceLabel}>{item.sourceLabel}</span>
+                      </td>
+                      <td>{props.formatDateTime(item.createdAt)}</td>
+                      <td className="openclaw-record-table__text-cell">
+                        <span className="openclaw-record-table__text" title={item.localFilePath || "-"}>{item.localFilePath || "-"}</span>
+                      </td>
+                      <td className="openclaw-record-table__action-cell">
+                        <div className="openclaw-record-table__actions">
+                          <button type="button" className="secondary-button" onClick={() => setSelectedMaterial(item)}>
+                            查看
+                          </button>
+                          <button
+                            type="button"
+                            className="note-inline-button"
+                            onClick={() => void props.onDelete(item.id)}
+                            disabled={!props.canDelete || props.deletingMaterialId === item.id}
+                          >
+                            {props.deletingMaterialId === item.id ? "删除中..." : "删除"}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </article>
 

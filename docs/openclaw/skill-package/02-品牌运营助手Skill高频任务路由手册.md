@@ -441,6 +441,11 @@ RunningHub 关键规则：
   - `create_openclaw_lobster_diary`
   - `update_openclaw_lobster_diary`
   - `delete_openclaw_lobster_diary`
+- 策略优化记录：
+  - `get_openclaw_strategy_optimizations`
+  - `create_openclaw_strategy_optimization`
+  - `update_openclaw_strategy_optimization`
+  - `delete_openclaw_strategy_optimization`
 - 每日计划：
   - `get_openclaw_daily_plans`
   - `create_openclaw_daily_plan`

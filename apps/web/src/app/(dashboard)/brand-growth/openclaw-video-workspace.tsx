@@ -1,11 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { type OpenClawVideoWorkRecord } from "../../../services/openclaw";
 import { type DouyinPublishableWorkTarget } from "../douyin/publish-types";
 import { OpenClawCommentThread } from "./openclaw-comment-thread";
 
 type OptionalDateFormatter = (value?: string) => string;
+const PAGE_SIZE = 20;
 
 export interface OpenClawVideoWorkspaceProps {
   sectionLabel: string;
@@ -35,11 +36,24 @@ function buildPublishTarget(item: OpenClawVideoWorkRecord): DouyinPublishableWor
 
 export function OpenClawVideoWorkspace(props: OpenClawVideoWorkspaceProps) {
   const [selectedWork, setSelectedWork] = useState<OpenClawVideoWorkRecord | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const sortedItems = useMemo(
     () => [...props.items].sort((left, right) => right.createdAt.localeCompare(left.createdAt)),
     [props.items],
   );
+  const totalPages = Math.max(1, Math.ceil(sortedItems.length / PAGE_SIZE));
+  const currentRangeStart = sortedItems.length ? (currentPage - 1) * PAGE_SIZE + 1 : 0;
+  const currentRangeEnd = sortedItems.length ? Math.min(currentPage * PAGE_SIZE, sortedItems.length) : 0;
+  const pagedItems = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return sortedItems.slice(start, start + PAGE_SIZE);
+  }, [currentPage, sortedItems]);
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
   return (
     <>
@@ -65,83 +79,111 @@ export function OpenClawVideoWorkspace(props: OpenClawVideoWorkspaceProps) {
             当前还没有视频作品。请由 OpenClaw 生成最终成片后再来此查看。
           </div>
         ) : (
-          <div className="table-scroll-shell openclaw-record-table-shell">
-            <table className="soft-table openclaw-record-table openclaw-video-table">
-              <colgroup>
-                <col className="openclaw-video-table__col-title" />
-                <col className="openclaw-video-table__col-description" />
-                <col className="openclaw-video-table__col-script" />
-                <col className="openclaw-video-table__col-cover" />
-                <col className="openclaw-video-table__col-video" />
-                <col className="openclaw-video-table__col-created" />
-                <col className="openclaw-video-table__col-actions" />
-              </colgroup>
-              <thead>
-                <tr>
-                  <th>作品标题</th>
-                  <th>作品描述</th>
-                  <th>视频文案/脚本</th>
-                  <th>作品封面</th>
-                  <th>作品视频</th>
-                  <th>生成时间</th>
-                  <th>操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sortedItems.map((item) => (
-                  <tr key={item.id}>
-                    <td className="openclaw-record-table__text-cell">
-                      <span className="openclaw-record-table__text" title={item.title}>{item.title || "-"}</span>
-                    </td>
-                    <td className="openclaw-record-table__text-cell">
-                      <span className="openclaw-record-table__text" title={item.description}>{item.description || "-"}</span>
-                    </td>
-                    <td className="openclaw-record-table__text-cell">
-                      <span className="openclaw-record-table__text" title={item.scriptContent}>{item.scriptContent || "-"}</span>
-                    </td>
-                    <td className="openclaw-record-table__text-cell">
-                      <span className="openclaw-record-table__text" title={item.coverImageUrl || "-"}>{item.coverImageUrl ? "已上传封面" : "-"}</span>
-                    </td>
-                    <td className="openclaw-record-table__text-cell">
-                      <span className="openclaw-record-table__text" title={item.videoUrl}>{item.videoUrl ? "已上传视频" : "-"}</span>
-                    </td>
-                    <td>{props.formatDateTime(item.createdAt)}</td>
-                    <td className="openclaw-record-table__action-cell">
-                      <div className="openclaw-record-table__actions">
-                        <button type="button" className="secondary-button" onClick={() => setSelectedWork(item)}>
-                          查看
-                        </button>
-                        <button
-                          type="button"
-                          className="secondary-button"
-                          onClick={() => props.onPublish(buildPublishTarget(item))}
-                          disabled={!props.canPublish || !item.videoUrl}
-                        >
-                          发布到抖音
-                        </button>
-                        <button
-                          type="button"
-                          className="secondary-button"
-                          onClick={() => props.onWechatChannelPublish(buildPublishTarget(item))}
-                          disabled={!props.canPublish || !item.videoUrl}
-                        >
-                          发布视频号
-                        </button>
-                        <button
-                          type="button"
-                          className="note-inline-button"
-                          onClick={() => void props.onDelete(item.id)}
-                          disabled={!props.canDelete || props.deletingWorkId === item.id}
-                        >
-                          {props.deletingWorkId === item.id ? "删除中..." : "删除"}
-                        </button>
-                      </div>
-                    </td>
+          <>
+            <div className="note-pagination-bar" style={{ marginBottom: 12 }}>
+              <div className="note-pagination-summary">
+                当前显示 {currentRangeStart}-{currentRangeEnd} 条，第 {currentPage}/{totalPages} 页，每页 {PAGE_SIZE} 条
+              </div>
+              <div className="note-pagination-actions">
+                <button type="button" className="note-page-button" disabled={currentPage <= 1} onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}>
+                  上一页
+                </button>
+                {Array.from({ length: totalPages }, (_, index) => index + 1)
+                  .slice(Math.max(0, currentPage - 3), Math.max(0, currentPage - 3) + 5)
+                  .map((pageNumber) => (
+                    <button
+                      key={`video-work-page-${pageNumber}`}
+                      type="button"
+                      className={`note-page-button ${pageNumber === currentPage ? "is-active" : ""}`}
+                      onClick={() => setCurrentPage(pageNumber)}
+                    >
+                      {pageNumber}
+                    </button>
+                  ))}
+                <button type="button" className="note-page-button" disabled={currentPage >= totalPages} onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}>
+                  下一页
+                </button>
+              </div>
+            </div>
+
+            <div className="table-scroll-shell openclaw-record-table-shell">
+              <table className="soft-table openclaw-record-table openclaw-video-table">
+                <colgroup>
+                  <col className="openclaw-video-table__col-title" />
+                  <col className="openclaw-video-table__col-description" />
+                  <col className="openclaw-video-table__col-script" />
+                  <col className="openclaw-video-table__col-cover" />
+                  <col className="openclaw-video-table__col-video" />
+                  <col className="openclaw-video-table__col-created" />
+                  <col className="openclaw-video-table__col-actions" />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th>作品标题</th>
+                    <th>作品描述</th>
+                    <th>视频文案/脚本</th>
+                    <th>作品封面</th>
+                    <th>作品视频</th>
+                    <th>生成时间</th>
+                    <th>操作</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {pagedItems.map((item) => (
+                    <tr key={item.id}>
+                      <td className="openclaw-record-table__text-cell">
+                        <span className="openclaw-record-table__text" title={item.title}>{item.title || "-"}</span>
+                      </td>
+                      <td className="openclaw-record-table__text-cell">
+                        <span className="openclaw-record-table__text" title={item.description}>{item.description || "-"}</span>
+                      </td>
+                      <td className="openclaw-record-table__text-cell">
+                        <span className="openclaw-record-table__text" title={item.scriptContent}>{item.scriptContent || "-"}</span>
+                      </td>
+                      <td className="openclaw-record-table__text-cell">
+                        <span className="openclaw-record-table__text" title={item.coverImageUrl || "-"}>{item.coverImageUrl ? "已上传封面" : "-"}</span>
+                      </td>
+                      <td className="openclaw-record-table__text-cell">
+                        <span className="openclaw-record-table__text" title={item.videoUrl}>{item.videoUrl ? "已上传视频" : "-"}</span>
+                      </td>
+                      <td>{props.formatDateTime(item.createdAt)}</td>
+                      <td className="openclaw-record-table__action-cell">
+                        <div className="openclaw-record-table__actions">
+                          <button type="button" className="secondary-button" onClick={() => setSelectedWork(item)}>
+                            查看
+                          </button>
+                          <button
+                            type="button"
+                            className="secondary-button"
+                            onClick={() => props.onPublish(buildPublishTarget(item))}
+                            disabled={!props.canPublish || !item.videoUrl}
+                          >
+                            发布到抖音
+                          </button>
+                          <button
+                            type="button"
+                            className="secondary-button"
+                            onClick={() => props.onWechatChannelPublish(buildPublishTarget(item))}
+                            disabled={!props.canPublish || !item.videoUrl}
+                          >
+                            发布视频号
+                          </button>
+                          <button
+                            type="button"
+                            className="note-inline-button"
+                            onClick={() => void props.onDelete(item.id)}
+                            disabled={!props.canDelete || props.deletingWorkId === item.id}
+                          >
+                            {props.deletingWorkId === item.id ? "删除中..." : "删除"}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </article>
 

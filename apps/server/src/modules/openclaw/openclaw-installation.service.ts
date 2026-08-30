@@ -434,7 +434,7 @@ export class OpenClawInstallationService {
           "帮我创建一个品牌知识库，并把这份资料加入进去",
           "帮我看最近 30 天失败任务主要卡在哪些问题上",
           "帮我看当前品牌成员、邀请链接和权限配置",
-          "帮我看 OpenClaw 的每日计划、每周复盘、创作素材、视频作品、评论获客和平台获客名单",
+          "帮我看 OpenClaw 的每日计划、每周复盘、策略优化记录、创作素材、视频作品、评论获客和平台获客名单",
           "帮我保存一份 GEO 可见度诊断报告，并告诉我现有报告列表",
           "帮我保存关键词挖掘、网站诊断或 GEO优化方案，并把存储地址一起回给我",
           "帮我把小红书和抖音评论用户生成评论获客列表，并同步到全网获客工作台",
@@ -646,7 +646,7 @@ description: AI 全域智能体网站能力总入口 Skill。先做网站功能�
 - 公众号工作流、正文 / 配图 / HTML 生成、发布确认、正式发布、历史回看
 - 设计工作台图片、HTML、PPT、视频方案任务
 - 团队成员、邀请链接、权限模板、品牌协作
-- OpenClaw 每日计划、每周复盘、创作素材、视频作品、音乐任务
+- OpenClaw 每日计划、每周复盘、策略优化记录、创作素材、视频作品、音乐任务
 - GEO获客可见度诊断，以及关键词挖掘、网站诊断、知识库搭建、GEO优化方案、自媒体内容、第三方媒体、品牌网站等内容的保存、列表、删除与存储地址回显
 - 全网获客评论获客列表，以及评论用户名单的生成、筛选、删除与主页回跳
 - 全网获客平台获客列表，以及平台名单的写入、查看与删除
@@ -902,7 +902,7 @@ description: AI 全域智能体网站能力总入口 Skill。先做网站功能�
 
 - 帮我生成一段 60 秒纯音乐 BGM，查到成功后直接保存到 OpenClaw 创作素材
 - 帮我做一首带人声的歌曲，先创建任务，再帮我轮询结果
-- 帮我看 OpenClaw 的每日计划、每周复盘和创作素材
+- 帮我看 OpenClaw 的每日计划、每周复盘、策略优化记录和创作素材
 - 帮我保存一份 GEO 可见度诊断报告，并告诉我现在已经有几份报告
 - 帮我把小红书和抖音评论用户生成评论获客列表
 - 帮我把这批平台名单写入平台获客
@@ -979,6 +979,8 @@ description: AI 全域智能体网站能力总入口 Skill。先做网站功能�
 - \`get_openclaw_daily_plans\`
 - \`get_openclaw_lobster_diaries\`
 - \`update_openclaw_lobster_diary\`
+- \`get_openclaw_strategy_optimizations\`
+- \`update_openclaw_strategy_optimization\`
 - \`get_openclaw_creative_materials\`
 - \`get_openclaw_video_works\`
 
@@ -1263,10 +1265,13 @@ RunningHub 当前常见 appKey 示例：
 OpenClaw：
 
 - \`get_openclaw_daily_plans\`
+- \`get_openclaw_strategy_optimizations\`
 - \`create_openclaw_daily_plan\`
 - \`get_openclaw_lobster_diaries\`
 - \`create_openclaw_lobster_diary\`
 - \`update_openclaw_lobster_diary\`
+- \`create_openclaw_strategy_optimization\`
+- \`update_openclaw_strategy_optimization\`
 - \`create_volcengine_music_task\`
 - \`get_volcengine_music_task\`
 - \`get_openclaw_creative_materials\`
@@ -1455,6 +1460,7 @@ RunningHub 关键规则：
 OpenClaw 专区：
 
 - 每周复盘：\`get_openclaw_lobster_diaries\`、\`create_openclaw_lobster_diary\`、\`update_openclaw_lobster_diary\`
+- 策略优化记录：\`get_openclaw_strategy_optimizations\`、\`create_openclaw_strategy_optimization\`、\`update_openclaw_strategy_optimization\`
 - 每日计划：\`get_openclaw_daily_plans\`、\`create_openclaw_daily_plan\`
 - 音乐：\`create_volcengine_music_task\`、\`get_volcengine_music_task\`
 - 创作素材：\`get_openclaw_creative_materials\`、\`create_openclaw_creative_material\`

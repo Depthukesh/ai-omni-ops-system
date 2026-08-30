@@ -133,6 +133,10 @@ OpenClaw 调用任何工具时，服务端都必须基于绑定关系解析：
   - `create_openclaw_lobster_diary`
   - `update_openclaw_lobster_diary`
   - `delete_openclaw_lobster_diary`
+  - `get_openclaw_strategy_optimizations`
+  - `create_openclaw_strategy_optimization`
+  - `update_openclaw_strategy_optimization`
+  - `delete_openclaw_strategy_optimization`
 - 统一素材库：
   - `get_unified_material_library_items`
   - `get_douyin_material_library_items`
@@ -206,6 +210,18 @@ OpenClaw 调用任何工具时，服务端都必须基于绑定关系解析：
     - `localFilePath`（stdio MCP 专用，本地绝对路径，桥接层会自动读取本地文件并上传到网站）
     - `upload.fileName / upload.contentType / upload.dataBase64`
     - `textContent`
+- OpenClaw 策略优化记录：
+  - `get_openclaw_strategy_optimizations`
+  - `create_openclaw_strategy_optimization`
+  - `update_openclaw_strategy_optimization`
+  - `delete_openclaw_strategy_optimization`
+  - 当前用途：
+    - 承接 OpenClaw 在每周复盘后生成的策略优化记录
+    - 允许 OpenClaw 与人工共同维护同一条记录
+  - 关键字段：
+    - `generatedAt`
+    - `title`
+    - `content`
 - 火山音乐生成：
   - `create_volcengine_music_task`
   - `get_volcengine_music_task`

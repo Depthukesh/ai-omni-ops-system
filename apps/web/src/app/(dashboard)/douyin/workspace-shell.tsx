@@ -59,15 +59,19 @@ import {
   deleteOpenClawCreativeMaterial,
   deleteOpenClawDailyPlan,
   deleteOpenClawLobsterDiary,
+  deleteOpenClawStrategyOptimization,
   deleteOpenClawVideoWork,
   getOpenClawCreativeMaterialWorkspace,
   getOpenClawDailyPlanWorkspace,
   getOpenClawLobsterDiaryWorkspace,
+  getOpenClawStrategyOptimizationWorkspace,
   getOpenClawVideoWorkWorkspace,
+  updateOpenClawStrategyOptimization,
   updateOpenClawLobsterDiary,
   type OpenClawCreativeMaterialWorkspace as OpenClawCreativeMaterialWorkspaceRecord,
   type OpenClawDailyPlanWorkspace as OpenClawDailyPlanWorkspaceRecord,
   type OpenClawLobsterDiaryWorkspace as OpenClawLobsterDiaryWorkspaceRecord,
+  type OpenClawStrategyOptimizationWorkspace as OpenClawStrategyOptimizationWorkspaceRecord,
   type OpenClawVideoWorkWorkspace as OpenClawVideoWorkWorkspaceRecord,
 } from "../../../services/openclaw";
 import {
@@ -170,6 +174,7 @@ import { WechatChannelPublishModal } from "./wechat-channel-publish-modal";
 import { OpenClawCreativeMaterialWorkspace } from "../brand-growth/openclaw-creative-material-workspace";
 import { OpenClawDailyPlanWorkspace } from "../brand-growth/openclaw-daily-plan-workspace";
 import { OpenClawLobsterDiaryWorkspace } from "../brand-growth/openclaw-lobster-diary-workspace";
+import { OpenClawStrategyOptimizationWorkspace } from "../brand-growth/openclaw-strategy-optimization-workspace";
 import { OpenClawVideoWorkspace } from "../brand-growth/openclaw-video-workspace";
 
 type LoadState = "loading" | "api" | "partial";
@@ -188,6 +193,7 @@ export type DouyinSectionKey =
   | "openclawCreativeMaterials"
   | "openclawDailyPlan"
   | "openclawLobsterDiary"
+  | "openclawStrategyOptimization"
   | "openclawVideoWorks";
 
 export interface DouyinWorkspaceShellProps {
@@ -211,6 +217,7 @@ const douyinOpenClawSections: Array<{ key: DouyinSectionKey; label: string; desc
   { key: "openclawCreativeMaterials", label: "创作素材", description: "展示由 OpenClaw 调用站内第三方平台能力后生成并保存的文本、图片、视频、语音和 BGM 等素材。" },
   { key: "openclawDailyPlan", label: "每日计划", description: "展示由 OpenClaw Agent 创建的每日计划记录，页面只支持查看与删除。" },
   { key: "openclawLobsterDiary", label: "每周复盘", description: "展示由 OpenClaw Agent 创建的每周复盘记录，支持查看后直接编辑并在内容下留言。" },
+  { key: "openclawStrategyOptimization", label: "策略优化记录", description: "展示由 OpenClaw 在每周复盘后生成的策略优化记录，支持查看、编辑、留言和删除。" },
   { key: "openclawVideoWorks", label: "作品列表", description: "展示由 OpenClaw 最终整合生成的成片，可查看、删除，并接入抖音与视频号发布插件。" },
 ];
 const douyinSections = [...douyinPrimarySections, ...douyinOpenClawSections];
@@ -230,6 +237,7 @@ const douyinSectionPermissionMap: Record<DouyinSectionKey, BrandPermissionKey> =
   openclawCreativeMaterials: "brandGrowth.report.topicLibrary",
   openclawDailyPlan: "brandGrowth.report.topicLibrary",
   openclawLobsterDiary: "brandGrowth.report.topicLibrary",
+  openclawStrategyOptimization: "brandGrowth.report.topicLibrary",
   openclawVideoWorks: "brandGrowth.report.topicLibrary",
 };
 
@@ -237,6 +245,7 @@ function isDouyinOpenClawSection(sectionKey: DouyinSectionKey) {
   return sectionKey === "openclawCreativeMaterials"
     || sectionKey === "openclawDailyPlan"
     || sectionKey === "openclawLobsterDiary"
+    || sectionKey === "openclawStrategyOptimization"
     || sectionKey === "openclawVideoWorks";
 }
 
@@ -268,6 +277,7 @@ function createInitialSectionLoadState(): Record<DouyinSectionKey, boolean> {
     openclawCreativeMaterials: false,
     openclawDailyPlan: false,
     openclawLobsterDiary: false,
+    openclawStrategyOptimization: false,
     openclawVideoWorks: false,
   };
 }
@@ -344,6 +354,8 @@ export function DouyinWorkspaceShell(props: DouyinWorkspaceShellProps) {
   const [openClawCreativeMaterialWorkspace, setOpenClawCreativeMaterialWorkspace] = useState<OpenClawCreativeMaterialWorkspaceRecord>({ items: [], total: 0 });
   const [openClawDailyPlanWorkspace, setOpenClawDailyPlanWorkspace] = useState<OpenClawDailyPlanWorkspaceRecord>({ items: [], total: 0 });
   const [openClawLobsterDiaryWorkspace, setOpenClawLobsterDiaryWorkspace] = useState<OpenClawLobsterDiaryWorkspaceRecord>({ items: [], total: 0 });
+  const [openClawStrategyOptimizationWorkspace, setOpenClawStrategyOptimizationWorkspace] =
+    useState<OpenClawStrategyOptimizationWorkspaceRecord>({ items: [], total: 0 });
   const [openClawVideoWorkWorkspace, setOpenClawVideoWorkWorkspace] = useState<OpenClawVideoWorkWorkspaceRecord>({ items: [], total: 0 });
   const [adPreAuditWorks, setAdPreAuditWorks] = useState<DouyinAdPreAuditRecord[]>([]);
   const [adPreAuditConfig, setAdPreAuditConfig] = useState<DouyinAdPreAuditConfigRecord>({
@@ -391,6 +403,8 @@ export function DouyinWorkspaceShell(props: DouyinWorkspaceShellProps) {
   const [deletingOpenClawDailyPlanId, setDeletingOpenClawDailyPlanId] = useState("");
   const [deletingOpenClawDiaryId, setDeletingOpenClawDiaryId] = useState("");
   const [updatingOpenClawDiaryId, setUpdatingOpenClawDiaryId] = useState("");
+  const [deletingOpenClawStrategyOptimizationId, setDeletingOpenClawStrategyOptimizationId] = useState("");
+  const [updatingOpenClawStrategyOptimizationId, setUpdatingOpenClawStrategyOptimizationId] = useState("");
   const [deletingOpenClawVideoWorkId, setDeletingOpenClawVideoWorkId] = useState("");
   const [selectedMaterialId, setSelectedMaterialId] = useState("");
   const [materialPreviewIndexMap, setMaterialPreviewIndexMap] = useState<Record<string, number>>({});
@@ -609,6 +623,8 @@ export function DouyinWorkspaceShell(props: DouyinWorkspaceShellProps) {
       ? "当前展示由 OpenClaw Agent 在抖音板块下创建的每日计划记录，可只读查看并手动删除。"
       : activeSection === "openclawLobsterDiary"
         ? "当前展示由 OpenClaw Agent 在抖音板块下创建的每周复盘记录，点击查看后可直接编辑并在下方留言。"
+        : activeSection === "openclawStrategyOptimization"
+          ? "当前展示由 OpenClaw 在抖音板块下根据每周复盘生成的策略优化记录，支持查看、编辑、留言和删除。"
         : activeSection === "openclawVideoWorks"
           ? "当前展示由 OpenClaw 最终整合生成的视频作品，支持查看、删除，并接入抖音与视频号发布插件。"
         : "当前开放营销策划方案、选题库、原创文案、二创文案、AI 生视频（故事板）、AI 生视频、数字人和广告预审，可直接复用品牌增长策略里沉淀的统一素材库、每日热点与品牌资料。";
@@ -1043,10 +1059,12 @@ export function DouyinWorkspaceShell(props: DouyinWorkspaceShellProps) {
     const shouldLoadOpenClawCreativeMaterialWorkspace = currentSectionKey === "openclawCreativeMaterials" && canViewSection("openclawCreativeMaterials");
     const shouldLoadOpenClawDailyPlanWorkspace = currentSectionKey === "openclawDailyPlan" && canViewSection("openclawDailyPlan");
     const shouldLoadOpenClawLobsterDiaryWorkspace = currentSectionKey === "openclawLobsterDiary" && canViewSection("openclawLobsterDiary");
+    const shouldLoadOpenClawStrategyOptimizationWorkspace =
+      currentSectionKey === "openclawStrategyOptimization" && canViewSection("openclawStrategyOptimization");
     const shouldLoadOpenClawVideoWorkWorkspace = currentSectionKey === "openclawVideoWorks" && canViewSection("openclawVideoWorks");
     const shouldLoadAdPreAuditWorkspace = currentSectionKey === "adPreAudit" && canViewSection("adPreAudit");
 
-    const [planContextGrowthResult, planContextAnnualResult, planContextOpportunityResult, planResult, hotTopicResult, originalCopyResult, remixCopyResult, remixShortVideoResult, videoResult, videoProvidersResult, storyboardModelsResult, directVideoResult, directVideoProvidersResult, digitalHumanResult, openClawCreativeMaterialResult, openClawDailyPlanResult, openClawLobsterDiaryResult, openClawVideoWorkResult, adPreAuditResult, adPreAuditConfigResult, adPreAuditMediaResult, digitalHumanCustomPersonsResult, digitalHumanLipSyncResult] = await Promise.allSettled([
+    const [planContextGrowthResult, planContextAnnualResult, planContextOpportunityResult, planResult, hotTopicResult, originalCopyResult, remixCopyResult, remixShortVideoResult, videoResult, videoProvidersResult, storyboardModelsResult, directVideoResult, directVideoProvidersResult, digitalHumanResult, openClawCreativeMaterialResult, openClawDailyPlanResult, openClawLobsterDiaryResult, openClawStrategyOptimizationResult, openClawVideoWorkResult, adPreAuditResult, adPreAuditConfigResult, adPreAuditMediaResult, digitalHumanCustomPersonsResult, digitalHumanLipSyncResult] = await Promise.allSettled([
       shouldLoadPlanContext ? getGrowthReportWorkspace(activeBrandId) : Promise.resolve(growthReportWorkspaceRef.current),
       shouldLoadPlanContext ? getAnnualMarketingPlanWorkspace(activeBrandId) : Promise.resolve(annualPlanWorkspaceRef.current),
       shouldLoadPlanContext ? getOpportunityInsightWorkspace(activeBrandId) : Promise.resolve(opportunityInsightWorkspaceRef.current),
@@ -1077,6 +1095,9 @@ export function DouyinWorkspaceShell(props: DouyinWorkspaceShellProps) {
         : Promise.resolve({ items: [], total: 0 }),
       shouldLoadOpenClawLobsterDiaryWorkspace
         ? getOpenClawLobsterDiaryWorkspace(activeBrandId, "douyin")
+        : Promise.resolve({ items: [], total: 0 }),
+      shouldLoadOpenClawStrategyOptimizationWorkspace
+        ? getOpenClawStrategyOptimizationWorkspace(activeBrandId, "douyin")
         : Promise.resolve({ items: [], total: 0 }),
       shouldLoadOpenClawVideoWorkWorkspace
         ? getOpenClawVideoWorkWorkspace(activeBrandId, "douyin")
@@ -1283,6 +1304,16 @@ export function DouyinWorkspaceShell(props: DouyinWorkspaceShellProps) {
       }
     }
 
+    if (shouldLoadOpenClawStrategyOptimizationWorkspace) {
+      if (openClawStrategyOptimizationResult.status === "fulfilled") {
+        setOpenClawStrategyOptimizationWorkspace(openClawStrategyOptimizationResult.value);
+      } else {
+        hasFallback = true;
+        failedInterfaceNames.push("OpenClaw 策略优化记录");
+        setOpenClawStrategyOptimizationWorkspace({ items: [], total: 0 });
+      }
+    }
+
     if (shouldLoadOpenClawVideoWorkWorkspace) {
       if (openClawVideoWorkResult.status === "fulfilled") {
         setOpenClawVideoWorkWorkspace(openClawVideoWorkResult.value);
@@ -1456,6 +1487,7 @@ export function DouyinWorkspaceShell(props: DouyinWorkspaceShellProps) {
       openclawCreativeMaterials: current.openclawCreativeMaterials || shouldLoadOpenClawCreativeMaterialWorkspace,
       openclawDailyPlan: current.openclawDailyPlan || shouldLoadOpenClawDailyPlanWorkspace,
       openclawLobsterDiary: current.openclawLobsterDiary || shouldLoadOpenClawLobsterDiaryWorkspace,
+      openclawStrategyOptimization: current.openclawStrategyOptimization || shouldLoadOpenClawStrategyOptimizationWorkspace,
       openclawVideoWorks: current.openclawVideoWorks || shouldLoadOpenClawVideoWorkWorkspace,
     }));
     setLoadState(hasFallback ? "partial" : "api");
@@ -3326,6 +3358,55 @@ export function DouyinWorkspaceShell(props: DouyinWorkspaceShellProps) {
     }
   }, [activeBrandId, canEditCurrentSection]);
 
+  const handleDeleteOpenClawStrategyOptimization = useCallback(async (recordId: string) => {
+    if (!canEditCurrentSection) {
+      setErrorMessage("当前账号只有查看权限，不能删除策略优化记录。");
+      return;
+    }
+    setDeletingOpenClawStrategyOptimizationId(recordId);
+    setErrorMessage("");
+    setNotice("");
+    try {
+      const response = await deleteOpenClawStrategyOptimization(recordId, activeBrandId, "douyin");
+      setOpenClawStrategyOptimizationWorkspace(response.workspace);
+      setNotice("策略优化记录已删除。");
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "删除策略优化记录失败。");
+    } finally {
+      setDeletingOpenClawStrategyOptimizationId("");
+    }
+  }, [activeBrandId, canEditCurrentSection]);
+
+  const handleUpdateOpenClawStrategyOptimization = useCallback(async (
+    recordId: string,
+    payload: {
+      title: string;
+      content: string;
+    },
+  ) => {
+    if (!canEditCurrentSection) {
+      throw new Error("当前账号只有查看权限，不能编辑策略优化记录。");
+    }
+    setUpdatingOpenClawStrategyOptimizationId(recordId);
+    setErrorMessage("");
+    setNotice("");
+    try {
+      const response = await updateOpenClawStrategyOptimization(recordId, activeBrandId, {
+        workspaceScope: "douyin",
+        ...payload,
+      });
+      setOpenClawStrategyOptimizationWorkspace(response.workspace);
+      setNotice("策略优化记录已保存。");
+      return response.item;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "保存策略优化记录失败。";
+      setErrorMessage(message);
+      throw error;
+    } finally {
+      setUpdatingOpenClawStrategyOptimizationId("");
+    }
+  }, [activeBrandId, canEditCurrentSection]);
+
   const handleDeleteOpenClawVideoWork = useCallback(async (workId: string) => {
     if (!canEditCurrentSection) {
       setErrorMessage("当前账号只有查看权限，不能删除视频作品。");
@@ -3469,6 +3550,21 @@ export function DouyinWorkspaceShell(props: DouyinWorkspaceShellProps) {
                     onRefresh={loadWorkspace}
                     onUpdate={handleUpdateOpenClawDiary}
                     onDelete={handleDeleteOpenClawDiary}
+                    formatDateTime={formatDateTime}
+                  />
+                ) : activeSection === "openclawStrategyOptimization" ? (
+                  <OpenClawStrategyOptimizationWorkspace
+                    sectionLabel={currentSection.label}
+                    sectionDescription={currentSection.description}
+                    isLoading={isLoading}
+                    canEdit={canEditCurrentSection}
+                    canDelete={canEditCurrentSection}
+                    items={openClawStrategyOptimizationWorkspace.items}
+                    deletingRecordId={deletingOpenClawStrategyOptimizationId}
+                    updatingRecordId={updatingOpenClawStrategyOptimizationId}
+                    onRefresh={() => loadWorkspace("openclawStrategyOptimization")}
+                    onUpdate={handleUpdateOpenClawStrategyOptimization}
+                    onDelete={handleDeleteOpenClawStrategyOptimization}
                     formatDateTime={formatDateTime}
                   />
                 ) : activeSection === "openclawVideoWorks" ? (

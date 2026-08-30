@@ -175,6 +175,8 @@
 
 ## 最近应优先关注的文档
 
+- `docs/changes/2026-08-30-openclaw-strategy-optimization-records.md`
+  - 给内容获客三板块和品牌增长里的 OpenClaw 新增独立“策略优化记录”板块，补齐查看 / 编辑 / 留言 / 删除、20 条分页，以及 MCP / Skill 同步
 - `docs/changes/2026-08-30-openclaw-weekly-review-and-version-history-fix.md`
   - 把内容获客三板块和品牌增长里的 OpenClaw 复盘统一改成“每周复盘”，补齐查看后直接编辑与留言协作，并修复标准运行态版本页当前版本号与历史更新记录的展示
 - `docs/changes/2026-08-28-docker-web-corepack-runtime-download-fix.md`

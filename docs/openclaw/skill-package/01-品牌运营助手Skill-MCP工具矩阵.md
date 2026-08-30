@@ -434,12 +434,19 @@ RunningHub 上传节点补充规则：
 - `create_openclaw_daily_plan`
 - `delete_openclaw_daily_plan`
 
-### 14.3 音乐生成
+### 14.3 策略优化记录
+
+- `get_openclaw_strategy_optimizations`
+- `create_openclaw_strategy_optimization`
+- `update_openclaw_strategy_optimization`
+- `delete_openclaw_strategy_optimization`
+
+### 14.4 音乐生成
 
 - `create_volcengine_music_task`
 - `get_volcengine_music_task`
 
-### 14.4 创作素材
+### 14.5 创作素材
 
 - `get_openclaw_creative_materials`
 - `create_openclaw_creative_material`
@@ -463,7 +470,7 @@ RunningHub 上传节点补充规则：
     - `openclaw_upload`：OpenClaw 上传到网站或外部归档素材
   - 当 `sourceKind=material_library_upload` 且当前环境为 `local-single-user` 时，文件会按四分类写入用户配置的 `素材库`
 
-### 14.5 视频作品
+### 14.6 视频作品
 
 - `get_openclaw_video_works`
 - `create_openclaw_video_work`

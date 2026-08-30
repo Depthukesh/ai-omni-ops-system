@@ -103,7 +103,7 @@ export async function downloadOpenClawSkillPackage(downloadPath: string) {
 }
 
 export type OpenClawWorkspaceScope = "brand_growth" | "xiaohongshu" | "douyin" | "wechat" | "geo" | "all_network_growth";
-export type OpenClawCommentResourceType = "creative_material" | "daily_plan" | "lobster_diary" | "video_work";
+export type OpenClawCommentResourceType = "creative_material" | "daily_plan" | "lobster_diary" | "strategy_optimization" | "video_work";
 export type OpenClawCreativeMaterialCategory = "text" | "image" | "audio" | "video";
 export type OpenClawCreativeMaterialSourceKind = "material_library_upload" | "openclaw_upload";
 export const CONTENT_ACQUISITION_OPENCLAW_WORKSPACE_SCOPES = ["xiaohongshu", "douyin", "wechat"] as const;
@@ -211,6 +211,65 @@ export async function updateOpenClawLobsterDiary(
 ) {
   return jsonRequest<{ item: OpenClawLobsterDiaryRecord; workspace: OpenClawLobsterDiaryWorkspace }>(
     `/openclaw/brands/${brandId}/lobster-diaries/${diaryId}`,
+    "PATCH",
+    payload,
+  );
+}
+
+export type OpenClawStrategyOptimizationRecord = {
+  id: string;
+  brandId: string;
+  workspaceScope: OpenClawWorkspaceScope;
+  createdByUserId: string;
+  generatedAt: string;
+  title: string;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type OpenClawStrategyOptimizationWorkspace = {
+  items: OpenClawStrategyOptimizationRecord[];
+  total: number;
+};
+
+export async function getOpenClawStrategyOptimizationWorkspace(
+  brandId: string,
+  workspaceScope: OpenClawWorkspaceScope,
+  limit?: number,
+) {
+  const query = new URLSearchParams({ workspaceScope });
+  if (typeof limit === "number") {
+    query.set("limit", String(limit));
+  }
+  return request<OpenClawStrategyOptimizationWorkspace>(`/openclaw/brands/${brandId}/strategy-optimizations?${query.toString()}`);
+}
+
+export async function deleteOpenClawStrategyOptimization(
+  recordId: string,
+  brandId: string,
+  workspaceScope: OpenClawWorkspaceScope,
+) {
+  const query = new URLSearchParams({ workspaceScope });
+  return request<{ item: OpenClawStrategyOptimizationRecord; workspace: OpenClawStrategyOptimizationWorkspace }>(
+    `/openclaw/brands/${brandId}/strategy-optimizations/${recordId}?${query.toString()}`,
+    {
+      method: "DELETE",
+    },
+  );
+}
+
+export async function updateOpenClawStrategyOptimization(
+  recordId: string,
+  brandId: string,
+  payload: {
+    workspaceScope: OpenClawWorkspaceScope;
+    title?: string;
+    content?: string;
+  },
+) {
+  return jsonRequest<{ item: OpenClawStrategyOptimizationRecord; workspace: OpenClawStrategyOptimizationWorkspace }>(
+    `/openclaw/brands/${brandId}/strategy-optimizations/${recordId}`,
     "PATCH",
     payload,
   );
