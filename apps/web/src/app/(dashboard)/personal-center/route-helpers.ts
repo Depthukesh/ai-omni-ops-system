@@ -132,7 +132,7 @@ export function resolveVersionWorkspaceSummary(status?: SystemUpdateStatus | nul
     return {
       value: `最新 ${latestVersion}`,
       description: guideOnlyMode
-        ? "检测到新版本，进入版本与升级查看 git pull、容器重建和 Skill 同步步骤。"
+        ? "检测到新版本，进入版本与升级查看页面生成的 Git 更新命令、容器重建和 Skill 同步步骤。"
         : "检测到新版本，进入版本与升级完成下载校验和一键升级。",
     };
   }
@@ -141,7 +141,7 @@ export function resolveVersionWorkspaceSummary(status?: SystemUpdateStatus | nul
     description: guideOnlyMode
       ? repoGuideMode
         ? "当前展示最近版本记录和 Docker 更新命令；配置远端清单后，这里还能自动提醒新版本。"
-        : "当前版本已同步；后续有新版本时，这里会提醒 git pull 和容器重建方法。"
+        : "当前版本已同步；后续有新版本时，这里会提醒页面生成的 Git 更新命令和容器重建方法。"
       : "当前版本已同步；后续有新版本时，这里会提醒下载安装并执行升级。",
   };
 }

@@ -17,7 +17,7 @@ const SYSTEM_UPDATE_STATUS_CACHE_KEY = "aiomniops-system-update-status-cache";
 const STANDARD_RUNTIME_SOFTWARE_GUIDE = [
   {
     title: "Git for Windows",
-    description: "用于下载项目代码和后续执行 `git pull` 更新。",
+    description: "用于下载项目代码，并执行页面生成的 Git 更新命令。",
     install: [
       "下载安装 Git for Windows，安装完成后重新打开 PowerShell。",
       "执行 `git --version`，能看到版本号说明 Git 已装好。",
@@ -281,10 +281,10 @@ export default function PersonalCenterVersionPage() {
   const latestPackageName = latestRelease?.tagName || "未获取打包名称";
   const methodGuideSummary = guideOnlyMode
     ? latestRelease?.summary || (status?.updateAvailable
-      ? "检测到 Docker 标准运行态新版本，请按下面的 git pull、容器重建和 Skill 同步步骤完成更新。"
+      ? "检测到 Docker 标准运行态新版本，请按下面生成的 Git 更新命令、容器重建和 Skill 同步步骤完成更新。"
       : repoGuideMode
         ? "当前先展示仓库内最近版本记录、Docker 更新命令和同步提醒；配置远端更新清单后，这里还会自动提示是否有新版本。"
-        : "当前版本已同步；后续有新版本时，这里会继续展示 git pull、容器重建和 Skill 同步方法。")
+        : "当前版本已同步；后续有新版本时，这里会继续展示 Git 更新命令、容器重建和 Skill 同步方法。")
     : status?.updateAvailable
       ? "建议先检查更新，再预下载安装包并执行一键升级。升级完成后，系统会自动重启本地工作台。"
       : "当前已经是最新版本；后续检测到新版本时，仍按“检查更新 -> 预下载安装包 -> 立即升级”完成更新。";
@@ -292,6 +292,7 @@ export default function PersonalCenterVersionPage() {
     ? (updateGuide?.commands.length
       ? updateGuide.commands
       : [
+          "git fetch --all --prune",
           "git pull",
           "docker compose -f docker/docker-compose.local-postgres.yml up -d --build server web",
           "若本次更新涉及 Skill ZIP，请从 OpenClaw 安装中心重新下载最新 skill-package.zip 并重新导入客户端",
@@ -334,8 +335,8 @@ export default function PersonalCenterVersionPage() {
           <p className="panel-subtext">
             {guideOnlyMode
               ? repoGuideMode
-                ? "这里统一查看当前版本、最近版本记录，并按指引执行 git pull、重建容器和 Skill 包同步。"
-                : "这里统一查看当前版本、远端更新清单，并按指引执行 git pull、重建容器和 Skill 包同步。"
+                ? "这里统一查看当前版本、最近版本记录，并按指引执行页面生成的 Git 更新命令、重建容器和 Skill 包同步。"
+                : "这里统一查看当前版本、远端更新清单，并按指引执行页面生成的 Git 更新命令、重建容器和 Skill 包同步。"
               : "这里统一查看当前版本、最新版本，并直接完成检查、下载和升级。"}
           </p>
         </div>

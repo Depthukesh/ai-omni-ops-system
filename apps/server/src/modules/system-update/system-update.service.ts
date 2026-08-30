@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { closeSync, createReadStream, createWriteStream, existsSync, openSync, readFileSync } from "node:fs";
 import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { BadGatewayException, BadRequestException, Injectable, InternalServerErrorException } from "@nestjs/common";
@@ -965,7 +965,7 @@ export class SystemUpdateService {
     const changeDocs = await this.readRecentChangeDocs(current.projectRoot, gitInfo, 8);
     const recentSkillRelated = changeDocs.some((item) => item.likelyRequires.skillPackage);
     const recentMigrationRelated = changeDocs.some((item) => item.likelyRequires.migration);
-    const branchName = gitInfo.branchName || "main";
+    const branchName = this.resolveRecommendedGitUpdateBranch(current.projectRoot, gitInfo);
     const composePath = "docker/docker-compose.local-postgres.yml";
     const releaseTag = current.releaseTag || this.buildGitReleaseTag(gitInfo) || "current-workspace";
     const summary = [
@@ -995,6 +995,7 @@ export class SystemUpdateService {
         checksumValue: null,
         updateGuide: {
           commands: [
+            "git fetch --all --prune",
             `git pull origin ${branchName}`,
             `docker compose -f "${composePath}" up -d --build server web`,
             recentMigrationRelated ? `docker compose -f "${composePath}" run --rm db-init` : "如本次更新涉及 schema 或初始化链，再执行：docker compose -f \"docker/docker-compose.local-postgres.yml\" run --rm db-init",
@@ -1004,6 +1005,9 @@ export class SystemUpdateService {
             recentSkillRelated
               ? "最近版本记录里包含 Skill / MCP 相关改动，更新后请到个人中心 -> OpenClaw 安装中心重新同步对应 Skill 或安装说明。"
               : "如果本次改动涉及 Skill / MCP，请在更新完成后到个人中心 -> OpenClaw 安装中心同步最新 Skill 安装方式。",
+            gitInfo.branchName && gitInfo.branchName !== branchName
+              ? `检测到当前本地分支是 ${gitInfo.branchName}，但远端有效更新分支为 ${branchName}，已按远端分支生成 git pull 命令。`
+              : `当前更新命令默认跟随远端有效分支：${branchName}。`,
             gitInfo.remoteUrl
               ? `当前仓库远端：${gitInfo.remoteUrl}`
               : "当前仓库远端地址未能自动识别，若你的代码来自其它分支，请把 git pull 的分支名改成你自己的部署分支。",
@@ -1636,7 +1640,7 @@ export class SystemUpdateService {
             appVersion,
             publishedAt,
             content: preview,
-            changeLogUrl: this.buildChangeDocUrl(gitInfo, fileName),
+            changeLogUrl: this.buildChangeDocUrl(projectRoot, gitInfo, fileName),
             likelyRequires: this.detectChangeDocRequirements(`${title}\n${preview}`),
           } satisfies ChangeDocEntry;
         }),
@@ -1673,14 +1677,37 @@ export class SystemUpdateService {
     return new Date(`${match[1]}-${match[2]}-${match[3]}T00:00:00+08:00`).toISOString();
   }
 
-  private buildChangeDocUrl(gitInfo: GitWorkspaceInfo, fileName: string) {
+  private buildChangeDocUrl(projectRoot: string, gitInfo: GitWorkspaceInfo, fileName: string) {
     const remoteUrl = String(gitInfo.remoteUrl || "").trim();
     if (!remoteUrl.includes("github.com")) {
       return null;
     }
     const normalizedRemote = remoteUrl.replace(/\.git$/i, "").replace(/^git@github\.com:/i, "https://github.com/");
-    const branchName = gitInfo.branchName || "main";
+    const branchName = this.resolveRecommendedGitUpdateBranch(projectRoot, gitInfo);
     return `${normalizedRemote}/blob/${encodeURIComponent(branchName)}/docs/changes/${encodeURIComponent(fileName)}`;
+  }
+
+  private resolveRecommendedGitUpdateBranch(projectRoot: string, gitInfo: GitWorkspaceInfo) {
+    const remoteHeadBranch = this.readGitRemoteHeadBranch(projectRoot);
+    if (remoteHeadBranch) {
+      return remoteHeadBranch;
+    }
+    return gitInfo.branchName || "main";
+  }
+
+  private readGitRemoteHeadBranch(projectRoot: string) {
+    try {
+      const output = execFileSync("git", ["ls-remote", "--symref", "origin", "HEAD"], {
+        cwd: projectRoot,
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "ignore"],
+        timeout: 5000,
+      }).replace(/^\uFEFF+/, "");
+      const match = output.match(/ref:\s+refs\/heads\/([^\s]+)\s+HEAD/);
+      return match?.[1]?.trim() || null;
+    } catch {
+      return null;
+    }
   }
 
   private detectChangeDocRequirements(text: string) {

@@ -175,6 +175,8 @@
 
 ## 最近应优先关注的文档
 
+- `docs/changes/2026-08-30-version-workspace-git-branch-guide-fix.md`
+  - 修正个人中心 `版本与升级` 页面在标准运行态下错误沿用本地旧分支生成 `git pull` 命令的问题，更新引导改为优先跟随远端有效分支
 - `docs/changes/2026-08-30-openclaw-strategy-optimization-records.md`
   - 给内容获客三板块和品牌增长里的 OpenClaw 新增独立“策略优化记录”板块，补齐查看 / 编辑 / 留言 / 删除、20 条分页，以及 MCP / Skill 同步
 - `docs/changes/2026-08-30-openclaw-weekly-review-and-version-history-fix.md`
