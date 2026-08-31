@@ -707,6 +707,8 @@ description: AI 全域智能体网站能力总入口 Skill。先做网站功能�
   - \`minimax-h3-fl2va-first-frame-video\`：首帧参考生视频
   - \`minimax-h3-fl2va-first-last-frame-video\`：首尾帧参考生视频
   - \`minimax-h3-fl2va-multi-image-video\`：多图参考生视频
+  - \`minimax-h3-audio-clip-single-image-digital-human\`：音频裁剪驱动 MiniMax H3 数字人单图版
+  - \`minimax-h3-multi-image-2k-upscale-v3\`：4 步 Lora 超级加速多图生视频 + 2K 放大 V3
   - \`minimax-h3-8step-image-to-video\`：8 步加速图生视频
   - \`minimax-h3-4step-first-last-frame-video\`：4 步加速首尾帧生视频
   - \`minimax-h3-accelerated-all-reference-video\`：全能参考视频
@@ -1018,6 +1020,8 @@ RunningHub 当前常见 appKey 示例：
 - \`minimax-h3-fl2va-first-frame-video\`
 - \`minimax-h3-fl2va-first-last-frame-video\`
 - \`minimax-h3-fl2va-multi-image-video\`
+- \`minimax-h3-audio-clip-single-image-digital-human\`
+- \`minimax-h3-multi-image-2k-upscale-v3\`
 - \`minimax-h3-8step-image-to-video\`
 - \`minimax-h3-4step-first-last-frame-video\`
 - \`minimax-h3-accelerated-all-reference-video\`
@@ -1426,6 +1430,8 @@ RunningHub 关键规则：
 - \`minimax-h3-fl2va-first-frame-video\`：首帧参考生视频
 - \`minimax-h3-fl2va-first-last-frame-video\`：首尾帧参考生视频
 - \`minimax-h3-fl2va-multi-image-video\`：多图参考生视频
+- \`minimax-h3-audio-clip-single-image-digital-human\`：音频裁剪驱动 MiniMax H3 数字人单图版
+- \`minimax-h3-multi-image-2k-upscale-v3\`：4 步 Lora 超级加速多图生视频 + 2K 放大 V3
 - \`minimax-h3-8step-image-to-video\`：8 步加速图生视频
 - \`minimax-h3-4step-first-last-frame-video\`：4 步加速首尾帧生视频
 - \`minimax-h3-accelerated-all-reference-video\`：全能参考视频

@@ -334,6 +334,8 @@ RunningHub 当前常见 appKey 示例：
 - `minimax-h3-fl2va-first-frame-video`
 - `minimax-h3-fl2va-first-last-frame-video`
 - `minimax-h3-fl2va-multi-image-video`
+- `minimax-h3-audio-clip-single-image-digital-human`
+- `minimax-h3-multi-image-2k-upscale-v3`
 - `minimax-h3-8step-image-to-video`
 - `minimax-h3-4step-first-last-frame-video`
 - `minimax-h3-accelerated-all-reference-video`
