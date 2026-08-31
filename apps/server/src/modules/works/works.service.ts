@@ -23483,6 +23483,12 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
   private normalizeRunningHubUserFacingMessage(message: string, fallbackMessage: string) {
     const normalizedMessage = String(message || "").trim();
     if (
+      /errorCode=803\b/i.test(normalizedMessage)
+      || /\bJsonNull\b/i.test(normalizedMessage)
+    ) {
+      return "RunningHub 返回 errorCode=803 / JsonNull，通常不是额度、API Key 或限流问题，而是提交给应用的必填节点仍为空。请先调用 get_app_detail 读取 nodeInfoList 模板，再按原模板回填；尤其确认图片/音频/视频节点不要只保留 nodeId 和 fieldName 空壳，必须实际传入 upload.fileName / upload.contentType / upload.dataBase64，或提供可解析成真实上传的媒体输入。";
+    }
+    if (
       /USER_DOES_NOT_EXIST/i.test(normalizedMessage)
       || /User not found/i.test(normalizedMessage)
       || /未找到对应用户/.test(normalizedMessage)
@@ -23825,6 +23831,7 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       let fieldValue = originalFieldValue;
       let fieldData = item.fieldData;
       const uploadPayload = item.upload || await this.resolveRunningHubRemoteUploadPayload(item, fieldValue);
+      this.assertRunningHubRequiredMediaInputResolved(item, uploadPayload, originalFieldValue);
       this.assertRunningHubImageUploadResolved(item, uploadPayload, originalFieldValue, fieldData);
       if (uploadPayload) {
         const uploadResult = await this.uploadRunningHubMedia(apiKey, item, uploadPayload);
@@ -23966,6 +23973,66 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
     throw new BadRequestException(
       `RunningHub 图片节点 ${String(item.nodeName || item.fieldName || item.nodeId || "").trim() || "image"} 未收到真实上传文件。当前请求仍保留模板图片占位值，服务端已拦截本次提交，避免继续误用示例女生图。请确认 OpenClaw 通过 stdio MCP 脚本传入 localFilePath，或直接传 upload.fileName / upload.contentType / upload.dataBase64。`,
     );
+  }
+
+  private assertRunningHubRequiredMediaInputResolved(
+    item: {
+      nodeId?: string;
+      fieldName?: string;
+      nodeName?: string;
+      fieldType?: string;
+      fieldData?: string;
+      description?: string;
+      descriptionEn?: string;
+      upload?: UploadFilePayload;
+    },
+    uploadPayload: UploadFilePayload | undefined,
+    fieldValue?: string,
+  ) {
+    if (uploadPayload) {
+      return;
+    }
+    const normalizedFieldValue = this.normalizeRunningHubFieldValue(fieldValue);
+    if (normalizedFieldValue) {
+      return;
+    }
+    if (!this.isRunningHubLikelyRequiredMediaInputNode(item)) {
+      return;
+    }
+    const nodeLabel = String(item.nodeName || item.fieldName || item.nodeId || "").trim() || "media";
+    const mediaLabel = this.getRunningHubMediaNodeLabel(item);
+    throw new BadRequestException(
+      `RunningHub ${mediaLabel}节点 ${nodeLabel} 仍为空，当前请求只剩模板空壳，继续提交通常会被 RunningHub 返回 errorCode=803 / JsonNull。请先调用 get_app_detail 获取 nodeInfoList 模板，再为该节点补充真实媒体输入：优先传 upload.fileName / upload.contentType / upload.dataBase64；如果走桥接上传，再确认桥接层已经把本地文件转成真实 upload，而不是只留下 nodeId / fieldName。`,
+    );
+  }
+
+  private isRunningHubLikelyRequiredMediaInputNode(item: {
+    fieldName?: string;
+    nodeName?: string;
+    fieldType?: string;
+    fieldData?: string;
+    description?: string;
+    descriptionEn?: string;
+  }) {
+    if (this.isRunningHubImageUploadNode(item)) {
+      return true;
+    }
+    const normalizedFieldName = String(item.fieldName || "").trim().toLowerCase();
+    if (["image", "audio", "video", "voice", "music", "song"].includes(normalizedFieldName)) {
+      return true;
+    }
+    const haystack = [
+      item.fieldName,
+      item.nodeName,
+      item.fieldType,
+      item.fieldData,
+      item.description,
+      item.descriptionEn,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    return /loadaudio|uploadaudio|loadvideo|uploadvideo|input video|input audio|输入视频|输入音频|驱动音频|人物图|参考图/.test(haystack);
   }
 
   private async resolveRunningHubRemoteUploadPayload(
@@ -24492,9 +24559,20 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
     const rawCode = root.code;
     const code = typeof rawCode === "number" ? rawCode : Number(rawCode || 0);
     const message = String(root.msg || root.message || "").trim();
+    const rawErrorCode = root.errorCode ?? data.errorCode;
+    const errorCode = typeof rawErrorCode === "number" ? rawErrorCode : Number(rawErrorCode || 0);
+    const errorMessage = String(root.errorMessage || data.errorMessage || "").trim();
     if (Number.isFinite(code) && code !== 0) {
       throw new ServiceUnavailableException(
         this.normalizeRunningHubUserFacingMessage(message, "RunningHub 请求失败"),
+      );
+    }
+    if (Number.isFinite(errorCode) && errorCode !== 0) {
+      throw new ServiceUnavailableException(
+        this.normalizeRunningHubUserFacingMessage(
+          [`errorCode=${String(rawErrorCode).trim()}`, errorMessage, message].filter(Boolean).join(" | "),
+          "RunningHub 请求失败",
+        ),
       );
     }
     return {

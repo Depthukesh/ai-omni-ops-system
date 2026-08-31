@@ -350,6 +350,8 @@ RunningHub 当前常见 appKey 示例：
 RunningHub 上传节点补充规则：
 
 - 图片、音频、视频上传节点要么在节点对象顶层传 `localFilePath`，要么传 `upload.fileName / upload.contentType / upload.dataBase64`
+- 普通文本 / 数值节点才只改 `fieldValue`；媒体节点不能只剩 `nodeId + fieldName` 空壳
+- 如果 RunningHub 返回 `errorCode=803 / JsonNull`，优先排查必填图片 / 音频 / 视频节点是否仍为空
 - 不要把 `{ localFilePath: ... }`、`{ fileName, contentType, dataBase64 }` 这类对象直接塞进 `fieldValue` 或 `fieldData`
 - 如果把对象误塞进 `fieldValue / fieldData`，服务端现在会直接拦截，并提示这会被错误串成 `[object Object]`
 

@@ -698,10 +698,12 @@ description: AI 全域智能体网站能力总入口 Skill。先做网站功能�
 
 标准规则：
 
-- 只回填 \`fieldValue\`
+- 普通文本 / 数值节点才只回填 \`fieldValue\`
+- 图片 / 音频 / 视频节点不能只留 \`nodeId + fieldName\` 空壳，必须补真实媒体输入
 - 不猜 \`nodeId\`
 - 不手改 \`fieldData\`
 - stdio MCP 本地文件上传用独立字段 \`localFilePath\`
+- 如果 RunningHub 返回 \`errorCode=803 / JsonNull\`，优先排查必填媒体节点是否仍为空
 - 当前常见 RunningHub appKey 示例：
   - \`minimax-h3-fl2va-text-to-video\`：文生视频
   - \`minimax-h3-fl2va-first-frame-video\`：首帧参考生视频
@@ -1423,6 +1425,8 @@ RunningHub 关键规则：
 2. 再 \`get_app_detail\`
 3. 从返回的 \`nodeInfoList\` 模板里回填参数
 4. 最后 \`generate\`
+5. 图片 / 音频 / 视频节点如果最终只剩 \`nodeId + fieldName\`，没有 \`fieldValue\`，也没有 \`upload\`，不要提交
+6. 同一品牌下 RunningHub 默认按串行执行：上一个任务明确完成或失败后，再发下一个
 
 当前可直接识别的 RunningHub 示例：
 

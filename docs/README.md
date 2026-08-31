@@ -58,6 +58,8 @@
 - 作用：记录重要改动的背景、范围、验证和后续事项
 - 要求：真实代码改动默认同步补一条变更记录
 - 最新补充：
+  - `docs/changes/2026-08-31-runninghub-openclaw-jsonnull-guard.md`
+    - 说明 RunningHub `errorCode=803 / JsonNull` 的真实根因是必填媒体节点空提交，并补齐服务端前置拦截与 OpenClaw Skill / MCP / 安装中心指引
   - `docs/changes/2026-08-31-douyin-runninghub-app-sync-2.md`
     - 给内容获客 `某音/某号 -> RunningHub应用` 新增 2 个 RunningHub 应用，并同步收口到 OpenClaw 安装中心与 Skill / MCP 示例说明
   - `docs/changes/2026-08-28-docker-web-corepack-runtime-download-fix.md`
@@ -183,6 +185,8 @@
   - 给内容获客三板块和品牌增长里的 OpenClaw 新增独立“策略优化记录”板块，补齐查看 / 编辑 / 留言 / 删除、20 条分页，以及 MCP / Skill 同步
 - `docs/changes/2026-08-31-douyin-runninghub-app-sync-2.md`
   - 给内容获客 `某音/某号 -> RunningHub应用` 新增 2 个 RunningHub 应用，并同步收口到 OpenClaw 安装中心与 Skill / MCP 示例说明
+- `docs/changes/2026-08-31-runninghub-openclaw-jsonnull-guard.md`
+  - 说明 RunningHub `errorCode=803 / JsonNull` 的真实根因是必填媒体节点空提交，并补齐服务端前置拦截与 OpenClaw Skill / MCP / 安装中心指引
 - `docs/changes/2026-08-30-openclaw-weekly-review-and-version-history-fix.md`
   - 把内容获客三板块和品牌增长里的 OpenClaw 复盘统一改成“每周复盘”，补齐查看后直接编辑与留言协作，并修复标准运行态版本页当前版本号与历史更新记录的展示
 - `docs/changes/2026-08-28-docker-web-corepack-runtime-download-fix.md`

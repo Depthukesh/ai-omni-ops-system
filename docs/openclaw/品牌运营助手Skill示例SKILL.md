@@ -382,7 +382,8 @@
   - `action=get_app_detail`
   - `appKey=<应用key>`
 - 从应用详情返回的 `nodeInfoList` 中读取参数模板：
-  - 只回填每个节点的 `fieldValue`
+  - 普通文本 / 数值节点只回填 `fieldValue`
+  - 图片、音频、视频输入节点不能只留空壳；必须实际补媒体输入
   - 保留 `nodeId`、`fieldName`、`fieldType`、`description`、`descriptionEn`
 - 真正触发生成时，使用：
   - `section=runninghub`
@@ -392,10 +393,13 @@
 - 如果通过 stdio MCP 调用，且某个上传节点对应当前机器上的本地图片、音频或视频文件，应在该节点对象里新增字段 `localFilePath: "<本地绝对路径>"`；桥接层会自动读取文件
 - 对图片、音频、视频上传节点，服务端都会先把文件上传到 RunningHub，再把 RunningHub 官方返回的可用路径回填给对应节点
 - 对标准图片上传节点（例如 `LoadImage` 且模板 `fieldData` 内含 `image_upload`），不要再把网站 URL 手动写进 `fieldValue`；应交给服务端上传并回填
+- 提交前必须自检：如果某个图片 / 音频 / 视频节点最终只剩 `nodeId + fieldName`，没有 `fieldValue`，也没有 `upload`，不要提交；这类空节点通常会让 RunningHub 返回 `errorCode=803 / JsonNull`
+- 如果收到 `errorCode=803 / JsonNull`，优先排查是否把必填媒体节点空着提交了，而不是先怀疑额度、API Key 或限流
 - 不要把 `localFilePath=...` 这段字面文本塞进 `fieldValue` 或 `fieldData`；那只是兼容旧写法，标准写法仍然是独立字段 `localFilePath`
 - 也不要把 `{ localFilePath: ... }`、`{ fileName, contentType, dataBase64 }` 这类对象直接塞进 `fieldValue / fieldData`；服务端会把这种错误写法直接拦截，避免最终落成 `[object Object]`
 - 不要手动修改模板里的 `fieldData`；尤其不要保留或手填 `example.png` 这类占位值，保持 `get_app_detail` 返回模板原样即可
 - 不要猜测 `nodeId`，也不要在 `nodeInfoList` 为空时直接调用 `generate`
+- RunningHub 任务默认按“一个应用任务完成后再提下一个”的串行方式执行，不要在同一品牌下并发堆多个生成任务
 - 当前常见 RunningHub appKey 示例：
   - `minimax-h3-fl2va-text-to-video`：文生视频
   - `minimax-h3-fl2va-first-frame-video`：首帧参考生视频

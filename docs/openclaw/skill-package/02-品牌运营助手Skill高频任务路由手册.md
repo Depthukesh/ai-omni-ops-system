@@ -348,6 +348,11 @@ RunningHub 关键规则：
    - 传本地文件时，把 `localFilePath` 放在节点对象顶层
    - 传文件内容时，走 `upload.fileName / upload.contentType / upload.dataBase64`
    - 不要把 `{ localFilePath: ... }`、`{ fileName, contentType, dataBase64 }` 这类对象直接塞进 `fieldValue / fieldData`
+6. 提交前再做一次自检：
+   - 普通文本 / 数值节点才只改 `fieldValue`
+   - 图片 / 音频 / 视频节点如果最终只剩 `nodeId + fieldName`，没有 `fieldValue`，也没有 `upload`，不要提交
+   - 如果 RunningHub 返回 `errorCode=803 / JsonNull`，优先判定为必填媒体节点仍为空，而不是先判额度、API Key 或限流
+7. 同一品牌下 RunningHub 任务默认按串行执行：上一个任务拿到结果或明确失败后，再发下一个
 
 当前可直接识别的 RunningHub 示例：
 
