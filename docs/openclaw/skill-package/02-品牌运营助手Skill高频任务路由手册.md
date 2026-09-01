@@ -531,12 +531,31 @@ RunningHub 关键规则：
 - 帮我看网站诊断、知识库搭建或 GEO优化方案
 - 帮我看自媒体内容 / 第三方媒体 / 品牌网站列表
 - 帮我看某条结果的存储地址
+- 帮我看当前已经缓存了多少家软文街媒体
+- 继续同步下一批软文街媒体
+- 在当前已缓存媒体里搜索某个平台或某个地区的媒体
 
 优先工具：
 
 - `get_openclaw_geo_contents`
 - `create_openclaw_geo_content`
 - `delete_openclaw_geo_content`
+- `get_openclaw_third_party_media_delivery_resources`
+- `sync_openclaw_third_party_media_delivery_resources`
+
+处理原则补充：
+
+- 用户问“第三方媒体投放为什么每次只看到一小部分”时，优先把它理解为缓存库读取与继续同步问题，而不是直接重拉第一页
+- 读列表时优先：
+  - `get_openclaw_third_party_media_delivery_resources`
+  - 按需带 `page`
+  - 按需带 `searchKeyword`
+- 用户明确要求“再拉一些 / 继续刷新 / 继续补媒体”时，再调用：
+  - `sync_openclaw_third_party_media_delivery_resources`
+- 当前站内语义固定为：
+  - 同步一次 = 继续拉软文街下一页并保存
+  - 列表页 = 已缓存媒体库按 20 条分页
+  - 搜索 = 只搜当前品牌已缓存媒体，不只搜远端单页
 
 ### 3.20 全网获客评论获客
 

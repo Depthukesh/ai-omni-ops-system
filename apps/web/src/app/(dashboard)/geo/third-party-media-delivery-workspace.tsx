@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useState } from "react";
 import {
   createThirdPartyMediaDelivery,
   getThirdPartyMediaDeliveryResources,
+  syncThirdPartyMediaDeliveryResources,
   type OpenClawGeoContentRecord,
   type ThirdPartyMediaDeliveryRecord,
   type ThirdPartyMediaDeliveryResourceRecord,
@@ -21,10 +22,15 @@ type ThirdPartyMediaDeliveryWorkspaceProps = {
 const emptyWorkspace: ThirdPartyMediaDeliveryResourceWorkspace = {
   items: [],
   page: 1,
-  pageSize: 100,
+  pageSize: 20,
   total: 0,
   hasMore: false,
+  cachedTotal: 0,
+  searchKeyword: "",
   syncedAt: "",
+  nextRemotePage: 1,
+  remoteLastPage: 0,
+  hasRemoteMore: true,
 };
 
 function getResourceText(value?: string) {
@@ -42,6 +48,8 @@ export function ThirdPartyMediaDeliveryWorkspace(props: ThirdPartyMediaDeliveryW
   const [errorMessage, setErrorMessage] = useState("");
   const [notice, setNotice] = useState("");
   const [page, setPage] = useState(1);
+  const [searchInput, setSearchInput] = useState("");
+  const [appliedSearchKeyword, setAppliedSearchKeyword] = useState("");
   const [submittingResourceId, setSubmittingResourceId] = useState("");
   const [selectedResource, setSelectedResource] = useState<ThirdPartyMediaDeliveryResourceRecord | null>(null);
   const [selectedArticleId, setSelectedArticleId] = useState("");
@@ -77,7 +85,10 @@ export function ThirdPartyMediaDeliveryWorkspace(props: ThirdPartyMediaDeliveryW
     let cancelled = false;
     setIsLoading(true);
     setErrorMessage("");
-    void getThirdPartyMediaDeliveryResources(props.brandId, page)
+    void getThirdPartyMediaDeliveryResources(props.brandId, {
+      page,
+      searchKeyword: appliedSearchKeyword,
+    })
       .then((result) => {
         if (cancelled) {
           return;
@@ -99,7 +110,7 @@ export function ThirdPartyMediaDeliveryWorkspace(props: ThirdPartyMediaDeliveryW
     return () => {
       cancelled = true;
     };
-  }, [page, props.brandId]);
+  }, [appliedSearchKeyword, page, props.brandId]);
 
   async function handleRefresh() {
     if (!props.brandId) {
@@ -109,14 +120,35 @@ export function ThirdPartyMediaDeliveryWorkspace(props: ThirdPartyMediaDeliveryW
     setErrorMessage("");
     setNotice("");
     try {
-      const result = await getThirdPartyMediaDeliveryResources(props.brandId, page);
-      setWorkspace(result);
-      setNotice("第三方媒体投放列表已刷新。");
+      const result = await syncThirdPartyMediaDeliveryResources(props.brandId, {
+        page,
+        searchKeyword: appliedSearchKeyword,
+      });
+      setWorkspace(result.workspace);
+      setNotice(
+        result.skipped
+          ? `软文街媒体已同步到最后一页，当前直接使用已缓存的 ${result.workspace.cachedTotal} 家媒体。`
+          : `已同步软文街第 ${result.remotePage} 页，新增 ${result.createdCount} 家、更新 ${result.updatedCount} 家；当前累计缓存 ${result.workspace.cachedTotal} 家媒体。`,
+      );
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "刷新第三方媒体投放列表失败。");
     } finally {
       setIsLoading(false);
     }
+  }
+
+  function handleSearchSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setNotice("");
+    setPage(1);
+    setAppliedSearchKeyword(searchInput.trim());
+  }
+
+  function handleClearSearch() {
+    setSearchInput("");
+    setAppliedSearchKeyword("");
+    setPage(1);
+    setNotice("");
   }
 
   async function handleSubmitDelivery() {
@@ -154,13 +186,37 @@ export function ThirdPartyMediaDeliveryWorkspace(props: ThirdPartyMediaDeliveryW
               可投放文章 {availableArticles.length} 篇
             </span>
             <span className={`archive-pill ${workspace.items.length ? "status-ready" : "status-pending"}`}>
-              媒体 {workspace.total || workspace.items.length} 家
+              已缓存媒体 {workspace.cachedTotal} 家
             </span>
             <button type="button" className="secondary-button" onClick={() => void handleRefresh()} disabled={isLoading}>
-              刷新媒体
+              {isLoading ? "同步中..." : "刷新媒体"}
             </button>
           </div>
         </div>
+
+        <form className="strategy-inline-actions" style={{ justifyContent: "space-between", marginBottom: 16 }} onSubmit={handleSearchSubmit}>
+          <label className="field" style={{ flex: "1 1 320px", marginBottom: 0 }}>
+            <span>搜索媒体</span>
+            <input
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
+              placeholder="按媒体名称、平台、分类、地区搜索"
+            />
+          </label>
+          <div className="openclaw-record-table__actions">
+            <button type="submit" className="secondary-button" disabled={isLoading}>
+              搜索媒体
+            </button>
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={handleClearSearch}
+              disabled={isLoading || (!searchInput && !appliedSearchKeyword)}
+            >
+              清空搜索
+            </button>
+          </div>
+        </form>
 
         {notice ? <div className="personal-inline-hint" style={{ marginBottom: 16 }}><strong>最新结果</strong>{notice}</div> : null}
         {errorMessage ? <div className="personal-inline-hint" style={{ marginBottom: 16, color: "var(--danger-text)" }}><strong>加载失败</strong>{errorMessage}</div> : null}
@@ -173,7 +229,13 @@ export function ThirdPartyMediaDeliveryWorkspace(props: ThirdPartyMediaDeliveryW
 
         {!workspace.items.length ? (
           <div className="note-empty-state">
-            {isLoading ? "正在同步第三方媒体投放列表..." : "当前没有可展示的媒体资源。请确认软文街凭证是否已配置，并刷新后重试。"}
+            {isLoading
+              ? "正在同步第三方媒体投放列表..."
+              : appliedSearchKeyword
+                ? "当前搜索条件下没有匹配的媒体，请换个关键词试试。"
+                : workspace.cachedTotal
+                  ? "当前页没有可展示的媒体资源，请切换页码或继续刷新媒体。"
+                  : "当前还没有已缓存的媒体资源。请先点击“刷新媒体”，系统会按页增量同步软文街媒体列表并长期保存。"}
           </div>
         ) : (
           <>
@@ -241,7 +303,9 @@ export function ThirdPartyMediaDeliveryWorkspace(props: ThirdPartyMediaDeliveryW
 
             <div className="strategy-inline-actions" style={{ justifyContent: "space-between", marginTop: 16 }}>
               <span className="status-text">
-                第 {workspace.page} 页 · 共 {workspace.total || workspace.items.length} 家媒体
+                第 {workspace.page} / {Math.max(1, Math.ceil(Math.max(1, workspace.total) / workspace.pageSize))} 页 · 当前结果 {workspace.total} 家
+                {workspace.cachedTotal ? ` · 已缓存 ${workspace.cachedTotal} 家` : ""}
+                {workspace.hasRemoteMore ? ` · 下次刷新继续同步第 ${workspace.nextRemotePage} 页` : workspace.remoteLastPage ? " · 软文街已同步到最后一页" : ""}
                 {workspace.syncedAt ? ` · 最近同步 ${props.formatDateTime(workspace.syncedAt)}` : ""}
               </span>
               <div className="openclaw-record-table__actions">

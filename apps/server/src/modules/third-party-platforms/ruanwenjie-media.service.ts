@@ -21,6 +21,8 @@ type RuanwenjieApiEnvelope = {
   message?: string;
   status?: number;
   data?: unknown;
+  pagination?: unknown;
+  response_data?: unknown;
   [key: string]: unknown;
 };
 
@@ -119,7 +121,7 @@ export class RuanwenjieMediaService {
         resource_id: resourceId,
       },
     });
-    const data = this.asRecord(envelope.data);
+    const data = this.unwrapDeliveryRecord(envelope);
     const createdAt = new Date().toISOString();
     return {
       orderId: this.readText(data.order_id) || this.readText(data.id) || "",
@@ -308,20 +310,25 @@ export class RuanwenjieMediaService {
 
   private normalizeResourceWorkspace(payload: RuanwenjieApiEnvelope, requestedPage: number): RuanwenjieMediaResourceWorkspace {
     const container = this.unwrapListContainer(payload);
+    const pagination = this.asRecord(container.pagination);
     const items = this.unwrapListItems(container).map((item) => this.normalizeResourceItem(item));
-    const pageSize = this.readNumber(container.per_page)
+    const pageSize = this.readNumber(pagination.per_page)
+      || this.readNumber(container.per_page)
       || this.readNumber(container.page_size)
       || this.readNumber(container.pageSize)
       || items.length
       || 100;
-    const currentPage = this.readNumber(container.current_page)
+    const currentPage = this.readNumber(pagination.current_page)
+      || this.readNumber(container.current_page)
       || this.readNumber(container.page)
       || requestedPage;
-    const total = this.readNumber(container.total)
+    const total = this.readNumber(pagination.total)
+      || this.readNumber(container.total)
       || this.readNumber(container.count)
       || this.readNumber(container.total_count)
       || (items.length + (currentPage - 1) * pageSize);
-    const lastPage = this.readNumber(container.last_page)
+    const lastPage = this.readNumber(pagination.last_page)
+      || this.readNumber(container.last_page)
       || this.readNumber(container.total_page)
       || Math.max(currentPage, pageSize > 0 ? Math.ceil(total / pageSize) : currentPage);
     return {
@@ -334,20 +341,32 @@ export class RuanwenjieMediaService {
     };
   }
 
-  private unwrapListContainer(payload: RuanwenjieApiEnvelope) {
+  private unwrapListContainer(payload: RuanwenjieApiEnvelope): Record<string, unknown> {
     const data = payload.data;
+    const pagination = this.asRecord(payload.pagination);
     if (Array.isArray(data)) {
-      return { list: data };
+      return { list: data, pagination };
     }
     const first = this.asRecord(data);
     if (Array.isArray(first.data) || Array.isArray(first.list) || Array.isArray(first.items)) {
-      return first;
+      return {
+        ...first,
+        pagination: Object.keys(this.asRecord(first.pagination)).length ? first.pagination : pagination,
+      };
     }
     const nestedData = this.asRecord(first.data);
     if (Array.isArray(nestedData.data) || Array.isArray(nestedData.list) || Array.isArray(nestedData.items)) {
-      return nestedData;
+      return {
+        ...nestedData,
+        pagination: Object.keys(this.asRecord(nestedData.pagination)).length
+          ? nestedData.pagination
+          : (Object.keys(this.asRecord(first.pagination)).length ? first.pagination : pagination),
+      };
     }
-    return first;
+    return {
+      ...first,
+      pagination: Object.keys(this.asRecord(first.pagination)).length ? first.pagination : pagination,
+    };
   }
 
   private unwrapListItems(container: Record<string, unknown>) {
@@ -361,6 +380,27 @@ export class RuanwenjieMediaService {
       return container.items.map((item) => this.asRecord(item));
     }
     return [];
+  }
+
+  private unwrapDeliveryRecord(payload: RuanwenjieApiEnvelope) {
+    if (Array.isArray(payload.response_data)) {
+      return this.asRecord(payload.response_data[0]);
+    }
+    const responseData = this.asRecord(payload.response_data);
+    if (Object.keys(responseData).length) {
+      return responseData;
+    }
+
+    const data = this.asRecord(payload.data);
+    if (Array.isArray(data.response_data)) {
+      return this.asRecord(data.response_data[0]);
+    }
+    const nestedResponseData = this.asRecord(data.response_data);
+    if (Object.keys(nestedResponseData).length) {
+      return nestedResponseData;
+    }
+
+    return data;
   }
 
   private normalizeResourceItem(item: Record<string, unknown>): RuanwenjieMediaResourceRecord {

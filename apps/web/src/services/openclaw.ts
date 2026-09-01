@@ -547,6 +547,9 @@ export type ThirdPartyMediaDeliveryResourceRecord = {
   includeRate: string;
   isSelfMedia: boolean;
   raw: Record<string, unknown>;
+  sourceRemotePage: number;
+  syncedAt: string;
+  updatedAt: string;
 };
 
 export type ThirdPartyMediaDeliveryResourceWorkspace = {
@@ -555,6 +558,23 @@ export type ThirdPartyMediaDeliveryResourceWorkspace = {
   pageSize: number;
   total: number;
   hasMore: boolean;
+  cachedTotal: number;
+  searchKeyword: string;
+  syncedAt: string;
+  nextRemotePage: number;
+  remoteLastPage: number;
+  hasRemoteMore: boolean;
+};
+
+export type ThirdPartyMediaDeliveryResourceSyncResult = {
+  workspace: ThirdPartyMediaDeliveryResourceWorkspace;
+  remotePage: number;
+  fetchedCount: number;
+  createdCount: number;
+  updatedCount: number;
+  skipped: boolean;
+  hasRemoteMore: boolean;
+  nextRemotePage: number;
   syncedAt: string;
 };
 
@@ -689,13 +709,36 @@ export async function deleteOpenClawGeoContent(
   );
 }
 
-export async function getThirdPartyMediaDeliveryResources(brandId: string, page?: number) {
+export async function getThirdPartyMediaDeliveryResources(
+  brandId: string,
+  options?: {
+    page?: number;
+    searchKeyword?: string;
+  },
+) {
   const query = new URLSearchParams();
-  if (typeof page === "number") {
-    query.set("page", String(page));
+  if (typeof options?.page === "number") {
+    query.set("page", String(options.page));
+  }
+  if (options?.searchKeyword?.trim()) {
+    query.set("searchKeyword", options.searchKeyword.trim());
   }
   return request<ThirdPartyMediaDeliveryResourceWorkspace>(
     `/openclaw/brands/${brandId}/third-party-media-delivery/resources${query.size ? `?${query.toString()}` : ""}`,
+  );
+}
+
+export async function syncThirdPartyMediaDeliveryResources(
+  brandId: string,
+  payload?: {
+    page?: number;
+    searchKeyword?: string;
+  },
+) {
+  return jsonRequest<ThirdPartyMediaDeliveryResourceSyncResult>(
+    `/openclaw/brands/${brandId}/third-party-media-delivery/resources/sync`,
+    "POST",
+    payload || {},
   );
 }
 

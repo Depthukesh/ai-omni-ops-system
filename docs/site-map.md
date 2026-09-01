@@ -284,7 +284,10 @@
   - 非 HTML 附件受控副本
   - `存储地址` 展示
 - `第三方媒体` 当前在原文章列表下方继续补了 `第三方媒体投放`：
-  - 后端通过软文街平台实时拉取可投放媒体列表
+  - 后端会把每次从软文街读取到的媒体列表按品牌持续缓存到站内资源库，不再每次重新从零刷新
+  - 页面默认读取站内已缓存媒体，并固定按每页 20 条分页
+  - `刷新媒体` 会继续同步软文街下一页到缓存库，而不是覆盖旧结果
+  - 支持按媒体名称、平台、分类、地区搜索当前品牌已缓存媒体
   - 每行支持 `立即投放`
   - 投放时直接从当前品牌已保存的 `third_party_media` HTML 文章里选择并提交订单
 - 非 HTML 附件当前通过受控副本落到 `reports/<brandId>/openclaw/geo/...`，在 `local-single-user` 安装态下会映射为本地文件夹地址
@@ -292,8 +295,11 @@
   - `get_openclaw_geo_contents`
   - `create_openclaw_geo_content`
   - `delete_openclaw_geo_content`
+  - `get_openclaw_third_party_media_delivery_resources`
+  - `sync_openclaw_third_party_media_delivery_resources`
 - 参考变更：`docs/changes/2026-08-12-geo-openclaw-content-workspace-expansion.md`
 - 参考变更：`docs/changes/2026-08-16-geo-third-party-media-delivery-and-ruanwenjie-integration.md`
+- 参考变更：`docs/changes/2026-09-01-ruanwenjie-media-delivery-cache-and-search.md`
 
 ### 4.5B 全网获客工作台 `/all-network-growth`
 

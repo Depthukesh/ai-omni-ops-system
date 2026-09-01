@@ -525,6 +525,11 @@
 - 其它 GEO 一次性 / 多次生成内容：
   - 主表：`OpenClawGeoContent`
   - 用途：保存关键词挖掘、网站诊断、知识库搭建、GEO优化方案、自媒体内容、第三方媒体、品牌网站等结果
+- 第三方媒体投放缓存：
+  - 运行时表：`OpenClawThirdPartyMediaResource`
+  - 同步状态表：`OpenClawThirdPartyMediaSyncState`
+  - 用途：按 `brandId + workspaceScope + providerType + remoteResourceId` 持续缓存软文街媒体资源，记录来源远端页码、最近同步时间、下一次待同步页码，并支撑站内 20 条分页与搜索
+  - 当前说明：这两张表延续 OpenClaw GEO 链路的运行时建表模式，不写入 `prisma/schema.prisma`，由服务启动后按 SQLite / PostgreSQL 当前运行模式受控自举
 - 附件存储：
   - 非 HTML 附件统一走受控副本
   - 当前存储键前缀：`reports/<brandId>/openclaw/geo/...`

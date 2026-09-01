@@ -178,7 +178,12 @@
 - 已放弃的多-agent 方案文档已经移除，不再作为当前开发模式的一部分
 
 ## 最近应优先关注的文档
-
+- `docs/changes/2026-09-01-ruanwenjie-media-delivery-cache-and-search.md`
+  - 记录 GEO `第三方媒体投放` 已从“临时拉取单页”升级为“站内持续缓存软文街媒体库”，支持继续同步下一页、按 20 条分页查看，以及按媒体名称 / 平台 / 分类 / 地区搜索，并同步补齐 OpenClaw MCP / Skill 说明
+- `docs/changes/2026-09-01-ruanwenjie-media-delivery-debug-and-response-alignment.md`
+  - 记录软文街第三方媒体投放“连接不上”的真实排查结果：平台与凭证当前都可用，当前代码需对齐顶层 `pagination` 与下单 `response_data` 响应结构，同时说明当前品牌下暂无可投放的第三方媒体文章
+- `docs/changes/2026-09-01-account-isolation-rollback-from-multi-brand.md`
+  - 按用户要求回退未提交的多品牌扩展，恢复到“账号隔离、一账号一品牌”的当前使用口径，并同步撤回 OpenClaw 安装中心与 Skill 的多品牌说明
 - `docs/changes/2026-08-30-version-workspace-git-branch-guide-fix.md`
   - 修正个人中心 `版本与升级` 页面在标准运行态下错误沿用本地旧分支生成 `git pull` 命令的问题，更新引导改为优先跟随远端有效分支
 - `docs/changes/2026-08-30-openclaw-strategy-optimization-records.md`

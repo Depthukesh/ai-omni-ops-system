@@ -489,6 +489,21 @@ RunningHub 上传节点补充规则：
 - `get_openclaw_geo_contents`
 - `create_openclaw_geo_content`
 - `delete_openclaw_geo_content`
+- `get_openclaw_third_party_media_delivery_resources`
+- `sync_openclaw_third_party_media_delivery_resources`
+
+第三方媒体投放缓存补充：
+
+- `get_openclaw_third_party_media_delivery_resources`
+  - 读取 GEO `第三方媒体投放` 当前已缓存的软文街媒体库
+  - 支持：
+    - `page`
+    - `searchKeyword`
+  - 页面语义固定为站内每页 20 条，而不是远端接口原始分页
+- `sync_openclaw_third_party_media_delivery_resources`
+  - 继续同步软文街下一页媒体到当前品牌缓存库
+  - 不覆盖历史缓存
+  - 返回同步后的站内分页结果
 
 ## 16. 全网获客
 

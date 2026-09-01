@@ -24,6 +24,7 @@ import {
   listOpenClawGeoContentCatalog,
 } from "./openclaw-geo-content-catalog";
 import { OpenClawGeoContentService } from "./openclaw-geo-content.service";
+import { OpenClawThirdPartyMediaResourceService } from "./openclaw-third-party-media-resource.service";
 import { OpenClawInstallationService } from "./openclaw-installation.service";
 import { OpenClawDailyPlanService } from "./openclaw-daily-plan.service";
 import { OpenClawGeoVisibilityReportService } from "./openclaw-geo-visibility-report.service";
@@ -2611,6 +2612,32 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
     },
   },
   {
+    name: "get_openclaw_third_party_media_delivery_resources",
+    description: "查看 GEO 第三方媒体投放已缓存的软文街媒体库，支持按 20 条分页读取，并可按媒体名称、平台、分类、地区搜索。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceScope: { type: "string", enum: ["geo"], description: "可选：当前固定使用 GEO 工作台。" },
+        page: { type: "integer", minimum: 1, maximum: 999, description: "可选：站内缓存分页页码，默认第 1 页，每页固定 20 条。" },
+        searchKeyword: { type: "string", description: "可选：按媒体名称、平台、分类、地区搜索当前品牌已缓存媒体。" },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "sync_openclaw_third_party_media_delivery_resources",
+    description: "继续同步软文街下一页媒体到 GEO 第三方媒体投放缓存库，不覆盖历史缓存；同步后仍按站内 20 条分页和搜索结果返回。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceScope: { type: "string", enum: ["geo"], description: "可选：当前固定使用 GEO 工作台。" },
+        page: { type: "integer", minimum: 1, maximum: 999, description: "可选：返回站内缓存分页页码，默认第 1 页，每页固定 20 条。" },
+        searchKeyword: { type: "string", description: "可选：同步后按媒体名称、平台、分类、地区筛选当前品牌已缓存媒体。" },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
     name: "get_openclaw_comment_leads",
     description: "查看全网获客工作台中的评论获客列表，可按来源平台筛选。",
     inputSchema: {
@@ -3096,6 +3123,7 @@ export class OpenClawService {
     private readonly openClawCreativeMaterialService: OpenClawCreativeMaterialService,
     private readonly openClawGeoVisibilityReportService: OpenClawGeoVisibilityReportService,
     private readonly openClawGeoContentService: OpenClawGeoContentService,
+    private readonly openClawThirdPartyMediaResourceService: OpenClawThirdPartyMediaResourceService,
     private readonly openClawCommentLeadService: OpenClawCommentLeadService,
     private readonly openClawPlatformLeadService: OpenClawPlatformLeadService,
     private readonly openClawVideoWorkService: OpenClawVideoWorkService,
@@ -8766,6 +8794,87 @@ export class OpenClawService {
     });
   }
 
+  async getOpenClawThirdPartyMediaDeliveryResources(
+    headers: HeadersMap,
+    options?: {
+      workspaceScope?: string;
+      page?: number;
+      searchKeyword?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "view", auth);
+    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope || "geo");
+    const workspaceLabel = getOpenClawWorkspaceDisplayName(workspaceScope);
+    const workspacePath = getOpenClawWorkspaceDashboardPath(workspaceScope);
+    const workspace = await this.openClawThirdPartyMediaResourceService.listWorkspace(brandId, {
+      workspaceScope,
+      page: options?.page,
+      searchKeyword: typeof options?.searchKeyword === "string" ? options.searchKeyword : undefined,
+    });
+    const pageCount = Math.max(1, Math.ceil(Math.max(1, workspace.total) / Math.max(1, workspace.pageSize)));
+    const searchKeyword = String(options?.searchKeyword || "").trim();
+
+    return this.buildSummaryResponse({
+      title: `${workspaceLabel}第三方媒体投放缓存库`,
+      summary: workspace.cachedTotal
+        ? searchKeyword
+          ? `当前品牌 ${workspaceLabel} 板块已缓存 ${workspace.cachedTotal} 家软文街媒体；搜索“${searchKeyword}”命中 ${workspace.total} 家，当前第 ${workspace.page}/${pageCount} 页。`
+          : `当前品牌 ${workspaceLabel} 板块已缓存 ${workspace.cachedTotal} 家软文街媒体，当前第 ${workspace.page}/${pageCount} 页。`
+        : `当前品牌 ${workspaceLabel} 板块还没有已缓存的软文街媒体，请先同步媒体列表。`,
+      highlights: workspace.items.length
+        ? workspace.items.slice(0, 5).map((item) => `${item.name}｜${item.platform || "未知平台"}｜来源页 ${item.sourceRemotePage}`)
+        : [
+            workspace.cachedTotal
+              ? "当前页无结果，可切换分页或搜索条件"
+              : "缓存媒体数：0",
+          ],
+      data: workspace,
+      links: [{ label: `打开${workspaceLabel}工作台`, url: workspacePath }],
+      resourceKind: "openclaw_third_party_media_resource",
+    });
+  }
+
+  async syncOpenClawThirdPartyMediaDeliveryResources(
+    headers: HeadersMap,
+    options?: {
+      workspaceScope?: string;
+      page?: number;
+      searchKeyword?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "view", auth);
+    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope || "geo");
+    const workspaceLabel = getOpenClawWorkspaceDisplayName(workspaceScope);
+    const workspacePath = getOpenClawWorkspaceDashboardPath(workspaceScope);
+    const result = await this.openClawThirdPartyMediaResourceService.syncNextPage(brandId, {
+      workspaceScope,
+      page: options?.page,
+      searchKeyword: typeof options?.searchKeyword === "string" ? options.searchKeyword : undefined,
+    });
+
+    return this.buildSummaryResponse({
+      title: `${workspaceLabel}第三方媒体投放缓存已同步`,
+      summary: result.skipped
+        ? `软文街媒体已同步到最后一页，当前继续使用已缓存的 ${result.workspace.cachedTotal} 家媒体。`
+        : `已同步软文街第 ${result.remotePage} 页，新增 ${result.createdCount} 家、更新 ${result.updatedCount} 家；当前累计缓存 ${result.workspace.cachedTotal} 家媒体。`,
+      highlights: [
+        `当前缓存：${result.workspace.cachedTotal} 家`,
+        `当前结果：第 ${result.workspace.page} 页，共 ${result.workspace.total} 家`,
+        result.hasRemoteMore
+          ? `下次同步：远端第 ${result.nextRemotePage} 页`
+          : "远端状态：已同步到最后一页",
+      ],
+      data: result,
+      links: [{ label: `打开${workspaceLabel}工作台`, url: workspacePath }],
+      resourceKind: "openclaw_third_party_media_resource",
+      resultStatus: "COMPLETED",
+    });
+  }
+
   async getOpenClawCommentLeads(
     headers: HeadersMap,
     options?: {
@@ -13907,6 +14016,18 @@ export class OpenClawService {
           workspaceScope: typeof toolArgs.workspaceScope === "string" ? toolArgs.workspaceScope : undefined,
           contentType: typeof toolArgs.contentType === "string" ? toolArgs.contentType : undefined,
           contentId: typeof toolArgs.contentId === "string" ? toolArgs.contentId : undefined,
+        });
+      case "get_openclaw_third_party_media_delivery_resources":
+        return this.getOpenClawThirdPartyMediaDeliveryResources(headers, {
+          workspaceScope: typeof toolArgs.workspaceScope === "string" ? toolArgs.workspaceScope : undefined,
+          page: typeof toolArgs.page === "number" ? toolArgs.page : undefined,
+          searchKeyword: typeof toolArgs.searchKeyword === "string" ? toolArgs.searchKeyword : undefined,
+        });
+      case "sync_openclaw_third_party_media_delivery_resources":
+        return this.syncOpenClawThirdPartyMediaDeliveryResources(headers, {
+          workspaceScope: typeof toolArgs.workspaceScope === "string" ? toolArgs.workspaceScope : undefined,
+          page: typeof toolArgs.page === "number" ? toolArgs.page : undefined,
+          searchKeyword: typeof toolArgs.searchKeyword === "string" ? toolArgs.searchKeyword : undefined,
         });
       case "get_openclaw_comment_leads":
         return this.getOpenClawCommentLeads(headers, {

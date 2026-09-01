@@ -30,6 +30,7 @@ import { OpenClawLobsterDiaryService } from "./openclaw-lobster-diary.service";
 import { OpenClawStrategyOptimizationController } from "./openclaw-strategy-optimization.controller";
 import { OpenClawStrategyOptimizationService } from "./openclaw-strategy-optimization.service";
 import { OpenClawThirdPartyMediaDeliveryController } from "./openclaw-third-party-media-delivery.controller";
+import { OpenClawThirdPartyMediaResourceService } from "./openclaw-third-party-media-resource.service";
 import { OpenClawService } from "./openclaw.service";
 import { OpenClawVideoWorkController } from "./openclaw-video-work.controller";
 import { OpenClawVideoWorkService } from "./openclaw-video-work.service";
@@ -63,6 +64,7 @@ import { LocalRuntimeModule } from "../local-runtime/local-runtime.module";
     OpenClawInstallationService,
     OpenClawGeoVisibilityReportService,
     OpenClawGeoContentService,
+    OpenClawThirdPartyMediaResourceService,
     OpenClawLobsterDiaryService,
     OpenClawStrategyOptimizationService,
     OpenClawDailyPlanService,
@@ -77,6 +79,7 @@ import { LocalRuntimeModule } from "../local-runtime/local-runtime.module";
     OpenClawInstallationService,
     OpenClawGeoVisibilityReportService,
     OpenClawGeoContentService,
+    OpenClawThirdPartyMediaResourceService,
     OpenClawLobsterDiaryService,
     OpenClawStrategyOptimizationService,
     OpenClawDailyPlanService,

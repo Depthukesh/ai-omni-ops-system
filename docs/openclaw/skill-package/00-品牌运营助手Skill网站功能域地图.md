@@ -323,6 +323,11 @@
 - GEO 可见度诊断 HTML 报告查看 / 保存 / 删除
 - 关键词挖掘、网站诊断、知识库搭建、GEO优化方案的一次性内容查看
 - 自媒体内容、第三方媒体、品牌网站的多次生成列表查看
+- `第三方媒体投放` 的软文街媒体缓存库：
+  - 每次同步都会继续沉淀新媒体，不覆盖历史缓存
+  - 默认读取站内已缓存媒体
+  - 固定按 20 条分页
+  - 支持按媒体名称、平台、分类、地区搜索
 - 其它 GEO 工作流 HTML 预览与非 HTML `存储地址` 回显
 
 当前优先 MCP：
@@ -333,6 +338,8 @@
 - `get_openclaw_geo_contents`
 - `create_openclaw_geo_content`
 - `delete_openclaw_geo_content`
+- `get_openclaw_third_party_media_delivery_resources`
+- `sync_openclaw_third_party_media_delivery_resources`
 
 ### 3.8 全网获客 `/all-network-growth`
 

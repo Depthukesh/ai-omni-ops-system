@@ -2,6 +2,7 @@ import { BadRequestException, Body, Controller, Get, Headers, Param, Post, Query
 import { AuthService } from "../auth/auth.service";
 import { RuanwenjieMediaService } from "../third-party-platforms/ruanwenjie-media.service";
 import { OpenClawGeoContentService } from "./openclaw-geo-content.service";
+import { OpenClawThirdPartyMediaResourceService } from "./openclaw-third-party-media-resource.service";
 
 type HeadersMap = Record<string, string | string[] | undefined>;
 
@@ -11,6 +12,7 @@ export class OpenClawThirdPartyMediaDeliveryController {
     private readonly authService: AuthService,
     private readonly ruanwenjieMediaService: RuanwenjieMediaService,
     private readonly openClawGeoContentService: OpenClawGeoContentService,
+    private readonly openClawThirdPartyMediaResourceService: OpenClawThirdPartyMediaResourceService,
   ) {}
 
   @Get("resources")
@@ -18,13 +20,39 @@ export class OpenClawThirdPartyMediaDeliveryController {
     @Headers() headers: HeadersMap,
     @Param("brandId") brandId: string,
     @Query("page") page?: string,
+    @Query("searchKeyword") searchKeyword?: string,
   ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
     if (!auth) {
       throw new UnauthorizedException("登录态已失效");
     }
     await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "view", auth);
-    return this.ruanwenjieMediaService.listResources(brandId, page ? Number(page) : 1);
+    return this.openClawThirdPartyMediaResourceService.listWorkspace(brandId, {
+      workspaceScope: "geo",
+      page: page ? Number(page) : 1,
+      searchKeyword,
+    });
+  }
+
+  @Post("resources/sync")
+  async syncResources(
+    @Headers() headers: HeadersMap,
+    @Param("brandId") brandId: string,
+    @Body() payload?: {
+      page?: number;
+      searchKeyword?: string;
+    },
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    if (!auth) {
+      throw new UnauthorizedException("登录态已失效");
+    }
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "view", auth);
+    return this.openClawThirdPartyMediaResourceService.syncNextPage(brandId, {
+      workspaceScope: "geo",
+      page: payload?.page,
+      searchKeyword: payload?.searchKeyword,
+    });
   }
 
   @Post("deliveries")
