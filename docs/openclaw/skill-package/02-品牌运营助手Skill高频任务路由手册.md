@@ -350,6 +350,7 @@ RunningHub 关键规则：
    - 不要把 `{ localFilePath: ... }`、`{ fileName, contentType, dataBase64 }` 这类对象直接塞进 `fieldValue / fieldData`
 6. 提交前再做一次自检：
    - 普通文本 / 数值节点才只改 `fieldValue`
+   - 如果模板 `fieldData` 里带选项列表，而当前 `fieldValue` 是数字索引（例如比例、模式、档位），要按选项标签理解，但提交时仍保留模板要求的原始索引或原始值
    - 图片 / 音频 / 视频节点如果最终只剩 `nodeId + fieldName`，没有 `fieldValue`，也没有 `upload`，不要提交
    - 如果 RunningHub 返回 `errorCode=803 / JsonNull`，优先判定为必填媒体节点仍为空，而不是先判额度、API Key 或限流
 7. 同一品牌下 RunningHub 任务默认按串行执行：上一个任务拿到结果或明确失败后，再发下一个

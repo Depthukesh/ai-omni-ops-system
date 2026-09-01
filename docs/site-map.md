@@ -212,6 +212,7 @@
 - 创作侧素材选择已统一切到品牌增长策略 → 品牌增长报告 → 素材库
 - 视频与数字人能力已经接入
 - RunningHub 工作区继续复用通用应用清单；当前已扩充 MiniMax H3、Seedance、Qwen 字体设计、数字人、电商设计，以及音频裁剪驱动数字人、2K 多图生视频等多类应用示例，并同步暴露给 OpenClaw / MCP 的 `runninghub:list_apps`
+- RunningHub 应用详情表单当前会按模板自动识别枚举型字段：如果 `fieldData` 带选项列表，而 `fieldValue` 是数字索引（例如“设置比例”），页面会按真实选项标签渲染下拉选择，但提交时仍保留模板原始值，避免把索引误当成纯数字输入框
 - RunningHub 上传节点当前新增对象型入参拦截：图片 / 音频 / 视频节点必须走顶层 `localFilePath` 或 `upload.*`，不能再把 `{ localFilePath: ... }`、`{ fileName, contentType, dataBase64 }` 这类对象直接塞进 `fieldValue / fieldData`，避免最终被串成 `[object Object]`
 - 复刻短视频已拆成独立板块，创建后先按每 15 秒一段输出拉片分析、角色卡、分镜脚本、角色图、分镜图和一致性质检结果
 - 复刻短视频支持第二阶段一键生成分段视频，并通过 `ffmpeg` 自动拼接完整视频

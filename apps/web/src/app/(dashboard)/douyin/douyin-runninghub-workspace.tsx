@@ -23,6 +23,11 @@ type RunningHubFieldFormEntry = DouyinRunningHubAppFieldRecord & {
   uploadFile: File | null;
 };
 
+type RunningHubFieldSelectOption = {
+  value: string;
+  label: string;
+};
+
 type RunningHubMaterialLibraryItem = {
   id: string;
   label: string;
@@ -95,7 +100,7 @@ function getWorkStatusClass(status?: DouyinRunningHubWorkRecord["status"]) {
 function buildFieldForm(detail: DouyinRunningHubAppDetailRecord | null) {
   return (detail?.nodeInfoList || []).map((item) => ({
     ...item,
-    value: item.fieldValue || item.fieldData || "",
+    value: resolveInitialFieldValue(item),
     uploadFile: null,
   }));
 }
@@ -105,7 +110,14 @@ function getFieldLabel(field: DouyinRunningHubAppFieldRecord) {
 }
 
 function getFieldDescription(field: DouyinRunningHubAppFieldRecord) {
-  return field.descriptionEn || field.fieldData || "";
+  if (field.descriptionEn) {
+    return field.descriptionEn;
+  }
+  const rawFieldData = String(field.fieldData || "").trim();
+  if (!rawFieldData || /^[\[{]/.test(rawFieldData)) {
+    return "";
+  }
+  return rawFieldData;
 }
 
 function shouldUseNumberInput(field: DouyinRunningHubAppFieldRecord) {
@@ -124,6 +136,95 @@ function shouldUseNumberInput(field: DouyinRunningHubAppFieldRecord) {
     .join(" ")
     .toLowerCase();
   return /generate seconds|lip-syncing from|fps|frame rate|width|height|max resolution|generate duration|start time|开始对口型|几秒|秒内|生成秒数|帧率|分辨率|宽度|高度/.test(haystack);
+}
+
+function tryParseRunningHubFieldJson(rawValue?: string) {
+  const value = String(rawValue || "").trim();
+  if (!value || !/^[\[{]/.test(value)) {
+    return undefined;
+  }
+  try {
+    return JSON.parse(value) as unknown;
+  } catch {
+    return undefined;
+  }
+}
+
+function dedupeRunningHubOptionLabels(labels: string[]) {
+  const result: string[] = [];
+  const seen = new Set<string>();
+  labels.forEach((label) => {
+    const normalized = String(label || "").trim();
+    if (!normalized || seen.has(normalized)) {
+      return;
+    }
+    seen.add(normalized);
+    result.push(normalized);
+  });
+  return result;
+}
+
+function extractRunningHubOptionLabels(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    const primitiveValues = value
+      .filter((item) => ["string", "number", "boolean"].includes(typeof item))
+      .map((item) => String(item).trim())
+      .filter(Boolean);
+    if (primitiveValues.length >= 2 && primitiveValues.length === value.length) {
+      return dedupeRunningHubOptionLabels(primitiveValues);
+    }
+    return value.reduce<string[]>((best, item) => {
+      const candidate = extractRunningHubOptionLabels(item);
+      return candidate.length > best.length ? candidate : best;
+    }, []);
+  }
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    const prioritizedKeys = ["options", "enum", "choices", "items", "values", "list"];
+    for (const key of prioritizedKeys) {
+      const candidate = extractRunningHubOptionLabels(record[key]);
+      if (candidate.length >= 2) {
+        return candidate;
+      }
+    }
+    return Object.values(record).reduce<string[]>((best, item) => {
+      const candidate = extractRunningHubOptionLabels(item);
+      return candidate.length > best.length ? candidate : best;
+    }, []);
+  }
+  return [];
+}
+
+function getFieldSelectOptions(field: DouyinRunningHubAppFieldRecord): RunningHubFieldSelectOption[] {
+  const parsedFieldData = tryParseRunningHubFieldJson(field.fieldData);
+  const labels = dedupeRunningHubOptionLabels(extractRunningHubOptionLabels(parsedFieldData)).filter(
+    (label) => label.length <= 40,
+  );
+  if (labels.length < 2) {
+    return [];
+  }
+  const rawValue = String(field.fieldValue || "").trim();
+  const useIndexValue = /^\d+$/.test(rawValue) && Number(rawValue) >= 0 && Number(rawValue) < labels.length;
+  return labels.map((label, index) => ({
+    value: useIndexValue ? String(index) : label,
+    label,
+  }));
+}
+
+function resolveInitialFieldValue(field: DouyinRunningHubAppFieldRecord) {
+  const fieldValue = String(field.fieldValue || "").trim();
+  if (fieldValue) {
+    return fieldValue;
+  }
+  const selectOptions = getFieldSelectOptions(field);
+  if (selectOptions.length) {
+    return selectOptions[0]?.value || "";
+  }
+  const fieldData = String(field.fieldData || "").trim();
+  if (!fieldData || /^[\[{]/.test(fieldData)) {
+    return "";
+  }
+  return fieldData;
 }
 
 function inferUploadKind(field: DouyinRunningHubAppFieldRecord): "image" | "video" | "audio" | null {
@@ -263,7 +364,8 @@ function RunningHubCreateDialog(props: {
                   </small>
                 </label>
                 {props.fields.map((field, index) => {
-                  const uploadKind = shouldUseNumberInput(field) ? null : inferUploadKind(field);
+                  const selectOptions = getFieldSelectOptions(field);
+                  const uploadKind = selectOptions.length || shouldUseNumberInput(field) ? null : inferUploadKind(field);
                   const helperText = getFieldDescription(field);
                   const fieldKey = `${field.nodeId || "node"}-${field.fieldName || "field"}-${index}`;
                   if (uploadKind) {
@@ -364,6 +466,21 @@ function RunningHubCreateDialog(props: {
                             : null}
                         </small>
                       </div>
+                    );
+                  }
+                  if (selectOptions.length) {
+                    return (
+                      <label key={fieldKey} className="design-v3-field">
+                        <span>{getFieldLabel(field)}</span>
+                        <select value={field.value} onChange={(event) => props.onFieldValueChange(index, event.target.value)}>
+                          {selectOptions.map((option) => (
+                            <option key={`${fieldKey}-${option.value}-${option.label}`} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                        {helperText ? <small className="personal-meta">{helperText}</small> : null}
+                      </label>
                     );
                   }
                   if (shouldUseNumberInput(field)) {

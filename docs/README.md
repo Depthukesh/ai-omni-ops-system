@@ -178,6 +178,8 @@
 - 已放弃的多-agent 方案文档已经移除，不再作为当前开发模式的一部分
 
 ## 最近应优先关注的文档
+- `docs/changes/2026-09-02-runninghub-option-select-render-fix.md`
+  - 修正内容获客 / 抖音兼容直达页 RunningHub 应用详情里“设置比例”等枚举字段被误渲染成纯数字输入框的问题；当前会按模板选项渲染下拉选择，并同步补齐 OpenClaw MCP / Skill 对“标签显示、原值提交”的说明
 - `docs/changes/2026-09-01-ruanwenjie-media-delivery-cache-and-search.md`
   - 记录 GEO `第三方媒体投放` 已从“临时拉取单页”升级为“站内持续缓存软文街媒体库”，支持继续同步下一页、按 20 条分页查看，以及按媒体名称 / 平台 / 分类 / 地区搜索，并同步补齐 OpenClaw MCP / Skill 说明
 - `docs/changes/2026-09-01-ruanwenjie-media-delivery-debug-and-response-alignment.md`

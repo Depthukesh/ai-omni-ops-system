@@ -150,6 +150,7 @@
 - 普通视频、直接视频、混剪短视频、数字人、口型驱动、RunningHub、广告预审都优先从 `manage_douyin_video_production` 进入
 - 数字人语音试听属于 `section=digital_human`
 - RunningHub 属于 `section=runninghub`
+- RunningHub 模板里如果 `fieldData` 携带选项列表、而 `fieldValue` 返回的是数字索引（例如比例、模式、档位），应按选项标签理解字段含义，但提交时保留模板原始值
 - 当前 RunningHub 已内置一组常见应用示例：
   - `minimax-h3-fl2va-text-to-video`：文生视频
   - `minimax-h3-fl2va-first-frame-video`：首帧参考生视频

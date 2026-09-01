@@ -349,6 +349,7 @@ RunningHub 当前常见 appKey 示例：
 
 RunningHub 上传节点补充规则：
 
+- 如果模板 `fieldData` 里带选项列表，而当前 `fieldValue` 是数字索引（例如比例、模式、档位），要按选项标签理解，但提交时仍保留模板要求的原始索引或原始值
 - 图片、音频、视频上传节点要么在节点对象顶层传 `localFilePath`，要么传 `upload.fileName / upload.contentType / upload.dataBase64`
 - 普通文本 / 数值节点才只改 `fieldValue`；媒体节点不能只剩 `nodeId + fieldName` 空壳
 - 如果 RunningHub 返回 `errorCode=803 / JsonNull`，优先排查必填图片 / 音频 / 视频节点是否仍为空

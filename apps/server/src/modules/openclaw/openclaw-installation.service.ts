@@ -699,6 +699,7 @@ description: AI 全域智能体网站能力总入口 Skill。先做网站功能�
 标准规则：
 
 - 普通文本 / 数值节点才只回填 \`fieldValue\`
+- 如果模板 \`fieldData\` 里带选项列表，而当前 \`fieldValue\` 是数字索引（例如比例、模式、档位），要按选项标签理解，但提交时仍保留模板要求的原始索引或原始值
 - 图片 / 音频 / 视频节点不能只留 \`nodeId + fieldName\` 空壳，必须补真实媒体输入
 - 不猜 \`nodeId\`
 - 不手改 \`fieldData\`
