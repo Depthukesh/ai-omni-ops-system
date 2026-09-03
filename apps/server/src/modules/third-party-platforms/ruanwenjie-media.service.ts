@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { BadRequestException, Injectable, ServiceUnavailableException } from "@nestjs/common";
+import { BadRequestException, Injectable, ServiceUnavailableException, UnauthorizedException } from "@nestjs/common";
 import { ThirdPartyPlatformsService } from "./third-party-platforms.service";
 
 const RUANWENJIE_BASE_URL = "https://api.kol.cn";
@@ -212,7 +212,7 @@ export class RuanwenjieMediaService {
         this.tokenCache.delete(this.buildCredentialCacheKey(credential));
         return this.callApiWithToken(credential, request, true);
       }
-      throw error;
+      throw this.toHttpException(apiError);
     }
   }
 
@@ -225,18 +225,23 @@ export class RuanwenjieMediaService {
       }
     }
 
-    const envelope = await this.requestEnvelope(credential, {
-      method: "POST",
-      path: "/api/auth/authenticate",
-      body: {
-        mobile: credential.mobile,
-        password: credential.password,
-        identity: credential.identity,
-        captcha_token: credential.captchaToken,
-        captcha: credential.captcha,
-        api_key: credential.apiKey,
-      },
-    });
+    let envelope: RuanwenjieApiEnvelope;
+    try {
+      envelope = await this.requestEnvelope(credential, {
+        method: "POST",
+        path: "/api/auth/authenticate",
+        body: {
+          mobile: credential.mobile,
+          password: credential.password,
+          identity: credential.identity,
+          captcha_token: credential.captchaToken,
+          captcha: credential.captcha,
+          api_key: credential.apiKey,
+        },
+      });
+    } catch (error) {
+      throw this.toHttpException(this.normalizeApiError(error));
+    }
     const token = this.readText(this.asRecord(envelope.data).token);
     if (!token) {
       throw new ServiceUnavailableException("软文街登录成功但未返回 token，请稍后重试。");
@@ -444,6 +449,14 @@ export class RuanwenjieMediaService {
     return {
       message: error instanceof Error ? error.message : "软文街接口调用失败",
     };
+  }
+
+  private toHttpException(error: RuanwenjieApiError) {
+    const message = String(error.message || "").trim() || "软文街接口调用失败";
+    if (error.status === 401) {
+      return new UnauthorizedException(`软文街鉴权失败：${message}`);
+    }
+    return new ServiceUnavailableException(`软文街接口调用失败：${message}`);
   }
 
   private normalizePage(value?: number) {

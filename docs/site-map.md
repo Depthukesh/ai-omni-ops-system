@@ -422,6 +422,7 @@
 - 其它平台仍保持原来的品牌共享单字段配置
 - 参考变更：`docs/changes/2026-08-16-personal-center-skill-center-grouped-nav-and-shell.md`
 - 参考变更：`docs/changes/2026-08-16-geo-third-party-media-delivery-and-ruanwenjie-integration.md`
+- 参考变更：`docs/changes/2026-09-03-ruanwenjie-credential-refresh-and-timestamp-fix.md`
   - 存储位置（本地文件夹地址）
 - `local-single-user` 安装态下，素材管理页顶部新增“素材库存储设置”：
   - 用户选择的是【素材库】外层根目录

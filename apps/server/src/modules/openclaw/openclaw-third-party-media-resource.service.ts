@@ -364,6 +364,7 @@ export class OpenClawThirdPartyMediaResourceService {
       await this.ensureTableReady();
       const existing = await this.findResource(item.brandId, item.workspaceScope, item.id);
       const rawJson = JSON.stringify(item.raw);
+      const syncedAt = this.toDatabaseTimestamp(item.syncedAt);
       if (existing) {
         await this.prismaService.$executeRaw`
           UPDATE "OpenClawThirdPartyMediaResource"
@@ -381,7 +382,7 @@ export class OpenClawThirdPartyMediaResourceService {
             "isSelfMedia" = ${item.isSelfMedia},
             "rawJson" = ${rawJson},
             "sourceRemotePage" = ${item.sourceRemotePage},
-            "lastSyncedAt" = ${item.syncedAt},
+            "lastSyncedAt" = ${syncedAt},
             "updatedAt" = CURRENT_TIMESTAMP
           WHERE "id" = ${existing.localId}
         `;
@@ -431,7 +432,7 @@ export class OpenClawThirdPartyMediaResourceService {
           ${item.isSelfMedia},
           ${rawJson},
           ${item.sourceRemotePage},
-          ${item.syncedAt},
+          ${syncedAt},
           CURRENT_TIMESTAMP,
           CURRENT_TIMESTAMP
         )
@@ -571,6 +572,7 @@ export class OpenClawThirdPartyMediaResourceService {
     if (await this.prismaService.canUseDatabase()) {
       await this.ensureTableReady();
       const existing = state.id ? await this.getSyncState(state.brandId, state.workspaceScope) : undefined;
+      const lastSyncAt = this.toDatabaseTimestamp(state.lastSyncAt || null);
       if (existing && existing.id) {
         await this.prismaService.$executeRaw`
           UPDATE "OpenClawThirdPartyMediaSyncState"
@@ -580,7 +582,7 @@ export class OpenClawThirdPartyMediaResourceService {
             "lastRemoteTotal" = ${state.lastRemoteTotal},
             "lastFetchedCount" = ${state.lastFetchedCount},
             "hasRemoteMore" = ${state.hasRemoteMore},
-            "lastSyncAt" = ${state.lastSyncAt || null},
+            "lastSyncAt" = ${lastSyncAt},
             "updatedAt" = CURRENT_TIMESTAMP
           WHERE "id" = ${existing.id}
         `;
@@ -613,7 +615,7 @@ export class OpenClawThirdPartyMediaResourceService {
           ${state.lastRemoteTotal},
           ${state.lastFetchedCount},
           ${state.hasRemoteMore},
-          ${state.lastSyncAt || null},
+          ${lastSyncAt},
           CURRENT_TIMESTAMP,
           CURRENT_TIMESTAMP
         )
@@ -779,6 +781,16 @@ export class OpenClawThirdPartyMediaResourceService {
   private normalizeBoolean(value: unknown) {
     const normalized = String(value ?? "").trim().toLowerCase();
     return normalized === "1" || normalized === "true" || normalized === "yes";
+  }
+
+  private toDatabaseTimestamp(value: Date | string | null | undefined) {
+    if (!value) {
+      return null;
+    }
+    const date = value instanceof Date ? value : new Date(String(value));
+    return Number.isNaN(date.getTime())
+      ? null
+      : date;
   }
 
   private normalizeNumber(value: unknown) {

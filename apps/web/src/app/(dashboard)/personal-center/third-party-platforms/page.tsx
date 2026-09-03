@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿"use client";
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿"use client";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -747,7 +747,7 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
                       placeholder="填写软文街登录密码"
                     />
                     <small className="personal-meta">
-                      软文街会复用这三项品牌共享凭证获取 token；文档里的 `identity / captcha_token / captcha` 将按示例固定补成 `advertiser`，不需要你额外填写。
+                      软文街会复用这组品牌共享凭证换取 token；若刷新媒体失败，优先先核对这里保存的登录账号和登录密码是否还是当前最新可用值。
                     </small>
                   </label>
                 </>

@@ -178,6 +178,8 @@
 - 已放弃的多-agent 方案文档已经移除，不再作为当前开发模式的一部分
 
 ## 最近应优先关注的文档
+- `docs/changes/2026-09-03-ruanwenjie-credential-refresh-and-timestamp-fix.md`
+  - 记录 GEO `第三方媒体投放` 当前真正卡住的是软文街品牌共享凭证已过期，以及 PostgreSQL 缓存时间字段写库类型错误；当前已恢复媒体同步与站内分页读取
 - `docs/changes/2026-09-02-runninghub-option-select-render-fix.md`
   - 修正内容获客 / 抖音兼容直达页 RunningHub 应用详情里“设置比例”等枚举字段被误渲染成纯数字输入框的问题；当前会按模板选项渲染下拉选择，并同步补齐 OpenClaw MCP / Skill 对“标签显示、原值提交”的说明
 - `docs/changes/2026-09-01-ruanwenjie-media-delivery-cache-and-search.md`

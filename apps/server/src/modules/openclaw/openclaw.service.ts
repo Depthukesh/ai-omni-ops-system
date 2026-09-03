@@ -2613,7 +2613,7 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
   },
   {
     name: "get_openclaw_third_party_media_delivery_resources",
-    description: "查看 GEO 第三方媒体投放已缓存的软文街媒体库，支持按 20 条分页读取，并可按媒体名称、平台、分类、地区搜索。",
+    description: "查看 GEO 第三方媒体投放已缓存的软文街媒体库，支持按 20 条分页读取，并可按媒体名称、平台、分类、地区搜索；若站内一直没有新媒体，先确认个人中心里当前品牌保存的软文街登录账号和登录密码仍然有效。",
     inputSchema: {
       type: "object",
       properties: {
@@ -2626,7 +2626,7 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
   },
   {
     name: "sync_openclaw_third_party_media_delivery_resources",
-    description: "继续同步软文街下一页媒体到 GEO 第三方媒体投放缓存库，不覆盖历史缓存；同步后仍按站内 20 条分页和搜索结果返回。",
+    description: "继续同步软文街下一页媒体到 GEO 第三方媒体投放缓存库，不覆盖历史缓存；同步后仍按站内 20 条分页和搜索结果返回。若同步报软文街鉴权失败，先检查个人中心里当前品牌保存的软文街登录账号和登录密码是否还是最新可用值。",
     inputSchema: {
       type: "object",
       properties: {
