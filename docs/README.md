@@ -178,6 +178,8 @@
 - 已放弃的多-agent 方案文档已经移除，不再作为当前开发模式的一部分
 
 ## 最近应优先关注的文档
+- `docs/changes/2026-09-04-standard-db-init-openclaw-runtime-table-schema-alignment.md`
+  - 修复标准 Docker 运行态更新时 `db-init` 因 Prisma 将 OpenClaw 运行时表误判为待删除表而中断的问题；当前把软文街缓存、营销策划方案、策略优化记录和留言真源正式纳入 `prisma/schema.prisma`
 - `docs/changes/2026-09-04-openclaw-marketing-plan-html-workspace.md`
   - 把内容获客某书 / 某音/某号 / 公众号下的 `营销策划方案` 统一收口为 OpenClaw HTML 方案列表，支持查看 HTML、打开 HTML、留言协作，并同步新增公众号独立左侧入口与 MCP / Skill 工具
 - `docs/changes/2026-09-03-ruanwenjie-credential-refresh-and-timestamp-fix.md`

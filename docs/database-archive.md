@@ -301,13 +301,25 @@
     - 网站上传素材当前统一写入 `works/<brandId>/material-library/<category>/<YYYY>/<YYYY-MM>/<timestamp>-<title>.<ext>` 受控副本
     - `local-single-user` 安装态下，这类 `material-library/*` 存储键会进一步映射到用户自定义的 `素材库/<分类>/<brandId>/...` 本地目录；其它 OpenClaw 上传素材仍可继续走默认本地受控存储
     - 当前会额外在返回层派生 `materialCategory / sourceLabel / localFilePath`，供内容获客创作素材表与个人中心素材管理页直接展示
+- `OpenClawComment`
+  - 用途：OpenClaw 内容详情下的统一留言真源
+  - 关键字段：`workspaceScope`、`resourceType`、`resourceId`、`content`、`createdAt`、`updatedAt`
+  - 当前约定：
+    - 当前承接 `creative_material / daily_plan / lobster_diary / strategy_optimization / marketing_plan / video_work` 六类资源留言
+    - 页面端默认按内容详情弹窗读取，不单独暴露独立列表页
 - `OpenClawMarketingPlan`
   - 用途：内容获客三板块共用的营销策划方案真源，承接 OpenClaw 上传的 HTML 方案
   - 关键字段：`workspaceScope`、`title`、`htmlContent`、`createdAt`、`updatedAt`
   - 当前约定：
     - 当前固定用于 `xiaohongshu / douyin / wechat` 三个板块
     - 页面端统一支持 HTML 预览、打开 HTML、新增留言和直接删除
-    - 当前延续 OpenClaw 运行时建表模式，不写入 `prisma/schema.prisma`，由服务启动后按 SQLite / PostgreSQL 当前运行模式受控自举
+    - 当前已纳入 `prisma/schema.prisma`，避免标准 Docker 运行态的 `db-init -> prisma db push` 把它误判成待删除表
+- `OpenClawStrategyOptimization`
+  - 用途：品牌增长与内容获客共用的策略优化记录真源
+  - 关键字段：`workspaceScope`、`generatedAt`、`title`、`content`、`createdAt`、`updatedAt`
+  - 当前约定：
+    - 页面端支持查看、编辑、留言与删除
+    - 当前已纳入 `prisma/schema.prisma`，避免标准 Docker 运行态的 `db-init -> prisma db push` 误判删表
 - `OpenClawCommentLead`
   - 用途：全网获客工作台中 `评论获客` 板块的持久化真源
   - 关键字段：`workspaceScope`、`sourcePlatform`、`sourceUrl`、`sourceCommentId`、`userName`、`userComment`、`selectedReason`、`userProfileUrl`
@@ -533,10 +545,13 @@
   - 主表：`OpenClawGeoContent`
   - 用途：保存关键词挖掘、网站诊断、知识库搭建、GEO优化方案、自媒体内容、第三方媒体、品牌网站等结果
 - 第三方媒体投放缓存：
-  - 运行时表：`OpenClawThirdPartyMediaResource`
+  - 主表：`OpenClawThirdPartyMediaResource`
   - 同步状态表：`OpenClawThirdPartyMediaSyncState`
   - 用途：按 `brandId + workspaceScope + providerType + remoteResourceId` 持续缓存软文街媒体资源，记录来源远端页码、最近同步时间、下一次待同步页码，并支撑站内 20 条分页与搜索
-  - 当前说明：这两张表延续 OpenClaw GEO 链路的运行时建表模式，不写入 `prisma/schema.prisma`，由服务启动后按 SQLite / PostgreSQL 当前运行模式受控自举
+  - 当前说明：
+    - 当前已纳入 `prisma/schema.prisma`
+    - 服务启动后仍保留运行时 `CREATE TABLE IF NOT EXISTS / ALTER TABLE` 自举兜底，继续兼容 SQLite 与历史旧库补列
+    - 标准 Docker 运行态的 `db-init -> prisma db push` 不再把这两张缓存表误判为待删除表
 - 附件存储：
   - 非 HTML 附件统一走受控副本
   - 当前存储键前缀：`reports/<brandId>/openclaw/geo/...`

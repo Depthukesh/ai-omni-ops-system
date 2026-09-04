@@ -174,6 +174,7 @@
 - 标准 Docker 运行态的首装链不能只把 `postgres / server / web` 拉起来就算完成；必须在 compose 主链中受控完成 schema 初始化、邀请码同步和最小演示账号/品牌补齐，优先收口为 one-shot `db-init` 服务，而不是再要求用户手动进容器执行 `pnpm db:init`
 - 标准 Docker 运行态的容器不能继续依赖 `corepack` 在构建期或运行期临时解析 `pnpm`；像 `web`、`db-init`、`server` 这类容器需要的包管理器必须在镜像构建阶段通过确定性方式准备好，运行时尽量直接执行应用或 `npm run ...`，避免用户机器网络、代理或 npm registry 抖动导致容器“镜像已构建但启动即退出”
 - 标准 Docker 运行态的默认演示数据只能“补缺即止”，不能在每次 `server` 重启时重复执行会清空或重置品牌资料的破坏性 seed
+- 标准 Docker 运行态下，只要某张运行时自举表会长期承接真实业务或缓存数据，并且 `db-init` 仍会执行 `prisma db push`，这张表就不能长期停留在 `prisma/schema.prisma` 之外；否则 Prisma 会在更新时把它误判为待删除表并中断初始化链。若短期确实不能入 schema，就必须同步把 `db-init` 路径改成不会碰这张表的受控方案
 
 ### 5.3 品牌与权限校验
 

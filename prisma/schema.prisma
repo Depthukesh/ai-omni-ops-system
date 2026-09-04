@@ -91,71 +91,71 @@ enum AssetCategory {
 }
 
 model User {
-  id             String             @id @default(cuid())
-  mobile         String             @unique
-  email          String?            @unique
-  emailVerifiedAt DateTime?
-  nickname       String?
-  avatarUrl      String?
-  passwordHash   String
-  status         UserStatus         @default(ACTIVE)
-  membership     MembershipLevel    @default(FREE)
-  systemRole     SystemRole         @default(USER)
-  accessExpiresAt DateTime?
+  id                     String          @id @default(cuid())
+  mobile                 String          @unique
+  email                  String?         @unique
+  emailVerifiedAt        DateTime?
+  nickname               String?
+  avatarUrl              String?
+  passwordHash           String
+  status                 UserStatus      @default(ACTIVE)
+  membership             MembershipLevel @default(FREE)
+  systemRole             SystemRole      @default(USER)
+  accessExpiresAt        DateTime?
   allowedFeatureKeysJson String?
-  pointsBalance  Int                @default(0)
-  lastLoginAt    DateTime?
-  createdAt      DateTime           @default(now())
-  updatedAt      DateTime           @updatedAt
+  pointsBalance          Int             @default(0)
+  lastLoginAt            DateTime?
+  createdAt              DateTime        @default(now())
+  updatedAt              DateTime        @updatedAt
 
-  brands         Brand[]            @relation("BrandOwner")
-  brandMemberships BrandMember[]
-  sentBrandInvites BrandInvite[]    @relation("BrandInviter")
-  receivedBrandInvites BrandInvite[] @relation("BrandInvitee")
-  brandInviteReadStates BrandInviteReadState[]
-  brandInviteNotifications BrandInviteNotification[]
-  brandRoleAuditOperations BrandRoleAuditLog[] @relation("BrandRoleAuditOperator")
-  brandRoleAuditTargets BrandRoleAuditLog[] @relation("BrandRoleAuditTargetUser")
-  sessions       UserSession[]
-  emailVerificationCodes EmailVerificationCode[]
-  usedRegistrationInviteCodes RegistrationInviteCode[] @relation("RegistrationInviteCodeConsumer")
-  tasks          Task[]
-  mediaAssets    MediaAsset[]
-  orders         MembershipOrder[]
-  pointLedgers   PointLedger[]
-  feishuIntegration UserFeishuIntegration?
-  skillProfiles  UserSkillProfile[]
-  promptOverrides UserPromptOverride[]
-  skillResetLogs UserSkillResetLog[]
-  thirdPartyPlatformSecrets UserThirdPartyPlatformSecret[]
+  brands                      Brand[]                        @relation("BrandOwner")
+  brandMemberships            BrandMember[]
+  sentBrandInvites            BrandInvite[]                  @relation("BrandInviter")
+  receivedBrandInvites        BrandInvite[]                  @relation("BrandInvitee")
+  brandInviteReadStates       BrandInviteReadState[]
+  brandInviteNotifications    BrandInviteNotification[]
+  brandRoleAuditOperations    BrandRoleAuditLog[]            @relation("BrandRoleAuditOperator")
+  brandRoleAuditTargets       BrandRoleAuditLog[]            @relation("BrandRoleAuditTargetUser")
+  sessions                    UserSession[]
+  emailVerificationCodes      EmailVerificationCode[]
+  usedRegistrationInviteCodes RegistrationInviteCode[]       @relation("RegistrationInviteCodeConsumer")
+  tasks                       Task[]
+  mediaAssets                 MediaAsset[]
+  orders                      MembershipOrder[]
+  pointLedgers                PointLedger[]
+  feishuIntegration           UserFeishuIntegration?
+  skillProfiles               UserSkillProfile[]
+  promptOverrides             UserPromptOverride[]
+  skillResetLogs              UserSkillResetLog[]
+  thirdPartyPlatformSecrets   UserThirdPartyPlatformSecret[]
 }
 
 model EmailVerificationCode {
-  id          String   @id @default(cuid())
-  userId      String?
-  email       String
-  purpose     String
-  codeHash    String
-  expiresAt   DateTime
-  consumedAt  DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id         String    @id @default(cuid())
+  userId     String?
+  email      String
+  purpose    String
+  codeHash   String
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
-  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([email, purpose, createdAt])
   @@index([expiresAt])
 }
 
 model RegistrationInviteCode {
-  id               String   @id @default(cuid())
-  code             String   @unique
+  id               String    @id @default(cuid())
+  code             String    @unique
   consumedByUserId String?
   consumedAt       DateTime?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
-  consumedByUser   User?    @relation("RegistrationInviteCodeConsumer", fields: [consumedByUserId], references: [id], onDelete: SetNull)
+  consumedByUser User? @relation("RegistrationInviteCodeConsumer", fields: [consumedByUserId], references: [id], onDelete: SetNull)
 
   @@index([consumedAt, createdAt])
   @@index([consumedByUserId])
@@ -173,82 +173,82 @@ model UserSession {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
-  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  currentBrand     Brand?    @relation(fields: [currentBrandId], references: [id], onDelete: SetNull)
+  user         User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  currentBrand Brand? @relation(fields: [currentBrandId], references: [id], onDelete: SetNull)
 
   @@index([userId, createdAt])
   @@index([expiresAt])
 }
 
 model MembershipOrder {
-  id            String          @id @default(cuid())
-  userId        String
-  orderNo       String          @unique
-  orderType     String
-  orderStatus   OrderStatus     @default(PENDING)
-  membership    MembershipLevel?
-  pointsAmount  Int?
-  amountYuan    Decimal         @db.Decimal(10, 2)
-  metaJson      Json?
-  paidAt        DateTime?
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
+  id           String           @id @default(cuid())
+  userId       String
+  orderNo      String           @unique
+  orderType    String
+  orderStatus  OrderStatus      @default(PENDING)
+  membership   MembershipLevel?
+  pointsAmount Int?
+  amountYuan   Decimal          @db.Decimal(10, 2)
+  metaJson     Json?
+  paidAt       DateTime?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
 
-  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
 }
 
 model PointLedger {
-  id            String          @id @default(cuid())
+  id            String   @id @default(cuid())
   userId        String
   changeType    String
   pointsDelta   Int
   balanceAfter  Int
   description   String?
   relatedTaskId String?
-  createdAt     DateTime        @default(now())
+  createdAt     DateTime @default(now())
 
-  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
 }
 
 model Brand {
-  id                 String              @id @default(cuid())
-  ownerUserId        String
-  brandName          String
-  industry           String?
-  storeCount         Int?
-  foundedYear        Int?
-  brandDescription   String?
-  enterpriseIntro    String?
-  ipProfileJson      Json?
+  id                    String   @id @default(cuid())
+  ownerUserId           String
+  brandName             String
+  industry              String?
+  storeCount            Int?
+  foundedYear           Int?
+  brandDescription      String?
+  enterpriseIntro       String?
+  ipProfileJson         Json?
   memberPermissionsJson Json?
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 
-  owner              User                @relation("BrandOwner", fields: [ownerUserId], references: [id], onDelete: Cascade)
-  members            BrandMember[]
-  invites            BrandInvite[]
-  inviteNotifications BrandInviteNotification[]
-  roleAuditLogs      BrandRoleAuditLog[]
-  currentSessions    UserSession[]
-  products           Product[]
-  surveys            BrandSurvey[]
-  platformAccounts   PlatformAccount[]
-  competitorAccounts CompetitorAccount[]
-  industryReports    IndustryReport[]
-  businessAssets     BusinessAsset[]
-  tasks              Task[]
-  mediaAssets        MediaAsset[]
-  userSkillProfiles  UserSkillProfile[]
-  userPromptOverrides UserPromptOverride[]
-  userSkillResetLogs UserSkillResetLog[]
-  brandSkillProfiles BrandSkillProfile[]
-  brandPromptOverrides BrandPromptOverride[]
-  brandSkillResetLogs BrandSkillResetLog[]
-  thirdPartyPlatformSecrets UserThirdPartyPlatformSecret[]
+  owner                          User                            @relation("BrandOwner", fields: [ownerUserId], references: [id], onDelete: Cascade)
+  members                        BrandMember[]
+  invites                        BrandInvite[]
+  inviteNotifications            BrandInviteNotification[]
+  roleAuditLogs                  BrandRoleAuditLog[]
+  currentSessions                UserSession[]
+  products                       Product[]
+  surveys                        BrandSurvey[]
+  platformAccounts               PlatformAccount[]
+  competitorAccounts             CompetitorAccount[]
+  industryReports                IndustryReport[]
+  businessAssets                 BusinessAsset[]
+  tasks                          Task[]
+  mediaAssets                    MediaAsset[]
+  userSkillProfiles              UserSkillProfile[]
+  userPromptOverrides            UserPromptOverride[]
+  userSkillResetLogs             UserSkillResetLog[]
+  brandSkillProfiles             BrandSkillProfile[]
+  brandPromptOverrides           BrandPromptOverride[]
+  brandSkillResetLogs            BrandSkillResetLog[]
+  thirdPartyPlatformSecrets      UserThirdPartyPlatformSecret[]
   brandThirdPartyPlatformSecrets BrandThirdPartyPlatformSecret[]
 
   @@index([ownerUserId, createdAt])
@@ -265,8 +265,8 @@ model BrandMember {
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
 
-  brand           Brand             @relation(fields: [brandId], references: [id], onDelete: Cascade)
-  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  brand Brand @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([brandId, userId])
   @@index([userId, status])
@@ -289,12 +289,12 @@ model BrandInvite {
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
 
-  brand           Brand             @relation(fields: [brandId], references: [id], onDelete: Cascade)
-  inviteeUser     User?             @relation("BrandInvitee", fields: [inviteeUserId], references: [id], onDelete: SetNull)
-  invitedByUser   User              @relation("BrandInviter", fields: [invitedByUserId], references: [id], onDelete: Cascade)
-  notifications   BrandInviteNotification[]
-  readStates      BrandInviteReadState[]
-  roleAuditLogs   BrandRoleAuditLog[]
+  brand         Brand                     @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  inviteeUser   User?                     @relation("BrandInvitee", fields: [inviteeUserId], references: [id], onDelete: SetNull)
+  invitedByUser User                      @relation("BrandInviter", fields: [invitedByUserId], references: [id], onDelete: Cascade)
+  notifications BrandInviteNotification[]
+  readStates    BrandInviteReadState[]
+  roleAuditLogs BrandRoleAuditLog[]
 
   @@index([brandId, status, createdAt])
   @@index([inviteeUserId, status])
@@ -302,20 +302,20 @@ model BrandInvite {
 }
 
 model BrandInviteNotification {
-  id        String      @id @default(cuid())
-  inviteId   String
-  userId     String
-  brandId    String
-  title      String
-  summary    String
-  actionUrl  String?
-  readAt     DateTime?
-  createdAt  DateTime    @default(now())
-  updatedAt  DateTime    @updatedAt
+  id        String    @id @default(cuid())
+  inviteId  String
+  userId    String
+  brandId   String
+  title     String
+  summary   String
+  actionUrl String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
-  invite     BrandInvite @relation(fields: [inviteId], references: [id], onDelete: Cascade)
-  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  brand      Brand       @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  invite BrandInvite @relation(fields: [inviteId], references: [id], onDelete: Cascade)
+  user   User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  brand  Brand       @relation(fields: [brandId], references: [id], onDelete: Cascade)
 
   @@unique([inviteId, userId])
   @@index([userId, readAt, createdAt])
@@ -323,15 +323,15 @@ model BrandInviteNotification {
 }
 
 model BrandInviteReadState {
-  id        String      @id @default(cuid())
+  id        String   @id @default(cuid())
   inviteId  String
   userId    String
   readAt    DateTime
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  invite     BrandInvite @relation(fields: [inviteId], references: [id], onDelete: Cascade)
-  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  invite BrandInvite @relation(fields: [inviteId], references: [id], onDelete: Cascade)
+  user   User        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([inviteId, userId])
   @@index([userId, readAt])
@@ -339,7 +339,7 @@ model BrandInviteReadState {
 }
 
 model BrandRoleAuditLog {
-  id             String      @id @default(cuid())
+  id             String   @id @default(cuid())
   brandId        String
   operatorUserId String
   targetUserId   String?
@@ -347,12 +347,12 @@ model BrandRoleAuditLog {
   action         String
   summary        String
   detailJson     Json?
-  createdAt      DateTime    @default(now())
+  createdAt      DateTime @default(now())
 
-  brand          Brand       @relation(fields: [brandId], references: [id], onDelete: Cascade)
-  operatorUser   User        @relation("BrandRoleAuditOperator", fields: [operatorUserId], references: [id], onDelete: Cascade)
-  targetUser     User?       @relation("BrandRoleAuditTargetUser", fields: [targetUserId], references: [id], onDelete: SetNull)
-  targetInvite   BrandInvite? @relation(fields: [targetInviteId], references: [id], onDelete: SetNull)
+  brand        Brand        @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  operatorUser User         @relation("BrandRoleAuditOperator", fields: [operatorUserId], references: [id], onDelete: Cascade)
+  targetUser   User?        @relation("BrandRoleAuditTargetUser", fields: [targetUserId], references: [id], onDelete: SetNull)
+  targetInvite BrandInvite? @relation(fields: [targetInviteId], references: [id], onDelete: SetNull)
 
   @@index([brandId, createdAt])
   @@index([operatorUserId, createdAt])
@@ -360,175 +360,175 @@ model BrandRoleAuditLog {
 }
 
 model Product {
-  id                   String    @id @default(cuid())
-  brandId              String
-  productName          String
-  productType          String?
-  price                Decimal?  @db.Decimal(10, 2)
-  productPositioning   String?
-  targetAudience       String?
-  painPoint            String?
-  usageScenario        String?
-  differentiators      String?
-  marketPosition       String?
-  detailDescription    String?
-  imageUrl             String?
-  imageUrlsJson        Json?
-  createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @updatedAt
+  id                 String   @id @default(cuid())
+  brandId            String
+  productName        String
+  productType        String?
+  price              Decimal? @db.Decimal(10, 2)
+  productPositioning String?
+  targetAudience     String?
+  painPoint          String?
+  usageScenario      String?
+  differentiators    String?
+  marketPosition     String?
+  detailDescription  String?
+  imageUrl           String?
+  imageUrlsJson      Json?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
-  brand                Brand     @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  brand Brand @relation(fields: [brandId], references: [id], onDelete: Cascade)
 
   @@index([brandId, createdAt])
 }
 
 model BrandSurvey {
-  id                  String    @id @default(cuid())
-  brandId             String
-  surveyType          String
-  surveyJson          Json
-  summary             String?
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  id         String   @id @default(cuid())
+  brandId    String
+  surveyType String
+  surveyJson Json
+  summary    String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
-  brand               Brand     @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  brand Brand @relation(fields: [brandId], references: [id], onDelete: Cascade)
 
   @@index([brandId, surveyType])
 }
 
 model PlatformAccount {
-  id                  String       @id @default(cuid())
-  brandId             String
-  platform            PlatformType
-  accountName         String?
-  accountLink         String
-  username            String?
-  accountRole         String?
-  isPrimary           Boolean      @default(true)
-  lastCollectedAt     DateTime?
-  createdAt           DateTime     @default(now())
-  updatedAt           DateTime     @updatedAt
+  id              String       @id @default(cuid())
+  brandId         String
+  platform        PlatformType
+  accountName     String?
+  accountLink     String
+  username        String?
+  accountRole     String?
+  isPrimary       Boolean      @default(true)
+  lastCollectedAt DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
 
-  brand               Brand        @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  brand Brand @relation(fields: [brandId], references: [id], onDelete: Cascade)
 
   @@index([brandId, platform])
 }
 
 model WechatAccountConfig {
-  brandId             String   @id
-  appId               String
-  appSecret           String
-  whitelistIpsJson    Json
-  defaultAuthor       String?
-  defaultThemeColor   String?
-  commentMode         String
-  updatedAt           DateTime @updatedAt
+  brandId           String   @id
+  appId             String
+  appSecret         String
+  whitelistIpsJson  Json
+  defaultAuthor     String?
+  defaultThemeColor String?
+  commentMode       String
+  updatedAt         DateTime @updatedAt
 
   @@index([updatedAt])
 }
 
 model WechatWorkflowPreference {
-  brandId             String   @id
-  defaultAuthor       String
-  defaultThemeColor   String
-  commentMode         String
-  fanCommentsOnly     Boolean  @default(false)
-  defaultInputType    String
-  defaultAccountId    String?
-  updatedAt           DateTime @updatedAt
+  brandId           String   @id
+  defaultAuthor     String
+  defaultThemeColor String
+  commentMode       String
+  fanCommentsOnly   Boolean  @default(false)
+  defaultInputType  String
+  defaultAccountId  String?
+  updatedAt         DateTime @updatedAt
 
   @@index([updatedAt])
 }
 
 model WechatOfficialAccount {
-  id                  String   @id
-  brandId             String
-  accountName         String
-  appId               String
-  appSecret           String
-  whitelistIpsJson    Json
-  isDefault           Boolean  @default(false)
-  updatedAt           DateTime @updatedAt
+  id               String   @id
+  brandId          String
+  accountName      String
+  appId            String
+  appSecret        String
+  whitelistIpsJson Json
+  isDefault        Boolean  @default(false)
+  updatedAt        DateTime @updatedAt
 
   @@index([brandId, updatedAt])
   @@index([brandId, isDefault])
 }
 
 model WechatWorkflowSession {
-  id                        String   @id
-  brandId                   String
-  accountId                 String?
-  accountName               String?
-  status                    String
-  currentStep               String
-  inputType                 String
-  inputContent              String?
-  title                     String
-  summary                   String
-  author                    String
-  content                   String
-  htmlContent               String
-  htmlStyleConfigJson       Json     @default("{}")
-  articleProvider           String?
-  articleRuntimeKey         String?
-  articleModelName          String?
-  articleCanonicalJson      Json?
-  coverImageBrief           String?
-  bodyImageBriefsJson       Json?
-  themeColor                String
-  commentMode               String
-  imageMode                 String
-  bodyImageSize             String   @default("landscape-4-3")
-  injectBrandProfile        Boolean  @default(false)
+  id                          String   @id
+  brandId                     String
+  accountId                   String?
+  accountName                 String?
+  status                      String
+  currentStep                 String
+  inputType                   String
+  inputContent                String?
+  title                       String
+  summary                     String
+  author                      String
+  content                     String
+  htmlContent                 String
+  htmlStyleConfigJson         Json     @default("{}")
+  articleProvider             String?
+  articleRuntimeKey           String?
+  articleModelName            String?
+  articleCanonicalJson        Json?
+  coverImageBrief             String?
+  bodyImageBriefsJson         Json?
+  themeColor                  String
+  commentMode                 String
+  imageMode                   String
+  bodyImageSize               String   @default("landscape-4-3")
+  injectBrandProfile          Boolean  @default(false)
   selectedMarketingLabelsJson Json
-  selectedProductLabelsJson Json
-  selectedBrandLabelsJson   Json
-  imageBundleJson           Json?
-  publishConfigJson         Json?
-  linkedDraftId             String?
-  errorDetail               String?
-  createdAt                 DateTime @default(now())
-  updatedAt                 DateTime @updatedAt
+  selectedProductLabelsJson   Json
+  selectedBrandLabelsJson     Json
+  imageBundleJson             Json?
+  publishConfigJson           Json?
+  linkedDraftId               String?
+  errorDetail                 String?
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
 
   @@index([brandId, updatedAt])
   @@index([brandId, status, updatedAt])
 }
 
 model WechatArticleDraft {
-  id                        String   @id
-  taskId                    String
-  brandId                   String
-  title                     String
-  summary                   String
-  author                    String
-  content                   String
-  htmlContent               String
-  outputFormat              String
-  coverMode                 String
-  commentMode               String
-  imageMode                 String
-  themeColor                String
-  injectMarketingCalendar   Boolean  @default(true)
-  injectProducts            Boolean  @default(true)
-  injectBrandProfile        Boolean  @default(false)
+  id                          String    @id
+  taskId                      String
+  brandId                     String
+  title                       String
+  summary                     String
+  author                      String
+  content                     String
+  htmlContent                 String
+  outputFormat                String
+  coverMode                   String
+  commentMode                 String
+  imageMode                   String
+  themeColor                  String
+  injectMarketingCalendar     Boolean   @default(true)
+  injectProducts              Boolean   @default(true)
+  injectBrandProfile          Boolean   @default(false)
   selectedMarketingLabelsJson Json
-  selectedProductLabelsJson Json
-  selectedBrandLabelsJson   Json
-  articleSkillSlug          String
-  articlePromptScene        String
-  articleProvider           String
-  articleRuntimeKey         String
-  articleModelName          String
-  articleCanonicalJson      Json?
-  coverImageBrief           String?
-  bodyImageBriefsJson       Json?
-  imageTasksJson            Json?
-  publishStatus             String
-  publishedAt               DateTime?
-  publishTaskId             String?
-  taskStatus                String
-  createdAt                 DateTime @default(now())
-  updatedAt                 DateTime @updatedAt
+  selectedProductLabelsJson   Json
+  selectedBrandLabelsJson     Json
+  articleSkillSlug            String
+  articlePromptScene          String
+  articleProvider             String
+  articleRuntimeKey           String
+  articleModelName            String
+  articleCanonicalJson        Json?
+  coverImageBrief             String?
+  bodyImageBriefsJson         Json?
+  imageTasksJson              Json?
+  publishStatus               String
+  publishedAt                 DateTime?
+  publishTaskId               String?
+  taskStatus                  String
+  createdAt                   DateTime  @default(now())
+  updatedAt                   DateTime  @updatedAt
 
   @@index([brandId, updatedAt])
   @@index([brandId, publishStatus, updatedAt])
@@ -536,24 +536,24 @@ model WechatArticleDraft {
 }
 
 model WechatPublishHistory {
-  id                  String   @id
-  brandId             String
-  workflowId          String
-  workflowTitle       String
-  accountId           String?
-  accountName         String?
-  status              String
-  summary             String
-  coverImageUrl       String?
-  mediaId             String?
-  publishTaskId       String?
-  sourceDraftId       String?
-  commentMode         String
-  fanCommentsOnly     Boolean  @default(false)
-  retryCount          Int      @default(0)
-  errorDetail         String?
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  id              String   @id
+  brandId         String
+  workflowId      String
+  workflowTitle   String
+  accountId       String?
+  accountName     String?
+  status          String
+  summary         String
+  coverImageUrl   String?
+  mediaId         String?
+  publishTaskId   String?
+  sourceDraftId   String?
+  commentMode     String
+  fanCommentsOnly Boolean  @default(false)
+  retryCount      Int      @default(0)
+  errorDetail     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   @@index([brandId, updatedAt])
   @@index([brandId, workflowId, updatedAt])
@@ -561,73 +561,73 @@ model WechatPublishHistory {
 }
 
 model CompetitorAccount {
-  id                  String       @id @default(cuid())
-  brandId             String
-  platform            PlatformType
-  accountName         String?
-  accountLink         String
-  username            String?
-  accountRole         String?
-  createdAt           DateTime     @default(now())
-  updatedAt           DateTime     @updatedAt
+  id          String       @id @default(cuid())
+  brandId     String
+  platform    PlatformType
+  accountName String?
+  accountLink String
+  username    String?
+  accountRole String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
 
-  brand               Brand        @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  brand Brand @relation(fields: [brandId], references: [id], onDelete: Cascade)
 
   @@index([brandId, platform])
 }
 
 model IndustryReport {
-  id                  String       @id @default(cuid())
-  brandId             String
-  title               String
-  summary             String?
-  fileUrl             String?
-  sourceName          String?
-  createdAt           DateTime     @default(now())
-  updatedAt           DateTime     @updatedAt
+  id         String   @id @default(cuid())
+  brandId    String
+  title      String
+  summary    String?
+  fileUrl    String?
+  sourceName String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
-  brand               Brand        @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  brand Brand @relation(fields: [brandId], references: [id], onDelete: Cascade)
 
   @@index([brandId, createdAt])
 }
 
 model BusinessAsset {
-  id                  String         @id @default(cuid())
-  brandId             String
-  category            AssetCategory
-  title               String
-  description         String?
-  fileUrl             String?
-  metadataJson        Json?
-  createdAt           DateTime       @default(now())
-  updatedAt           DateTime       @updatedAt
+  id           String        @id @default(cuid())
+  brandId      String
+  category     AssetCategory
+  title        String
+  description  String?
+  fileUrl      String?
+  metadataJson Json?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
 
-  brand               Brand          @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  brand Brand @relation(fields: [brandId], references: [id], onDelete: Cascade)
 
   @@index([brandId, category, createdAt])
 }
 
 model Task {
-  id                  String       @id @default(cuid())
-  userId              String
-  brandId             String?
-  taskType            String
-  taskStatus          TaskStatus   @default(PENDING)
-  taskTitle           String?
-  promptName          String?
-  modelName           String?
-  inputJson           Json?
-  outputJson          Json?
-  errorMessage        String?
-  pointsCost          Int          @default(0)
-  startedAt           DateTime?
-  finishedAt          DateTime?
-  createdAt           DateTime     @default(now())
-  updatedAt           DateTime     @updatedAt
+  id           String     @id @default(cuid())
+  userId       String
+  brandId      String?
+  taskType     String
+  taskStatus   TaskStatus @default(PENDING)
+  taskTitle    String?
+  promptName   String?
+  modelName    String?
+  inputJson    Json?
+  outputJson   Json?
+  errorMessage String?
+  pointsCost   Int        @default(0)
+  startedAt    DateTime?
+  finishedAt   DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
 
-  user                User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  brand               Brand?       @relation(fields: [brandId], references: [id], onDelete: SetNull)
-  mediaAssets         MediaAsset[]
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  brand       Brand?       @relation(fields: [brandId], references: [id], onDelete: SetNull)
+  mediaAssets MediaAsset[]
 
   @@index([userId, createdAt])
   @@index([brandId, createdAt])
@@ -664,26 +664,26 @@ model AiResultFeedback {
 }
 
 model MediaAsset {
-  id                  String       @id @default(cuid())
-  userId              String
-  brandId             String?
-  taskId              String?
-  mediaType           MediaType
-  title               String
-  sourceUrl           String?
-  storageKey          String?
-  mimeType            String?
-  fileSize            Int?
-  width               Int?
-  height              Int?
-  durationSec         Int?
-  metadataJson        Json?
-  createdAt           DateTime     @default(now())
-  updatedAt           DateTime     @updatedAt
+  id           String    @id @default(cuid())
+  userId       String
+  brandId      String?
+  taskId       String?
+  mediaType    MediaType
+  title        String
+  sourceUrl    String?
+  storageKey   String?
+  mimeType     String?
+  fileSize     Int?
+  width        Int?
+  height       Int?
+  durationSec  Int?
+  metadataJson Json?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
-  user                User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  brand               Brand?       @relation(fields: [brandId], references: [id], onDelete: SetNull)
-  task                Task?        @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  brand Brand? @relation(fields: [brandId], references: [id], onDelete: SetNull)
+  task  Task?  @relation(fields: [taskId], references: [id], onDelete: SetNull)
 
   @@index([userId, createdAt])
   @@index([brandId, createdAt])
@@ -691,47 +691,47 @@ model MediaAsset {
 }
 
 model UserFeishuIntegration {
-  id                  String    @id @default(cuid())
-  userId              String    @unique
-  appId               String
-  appSecret           String
-  redirectUri         String
-  scope               String
-  providerUserOpenId  String?
-  providerUserName    String?
-  providerUserAvatar  String?
-  accessToken         String?
-  refreshToken        String?
-  expiresAt           DateTime?
-  refreshExpiresAt    DateTime?
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  id                 String    @id @default(cuid())
+  userId             String    @unique
+  appId              String
+  appSecret          String
+  redirectUri        String
+  scope              String
+  providerUserOpenId String?
+  providerUserName   String?
+  providerUserAvatar String?
+  accessToken        String?
+  refreshToken       String?
+  expiresAt          DateTime?
+  refreshExpiresAt   DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
-  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([updatedAt])
 }
 
 model SkillConfig {
-  id           String   @id
-  name         String
-  slug         String   @unique
-  category     String
-  status       String
-  provider     String
-  defaultModel String
-  pointsCost   Int      @default(0)
-  description  String   @default("")
+  id              String   @id
+  name            String
+  slug            String   @unique
+  category        String
+  status          String
+  provider        String
+  defaultModel    String
+  pointsCost      Int      @default(0)
+  description     String   @default("")
   inputSchemaJson Json?
-  updatedAt    DateTime @default(now())
+  updatedAt       DateTime @default(now())
 
-  userSkillProfiles UserSkillProfile[]
-  userPromptOverrides UserPromptOverride[]
-  userSkillResetLogs UserSkillResetLog[]
-  brandSkillProfiles BrandSkillProfile[]
+  userSkillProfiles    UserSkillProfile[]
+  userPromptOverrides  UserPromptOverride[]
+  userSkillResetLogs   UserSkillResetLog[]
+  brandSkillProfiles   BrandSkillProfile[]
   brandPromptOverrides BrandPromptOverride[]
-  brandSkillResetLogs BrandSkillResetLog[]
-  promptBindings SkillPromptBinding[]
+  brandSkillResetLogs  BrandSkillResetLog[]
+  promptBindings       SkillPromptBinding[]
   skillPackageBindings SkillPackageSkill[]
 }
 
@@ -747,9 +747,9 @@ model PromptTemplate {
   content     String   @default("")
   updatedAt   DateTime @default(now())
 
-  userPromptOverrides UserPromptOverride[]
+  userPromptOverrides  UserPromptOverride[]
   brandPromptOverrides BrandPromptOverride[]
-  skillBindings SkillPromptBinding[]
+  skillBindings        SkillPromptBinding[]
 
   @@index([scene, updatedAt(sort: Desc)])
 }
@@ -800,21 +800,21 @@ model ImagePromptTemplate {
 }
 
 model SkillPromptBinding {
-  id          String         @id
+  id          String   @id
   skillId     String
   promptId    String
   skillSlug   String
   promptScene String
-  bindingType String         @default("PRIMARY")
-  isPrimary   Boolean        @default(false)
-  sortOrder   Int            @default(100)
-  enabled     Boolean        @default(true)
-  remarks     String         @default("")
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  bindingType String   @default("PRIMARY")
+  isPrimary   Boolean  @default(false)
+  sortOrder   Int      @default(100)
+  enabled     Boolean  @default(true)
+  remarks     String   @default("")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  skill       SkillConfig    @relation(fields: [skillId], references: [id], onDelete: Cascade)
-  prompt      PromptTemplate @relation(fields: [promptId], references: [id], onDelete: Cascade)
+  skill  SkillConfig    @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  prompt PromptTemplate @relation(fields: [promptId], references: [id], onDelete: Cascade)
 
   @@unique([skillId, promptId])
   @@index([skillSlug, enabled, sortOrder])
@@ -823,18 +823,18 @@ model SkillPromptBinding {
 }
 
 model BrandSkillProfile {
-  id           String   @id @default(cuid())
+  id           String    @id @default(cuid())
   brandId      String
   baseSkillId  String
   displayName  String?
   defaultModel String?
   description  String?
   lastResetAt  DateTime?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
-  brand        Brand       @relation(fields: [brandId], references: [id], onDelete: Cascade)
-  baseSkill    SkillConfig @relation(fields: [baseSkillId], references: [id], onDelete: Cascade)
+  brand     Brand       @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  baseSkill SkillConfig @relation(fields: [baseSkillId], references: [id], onDelete: Cascade)
 
   @@unique([brandId, baseSkillId])
   @@index([baseSkillId, updatedAt])
@@ -852,9 +852,9 @@ model BrandPromptOverride {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  brand        Brand          @relation(fields: [brandId], references: [id], onDelete: Cascade)
-  baseSkill    SkillConfig    @relation(fields: [baseSkillId], references: [id], onDelete: Cascade)
-  basePrompt   PromptTemplate @relation(fields: [basePromptId], references: [id], onDelete: Cascade)
+  brand      Brand          @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  baseSkill  SkillConfig    @relation(fields: [baseSkillId], references: [id], onDelete: Cascade)
+  basePrompt PromptTemplate @relation(fields: [basePromptId], references: [id], onDelete: Cascade)
 
   @@unique([brandId, basePromptId])
   @@index([brandId, baseSkillId, updatedAt])
@@ -862,22 +862,22 @@ model BrandPromptOverride {
 }
 
 model BrandSkillResetLog {
-  id           String   @id @default(cuid())
-  brandId      String
-  baseSkillId  String
-  resetType    String
+  id            String   @id @default(cuid())
+  brandId       String
+  baseSkillId   String
+  resetType     String
   promptIdsJson Json?
-  createdAt    DateTime @default(now())
+  createdAt     DateTime @default(now())
 
-  brand        Brand       @relation(fields: [brandId], references: [id], onDelete: Cascade)
-  baseSkill    SkillConfig @relation(fields: [baseSkillId], references: [id], onDelete: Cascade)
+  brand     Brand       @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  baseSkill SkillConfig @relation(fields: [baseSkillId], references: [id], onDelete: Cascade)
 
   @@index([brandId, createdAt])
   @@index([baseSkillId, createdAt])
 }
 
 model UserSkillProfile {
-  id           String   @id @default(cuid())
+  id           String    @id @default(cuid())
   userId       String
   brandId      String?
   baseSkillId  String
@@ -885,51 +885,51 @@ model UserSkillProfile {
   defaultModel String?
   description  String?
   lastResetAt  DateTime?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
-  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  brand        Brand?    @relation(fields: [brandId], references: [id], onDelete: SetNull)
-  baseSkill    SkillConfig @relation(fields: [baseSkillId], references: [id], onDelete: Cascade)
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  brand     Brand?      @relation(fields: [brandId], references: [id], onDelete: SetNull)
+  baseSkill SkillConfig @relation(fields: [baseSkillId], references: [id], onDelete: Cascade)
 
   @@index([userId, brandId, updatedAt])
   @@index([baseSkillId, updatedAt])
 }
 
 model UserPromptOverride {
-  id          String   @id @default(cuid())
-  userId      String
-  brandId     String?
-  baseSkillId String
+  id           String   @id @default(cuid())
+  userId       String
+  brandId      String?
+  baseSkillId  String
   basePromptId String
-  content     String?
-  modelName   String?
-  temperature Float?
-  maxTokens   Int?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  content      String?
+  modelName    String?
+  temperature  Float?
+  maxTokens    Int?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  brand       Brand?       @relation(fields: [brandId], references: [id], onDelete: SetNull)
-  baseSkill   SkillConfig  @relation(fields: [baseSkillId], references: [id], onDelete: Cascade)
-  basePrompt  PromptTemplate @relation(fields: [basePromptId], references: [id], onDelete: Cascade)
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  brand      Brand?         @relation(fields: [brandId], references: [id], onDelete: SetNull)
+  baseSkill  SkillConfig    @relation(fields: [baseSkillId], references: [id], onDelete: Cascade)
+  basePrompt PromptTemplate @relation(fields: [basePromptId], references: [id], onDelete: Cascade)
 
   @@index([userId, brandId, baseSkillId, updatedAt])
   @@index([basePromptId, updatedAt])
 }
 
 model UserSkillResetLog {
-  id           String   @id @default(cuid())
-  userId       String
-  brandId      String?
-  baseSkillId  String
-  resetType    String
+  id            String   @id @default(cuid())
+  userId        String
+  brandId       String?
+  baseSkillId   String
+  resetType     String
   promptIdsJson Json?
-  createdAt    DateTime @default(now())
+  createdAt     DateTime @default(now())
 
-  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  brand        Brand?     @relation(fields: [brandId], references: [id], onDelete: SetNull)
-  baseSkill    SkillConfig @relation(fields: [baseSkillId], references: [id], onDelete: Cascade)
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  brand     Brand?      @relation(fields: [brandId], references: [id], onDelete: SetNull)
+  baseSkill SkillConfig @relation(fields: [baseSkillId], references: [id], onDelete: Cascade)
 
   @@index([userId, brandId, createdAt])
   @@index([baseSkillId, createdAt])
@@ -984,9 +984,9 @@ model UserThirdPartyPlatformSecret {
   apiKey     String
   updatedAt  DateTime @updatedAt
 
-  user       User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  brand      Brand                    @relation(fields: [brandId], references: [id], onDelete: Cascade)
-  platform   ThirdPartyPlatformConfig @relation(fields: [platformId], references: [id], onDelete: Cascade)
+  user     User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  brand    Brand                    @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  platform ThirdPartyPlatformConfig @relation(fields: [platformId], references: [id], onDelete: Cascade)
 
   @@unique([userId, brandId, platformId])
   @@index([brandId, platformId])
@@ -999,25 +999,25 @@ model BrandThirdPartyPlatformSecret {
   apiKey     String
   updatedAt  DateTime @updatedAt
 
-  brand      Brand                    @relation(fields: [brandId], references: [id], onDelete: Cascade)
-  platform   ThirdPartyPlatformConfig @relation(fields: [platformId], references: [id], onDelete: Cascade)
+  brand    Brand                    @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  platform ThirdPartyPlatformConfig @relation(fields: [platformId], references: [id], onDelete: Cascade)
 
   @@unique([brandId, platformId])
 }
 
 model OpenClawInstallToken {
-  id              String   @id
+  id              String    @id
   brandId         String
   createdByUserId String
-  tokenName       String   @default("")
-  tokenHash       String   @unique(map: "OpenClawInstallToken_tokenHash_key")
-  tokenPreview    String   @default("")
-  encryptedToken  String   @default("")
-  status          String   @default("ACTIVE")
+  tokenName       String    @default("")
+  tokenHash       String    @unique(map: "OpenClawInstallToken_tokenHash_key")
+  tokenPreview    String    @default("")
+  encryptedToken  String    @default("")
+  status          String    @default("ACTIVE")
   lastUsedAt      DateTime?
   expiresAt       DateTime?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   @@index([brandId, status, createdAt(sort: Desc)], map: "OpenClawInstallToken_brand_status_idx")
   @@map("OpenClawInstallToken")
@@ -1077,6 +1077,52 @@ model OpenClawCreativeMaterial {
   @@map("OpenClawCreativeMaterial")
 }
 
+model OpenClawComment {
+  id              String   @id
+  brandId         String
+  workspaceScope  String   @default("brand_growth")
+  resourceType    String
+  resourceId      String
+  createdByUserId String
+  content         String   @default("")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([brandId, workspaceScope, resourceType, resourceId, createdAt(sort: Asc)], map: "OpenClawComment_brand_scope_resource_created_idx")
+  @@map("OpenClawComment")
+}
+
+model OpenClawMarketingPlan {
+  id              String   @id
+  brandId         String
+  workspaceScope  String   @default("brand_growth")
+  createdByUserId String
+  title           String   @default("")
+  htmlContent     String   @default("")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([brandId, createdAt(sort: Desc), updatedAt(sort: Desc)], map: "OpenClawMarketingPlan_brand_created_idx")
+  @@index([brandId, workspaceScope, createdAt(sort: Desc), updatedAt(sort: Desc)], map: "OpenClawMarketingPlan_brand_scope_created_idx")
+  @@map("OpenClawMarketingPlan")
+}
+
+model OpenClawStrategyOptimization {
+  id              String   @id
+  brandId         String
+  workspaceScope  String   @default("brand_growth")
+  createdByUserId String
+  generatedAt     DateTime @default(now())
+  title           String   @default("")
+  content         String   @default("")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([brandId, generatedAt(sort: Desc), createdAt(sort: Desc)], map: "OpenClawStrategyOptimization_brand_generated_idx")
+  @@index([brandId, workspaceScope, generatedAt(sort: Desc), createdAt(sort: Desc)], map: "OpenClawStrategyOptimization_brand_scope_generated_idx")
+  @@map("OpenClawStrategyOptimization")
+}
+
 model OpenClawVideoWork {
   id              String   @id
   brandId         String
@@ -1129,6 +1175,52 @@ model OpenClawGeoContent {
   @@map("OpenClawGeoContent")
 }
 
+model OpenClawThirdPartyMediaResource {
+  id               String    @id
+  brandId          String
+  workspaceScope   String    @default("brand_growth")
+  providerType     String    @default("ruanwenjie")
+  remoteResourceId String    @default("")
+  sortType         String    @default("")
+  platform         String    @default("")
+  taxonomy         String    @default("")
+  area             String    @default("")
+  name             String    @default("")
+  caseUrl          String?
+  price            String    @default("")
+  publishTime      String    @default("")
+  successRate      String    @default("")
+  includeRate      String    @default("")
+  isSelfMedia      Boolean   @default(false)
+  rawJson          String    @default("{}")
+  sourceRemotePage Int       @default(1)
+  lastSyncedAt     DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@unique([brandId, workspaceScope, providerType, remoteResourceId], map: "OpenClawThirdPartyMediaResource_brand_scope_provider_remote_idx")
+  @@index([brandId, workspaceScope, lastSyncedAt(sort: Desc), updatedAt(sort: Desc)], map: "OpenClawThirdPartyMediaResource_brand_scope_synced_idx")
+  @@map("OpenClawThirdPartyMediaResource")
+}
+
+model OpenClawThirdPartyMediaSyncState {
+  id               String    @id
+  brandId          String
+  workspaceScope   String    @default("brand_growth")
+  providerType     String    @default("ruanwenjie")
+  nextRemotePage   Int       @default(1)
+  lastRemotePage   Int       @default(0)
+  lastRemoteTotal  Int       @default(0)
+  lastFetchedCount Int       @default(0)
+  hasRemoteMore    Boolean   @default(true)
+  lastSyncAt       DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@unique([brandId, workspaceScope, providerType], map: "OpenClawThirdPartyMediaSyncState_brand_scope_provider_idx")
+  @@map("OpenClawThirdPartyMediaSyncState")
+}
+
 model OpenClawCommentLead {
   id              String   @id
   brandId         String
@@ -1167,85 +1259,85 @@ model OpenClawPlatformLead {
 }
 
 model KnowledgeBase {
-  id            String                 @id
+  id            String   @id
   name          String
-  slug          String                 @unique
+  slug          String   @unique
   sourceType    String
-  status        String                 @default("DRAFT")
-  syncStatus    String                 @default("IDLE")
-  documentCount Int                    @default(0)
-  chunkCount    Int                    @default(0)
-  description   String                 @default("")
-  createdAt     DateTime               @default(now())
-  updatedAt     DateTime               @updatedAt
+  status        String   @default("DRAFT")
+  syncStatus    String   @default("IDLE")
+  documentCount Int      @default(0)
+  chunkCount    Int      @default(0)
+  description   String   @default("")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  files         KnowledgeBaseFile[]
-  chunks        KnowledgeChunk[]
-  embeddings    KnowledgeEmbedding[]
-  bindings      KnowledgeBinding[]
-  retrievalConfig KnowledgeRetrievalConfig?
+  files                       KnowledgeBaseFile[]
+  chunks                      KnowledgeChunk[]
+  embeddings                  KnowledgeEmbedding[]
+  bindings                    KnowledgeBinding[]
+  retrievalConfig             KnowledgeRetrievalConfig?
   skillPackageKnowledgeSpaces SkillPackageKnowledgeSpace[]
-  syncRuns      KnowledgeBaseSyncRun[]
+  syncRuns                    KnowledgeBaseSyncRun[]
 
   @@index([status, updatedAt])
   @@index([syncStatus, updatedAt])
 }
 
 model KnowledgeRetrievalConfig {
-  id                 String        @id
-  knowledgeBaseId    String        @unique
-  defaultTopK        Int           @default(8)
-  recallMode         String        @default("HYBRID")
-  rerankEnabled      Boolean       @default(false)
+  id                 String   @id
+  knowledgeBaseId    String   @unique
+  defaultTopK        Int      @default(8)
+  recallMode         String   @default("HYBRID")
+  rerankEnabled      Boolean  @default(false)
   rerankModelName    String?
   chunkSize          Int?
   chunkOverlap       Int?
   retrievalThreshold Float?
-  createdAt          DateTime      @default(now())
-  updatedAt          DateTime      @updatedAt
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
-  knowledgeBase      KnowledgeBase @relation(fields: [knowledgeBaseId], references: [id], onDelete: Cascade)
+  knowledgeBase KnowledgeBase @relation(fields: [knowledgeBaseId], references: [id], onDelete: Cascade)
 
   @@index([recallMode, updatedAt])
 }
 
 model KnowledgeBaseFile {
-  id              String                   @id
+  id              String   @id
   knowledgeBaseId String
   fileName        String
   fileType        String
   sourceName      String
-  chunkCount      Int                      @default(0)
-  status          String                   @default("PENDING")
-  uploadedAt      DateTime                 @default(now())
-  updatedAt       DateTime                 @updatedAt
+  chunkCount      Int      @default(0)
+  status          String   @default("PENDING")
+  uploadedAt      DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  knowledgeBase   KnowledgeBase            @relation(fields: [knowledgeBaseId], references: [id], onDelete: Cascade)
-  chunks          KnowledgeChunk[]
-  embeddings      KnowledgeEmbedding[]
-  syncRuns        KnowledgeBaseSyncRun[]   @relation("KnowledgeBaseFileSyncRuns")
+  knowledgeBase KnowledgeBase          @relation(fields: [knowledgeBaseId], references: [id], onDelete: Cascade)
+  chunks        KnowledgeChunk[]
+  embeddings    KnowledgeEmbedding[]
+  syncRuns      KnowledgeBaseSyncRun[] @relation("KnowledgeBaseFileSyncRuns")
 
   @@index([knowledgeBaseId, uploadedAt])
   @@index([knowledgeBaseId, status, uploadedAt])
 }
 
 model KnowledgeChunk {
-  id              String        @id
+  id              String   @id
   knowledgeBaseId String
   fileId          String
   chunkIndex      Int
   content         String
-  tokenCount      Int           @default(0)
-  charCount       Int           @default(0)
+  tokenCount      Int      @default(0)
+  charCount       Int      @default(0)
   contentHash     String
   sourceLabel     String?
   metadataJson    Json?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  knowledgeBase   KnowledgeBase @relation(fields: [knowledgeBaseId], references: [id], onDelete: Cascade)
-  file            KnowledgeBaseFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
-  embeddings      KnowledgeEmbedding[]
+  knowledgeBase KnowledgeBase        @relation(fields: [knowledgeBaseId], references: [id], onDelete: Cascade)
+  file          KnowledgeBaseFile    @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  embeddings    KnowledgeEmbedding[]
 
   @@unique([fileId, chunkIndex])
   @@index([knowledgeBaseId, fileId, chunkIndex])
@@ -1253,7 +1345,7 @@ model KnowledgeChunk {
 }
 
 model KnowledgeEmbedding {
-  id              String        @id
+  id              String   @id
   knowledgeBaseId String
   fileId          String
   chunkId         String
@@ -1261,19 +1353,19 @@ model KnowledgeEmbedding {
   providerName    String
   dimensions      Int
   embeddingJson   Json
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  knowledgeBase   KnowledgeBase @relation(fields: [knowledgeBaseId], references: [id], onDelete: Cascade)
-  file            KnowledgeBaseFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
-  chunk           KnowledgeChunk @relation(fields: [chunkId], references: [id], onDelete: Cascade)
+  knowledgeBase KnowledgeBase     @relation(fields: [knowledgeBaseId], references: [id], onDelete: Cascade)
+  file          KnowledgeBaseFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  chunk         KnowledgeChunk    @relation(fields: [chunkId], references: [id], onDelete: Cascade)
 
   @@unique([chunkId, modelName])
   @@index([knowledgeBaseId, fileId, createdAt])
 }
 
 model KnowledgeBaseSyncRun {
-  id              String                 @id
+  id              String    @id
   knowledgeBaseId String
   fileId          String?
   scope           String
@@ -1282,11 +1374,11 @@ model KnowledgeBaseSyncRun {
   result          String
   summary         String
   errorDetail     String?
-  startedAt       DateTime               @default(now())
+  startedAt       DateTime  @default(now())
   completedAt     DateTime?
 
-  knowledgeBase   KnowledgeBase          @relation(fields: [knowledgeBaseId], references: [id], onDelete: Cascade)
-  file            KnowledgeBaseFile?     @relation("KnowledgeBaseFileSyncRuns", fields: [fileId], references: [id], onDelete: SetNull)
+  knowledgeBase KnowledgeBase      @relation(fields: [knowledgeBaseId], references: [id], onDelete: Cascade)
+  file          KnowledgeBaseFile? @relation("KnowledgeBaseFileSyncRuns", fields: [fileId], references: [id], onDelete: SetNull)
 
   @@index([knowledgeBaseId, startedAt])
   @@index([result, startedAt])
@@ -1294,41 +1386,41 @@ model KnowledgeBaseSyncRun {
 }
 
 model KnowledgeInvocationRun {
-  id                           String   @id
-  brandId                      String?
-  sourceModule                 String
-  sceneLabel                   String
-  moduleTargetId               String?
-  skillPackageKey              String?
-  skillSlug                    String?
-  knowledgeBaseIdsJson         Json
-  knowledgeBaseNamesJson       Json
-  matchedKnowledgeBaseIdsJson  Json
+  id                            String   @id
+  brandId                       String?
+  sourceModule                  String
+  sceneLabel                    String
+  moduleTargetId                String?
+  skillPackageKey               String?
+  skillSlug                     String?
+  knowledgeBaseIdsJson          Json
+  knowledgeBaseNamesJson        Json
+  matchedKnowledgeBaseIdsJson   Json
   matchedKnowledgeBaseNamesJson Json
-  retrievalQuery               String?
-  hitCount                     Int      @default(0)
-  status                       String
-  summary                      String
-  createdAt                    DateTime @default(now())
+  retrievalQuery                String?
+  hitCount                      Int      @default(0)
+  status                        String
+  summary                       String
+  createdAt                     DateTime @default(now())
 
   @@index([createdAt])
 }
 
 model KnowledgeBinding {
-  id              String        @id
+  id              String   @id
   knowledgeBaseId String
   bindingType     String
   targetId        String
   targetKey       String?
   targetName      String?
-  priority        Int           @default(100)
-  retrievalMode   String        @default("HYBRID")
-  isRequired      Boolean       @default(false)
-  enabled         Boolean       @default(true)
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  priority        Int      @default(100)
+  retrievalMode   String   @default("HYBRID")
+  isRequired      Boolean  @default(false)
+  enabled         Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  knowledgeBase   KnowledgeBase @relation(fields: [knowledgeBaseId], references: [id], onDelete: Cascade)
+  knowledgeBase KnowledgeBase @relation(fields: [knowledgeBaseId], references: [id], onDelete: Cascade)
 
   @@unique([knowledgeBaseId, bindingType, targetId])
   @@index([bindingType, targetId, priority])
@@ -1336,40 +1428,40 @@ model KnowledgeBinding {
 }
 
 model SkillPackage {
-  id                        String   @id
-  packageKey                String   @unique
-  packageName               String
-  description               String   @default("")
-  status                    String   @default("DRAFT")
-  scope                     String   @default("PLATFORM")
-  moduleKeysJson            Json
-  workflowStepKeysJson      Json?
-  tagsJson                  Json?
-  currentVersionId          String?
-  defaultKnowledgeSpaceIdsJson  Json?
+  id                           String   @id
+  packageKey                   String   @unique
+  packageName                  String
+  description                  String   @default("")
+  status                       String   @default("DRAFT")
+  scope                        String   @default("PLATFORM")
+  moduleKeysJson               Json
+  workflowStepKeysJson         Json?
+  tagsJson                     Json?
+  currentVersionId             String?
+  defaultKnowledgeSpaceIdsJson Json?
   defaultProviderPolicyIdsJson Json?
-  sortOrder                 Int      @default(100)
-  remarks                   String   @default("")
-  createdAt                 DateTime @default(now())
-  updatedAt                 DateTime @updatedAt
+  sortOrder                    Int      @default(100)
+  remarks                      String   @default("")
+  createdAt                    DateTime @default(now())
+  updatedAt                    DateTime @updatedAt
 
   @@index([status, scope, sortOrder])
   @@index([updatedAt])
 }
 
 model SkillPackageVersion {
-  id           String   @id
-  packageId    String
-  packageKey   String
-  versionNumber String
-  changeLog    String   @default("")
-  sourceMode   String   @default("CURRENT_STATE")
+  id              String   @id
+  packageId       String
+  packageKey      String
+  versionNumber   String
+  changeLog       String   @default("")
+  sourceMode      String   @default("CURRENT_STATE")
   sourceVersionId String?
-  isActive     Boolean  @default(false)
-  snapshotJson Json
-  createdBy    String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  isActive        Boolean  @default(false)
+  snapshotJson    Json
+  createdBy       String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   @@unique([packageId, versionNumber])
   @@index([packageId, isActive, createdAt(sort: Desc)])
@@ -1394,17 +1486,17 @@ model ReferenceAsset {
 }
 
 model ScriptAsset {
-  id            String   @id
-  packageId     String
-  scriptKey     String
-  scriptName    String
-  runtime       String
-  entry         String?
+  id             String   @id
+  packageId      String
+  scriptKey      String
+  scriptName     String
+  runtime        String
+  entry          String?
   argsSchemaJson Json?
-  usageNote     String   @default("")
-  sortOrder     Int      @default(100)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  usageNote      String   @default("")
+  sortOrder      Int      @default(100)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   @@unique([packageId, scriptKey])
   @@index([packageId, sortOrder, updatedAt])
@@ -1442,27 +1534,27 @@ model ModuleDefinition {
   createdAt                       DateTime @default(now())
   updatedAt                       DateTime @updatedAt
 
-  skillPackageBindings            SkillPackageModule[]
+  skillPackageBindings SkillPackageModule[]
 
   @@index([moduleType, moduleStatus, sortOrder])
   @@index([moduleStatus, updatedAt])
 }
 
 model SkillPackageModule {
-  id          String           @id
+  id          String   @id
   packageId   String
   packageKey  String
   packageName String
   moduleKey   String
   bindingType String
-  isDefault   Boolean          @default(false)
-  sortOrder   Int              @default(100)
-  enabled     Boolean          @default(true)
-  remarks     String           @default("")
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
+  isDefault   Boolean  @default(false)
+  sortOrder   Int      @default(100)
+  enabled     Boolean  @default(true)
+  remarks     String   @default("")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  module      ModuleDefinition @relation(fields: [moduleKey], references: [moduleKey], onDelete: Cascade)
+  module ModuleDefinition @relation(fields: [moduleKey], references: [moduleKey], onDelete: Cascade)
 
   @@unique([packageKey, moduleKey, bindingType])
   @@index([moduleKey, enabled, sortOrder])
@@ -1470,44 +1562,43 @@ model SkillPackageModule {
 }
 
 model SkillPackageSkill {
-  id          String      @id
+  id          String   @id
   packageId   String
   packageKey  String
   packageName String
   skillId     String
   skillSlug   String
-  bindingType String      @default("DEFAULT")
-  isDefault   Boolean     @default(false)
-  sortOrder   Int         @default(100)
-  enabled     Boolean     @default(true)
-  remarks     String      @default("")
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  bindingType String   @default("DEFAULT")
+  isDefault   Boolean  @default(false)
+  sortOrder   Int      @default(100)
+  enabled     Boolean  @default(true)
+  remarks     String   @default("")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  skill       SkillConfig @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  skill SkillConfig @relation(fields: [skillId], references: [id], onDelete: Cascade)
 
   @@unique([packageKey, skillId, bindingType])
   @@index([packageKey, enabled, sortOrder])
   @@index([skillSlug, enabled, sortOrder])
 }
 
-
 model SkillPackageKnowledgeSpace {
-  id              String        @id
+  id              String   @id
   packageId       String
   packageKey      String
   packageName     String
   knowledgeBaseId String
-  relationType    String        @default("DEFAULT")
-  priority        Int           @default(100)
-  retrievalMode   String        @default("HYBRID")
-  isRequired      Boolean       @default(false)
-  enabled         Boolean       @default(true)
-  remarks         String        @default("")
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  relationType    String   @default("DEFAULT")
+  priority        Int      @default(100)
+  retrievalMode   String   @default("HYBRID")
+  isRequired      Boolean  @default(false)
+  enabled         Boolean  @default(true)
+  remarks         String   @default("")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  knowledgeBase   KnowledgeBase @relation(fields: [knowledgeBaseId], references: [id], onDelete: Cascade)
+  knowledgeBase KnowledgeBase @relation(fields: [knowledgeBaseId], references: [id], onDelete: Cascade)
 
   @@unique([packageKey, knowledgeBaseId, relationType])
   @@index([packageKey, enabled, priority])
@@ -1528,17 +1619,17 @@ model DigitalHumanFavoriteTemplate {
 }
 
 model DigitalHumanScriptTemplate {
-  id        String   @id @default(cuid())
-  userId    String
-  brandId   String
-  name      String
-  content   String
-  note      String   @default("")
-  isShared  Boolean  @default(false)
-  category  String   @default("general")
+  id         String   @id @default(cuid())
+  userId     String
+  brandId    String
+  name       String
+  content    String
+  note       String   @default("")
+  isShared   Boolean  @default(false)
+  category   String   @default("general")
   isArchived Boolean  @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   @@index([userId, brandId, updatedAt])
   @@index([brandId, category, updatedAt])
