@@ -446,6 +446,8 @@ RunningHub 关键规则：
 - 帮我生成音乐并保存素材
 - 帮我把结果存进创作素材
 - 帮我把最终视频保存到视频作品
+- 帮我整理一份给 OpenChatCut 的素材清单
+- 帮我把当前板块素材做成一个剪辑草案
 
 优先工具：
 
@@ -479,10 +481,17 @@ RunningHub 关键规则：
   - `create_openclaw_video_work`
   - `delete_openclaw_video_work`
   - `create_openclaw_video_work_douyin_desktop_publish_session`
+- OpenChatCut 桥接：
+  - `get_openchatcut_bridge_assets`
+  - `build_openchatcut_storyboard_draft`
 
 处理原则：
 
 - OpenClaw 的创作素材、视频作品、GEO获客内容、全网获客评论名单都是归档板块，不是生成引擎本身
+- 当目标是把站内素材继续送到 OpenChatCut 这类外部剪辑系统时，优先先走桥接工具：
+  - 先用 `get_openchatcut_bridge_assets` 看当前板块有哪些可用素材
+  - 再用 `build_openchatcut_storyboard_draft` 生成推荐素材和时间线草案
+  - 这一步只整理本站真源，不直接调 OpenChatCut 外部服务
 - OpenClaw 的营销策划方案当前是 HTML 归档板块；优先先读列表，再决定是否新建或删除
 - 音乐任务创建成功不代表最终完成，必须继续轮询结果
 - 当用户要求“生成后直接沉淀到素材库”时，优先把归档动作一并完成

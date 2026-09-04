@@ -33,6 +33,7 @@ import { OpenClawMarketingPlanService } from "./openclaw-marketing-plan.service"
 import { OpenClawTencentAdLeadService } from "./openclaw-tencent-ad-lead.service";
 import { OpenClawStrategyOptimizationService } from "./openclaw-strategy-optimization.service";
 import { OpenClawVideoWorkService } from "./openclaw-video-work.service";
+import { OpenClawOpenChatCutBridgeService } from "./openclaw-openchatcut-bridge.service";
 import {
   getOpenClawWorkspaceDashboardPath,
   getOpenClawWorkspaceDisplayName,
@@ -535,6 +536,24 @@ const OPENCLAW_WEBSITE_FUNCTION_CATALOG: OpenClawWebsiteFunctionCatalogItem[] = 
       "delete_openclaw_video_work",
       "create_openclaw_video_work_douyin_desktop_publish_session",
       "get_douyin_desktop_publish_session",
+    ],
+  },
+  {
+    key: "openchatcut_bridge",
+    domainKey: "openclaw",
+    domainName: "OpenChatCut 桥接",
+    name: "整理外部剪辑系统素材草案",
+    summary: "适合把当前品牌板块下的 OpenClaw 创作素材和视频作品整理成可直接喂给 OpenChatCut 的桥接草案。",
+    pageUrl: "/personal-center/openclaw",
+    pageLabel: "打开 OpenClaw 安装中心",
+    riskLevel: "low",
+    intentKeywords: ["openchatcut", "剪辑", "桥接", "时间线", "素材清单", "storyboard", "成片草案"],
+    requiredInputKeys: ["workspaceScope"],
+    requiredInputs: ["板块作用域"],
+    recommendedQuestions: ["帮我整理一份给 OpenChatCut 的素材清单", "帮我把当前板块素材做成一个剪辑草案"],
+    mcpTools: [
+      "get_openchatcut_bridge_assets",
+      "build_openchatcut_storyboard_draft",
     ],
   },
   {
@@ -2568,6 +2587,49 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
     },
   },
   {
+    name: "get_openchatcut_bridge_assets",
+    description: "整理当前品牌指定板块下可直接交给 OpenChatCut 之类外部剪辑系统的素材清单，统一汇总 OpenClaw 创作素材和视频作品。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat", "geo", "all_network_growth", "paid_acquisition"], description: "可选：指定板块作用域，默认 brand_growth。" },
+        includeCreativeMaterials: { type: "boolean", description: "可选：是否包含创作素材，默认 true。" },
+        includeVideoWorks: { type: "boolean", description: "可选：是否包含视频作品，默认 true。" },
+        materialCategories: {
+          type: "array",
+          description: "可选：只返回指定素材分类，例如 [\"image\", \"audio\", \"video\", \"text\"]。",
+          items: { type: "string" },
+        },
+        limit: { type: "integer", minimum: 1, maximum: 50 },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "build_openchatcut_storyboard_draft",
+    description: "基于当前品牌指定板块下的素材和视频作品，生成一份给 OpenChatCut 使用的剪辑草案，包含推荐素材和时间线草案。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat", "geo", "all_network_growth", "paid_acquisition"], description: "可选：指定板块作用域，默认 brand_growth。" },
+        title: { type: "string", description: "可选：草案标题。" },
+        objective: { type: "string", description: "可选：剪辑目标或用途说明。" },
+        selectedMaterialIds: {
+          type: "array",
+          description: "可选：指定要纳入草案的创作素材 ID 列表。",
+          items: { type: "string" },
+        },
+        selectedVideoWorkIds: {
+          type: "array",
+          description: "可选：指定要纳入草案的视频作品 ID 列表。",
+          items: { type: "string" },
+        },
+        limit: { type: "integer", minimum: 1, maximum: 50, description: "可选：未显式选择素材时，自动挑选最近素材的最大数量。" },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
     name: "create_openclaw_video_work_douyin_desktop_publish_session",
     description: "为指定 OpenClaw 视频作品创建抖音电脑端发布会话，便于通过浏览器扩展自动填充发布信息。",
     inputSchema: {
@@ -3247,6 +3309,7 @@ export class OpenClawService {
     private readonly openClawCommentLeadService: OpenClawCommentLeadService,
     private readonly openClawPlatformLeadService: OpenClawPlatformLeadService,
     private readonly openClawVideoWorkService: OpenClawVideoWorkService,
+    private readonly openClawOpenChatCutBridgeService: OpenClawOpenChatCutBridgeService,
     private readonly localRuntimeService: LocalRuntimeService,
   ) {}
 
@@ -8768,6 +8831,101 @@ export class OpenClawService {
       },
       links: [{ label: `打开${workspaceLabel}工作台`, url: workspacePath }],
       resourceKind: "openclaw_video_work",
+    });
+  }
+
+  async getOpenChatCutBridgeAssets(
+    headers: HeadersMap,
+    options?: {
+      workspaceScope?: string;
+      includeCreativeMaterials?: boolean;
+      includeVideoWorks?: boolean;
+      materialCategories?: string[];
+      limit?: number;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "view", auth);
+    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope);
+    const workspaceLabel = getOpenClawWorkspaceDisplayName(workspaceScope);
+    const workspacePath = getOpenClawWorkspaceDashboardPath(workspaceScope);
+    const result = await this.openClawOpenChatCutBridgeService.listBridgeAssets(brandId, {
+      workspaceScope,
+      includeCreativeMaterials: options?.includeCreativeMaterials,
+      includeVideoWorks: options?.includeVideoWorks,
+      materialCategories: options?.materialCategories,
+      limit: options?.limit,
+    });
+
+    return this.buildSummaryResponse({
+      title: `${workspaceLabel} OpenChatCut 素材桥接清单`,
+      summary: result.total
+        ? `已整理出 ${workspaceLabel} 板块下 ${result.total} 条可直接交给 OpenChatCut 的素材或视频作品。`
+        : `当前品牌 ${workspaceLabel} 板块还没有可供 OpenChatCut 使用的素材或视频作品。`,
+      highlights: result.items.length
+        ? result.items.slice(0, 6).map((item) => {
+          const sourceLabel = item.sourceType === "creative_material" ? "创作素材" : "视频作品";
+          return `${item.title}｜${sourceLabel}｜${this.getCreativeMaterialCategoryLabel(item.assetType)}`;
+        })
+        : [
+          `图片：${result.counts.image}`,
+          `视频：${result.counts.video}`,
+          `语音：${result.counts.audio}`,
+          `文本：${result.counts.text}`,
+        ],
+      data: result,
+      links: [
+        { label: `打开${workspaceLabel}工作台`, url: workspacePath },
+        { label: "打开 OpenClaw 安装中心", url: "/personal-center/openclaw" },
+      ],
+      resourceKind: "openchatcut_bridge_asset",
+      resultStatus: "COMPLETED",
+    });
+  }
+
+  async buildOpenChatCutStoryboardDraft(
+    headers: HeadersMap,
+    options?: {
+      workspaceScope?: string;
+      title?: string;
+      objective?: string;
+      selectedMaterialIds?: string[];
+      selectedVideoWorkIds?: string[];
+      limit?: number;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "view", auth);
+    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope);
+    const workspaceLabel = getOpenClawWorkspaceDisplayName(workspaceScope);
+    const workspacePath = getOpenClawWorkspaceDashboardPath(workspaceScope);
+    const result = await this.openClawOpenChatCutBridgeService.buildStoryboardDraft(brandId, {
+      workspaceScope,
+      title: options?.title,
+      objective: options?.objective,
+      selectedMaterialIds: options?.selectedMaterialIds,
+      selectedVideoWorkIds: options?.selectedVideoWorkIds,
+      limit: options?.limit,
+    });
+
+    return this.buildSummaryResponse({
+      title: `${workspaceLabel} OpenChatCut 剪辑草案`,
+      summary: result.summary,
+      highlights: [
+        `草案标题：${result.title}`,
+        `推荐素材数：${result.recommendedAssets.length}`,
+        `时间线段数：${result.timelineDraft.length}`,
+        ...result.timelineDraft.slice(0, 4).map((item) => `${item.order}. ${item.title}｜${item.clipType}`),
+      ],
+      data: result,
+      links: [
+        { label: `打开${workspaceLabel}工作台`, url: workspacePath },
+        { label: "打开 OpenClaw 安装中心", url: "/personal-center/openclaw" },
+      ],
+      resourceKind: "openchatcut_storyboard_draft",
+      resultStatus: "COMPLETED",
     });
   }
 
@@ -14305,6 +14463,29 @@ export class OpenClawService {
       case "get_openclaw_video_works":
         return this.getOpenClawVideoWorks(headers, {
           workspaceScope: typeof toolArgs.workspaceScope === "string" ? toolArgs.workspaceScope : undefined,
+          limit: typeof toolArgs.limit === "number" ? toolArgs.limit : undefined,
+        });
+      case "get_openchatcut_bridge_assets":
+        return this.getOpenChatCutBridgeAssets(headers, {
+          workspaceScope: typeof toolArgs.workspaceScope === "string" ? toolArgs.workspaceScope : undefined,
+          includeCreativeMaterials: typeof toolArgs.includeCreativeMaterials === "boolean" ? toolArgs.includeCreativeMaterials : undefined,
+          includeVideoWorks: typeof toolArgs.includeVideoWorks === "boolean" ? toolArgs.includeVideoWorks : undefined,
+          materialCategories: Array.isArray(toolArgs.materialCategories)
+            ? toolArgs.materialCategories.map((item) => String(item || "").trim()).filter(Boolean)
+            : undefined,
+          limit: typeof toolArgs.limit === "number" ? toolArgs.limit : undefined,
+        });
+      case "build_openchatcut_storyboard_draft":
+        return this.buildOpenChatCutStoryboardDraft(headers, {
+          workspaceScope: typeof toolArgs.workspaceScope === "string" ? toolArgs.workspaceScope : undefined,
+          title: typeof toolArgs.title === "string" ? toolArgs.title : undefined,
+          objective: typeof toolArgs.objective === "string" ? toolArgs.objective : undefined,
+          selectedMaterialIds: Array.isArray(toolArgs.selectedMaterialIds)
+            ? toolArgs.selectedMaterialIds.map((item) => String(item || "").trim()).filter(Boolean)
+            : undefined,
+          selectedVideoWorkIds: Array.isArray(toolArgs.selectedVideoWorkIds)
+            ? toolArgs.selectedVideoWorkIds.map((item) => String(item || "").trim()).filter(Boolean)
+            : undefined,
           limit: typeof toolArgs.limit === "number" ? toolArgs.limit : undefined,
         });
       case "get_openclaw_geo_visibility_reports":

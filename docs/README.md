@@ -179,6 +179,8 @@
 - 已放弃的多-agent 方案文档已经移除，不再作为当前开发模式的一部分
 
 ## 最近应优先关注的文档
+- `docs/changes/2026-09-05-openchatcut-bridge-assets-and-storyboard-draft.md`
+  - 给 OpenClaw 新增 `get_openchatcut_bridge_assets` 与 `build_openchatcut_storyboard_draft` 两个桥接工具，用于把站内创作素材和视频作品整理成可继续交给 OpenChatCut 的素材清单与时间线草案
 - `docs/changes/2026-09-04-openclaw-free-image-design-workspace.md`
   - 把 OpenClaw `create_design_work` 的图片模块收口为默认自由生图：不再强制走社媒配图模板、不默认植入品牌资料；同时 `更多功能 -> 设计` 收口为站内结果回看页，并撤下提示词中心入口
 - `docs/changes/2026-09-04-wechat-multi-official-account-workflow-routing.md`

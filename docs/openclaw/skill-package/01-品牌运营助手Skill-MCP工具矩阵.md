@@ -541,6 +541,23 @@ RunningHub 上传节点补充规则：
 - `delete_openclaw_video_work`
 - `create_openclaw_video_work_douyin_desktop_publish_session`
 
+### 14.9 OpenChatCut 桥接
+
+- `get_openchatcut_bridge_assets`
+- `build_openchatcut_storyboard_draft`
+
+OpenChatCut 桥接补充：
+
+- `get_openchatcut_bridge_assets`
+  - 汇总当前品牌指定板块下的 OpenClaw 创作素材和视频作品
+  - 返回可直接交给 OpenChatCut 之类外部剪辑系统的桥接素材清单
+  - 支持按 `materialCategories` 过滤 `image / video / audio / text`
+- `build_openchatcut_storyboard_draft`
+  - 基于当前板块素材自动生成一份剪辑草案
+  - 也支持显式传 `selectedMaterialIds`、`selectedVideoWorkIds`
+  - 返回推荐素材和时间线草案，适合继续喂给 OpenChatCut MCP 做工程、时间线和导出
+  - 这两个工具只整理本站已有素材真源，不会直接去调 OpenChatCut 外部服务
+
 ## 15. GEO获客
 
 - `get_openclaw_geo_visibility_reports`

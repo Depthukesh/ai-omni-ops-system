@@ -17,6 +17,15 @@
 
 > 如果后续引入 OpenChatCut，推荐让它作为独立 Docker 剪辑服务存在，而不是并入本站主系统。OpenClaw 同时连接本站 MCP 和 OpenChatCut MCP：本站负责素材生成与任务编排，OpenChatCut 负责时间线编辑与导出。
 
+当前本站 MCP 已补一层最小桥接能力：
+
+- `get_openchatcut_bridge_assets`
+  - 把指定板块下的创作素材和视频作品整理成统一素材清单
+- `build_openchatcut_storyboard_draft`
+  - 基于现有素材生成推荐素材和时间线草案
+
+这层桥接只负责整理本站真源，方便 OpenClaw 后续继续把结果送进 OpenChatCut MCP，不直接替 OpenChatCut 创建外部工程。
+
 ---
 
 ## 2. 对 OpenClaw 的正确理解
