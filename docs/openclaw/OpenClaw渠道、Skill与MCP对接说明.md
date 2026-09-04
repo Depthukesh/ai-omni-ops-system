@@ -258,12 +258,14 @@ OpenClaw 通过 MCP 获取：
 
 该工具已经覆盖：
 
+- 多公众号账号列表读取
 - 工作流偏好
 - 工作流创建与详情读取
 - `set_article / set_images / set_html`
 - `generate_article / generate_images / generate_html`
 - `rebuild_publish_config`
 - `publish_workflow`
+- 发布历史读取
 - `delete_workflow`
 
 其中必须明确区分两组语义：
@@ -277,6 +279,12 @@ OpenClaw 通过 MCP 获取：
   - 代表外部已给出完整 HTML 草稿
 - `generate_html`
   - 代表系统基于正文 canonical、图片资产和风格规则重新渲染，并产出可直接发布到公众号正文的 HTML 片段
+- 创建或更新工作流时的 `payload.accountId`
+  - 代表当前工作流绑定的目标公众号账号
+  - 后续 `rebuild_publish_config / publish_workflow` 都会按该账号读取 AppID、AppSecret 和 IP 白名单
+- 发布历史
+  - 会返回 `accountName`
+  - 用于区分同品牌下不同公众号的发稿记录
 - 第三方接口配置摘要
   - 当前可覆盖 StepFun / StepAudio、Tikhub、蝉镜、RunningHub、火山引擎 VOD 等品牌级第三方平台密钥入口
   - OpenClaw 只读取遮罩状态与可用性，真正调用第三方平台时由服务端按品牌上下文代取共享密钥，不向模型侧暴露明文

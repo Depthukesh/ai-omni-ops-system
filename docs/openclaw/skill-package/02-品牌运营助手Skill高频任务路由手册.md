@@ -407,6 +407,9 @@ RunningHub 关键规则：
 关键规则：
 
 - 外部已有结果时，不要再重复生成
+- 如果品牌下有多个公众号账号，创建或更新工作流前优先先读 `get_wechat_official_accounts`，再把选中的 `accountId` 带进 `manage_wechat_workflow`
+- `rebuild_publish_config` 和 `publish_workflow` 都会按工作流绑定的公众号账号执行，不要默认理解为统一走“默认公众号”
+- 查看发布结果时，优先结合 `get_wechat_publish_history` 返回的 `accountName` 区分是哪一个公众号发出的
 - 正式发布属于高风险动作，默认先确认
 - 如果用户只说“帮我把这篇文章发公众号”，先判断他是要新建工作流、直写外部结果，还是直接正式发布
 

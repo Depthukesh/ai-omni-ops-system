@@ -178,6 +178,8 @@
 - 已放弃的多-agent 方案文档已经移除，不再作为当前开发模式的一部分
 
 ## 最近应优先关注的文档
+- `docs/changes/2026-09-04-wechat-multi-official-account-workflow-routing.md`
+  - 公众号 `配置初始化` 支持多公众号账号管理，`创作工作流` 可绑定具体公众号并按所选账号发布，`发布历史` 会标注对应公众号，同时同步补齐 OpenClaw MCP / Skill 说明
 - `docs/changes/2026-09-04-paid-acquisition-tencent-ad-lead-workspace.md`
   - 新增顶栏 `投流获客` 一级入口与左侧 `腾讯投流获客` 板块，列表固定展示标题 / 内容 / 创建时间 / 留言，并支持查看详情留言、删除，以及同步补齐 OpenClaw MCP / Skill / Prisma 真源
 - `docs/changes/2026-09-04-content-acquisition-marketing-calendar-platform-views.md`

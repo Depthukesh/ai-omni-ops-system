@@ -1661,7 +1661,7 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
   },
   {
     name: "get_wechat_official_accounts",
-    description: "查看当前品牌已配置的公众号账号列表，供发布时选择。",
+    description: "查看当前品牌已配置的公众号账号列表，支持多公众号场景下为工作流和发布选择具体公众号。",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
   },
   {
@@ -1677,7 +1677,7 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
   },
   {
     name: "get_wechat_publish_history",
-    description: "查看当前品牌最近的公众号发布历史和结果。",
+    description: "查看当前品牌最近的公众号发布历史和结果；每条记录都会回显所属公众号账号名。",
     inputSchema: {
       type: "object",
       properties: {
@@ -2910,7 +2910,7 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
   },
   {
     name: "manage_wechat_workflow",
-    description: "统一管理公众号工作流，支持偏好、工作流创建、Step 2-4 直写与生成、发布确认、正式发布和删除；其中 set_article 未显式传 inputType 时会按正文内容自动识别 plain-text/markdown/html，set_images 除了直接传图片 URL 外，也支持在 coverImage / bodyImages 里传 fileUrl、materialId，或通过 upload.fileName / contentType / dataBase64 直传图片文件，set_html 代表外部已给出完整 HTML 草稿，generate_html 代表系统基于正文 canonical、图片资产与风格规则重新渲染，并产出可直接发布到公众号正文的 HTML 片段。",
+    description: "统一管理公众号工作流，支持偏好、工作流创建、Step 2-4 直写与生成、发布确认、正式发布和删除；当前可在 create_workflow / update_input 的 payload.accountId 中显式绑定目标公众号账号，后续发布确认与正式发布都会按该账号读取 AppID、AppSecret 和 IP 白名单。其中 set_article 未显式传 inputType 时会按正文内容自动识别 plain-text/markdown/html，set_images 除了直接传图片 URL 外，也支持在 coverImage / bodyImages 里传 fileUrl、materialId，或通过 upload.fileName / contentType / dataBase64 直传图片文件，set_html 代表外部已给出完整 HTML 草稿，generate_html 代表系统基于正文 canonical、图片资产与风格规则重新渲染，并产出可直接发布到公众号正文的 HTML 片段。",
     inputSchema: {
       type: "object",
       properties: {
@@ -6254,7 +6254,7 @@ export class OpenClawService {
         ? `当前品牌最近共有 ${sessions.items.length} 个公众号工作流会话，下面返回最新 ${items.length} 个。`
         : "当前品牌还没有公众号工作流会话。",
       highlights: items.length
-        ? items.slice(0, 5).map((item) => `${item.title}｜${item.status}`)
+        ? items.slice(0, 5).map((item) => `${item.title}｜${item.accountName || "未绑定账号"}｜${item.status}`)
         : ["工作流会话数：0"],
       data: {
         total: sessions.items.length,
@@ -6282,7 +6282,7 @@ export class OpenClawService {
         ? `当前品牌最近共有 ${history.items.length} 条公众号发布历史，下面返回最新 ${items.length} 条。`
         : "当前品牌还没有公众号发布历史。",
       highlights: items.length
-        ? items.slice(0, 5).map((item) => `${item.workflowTitle}｜${item.status}`)
+        ? items.slice(0, 5).map((item) => `${item.workflowTitle}｜${item.accountName || "未指定账号"}｜${item.status}`)
         : ["发布历史数：0"],
       data: {
         total: history.items.length,

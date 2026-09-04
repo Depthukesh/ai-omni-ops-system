@@ -189,13 +189,13 @@
 当前承载：
 
 - 营销策划方案（OpenClaw HTML 上传与留言协作）
-- 账号配置
+- 账号配置（支持多公众号账号）
 - 正文工作流
 - 配图生成
 - HTML 排版
 - 发布确认
 - 正式发布
-- 发布历史
+- 发布历史（标注公众号账号）
 
 当前优先 MCP：
 
@@ -215,6 +215,7 @@
 处理原则：
 
 - 公众号工作流优先走统一工具 `manage_wechat_workflow`
+- 若品牌下有多个公众号，先读 `get_wechat_official_accounts`，再在创建或更新工作流时带上目标 `accountId`
 - `set_article / set_images / set_html` 表示外部已有结果，直接写入
 - `generate_article / generate_images / generate_html` 表示继续走网站链路
 - 发布前先 `rebuild_publish_config`

@@ -384,6 +384,15 @@ RunningHub 上传节点补充规则：
 - `publish_wechat_workflow`
 - `retry_wechat_publish_history`
 
+补充说明：
+
+- `get_wechat_official_accounts`
+  - 返回当前品牌已登记的全部公众号账号
+  - 可用于让 Skill 在创建工作流或发布前明确选择目标公众号
+- `get_wechat_publish_history`
+  - 当前每条记录都会带 `accountName`
+  - 适合在多公众号并行运营时区分具体发稿账号
+
 ### 11.2 工作流统一入口
 
 - `manage_wechat_workflow`
@@ -400,6 +409,15 @@ RunningHub 上传节点补充规则：
 - `generate_html`
 - `rebuild_publish_config`
 - `publish_workflow`
+
+补充说明：
+
+- `create_workflow` / `update_input`
+  - `payload.accountId` 可显式指定工作流绑定的公众号账号
+  - 不传时按默认公众号处理
+- `rebuild_publish_config` / `publish_workflow`
+  - 会按工作流绑定账号读取 AppID、AppSecret 和 IP 白名单
+  - 不再只按单套全局公众号配置执行
 
 ## 12. 设计工作台
 

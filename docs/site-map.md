@@ -173,8 +173,11 @@
   - 营销日历
     - 当前为独立左侧菜单，位于 `营销策划方案` 下方，复用品牌增长报告下的同一份营销日历真源，只展示公众号相关选题，并支持 OpenClaw 与用户共同创建、编辑
   - 配置初始化
+    - 当前支持同一品牌维护多个公众号账号；每个账号可独立配置账号名、AppID、AppSecret、IP 白名单，并可切换默认公众号
   - 创作工作流
+    - 当前创建与编辑工作流时都可显式选择公众号账号；选中的账号会写入工作流主记录，并决定后续发布确认和正式发布所走的公众号凭证
   - 发布历史
+    - 当前每条发布历史卡片都会标注所属公众号账号，方便区分同品牌下不同公众号的发稿记录
   - 创作素材
   - 每日计划
   - 每周复盘
@@ -195,11 +198,16 @@
   - 某音/某号只展示抖音字段
   - 公众号只展示公众号字段
   - 三端都继续写回品牌增长报告下的同一份营销日历真源，不新增第二套日历存储
+- 公众号 `配置初始化 / 创作工作流 / 发布历史` 当前已经打通多公众号闭环：
+  - 配置初始化可新增、编辑、删除和切换默认公众号
+  - 工作流会记录 `accountId / accountName`，发布确认和正式发布按所选公众号取凭证
+  - 发布历史列表与详情都会回显公众号名称
 - 所有 OpenClaw 列表与留言列表统一按每页 20 条自动分页
 - 参考变更：`docs/changes/2026-08-30-openclaw-weekly-review-and-version-history-fix.md`
 - 参考变更：`docs/changes/2026-08-30-openclaw-strategy-optimization-records.md`
 - 参考变更：`docs/changes/2026-09-04-openclaw-marketing-plan-html-workspace.md`
 - 参考变更：`docs/changes/2026-09-04-content-acquisition-marketing-calendar-platform-views.md`
+- 参考变更：`docs/changes/2026-09-04-wechat-multi-official-account-workflow-routing.md`
 - 三个子板块下的 `创作素材` 现已统一补齐：
   - 标题
   - 素材标签
@@ -256,6 +264,7 @@
 - HTML 排版生成（4 种排版风格：通用排版 / 极简排版 / 空间艺术排版 / 通知类排版）
 - 一键发布
 - OpenClaw / WorkBuddy 可通过 `manage_wechat_workflow` 直接写入或推进同一条工作流
+- `manage_wechat_workflow` 当前支持在创建或更新公众号工作流时传入目标公众号账号，发布历史也会回显对应账号名
 - 当前底层已经按 3 层 service 收口：
   - `WechatWorkflowCanonicalService`
   - `WechatWorkflowHtmlRendererService`

@@ -833,6 +833,14 @@ export type SaveWechatAccountConfigForm = {
   commentMode?: WechatCommentMode;
 };
 
+export type SaveWechatOfficialAccountForm = {
+  accountName?: string;
+  appId?: string;
+  appSecret?: string;
+  whitelistIps?: string[];
+  isDefault?: boolean;
+};
+
 export type SaveWechatWorkflowPreferenceForm = {
   defaultAuthor?: string;
   defaultThemeColor?: string;
@@ -1578,6 +1586,20 @@ export async function saveWechatWorkflowPreferences(brandId: string, form: SaveW
 
 export async function getWechatOfficialAccounts(brandId: string) {
   return request<{ items: WechatOfficialAccountRecord[] }>(`/works/brands/${brandId}/wechat/accounts`);
+}
+
+export async function createWechatOfficialAccount(brandId: string, form: SaveWechatOfficialAccountForm) {
+  return jsonRequest<{ item: WechatOfficialAccountRecord }>(`/works/brands/${brandId}/wechat/accounts`, "POST", form);
+}
+
+export async function updateWechatOfficialAccount(brandId: string, accountId: string, form: SaveWechatOfficialAccountForm) {
+  return jsonRequest<{ item: WechatOfficialAccountRecord }>(`/works/brands/${brandId}/wechat/accounts/${accountId}`, "PATCH", form);
+}
+
+export async function deleteWechatOfficialAccount(brandId: string, accountId: string) {
+  return request<{ success: boolean }>(`/works/brands/${brandId}/wechat/accounts/${accountId}`, {
+    method: "DELETE",
+  });
 }
 
 export async function getWechatWorkflowSessions(brandId: string) {

@@ -36,7 +36,9 @@ import {
   type XiaohongshuMarketingCalendarWorkspace,
 } from "../../../services/reports";
 import {
+  createWechatOfficialAccount,
   createWechatWorkflow,
+  deleteWechatOfficialAccount,
   deleteWechatWorkflow,
   type WechatHtmlStyleConfig,
   type WechatHtmlStyleType,
@@ -49,7 +51,7 @@ import {
   getWechatPublishHistory,
   getWechatWorkflowPreferences,
   getWechatWorkflowSessions,
-  saveWechatAccountConfig,
+  updateWechatOfficialAccount,
   saveWechatWorkflowPreferences,
   updateWechatWorkflowArticle,
   updateWechatWorkflowInput,
@@ -182,10 +184,6 @@ function parseWhitelistText(value: string) {
     .split(/[\n,，;；\s]+/)
     .map((item) => item.trim())
     .filter(Boolean);
-}
-
-function hasWechatMaskedSecret(value?: string | null) {
-  return Boolean(String(value || "").trim());
 }
 
 function isWechatChecklistItemReady(item: string) {
@@ -560,6 +558,7 @@ export function WechatWorkspaceShell(props: WechatWorkspaceShellProps) {
   const [deletingOpenClawStrategyOptimizationId, setDeletingOpenClawStrategyOptimizationId] = useState("");
   const [updatingOpenClawStrategyOptimizationId, setUpdatingOpenClawStrategyOptimizationId] = useState("");
   const [deletingOpenClawVideoWorkId, setDeletingOpenClawVideoWorkId] = useState("");
+  const [deletingOfficialAccountId, setDeletingOfficialAccountId] = useState("");
   const [retryingPublishHistoryId, setRetryingPublishHistoryId] = useState("");
   const [publishingDraftId, setPublishingDraftId] = useState("");
   const [previewImage, setPreviewImage] = useState<{ url: string; alt: string } | null>(null);
@@ -569,6 +568,9 @@ export function WechatWorkspaceShell(props: WechatWorkspaceShellProps) {
   const [appId, setAppId] = useState("");
   const [appSecret, setAppSecret] = useState("");
   const [whitelistText, setWhitelistText] = useState("");
+  const [accountName, setAccountName] = useState("");
+  const [editingAccountId, setEditingAccountId] = useState("");
+  const [editingAccountIsDefault, setEditingAccountIsDefault] = useState(false);
   const [defaultAuthor, setDefaultAuthor] = useState("品牌内容中心");
   const [defaultTheme, setDefaultTheme] = useState(themeOptions[0]?.color ?? "#25554a");
   const [defaultCommentMode, setDefaultCommentMode] = useState<WechatCommentMode>("open");
@@ -658,22 +660,28 @@ export function WechatWorkspaceShell(props: WechatWorkspaceShellProps) {
     () => sessions.find((item) => item.id === selectedWorkflowId) || null,
     [sessions, selectedWorkflowId],
   );
+  const defaultOfficialAccount = useMemo(
+    () => accounts.find((item) => item.isDefault) || accounts[0] || null,
+    [accounts],
+  );
   const hasRunningWechatImageTask = useMemo(
     () => sessions.some((item) => item.imageBundle?.status === "RUNNING"),
     [sessions],
   );
-  const draftWhitelistIps = useMemo(() => parseWhitelistText(whitelistText), [whitelistText]);
   const setupRequirementItems = useMemo(() => {
-    const hasAppId = Boolean(String(appId || "").trim() || config?.appId);
-    const hasAppSecret = Boolean(String(appSecret || "").trim()) || hasWechatMaskedSecret(config?.appSecretMasked);
-    const hasWhitelist = draftWhitelistIps.length > 0 || Boolean(config?.whitelistIps?.length);
+    const hasAccount = accounts.length > 0;
+    const hasDefaultAccount = Boolean(defaultOfficialAccount);
+    const hasAppId = Boolean(defaultOfficialAccount?.appId);
+    const hasAppSecret = Boolean(defaultOfficialAccount?.appSecretMasked);
+    const hasWhitelist = Boolean(defaultOfficialAccount?.whitelistIps?.length);
     return [
+      { key: "account", label: "公众号账号", ready: hasAccount },
+      { key: "defaultAccount", label: "默认公众号", ready: hasDefaultAccount },
       { key: "appId", label: "AppID", ready: hasAppId },
       { key: "appSecret", label: "AppSecret", ready: hasAppSecret },
       { key: "whitelist", label: "IP 白名单", ready: hasWhitelist },
-      { key: "account", label: "默认公众号账号", ready: accounts.length > 0 },
     ];
-  }, [accounts.length, appId, appSecret, config?.appId, config?.appSecretMasked, config?.whitelistIps, draftWhitelistIps]);
+  }, [accounts, defaultOfficialAccount]);
   const missingSetupRequirementLabels = useMemo(
     () => setupRequirementItems.filter((item) => !item.ready).map((item) => item.label),
     [setupRequirementItems],
@@ -859,9 +867,7 @@ export function WechatWorkspaceShell(props: WechatWorkspaceShellProps) {
           openClawVideoWorkResult.status === "fulfilled" ? openClawVideoWorkResult.value : { items: [], total: 0 },
         );
 
-        setAppId(configResult.value.item.appId || "");
-        setAppSecret("");
-        setWhitelistText(buildWhitelistText(configResult.value.item.whitelistIps || []));
+        resetOfficialAccountForm();
         setDefaultAuthor(preferencesResult.value.item.defaultAuthor || "品牌内容中心");
         setDefaultTheme(preferencesResult.value.item.defaultThemeColor || themeOptions[0]?.color || "#25554a");
         setDefaultCommentMode(preferencesResult.value.item.commentMode || "open");
@@ -1016,28 +1022,111 @@ export function WechatWorkspaceShell(props: WechatWorkspaceShellProps) {
     setSelectedWorkflowId(item.id);
   }
 
+  function resetOfficialAccountForm(nextAccount?: WechatOfficialAccountRecord | null) {
+    setEditingAccountId(nextAccount?.id || "");
+    setEditingAccountIsDefault(nextAccount?.isDefault || false);
+    setAccountName(nextAccount?.accountName || "");
+    setAppId(nextAccount?.appId || "");
+    setAppSecret("");
+    setWhitelistText(buildWhitelistText(nextAccount?.whitelistIps || []));
+  }
+
+  function resolveAvailableAccountId(currentAccountId: string, nextAccounts: WechatOfficialAccountRecord[], nextDefaultAccountId?: string) {
+    if (currentAccountId && nextAccounts.some((item) => item.id === currentAccountId)) {
+      return currentAccountId;
+    }
+    return nextDefaultAccountId || nextAccounts.find((item) => item.isDefault)?.id || nextAccounts[0]?.id || "";
+  }
+
+  async function refreshWechatAccountContext(options?: {
+    preferredAccountId?: string;
+    resetForm?: boolean;
+  }) {
+    const [accountsResponse, preferencesResponse, configResponse] = await Promise.all([
+      getWechatOfficialAccounts(brandId),
+      getWechatWorkflowPreferences(brandId),
+      getWechatAccountConfig(brandId),
+    ]);
+    const nextAccounts = accountsResponse.items;
+    const nextDefaultAccountId =
+      preferencesResponse.item.defaultAccountId || nextAccounts.find((item) => item.isDefault)?.id || "";
+    setAccounts(nextAccounts);
+    setPreferences(preferencesResponse.item);
+    setConfig(configResponse.item);
+    setDefaultAccountId(nextDefaultAccountId);
+    setCreateAccountId((current) => resolveAvailableAccountId(options?.preferredAccountId || current, nextAccounts, nextDefaultAccountId));
+    setWorkflowAccountId((current) => resolveAvailableAccountId(options?.preferredAccountId || current, nextAccounts, nextDefaultAccountId));
+    if (options?.resetForm !== false) {
+      resetOfficialAccountForm();
+    }
+  }
+
   async function handleSaveConfig() {
     setIsSavingConfig(true);
     setErrorMessage("");
     try {
-      const response = await saveWechatAccountConfig(brandId, {
+      const payload = {
+        accountName,
         appId,
         appSecret,
         whitelistIps: parseWhitelistText(whitelistText),
-        defaultAuthor,
-        defaultThemeColor: defaultTheme,
-        commentMode: defaultCommentMode,
+        isDefault: editingAccountIsDefault,
+      };
+      const response = editingAccountId
+        ? await updateWechatOfficialAccount(brandId, editingAccountId, payload)
+        : await createWechatOfficialAccount(brandId, payload);
+      await refreshWechatAccountContext({
+        preferredAccountId: response.item.id,
       });
-      const accountsResponse = await getWechatOfficialAccounts(brandId);
-      setConfig(response.item);
-      setAccounts(accountsResponse.items);
-      setAppSecret("");
-      setWhitelistText(buildWhitelistText(response.item.whitelistIps));
-      setNotice("公众号 API 配置已保存。");
+      setNotice(editingAccountId ? "公众号账号已保存。" : "公众号账号已创建。");
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "保存公众号配置失败。");
+      setErrorMessage(error instanceof Error ? error.message : "保存公众号账号失败。");
     } finally {
       setIsSavingConfig(false);
+    }
+  }
+
+  function handleEditOfficialAccount(item: WechatOfficialAccountRecord) {
+    resetOfficialAccountForm(item);
+    setNotice(`正在编辑公众号「${item.accountName}」。`);
+  }
+
+  async function handleSetDefaultOfficialAccount(item: WechatOfficialAccountRecord) {
+    setIsSavingConfig(true);
+    setErrorMessage("");
+    try {
+      await updateWechatOfficialAccount(brandId, item.id, {
+        accountName: item.accountName,
+        appId: item.appId,
+        appSecret: "",
+        whitelistIps: item.whitelistIps,
+        isDefault: true,
+      });
+      await refreshWechatAccountContext({
+        preferredAccountId: item.id,
+      });
+      setNotice(`默认公众号已切换为「${item.accountName}」。`);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "切换默认公众号失败。");
+    } finally {
+      setIsSavingConfig(false);
+    }
+  }
+
+  async function handleDeleteOfficialAccount(item: WechatOfficialAccountRecord) {
+    if (!window.confirm(`确认删除公众号「${item.accountName}」吗？`)) {
+      return;
+    }
+    setDeletingOfficialAccountId(item.id);
+    setErrorMessage("");
+    try {
+      await deleteWechatOfficialAccount(brandId, item.id);
+      await refreshWechatAccountContext();
+      setNotice(`公众号「${item.accountName}」已删除。`);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "删除公众号失败。");
+    } finally {
+      setDeletingOfficialAccountId("");
     }
   }
 
@@ -1680,14 +1769,25 @@ export function WechatWorkspaceShell(props: WechatWorkspaceShellProps) {
                   <section className="light-data-panel">
                     <div className="wechat-panel-head">
                       <div>
-                        <strong>公众号 API 配置</strong>
-                        <p className="wechat-inline-tip">固定 API 模式，不再保留 browser 发布能力。</p>
+                        <strong>{editingAccountId ? "编辑公众号账号" : "新增公众号账号"}</strong>
+                        <p className="wechat-inline-tip">一个品牌可维护多个公众号，创作工作流会按所选公众号走对应的发布链路。</p>
                       </div>
-                      <button type="button" className="primary-button" onClick={() => void handleSaveConfig()} disabled={isSavingConfig}>
-                        {isSavingConfig ? "保存中..." : "保存 API 配置"}
-                      </button>
+                      <div className="strategy-inline-actions">
+                        {editingAccountId ? (
+                          <button type="button" className="secondary-button" onClick={() => resetOfficialAccountForm()} disabled={isSavingConfig}>
+                            取消编辑
+                          </button>
+                        ) : null}
+                        <button type="button" className="primary-button" onClick={() => void handleSaveConfig()} disabled={isSavingConfig}>
+                          {isSavingConfig ? "保存中..." : editingAccountId ? "保存账号" : "创建公众号"}
+                        </button>
+                      </div>
                     </div>
                     <div className="wechat-form-grid">
+                      <label className="wechat-field">
+                        <span>公众号名称</span>
+                        <input value={accountName} onChange={(event) => setAccountName(event.target.value)} placeholder="例如：品牌服务号" />
+                      </label>
                       <label className="wechat-field">
                         <span>AppID</span>
                         <input value={appId} onChange={(event) => setAppId(event.target.value)} placeholder="请输入公众号 AppID" />
@@ -1698,7 +1798,7 @@ export function WechatWorkspaceShell(props: WechatWorkspaceShellProps) {
                           type="password"
                           value={appSecret}
                           onChange={(event) => setAppSecret(event.target.value)}
-                          placeholder={config?.appSecretMasked || "请输入公众号 AppSecret"}
+                          placeholder={editingAccountId ? "留空则沿用当前密钥" : "请输入公众号 AppSecret"}
                         />
                       </label>
                       <label className="wechat-field wechat-field--full">
@@ -1709,12 +1809,20 @@ export function WechatWorkspaceShell(props: WechatWorkspaceShellProps) {
                           placeholder={"47.97.12.20\n47.97.12.21"}
                         />
                       </label>
+                      <label className="wechat-checkbox-row">
+                        <input
+                          type="checkbox"
+                          checked={editingAccountIsDefault}
+                          onChange={(event) => setEditingAccountIsDefault(event.target.checked)}
+                        />
+                        <span>设为默认公众号</span>
+                      </label>
                     </div>
                     <div className="wechat-setup-status-card">
                       <div className="wechat-panel-head">
                         <div>
                           <strong>当前初始化缺口</strong>
-                          <p className="wechat-inline-tip">公众号正式发布走独立 `POST /wechat/config`，不会复用个人中心第三方接口配置。</p>
+                          <p className="wechat-inline-tip">正式发布会按当前工作流绑定的公众号账号读取 AppID、AppSecret 和 IP 白名单。兼容配置同步：{config?.configured ? "已完成" : "未完成"}。</p>
                         </div>
                       </div>
                       <div className="wechat-pill-row">
@@ -1726,10 +1834,12 @@ export function WechatWorkspaceShell(props: WechatWorkspaceShellProps) {
                       </div>
                       {missingSetupRequirementLabels.length ? (
                         <div className="wechat-banner wechat-banner--warning">
-                          当前还缺：{missingSetupRequirementLabels.join("、")}。保存成功后会自动登记默认公众号账号。
+                          当前还缺：{missingSetupRequirementLabels.join("、")}。先把默认公众号补齐，再创建或发布工作流。
                         </div>
                       ) : (
-                        <div className="wechat-banner wechat-banner--notice">当前配置项已齐，可以保存 API 配置并继续执行正式发布链路。</div>
+                        <div className="wechat-banner wechat-banner--notice">
+                          当前默认公众号：{defaultOfficialAccount?.accountName || "未设置"}。多公众号已可直接用于工作流选择与发布。
+                        </div>
                       )}
                     </div>
                   </section>
@@ -1739,7 +1849,7 @@ export function WechatWorkspaceShell(props: WechatWorkspaceShellProps) {
                   <div className="wechat-panel-head">
                     <div>
                       <strong>已登记公众号账号</strong>
-                      <p className="wechat-inline-tip">当前先以默认账号为主，多账号结构已经留出接口位。</p>
+                      <p className="wechat-inline-tip">可直接编辑、切换默认账号；工作流创建与发布历史会同步显示对应公众号。</p>
                     </div>
                   </div>
                   <div className="wechat-account-grid">
@@ -1755,10 +1865,34 @@ export function WechatWorkspaceShell(props: WechatWorkspaceShellProps) {
                           <strong>{item.accountName}</strong>
                           <p>AppID：{item.appId || "未填写"}</p>
                           <p>Secret：{item.appSecretMasked || "未填写"}</p>
+                          <p>IP 白名单：{item.whitelistIps.length ? item.whitelistIps.join(" / ") : "未填写"}</p>
+                          <div className="wechat-account-actions">
+                            <button type="button" className="secondary-button" onClick={() => handleEditOfficialAccount(item)}>
+                              编辑
+                            </button>
+                            {!item.isDefault ? (
+                              <button
+                                type="button"
+                                className="secondary-button"
+                                onClick={() => void handleSetDefaultOfficialAccount(item)}
+                                disabled={isSavingConfig}
+                              >
+                                设为默认
+                              </button>
+                            ) : null}
+                            <button
+                              type="button"
+                              className="ghost-danger-button"
+                              onClick={() => void handleDeleteOfficialAccount(item)}
+                              disabled={deletingOfficialAccountId === item.id}
+                            >
+                              {deletingOfficialAccountId === item.id ? "删除中..." : "删除"}
+                            </button>
+                          </div>
                         </article>
                       ))
                     ) : (
-                      <div className="empty-state">当前还没有公众号账号。保存 API 配置成功后，这里会自动生成默认公众号账号。</div>
+                      <div className="empty-state">当前还没有公众号账号，先创建一个默认公众号用于工作流发布。</div>
                     )}
                   </div>
                 </section>
@@ -2405,7 +2539,9 @@ export function WechatWorkspaceShell(props: WechatWorkspaceShellProps) {
                                 ) : (
                                   <span className="wechat-history-work-card-empty">暂无封面</span>
                                 )}
-                                <span className="wechat-history-work-card-badge wechat-history-work-card-badge--left">公众号</span>
+                                <span className="wechat-history-work-card-badge wechat-history-work-card-badge--left">
+                                  {item.accountName || "默认公众号"}
+                                </span>
                                 <span
                                   className={`wechat-history-work-card-badge ${
                                     item.status === "SUCCESS" ? "wechat-history-work-card-badge--success" : "wechat-history-work-card-badge--failed"
@@ -2416,6 +2552,7 @@ export function WechatWorkspaceShell(props: WechatWorkspaceShellProps) {
                               </button>
                               <div className="wechat-history-work-card-body">
                                 <div className="wechat-pill-row">
+                                  <span className="archive-pill status-ready">{item.accountName || "默认公众号"}</span>
                                   {item.mediaId ? <span className="archive-pill status-ready">media_id 已回写</span> : null}
                                   <span className="archive-pill status-ready">重试 {item.retryCount} 次</span>
                                 </div>
@@ -3031,6 +3168,10 @@ export function WechatWorkspaceShell(props: WechatWorkspaceShellProps) {
         .wechat-history-work-card-badge--left {
           left: 14px;
           right: auto;
+          max-width: calc(100% - 112px);
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
           background: rgba(87, 119, 255, 0.92);
         }
 
@@ -3129,6 +3270,13 @@ export function WechatWorkspaceShell(props: WechatWorkspaceShellProps) {
         .wechat-step-card,
         .wechat-session-result-card {
           padding: 14px;
+        }
+
+        .wechat-account-actions {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 10px;
+          margin-top: 6px;
         }
 
         .wechat-account-card p,

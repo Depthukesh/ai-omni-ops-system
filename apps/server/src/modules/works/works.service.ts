@@ -998,6 +998,14 @@ export type SaveWechatAccountConfigPayload = {
   commentMode?: WechatCommentMode;
 };
 
+export type SaveWechatOfficialAccountPayload = {
+  accountName?: string;
+  appId?: string;
+  appSecret?: string;
+  whitelistIps?: string[];
+  isDefault?: boolean;
+};
+
 export type SaveWechatWorkflowPreferencePayload = {
   defaultAuthor?: string;
   defaultThemeColor?: string;
@@ -7745,6 +7753,109 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
     return { items };
   }
 
+  async createWechatOfficialAccount(brandId: string, payload: SaveWechatOfficialAccountPayload) {
+    const accounts = await this.loadWechatOfficialAccountStoreItems(brandId);
+    const accountName = String(payload.accountName || "").trim();
+    const appId = String(payload.appId || "").trim();
+    const appSecret = String(payload.appSecret || "").trim();
+    if (!accountName) {
+      throw new BadRequestException("请填写公众号名称。");
+    }
+    if (!appId) {
+      throw new BadRequestException("请填写公众号 AppID。");
+    }
+    if (!appSecret) {
+      throw new BadRequestException("请填写公众号 AppSecret。");
+    }
+    this.assertWechatOfficialAccountNameUnique(accounts, accountName);
+    const now = new Date().toISOString();
+    const next: WechatOfficialAccountStoreItem = {
+      id: createId("wechat_account"),
+      brandId,
+      accountName,
+      appId,
+      appSecret,
+      whitelistIps: this.normalizeWechatLabels(payload.whitelistIps, []),
+      isDefault: payload.isDefault === true || accounts.length === 0,
+      updatedAt: now,
+    };
+    await this.persistWechatOfficialAccountStoreItem(next);
+    if (next.isDefault) {
+      await this.syncWechatDefaultOfficialAccount(brandId, next);
+    }
+    return {
+      item: this.toWechatOfficialAccountRecord(next),
+    };
+  }
+
+  async updateWechatOfficialAccount(brandId: string, accountId: string, payload: SaveWechatOfficialAccountPayload) {
+    const [target, accounts] = await Promise.all([
+      this.loadWechatOfficialAccountStoreItem(brandId, accountId),
+      this.loadWechatOfficialAccountStoreItems(brandId),
+    ]);
+    const accountName = String(payload.accountName || "").trim();
+    const appId = String(payload.appId || "").trim();
+    const appSecret = String(payload.appSecret || "").trim() || target.appSecret;
+    if (!accountName) {
+      throw new BadRequestException("请填写公众号名称。");
+    }
+    if (!appId) {
+      throw new BadRequestException("请填写公众号 AppID。");
+    }
+    if (!appSecret) {
+      throw new BadRequestException("请填写公众号 AppSecret。");
+    }
+    this.assertWechatOfficialAccountNameUnique(accounts, accountName, target.id);
+    if (target.isDefault && payload.isDefault === false) {
+      throw new BadRequestException("请先把其他公众号设为默认账号，再取消当前默认公众号。");
+    }
+    const next: WechatOfficialAccountStoreItem = {
+      ...target,
+      accountName,
+      appId,
+      appSecret,
+      whitelistIps: this.normalizeWechatLabels(payload.whitelistIps, target.whitelistIps),
+      isDefault: payload.isDefault === true || (payload.isDefault !== false && target.isDefault),
+      updatedAt: new Date().toISOString(),
+    };
+    await this.persistWechatOfficialAccountStoreItem(next);
+    if (next.isDefault) {
+      await this.syncWechatDefaultOfficialAccount(brandId, next);
+    }
+    return {
+      item: this.toWechatOfficialAccountRecord(next),
+    };
+  }
+
+  async deleteWechatOfficialAccount(brandId: string, accountId: string) {
+    const [target, accounts, sessions] = await Promise.all([
+      this.loadWechatOfficialAccountStoreItem(brandId, accountId),
+      this.loadWechatOfficialAccountStoreItems(brandId),
+      this.loadWechatWorkflowSessionStoreItems(brandId),
+    ]);
+    const referencedWorkflow = sessions.find((item) => item.accountId === accountId);
+    if (referencedWorkflow) {
+      throw new BadRequestException(`公众号「${target.accountName}」已绑定工作流「${referencedWorkflow.title}」，请先调整工作流账号后再删除。`);
+    }
+    const remainingAccounts = accounts.filter((item) => item.id !== accountId);
+    if (!remainingAccounts.length) {
+      throw new BadRequestException("至少保留一个公众号账号，才能继续使用公众号工作流与发布能力。");
+    }
+    await this.deleteWechatOfficialAccountStoreItem(brandId, accountId);
+    if (target.isDefault) {
+      const nextDefault = {
+        ...remainingAccounts[0],
+        isDefault: true,
+        updatedAt: new Date().toISOString(),
+      };
+      await this.persistWechatOfficialAccountStoreItem(nextDefault);
+      await this.syncWechatDefaultOfficialAccount(brandId, nextDefault);
+    } else {
+      await this.syncWechatWorkflowPreferenceDefaultAccountId(brandId, remainingAccounts.find((item) => item.isDefault)?.id || remainingAccounts[0]?.id);
+    }
+    return { success: true };
+  }
+
   async listWechatWorkflowSessions(brandId: string) {
     if (await this.canUseWechatPersistenceDatabase()) {
       await this.ensureWechatPersistenceTablesReady();
@@ -7922,6 +8033,7 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
         updatedAt: now,
       };
       await this.persistWechatOfficialAccountStoreItem(nextAccount);
+      await this.syncWechatWorkflowPreferenceDefaultAccountId(brandId, nextAccount.id);
       return {
         item: this.toWechatAccountConfigRecord(next),
       };
@@ -7969,6 +8081,7 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
     } else {
       wechatOfficialAccountMockStore.unshift(nextAccount);
     }
+    await this.syncWechatWorkflowPreferenceDefaultAccountId(brandId, nextAccount.id);
 
     return {
       item: this.toWechatAccountConfigRecord(next),
@@ -8994,10 +9107,13 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
     workflowId: string,
     payload: UpdateWechatWorkflowPublishPayload,
   ) {
-    const [target, config] = await Promise.all([
-      this.loadWechatWorkflowSessionStoreItem(brandId, workflowId),
-      this.loadWechatAccountConfigStoreItem(brandId),
-    ]);
+    const target = await this.loadWechatWorkflowSessionStoreItem(brandId, workflowId);
+    const selectedAccount = await this.resolveWechatWorkflowOfficialAccount(brandId, target.accountId);
+    if (!selectedAccount) {
+      throw new BadRequestException("当前工作流未绑定可用公众号，请先在配置初始化中选择公众号账号。");
+    }
+    target.accountId = selectedAccount.id;
+    target.accountName = selectedAccount.accountName;
     target.title = String(payload.title || "").trim() || target.title;
     target.summary = String(payload.summary || "").trim() || target.summary || this.buildWechatWorkflowSummary(target);
     target.author = String(payload.author || "").trim() || target.author;
@@ -9010,7 +9126,7 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       "";
     target.publishConfig = this.wechatWorkflowPublishService.buildWorkflowPublishConfig({
       target,
-      config,
+      config: selectedAccount,
       coverImageUrl,
       fanCommentsOnly,
     });
@@ -9023,10 +9139,8 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
   }
 
   async publishWechatWorkflow(brandId: string, workflowId: string, auth?: RequestAuthContext, retryCount = 0) {
-    const [target, config] = await Promise.all([
-      this.loadWechatWorkflowSessionStoreItem(brandId, workflowId),
-      this.loadWechatAccountConfigStoreItem(brandId),
-    ]);
+    const target = await this.loadWechatWorkflowSessionStoreItem(brandId, workflowId);
+    const selectedAccount = await this.resolveWechatWorkflowOfficialAccount(brandId, target.accountId);
     let publishTaskId = "";
     try {
       if (!target.publishConfig?.ready) {
@@ -9035,12 +9149,17 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       if (!String(target.htmlContent || "").trim()) {
         throw new BadRequestException("请先完成 HTML 阶段，生成最终公众号 HTML。");
       }
-      if (!config?.appId || !config?.appSecret) {
-        throw new BadRequestException("请先在配置初始化中完成 AppID 和 AppSecret 配置。");
+      if (!selectedAccount) {
+        throw new BadRequestException("当前工作流未绑定可用公众号，请先在配置初始化中选择公众号账号。");
       }
-      if (!config.whitelistIps.length) {
-        throw new BadRequestException("请先在配置初始化中填写 IP 白名单。");
+      if (!selectedAccount.appId || !selectedAccount.appSecret) {
+        throw new BadRequestException(`请先完成公众号「${target.accountName || "未命名账号"}」的 AppID 和 AppSecret 配置。`);
       }
+      if (!selectedAccount.whitelistIps.length) {
+        throw new BadRequestException(`请先为公众号「${target.accountName || "未命名账号"}」填写 IP 白名单。`);
+      }
+      target.accountId = selectedAccount.id;
+      target.accountName = selectedAccount.accountName;
       const task = await this.createOriginalTask({
         userId: await this.resolveTaskUserId(brandId, auth),
         brandId,
@@ -9056,8 +9175,8 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       const resolvedHtml = this.buildWechatWorkflowResolvedHtmlContent(target, { preferExisting: true });
       const publishResult = await this.wechatOfficialAccountApiService.publishDraft(
         {
-          appId: config.appId,
-          appSecret: config.appSecret,
+          appId: selectedAccount.appId,
+          appSecret: selectedAccount.appSecret,
         },
         this.wechatWorkflowPublishService.buildWorkflowPublishPayload({
           target,
@@ -15545,6 +15664,40 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
     return rows.map((item) => this.normalizeWechatOfficialAccountRow(item));
   }
 
+  private async loadWechatOfficialAccountStoreItem(brandId: string, accountId: string) {
+    const target = (await this.loadWechatOfficialAccountStoreItems(brandId)).find((item) => item.id === accountId);
+    if (!target) {
+      throw new NotFoundException("公众号账号不存在。");
+    }
+    return target;
+  }
+
+  private async loadWechatWorkflowSessionStoreItems(brandId: string) {
+    if (!(await this.canUseWechatPersistenceDatabase())) {
+      return wechatWorkflowSessionMockStore.filter((item) => item.brandId === brandId);
+    }
+    await this.ensureWechatPersistenceTablesReady();
+    const rows = await this.prismaService.$queryRaw<WechatWorkflowSessionRow[]>`
+      SELECT *
+      FROM "WechatWorkflowSession"
+      WHERE "brandId" = ${brandId}
+      ORDER BY "updatedAt" DESC
+    `;
+    return rows.map((item) => this.normalizeWechatWorkflowSessionRow(item));
+  }
+
+  private async resolveWechatWorkflowOfficialAccount(brandId: string, preferredAccountId?: string) {
+    const accounts = await this.loadWechatOfficialAccountStoreItems(brandId);
+    if (!accounts.length) {
+      return undefined;
+    }
+    return (
+      accounts.find((item) => item.id === String(preferredAccountId || "").trim()) ||
+      accounts.find((item) => item.isDefault) ||
+      accounts[0]
+    );
+  }
+
   private async loadWechatWorkflowSessionStoreItem(brandId: string, workflowId: string) {
     if (!(await this.canUseWechatPersistenceDatabase())) {
       return this.getWechatWorkflowSessionStoreItem(brandId, workflowId);
@@ -15833,6 +15986,73 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
     if (!deletedCount) {
       throw new NotFoundException("公众号工作流不存在。");
     }
+  }
+
+  private async deleteWechatOfficialAccountStoreItem(brandId: string, accountId: string) {
+    if (!(await this.canUseWechatPersistenceDatabase())) {
+      const index = wechatOfficialAccountMockStore.findIndex((item) => item.brandId === brandId && item.id === accountId);
+      if (index === -1) {
+        throw new NotFoundException("公众号账号不存在。");
+      }
+      wechatOfficialAccountMockStore.splice(index, 1);
+      return;
+    }
+    await this.ensureWechatPersistenceTablesReady();
+    const deletedCount = await this.prismaService.$executeRaw`
+      DELETE FROM "WechatOfficialAccount"
+      WHERE "brandId" = ${brandId} AND "id" = ${accountId}
+    `;
+    if (!deletedCount) {
+      throw new NotFoundException("公众号账号不存在。");
+    }
+  }
+
+  private assertWechatOfficialAccountNameUnique(
+    accounts: WechatOfficialAccountStoreItem[],
+    accountName: string,
+    excludeId?: string,
+  ) {
+    const normalizedAccountName = accountName.trim().toLowerCase();
+    if (!normalizedAccountName) {
+      return;
+    }
+    const duplicated = accounts.find(
+      (item) => item.id !== excludeId && item.accountName.trim().toLowerCase() === normalizedAccountName,
+    );
+    if (duplicated) {
+      throw new BadRequestException(`公众号「${accountName}」已存在，请换一个名称。`);
+    }
+  }
+
+  private async syncWechatDefaultOfficialAccount(brandId: string, account: WechatOfficialAccountStoreItem) {
+    const existingConfig = await this.loadWechatAccountConfigStoreItem(brandId);
+    const now = new Date().toISOString();
+    await this.persistWechatAccountConfigStoreItem({
+      brandId,
+      appId: account.appId,
+      appSecret: account.appSecret,
+      whitelistIps: account.whitelistIps,
+      defaultAuthor: existingConfig?.defaultAuthor || "品牌内容中心",
+      defaultThemeColor: existingConfig?.defaultThemeColor || "#25554a",
+      commentMode: existingConfig?.commentMode || "open",
+      updatedAt: now,
+    });
+    await this.syncWechatWorkflowPreferenceDefaultAccountId(brandId, account.id);
+  }
+
+  private async syncWechatWorkflowPreferenceDefaultAccountId(brandId: string, defaultAccountId?: string) {
+    if (!defaultAccountId) {
+      return;
+    }
+    const existingPreference = await this.loadWechatWorkflowPreferenceStoreItem(brandId);
+    if (!existingPreference) {
+      return;
+    }
+    await this.persistWechatWorkflowPreferenceStoreItem({
+      ...existingPreference,
+      defaultAccountId,
+      updatedAt: new Date().toISOString(),
+    });
   }
 
   private async persistWechatArticleDraftRecord(item: WechatArticleDraftRecord) {

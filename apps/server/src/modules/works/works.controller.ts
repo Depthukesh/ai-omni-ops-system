@@ -25,6 +25,7 @@ import {
   type GenerateWechatWorkflowHtmlPayload,
   type UpdateWechatWorkflowHtmlStylePayload,
   type SaveWechatAccountConfigPayload,
+  type SaveWechatOfficialAccountPayload,
   type SaveDouyinAdPreAuditConfigPayload,
   type SaveWechatWorkflowPreferencePayload,
   type GenerateDouyinDigitalHumanCompleteVideoPayload,
@@ -198,6 +199,43 @@ export class WorksController {
     const auth = await this.authService.resolveRequestAuthContext(headers);
     await this.authService.assertBrandPermission(brandId, "wechat.config", "view", auth);
     return this.worksService.listWechatOfficialAccounts(brandId);
+  }
+
+  @Post("brands/:brandId/wechat/accounts")
+  createWechatOfficialAccount(
+    @Param("brandId") brandId: string,
+    @Body() payload: SaveWechatOfficialAccountPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
+      await this.authService.assertBrandPermission(brandId, "wechat.config", "edit", auth);
+      return this.worksService.createWechatOfficialAccount(brandId, payload);
+    });
+  }
+
+  @Patch("brands/:brandId/wechat/accounts/:accountId")
+  updateWechatOfficialAccount(
+    @Param("brandId") brandId: string,
+    @Param("accountId") accountId: string,
+    @Body() payload: SaveWechatOfficialAccountPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
+      await this.authService.assertBrandPermission(brandId, "wechat.config", "edit", auth);
+      return this.worksService.updateWechatOfficialAccount(brandId, accountId, payload);
+    });
+  }
+
+  @Delete("brands/:brandId/wechat/accounts/:accountId")
+  deleteWechatOfficialAccount(
+    @Param("brandId") brandId: string,
+    @Param("accountId") accountId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
+      await this.authService.assertBrandPermission(brandId, "wechat.config", "edit", auth);
+      return this.worksService.deleteWechatOfficialAccount(brandId, accountId);
+    });
   }
 
   @Get("brands/:brandId/wechat/workflows")
