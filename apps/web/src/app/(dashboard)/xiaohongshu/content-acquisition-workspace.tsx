@@ -51,6 +51,13 @@ const contentAcquisitionGroups: ContentAcquisitionGroup[] = [
         section: "openclawMarketingPlan",
       },
       {
+        key: "xiaohongshu-marketing-calendar",
+        group: "xiaohongshu",
+        label: "营销日历",
+        description: "查看某书视角的营销日历，只展示小红书相关选题，并支持 OpenClaw 与用户共同编辑。",
+        section: "marketingCalendar",
+      },
+      {
         key: "xiaohongshu-openclaw-creative-materials",
         group: "xiaohongshu",
         label: "创作素材",
@@ -98,6 +105,13 @@ const contentAcquisitionGroups: ContentAcquisitionGroup[] = [
         label: "营销策划方案",
         description: "查看 OpenClaw 在某音/某号板块上传的 HTML 营销策划方案，并支持在方案下留言协作。",
         section: "openclawMarketingPlan",
+      },
+      {
+        key: "douyin-marketing-calendar",
+        group: "douyin",
+        label: "营销日历",
+        description: "查看某音/某号视角的营销日历，只展示抖音相关选题，并支持 OpenClaw 与用户共同编辑。",
+        section: "marketingCalendar",
       },
       {
         key: "douyin-digital-human",
@@ -161,6 +175,13 @@ const contentAcquisitionGroups: ContentAcquisitionGroup[] = [
         label: "营销策划方案",
         description: "查看 OpenClaw 在公众号板块上传的 HTML 营销策划方案，并支持在方案下留言协作。",
         section: "openclawMarketingPlan",
+      },
+      {
+        key: "wechat-marketing-calendar",
+        group: "wechat",
+        label: "营销日历",
+        description: "查看公众号视角的营销日历，只展示公众号相关选题，并支持 OpenClaw 与用户共同编辑。",
+        section: "marketingCalendar",
       },
       {
         key: "wechat-setup",

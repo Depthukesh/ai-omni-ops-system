@@ -4,10 +4,16 @@ import { useEffect, useMemo, useState } from "react";
 import { type XiaohongshuMarketingCalendarItem, type XiaohongshuMarketingCalendarRecord, type XiaohongshuMarketingCalendarTaskRecord } from "../../../services/reports";
 import { type AsyncAction } from "./shared-types";
 import { buildCalendarMonthMatrix, formatCalendarMonthLabel, getCalendarMonthKey } from "./calendar-helpers";
+import {
+  createEmptyMarketingCalendarItem,
+  resolveMarketingCalendarTopic,
+  type MarketingCalendarPlatformView,
+} from "./marketing-calendar-item-helpers";
 
 export interface CalendarWorkspaceProps {
   sectionLabel: string;
   sectionDescription: string;
+  platformView?: MarketingCalendarPlatformView;
   isLoading: boolean;
   isPublishing: boolean;
   isGeneratingCalendar: boolean;
@@ -42,6 +48,7 @@ export function CalendarWorkspace(props: CalendarWorkspaceProps) {
   const {
     sectionLabel,
     sectionDescription,
+    platformView = "all",
     isLoading,
     isPublishing,
     isGeneratingCalendar,
@@ -70,6 +77,9 @@ export function CalendarWorkspace(props: CalendarWorkspaceProps) {
     formatCalendarDate,
     formatCalendarListValue,
   } = props;
+  const showXiaohongshuFields = platformView === "all" || platformView === "xiaohongshu";
+  const showDouyinFields = platformView === "all" || platformView === "douyin";
+  const showWechatFields = platformView === "all" || platformView === "wechat";
 
   const initialMonthKey = useMemo(() => {
     const latestMonthKey = getCalendarMonthKey(latestCalendar?.items?.[0]?.date);
@@ -89,7 +99,7 @@ export function CalendarWorkspace(props: CalendarWorkspaceProps) {
   const [visibleMonthKey, setVisibleMonthKey] = useState(initialMonthKey);
   const [showGregorianFestivals, setShowGregorianFestivals] = useState(false);
   const [showSolarTerms, setShowSolarTerms] = useState(false);
-  const readonlyDetailItem = selectedCalendarItem || calendarItemDraft || buildEmptyCalendarItem(selectedCalendarDate || "");
+  const readonlyDetailItem = selectedCalendarItem || calendarItemDraft || createEmptyMarketingCalendarItem(selectedCalendarDate || "");
 
   useEffect(() => {
     setVisibleMonthKey((current) => current || initialMonthKey);
@@ -240,7 +250,7 @@ export function CalendarWorkspace(props: CalendarWorkspaceProps) {
                   {showSolarTerms && cell.solarTerm ? <p className="calendar-annotation calendar-annotation--solar">{cell.solarTerm}</p> : null}
                   {cell.item ? (
                     <div className="calendar-month-entry">
-                      <p className="calendar-month-entry__title">{resolveCalendarItemTitle(cell.item)}</p>
+                      <p className="calendar-month-entry__title">{resolveMarketingCalendarTopic(cell.item, platformView)}</p>
                     </div>
                   ) : (
                     <div className="calendar-month-entry calendar-month-entry--placeholder" />
@@ -262,10 +272,11 @@ export function CalendarWorkspace(props: CalendarWorkspaceProps) {
               <div className="calendar-detail-header">
                 <div>
                   <strong>
-                    {resolveCalendarItemTitle(
+                    {resolveMarketingCalendarTopic(
                       isEditingCalendarItem
                         ? calendarItemDraft || selectedCalendarItem
                         : selectedCalendarItem || calendarItemDraft || undefined,
+                      platformView,
                     ) || "填写当天营销日历"}
                   </strong>
                   <p className="personal-meta">{formatCalendarDate((selectedCalendarItem?.date || calendarItemDraft?.date || selectedCalendarDate || "").trim())}</p>
@@ -316,188 +327,200 @@ export function CalendarWorkspace(props: CalendarWorkspaceProps) {
                     multiline
                     onChange={(value) => onDetailFieldChange("brandMarketing.description", value)}
                   />
-                  <SectionLabel title="小红书品牌号" />
-                  <DetailField
-                    label="今日选题"
-                    value={isEditingCalendarItem ? calendarItemDraft?.xiaohongshu.brandAccount.topic || "" : readonlyDetailItem.xiaohongshu.brandAccount.topic}
-                    editing={isEditingCalendarItem}
-                    onChange={(value) => onDetailFieldChange("xiaohongshu.brandAccount.topic", value)}
-                  />
-                  <DetailField
-                    label="选题说明"
-                    value={
-                      isEditingCalendarItem
-                        ? calendarItemDraft?.xiaohongshu.brandAccount.description || ""
-                        : readonlyDetailItem.xiaohongshu.brandAccount.description
-                    }
-                    editing={isEditingCalendarItem}
-                    multiline
-                    onChange={(value) => onDetailFieldChange("xiaohongshu.brandAccount.description", value)}
-                  />
-                  <DetailField
-                    label="作品类型"
-                    value={isEditingCalendarItem ? calendarItemDraft?.xiaohongshu.brandAccount.contentType || "" : readonlyDetailItem.xiaohongshu.brandAccount.contentType}
-                    editing={isEditingCalendarItem}
-                    onChange={(value) => onDetailFieldChange("xiaohongshu.brandAccount.contentType", value)}
-                  />
-                  <DetailField
-                    label="笔记关键词"
-                    value={
-                      isEditingCalendarItem
-                        ? (calendarItemDraft?.xiaohongshu.brandAccount.noteKeywords || []).join("\n")
-                        : formatCalendarListValue(readonlyDetailItem.xiaohongshu.brandAccount.noteKeywords)
-                    }
-                    editing={isEditingCalendarItem}
-                    multiline
-                    onChange={(value) => onDetailListFieldChange("xiaohongshu.brandAccount.noteKeywords", value)}
-                  />
-                  <DetailField
-                    label="封面关键词"
-                    value={
-                      isEditingCalendarItem
-                        ? (calendarItemDraft?.xiaohongshu.brandAccount.coverKeywords || []).join("\n")
-                        : formatCalendarListValue(readonlyDetailItem.xiaohongshu.brandAccount.coverKeywords)
-                    }
-                    editing={isEditingCalendarItem}
-                    multiline
-                    onChange={(value) => onDetailListFieldChange("xiaohongshu.brandAccount.coverKeywords", value)}
-                  />
-                  <DetailField
-                    label="标题建议"
-                    value={
-                      isEditingCalendarItem
-                        ? (calendarItemDraft?.xiaohongshu.brandAccount.titleSuggestions || []).join("\n")
-                        : formatCalendarListValue(readonlyDetailItem.xiaohongshu.brandAccount.titleSuggestions)
-                    }
-                    editing={isEditingCalendarItem}
-                    multiline
-                    onChange={(value) => onDetailListFieldChange("xiaohongshu.brandAccount.titleSuggestions", value)}
-                  />
-                  <DetailField
-                    label="预期效果"
-                    value={
-                      isEditingCalendarItem
-                        ? calendarItemDraft?.xiaohongshu.brandAccount.expectedPerformance || ""
-                        : readonlyDetailItem.xiaohongshu.brandAccount.expectedPerformance
-                    }
-                    editing={isEditingCalendarItem}
-                    multiline
-                    onChange={(value) => onDetailFieldChange("xiaohongshu.brandAccount.expectedPerformance", value)}
-                  />
-                  <SectionLabel title="小红书员工号" />
-                  <DetailField
-                    label="今日选题"
-                    value={isEditingCalendarItem ? calendarItemDraft?.xiaohongshu.employeeAccount.topic || "" : readonlyDetailItem.xiaohongshu.employeeAccount.topic}
-                    editing={isEditingCalendarItem}
-                    onChange={(value) => onDetailFieldChange("xiaohongshu.employeeAccount.topic", value)}
-                  />
-                  <DetailField
-                    label="选题说明"
-                    value={isEditingCalendarItem ? calendarItemDraft?.xiaohongshu.employeeAccount.description || "" : readonlyDetailItem.xiaohongshu.employeeAccount.description}
-                    editing={isEditingCalendarItem}
-                    multiline
-                    onChange={(value) => onDetailFieldChange("xiaohongshu.employeeAccount.description", value)}
-                  />
-                  <DetailField
-                    label="作品类型"
-                    value={isEditingCalendarItem ? calendarItemDraft?.xiaohongshu.employeeAccount.contentType || "" : readonlyDetailItem.xiaohongshu.employeeAccount.contentType}
-                    editing={isEditingCalendarItem}
-                    onChange={(value) => onDetailFieldChange("xiaohongshu.employeeAccount.contentType", value)}
-                  />
-                  <DetailField
-                    label="笔记关键词"
-                    value={
-                      isEditingCalendarItem
-                        ? (calendarItemDraft?.xiaohongshu.employeeAccount.noteKeywords || []).join("\n")
-                        : formatCalendarListValue(readonlyDetailItem.xiaohongshu.employeeAccount.noteKeywords)
-                    }
-                    editing={isEditingCalendarItem}
-                    multiline
-                    onChange={(value) => onDetailListFieldChange("xiaohongshu.employeeAccount.noteKeywords", value)}
-                  />
-                  <DetailField
-                    label="封面关键词"
-                    value={
-                      isEditingCalendarItem
-                        ? (calendarItemDraft?.xiaohongshu.employeeAccount.coverKeywords || []).join("\n")
-                        : formatCalendarListValue(readonlyDetailItem.xiaohongshu.employeeAccount.coverKeywords)
-                    }
-                    editing={isEditingCalendarItem}
-                    multiline
-                    onChange={(value) => onDetailListFieldChange("xiaohongshu.employeeAccount.coverKeywords", value)}
-                  />
-                  <DetailField
-                    label="标题建议"
-                    value={
-                      isEditingCalendarItem
-                        ? (calendarItemDraft?.xiaohongshu.employeeAccount.titleSuggestions || []).join("\n")
-                        : formatCalendarListValue(readonlyDetailItem.xiaohongshu.employeeAccount.titleSuggestions)
-                    }
-                    editing={isEditingCalendarItem}
-                    multiline
-                    onChange={(value) => onDetailListFieldChange("xiaohongshu.employeeAccount.titleSuggestions", value)}
-                  />
-                  <DetailField
-                    label="预期效果"
-                    value={
-                      isEditingCalendarItem
-                        ? calendarItemDraft?.xiaohongshu.employeeAccount.expectedPerformance || ""
-                        : readonlyDetailItem.xiaohongshu.employeeAccount.expectedPerformance
-                    }
-                    editing={isEditingCalendarItem}
-                    multiline
-                    onChange={(value) => onDetailFieldChange("xiaohongshu.employeeAccount.expectedPerformance", value)}
-                  />
+                  {showXiaohongshuFields ? (
+                    <>
+                      <SectionLabel title="小红书品牌号" />
+                      <DetailField
+                        label="今日选题"
+                        value={isEditingCalendarItem ? calendarItemDraft?.xiaohongshu.brandAccount.topic || "" : readonlyDetailItem.xiaohongshu.brandAccount.topic}
+                        editing={isEditingCalendarItem}
+                        onChange={(value) => onDetailFieldChange("xiaohongshu.brandAccount.topic", value)}
+                      />
+                      <DetailField
+                        label="选题说明"
+                        value={
+                          isEditingCalendarItem
+                            ? calendarItemDraft?.xiaohongshu.brandAccount.description || ""
+                            : readonlyDetailItem.xiaohongshu.brandAccount.description
+                        }
+                        editing={isEditingCalendarItem}
+                        multiline
+                        onChange={(value) => onDetailFieldChange("xiaohongshu.brandAccount.description", value)}
+                      />
+                      <DetailField
+                        label="作品类型"
+                        value={isEditingCalendarItem ? calendarItemDraft?.xiaohongshu.brandAccount.contentType || "" : readonlyDetailItem.xiaohongshu.brandAccount.contentType}
+                        editing={isEditingCalendarItem}
+                        onChange={(value) => onDetailFieldChange("xiaohongshu.brandAccount.contentType", value)}
+                      />
+                      <DetailField
+                        label="笔记关键词"
+                        value={
+                          isEditingCalendarItem
+                            ? (calendarItemDraft?.xiaohongshu.brandAccount.noteKeywords || []).join("\n")
+                            : formatCalendarListValue(readonlyDetailItem.xiaohongshu.brandAccount.noteKeywords)
+                        }
+                        editing={isEditingCalendarItem}
+                        multiline
+                        onChange={(value) => onDetailListFieldChange("xiaohongshu.brandAccount.noteKeywords", value)}
+                      />
+                      <DetailField
+                        label="封面关键词"
+                        value={
+                          isEditingCalendarItem
+                            ? (calendarItemDraft?.xiaohongshu.brandAccount.coverKeywords || []).join("\n")
+                            : formatCalendarListValue(readonlyDetailItem.xiaohongshu.brandAccount.coverKeywords)
+                        }
+                        editing={isEditingCalendarItem}
+                        multiline
+                        onChange={(value) => onDetailListFieldChange("xiaohongshu.brandAccount.coverKeywords", value)}
+                      />
+                      <DetailField
+                        label="标题建议"
+                        value={
+                          isEditingCalendarItem
+                            ? (calendarItemDraft?.xiaohongshu.brandAccount.titleSuggestions || []).join("\n")
+                            : formatCalendarListValue(readonlyDetailItem.xiaohongshu.brandAccount.titleSuggestions)
+                        }
+                        editing={isEditingCalendarItem}
+                        multiline
+                        onChange={(value) => onDetailListFieldChange("xiaohongshu.brandAccount.titleSuggestions", value)}
+                      />
+                      <DetailField
+                        label="预期效果"
+                        value={
+                          isEditingCalendarItem
+                            ? calendarItemDraft?.xiaohongshu.brandAccount.expectedPerformance || ""
+                            : readonlyDetailItem.xiaohongshu.brandAccount.expectedPerformance
+                        }
+                        editing={isEditingCalendarItem}
+                        multiline
+                        onChange={(value) => onDetailFieldChange("xiaohongshu.brandAccount.expectedPerformance", value)}
+                      />
+                      <SectionLabel title="小红书员工号" />
+                      <DetailField
+                        label="今日选题"
+                        value={isEditingCalendarItem ? calendarItemDraft?.xiaohongshu.employeeAccount.topic || "" : readonlyDetailItem.xiaohongshu.employeeAccount.topic}
+                        editing={isEditingCalendarItem}
+                        onChange={(value) => onDetailFieldChange("xiaohongshu.employeeAccount.topic", value)}
+                      />
+                      <DetailField
+                        label="选题说明"
+                        value={isEditingCalendarItem ? calendarItemDraft?.xiaohongshu.employeeAccount.description || "" : readonlyDetailItem.xiaohongshu.employeeAccount.description}
+                        editing={isEditingCalendarItem}
+                        multiline
+                        onChange={(value) => onDetailFieldChange("xiaohongshu.employeeAccount.description", value)}
+                      />
+                      <DetailField
+                        label="作品类型"
+                        value={isEditingCalendarItem ? calendarItemDraft?.xiaohongshu.employeeAccount.contentType || "" : readonlyDetailItem.xiaohongshu.employeeAccount.contentType}
+                        editing={isEditingCalendarItem}
+                        onChange={(value) => onDetailFieldChange("xiaohongshu.employeeAccount.contentType", value)}
+                      />
+                      <DetailField
+                        label="笔记关键词"
+                        value={
+                          isEditingCalendarItem
+                            ? (calendarItemDraft?.xiaohongshu.employeeAccount.noteKeywords || []).join("\n")
+                            : formatCalendarListValue(readonlyDetailItem.xiaohongshu.employeeAccount.noteKeywords)
+                        }
+                        editing={isEditingCalendarItem}
+                        multiline
+                        onChange={(value) => onDetailListFieldChange("xiaohongshu.employeeAccount.noteKeywords", value)}
+                      />
+                      <DetailField
+                        label="封面关键词"
+                        value={
+                          isEditingCalendarItem
+                            ? (calendarItemDraft?.xiaohongshu.employeeAccount.coverKeywords || []).join("\n")
+                            : formatCalendarListValue(readonlyDetailItem.xiaohongshu.employeeAccount.coverKeywords)
+                        }
+                        editing={isEditingCalendarItem}
+                        multiline
+                        onChange={(value) => onDetailListFieldChange("xiaohongshu.employeeAccount.coverKeywords", value)}
+                      />
+                      <DetailField
+                        label="标题建议"
+                        value={
+                          isEditingCalendarItem
+                            ? (calendarItemDraft?.xiaohongshu.employeeAccount.titleSuggestions || []).join("\n")
+                            : formatCalendarListValue(readonlyDetailItem.xiaohongshu.employeeAccount.titleSuggestions)
+                        }
+                        editing={isEditingCalendarItem}
+                        multiline
+                        onChange={(value) => onDetailListFieldChange("xiaohongshu.employeeAccount.titleSuggestions", value)}
+                      />
+                      <DetailField
+                        label="预期效果"
+                        value={
+                          isEditingCalendarItem
+                            ? calendarItemDraft?.xiaohongshu.employeeAccount.expectedPerformance || ""
+                            : readonlyDetailItem.xiaohongshu.employeeAccount.expectedPerformance
+                        }
+                        editing={isEditingCalendarItem}
+                        multiline
+                        onChange={(value) => onDetailFieldChange("xiaohongshu.employeeAccount.expectedPerformance", value)}
+                      />
+                    </>
+                  ) : null}
                 </div>
 
                 <div className="calendar-detail-plain-column">
-                  <SectionLabel title="抖音品牌号" />
-                  <DouyinDetailFields
-                    prefix="douyin.brandAccount"
-                    block={isEditingCalendarItem ? calendarItemDraft?.douyin.brandAccount || readonlyDetailItem.douyin.brandAccount : readonlyDetailItem.douyin.brandAccount}
-                    editing={isEditingCalendarItem}
-                    onFieldChange={onDetailFieldChange}
-                    onListFieldChange={onDetailListFieldChange}
-                    formatCalendarListValue={formatCalendarListValue}
-                  />
-                  <SectionLabel title="抖音IP号" />
-                  <DouyinDetailFields
-                    prefix="douyin.ipAccount"
-                    block={isEditingCalendarItem ? calendarItemDraft?.douyin.ipAccount || readonlyDetailItem.douyin.ipAccount : readonlyDetailItem.douyin.ipAccount}
-                    editing={isEditingCalendarItem}
-                    onFieldChange={onDetailFieldChange}
-                    onListFieldChange={onDetailListFieldChange}
-                    formatCalendarListValue={formatCalendarListValue}
-                  />
-                  <SectionLabel title="抖音员工号" />
-                  <DouyinDetailFields
-                    prefix="douyin.employeeAccount"
-                    block={isEditingCalendarItem ? calendarItemDraft?.douyin.employeeAccount || readonlyDetailItem.douyin.employeeAccount : readonlyDetailItem.douyin.employeeAccount}
-                    editing={isEditingCalendarItem}
-                    onFieldChange={onDetailFieldChange}
-                    onListFieldChange={onDetailListFieldChange}
-                    formatCalendarListValue={formatCalendarListValue}
-                  />
-                  <SectionLabel title="朋友圈" />
-                  <DetailField
-                    label="今日选题"
-                    value={isEditingCalendarItem ? calendarItemDraft?.moments.topic || "" : readonlyDetailItem.moments.topic}
-                    editing={isEditingCalendarItem}
-                    onChange={(value) => onDetailFieldChange("moments.topic", value)}
-                  />
-                  <DetailField
-                    label="选题说明"
-                    value={isEditingCalendarItem ? calendarItemDraft?.moments.description || "" : readonlyDetailItem.moments.description}
-                    editing={isEditingCalendarItem}
-                    multiline
-                    onChange={(value) => onDetailFieldChange("moments.description", value)}
-                  />
-                  <DetailField
-                    label="呈现形式"
-                    value={isEditingCalendarItem ? calendarItemDraft?.moments.presentationFormat || "" : readonlyDetailItem.moments.presentationFormat}
-                    editing={isEditingCalendarItem}
-                    onChange={(value) => onDetailFieldChange("moments.presentationFormat", value)}
-                  />
+                  {showDouyinFields ? (
+                    <>
+                      <SectionLabel title="抖音品牌号" />
+                      <DouyinDetailFields
+                        prefix="douyin.brandAccount"
+                        block={isEditingCalendarItem ? calendarItemDraft?.douyin.brandAccount || readonlyDetailItem.douyin.brandAccount : readonlyDetailItem.douyin.brandAccount}
+                        editing={isEditingCalendarItem}
+                        onFieldChange={onDetailFieldChange}
+                        onListFieldChange={onDetailListFieldChange}
+                        formatCalendarListValue={formatCalendarListValue}
+                      />
+                      <SectionLabel title="抖音IP号" />
+                      <DouyinDetailFields
+                        prefix="douyin.ipAccount"
+                        block={isEditingCalendarItem ? calendarItemDraft?.douyin.ipAccount || readonlyDetailItem.douyin.ipAccount : readonlyDetailItem.douyin.ipAccount}
+                        editing={isEditingCalendarItem}
+                        onFieldChange={onDetailFieldChange}
+                        onListFieldChange={onDetailListFieldChange}
+                        formatCalendarListValue={formatCalendarListValue}
+                      />
+                      <SectionLabel title="抖音员工号" />
+                      <DouyinDetailFields
+                        prefix="douyin.employeeAccount"
+                        block={isEditingCalendarItem ? calendarItemDraft?.douyin.employeeAccount || readonlyDetailItem.douyin.employeeAccount : readonlyDetailItem.douyin.employeeAccount}
+                        editing={isEditingCalendarItem}
+                        onFieldChange={onDetailFieldChange}
+                        onListFieldChange={onDetailListFieldChange}
+                        formatCalendarListValue={formatCalendarListValue}
+                      />
+                    </>
+                  ) : null}
+                  {showWechatFields ? (
+                    <>
+                      <SectionLabel title="公众号 / 朋友圈" />
+                      <DetailField
+                        label="今日选题"
+                        value={isEditingCalendarItem ? calendarItemDraft?.moments.topic || "" : readonlyDetailItem.moments.topic}
+                        editing={isEditingCalendarItem}
+                        onChange={(value) => onDetailFieldChange("moments.topic", value)}
+                      />
+                      <DetailField
+                        label="选题说明"
+                        value={isEditingCalendarItem ? calendarItemDraft?.moments.description || "" : readonlyDetailItem.moments.description}
+                        editing={isEditingCalendarItem}
+                        multiline
+                        onChange={(value) => onDetailFieldChange("moments.description", value)}
+                      />
+                      <DetailField
+                        label="呈现形式"
+                        value={isEditingCalendarItem ? calendarItemDraft?.moments.presentationFormat || "" : readonlyDetailItem.moments.presentationFormat}
+                        editing={isEditingCalendarItem}
+                        onChange={(value) => onDetailFieldChange("moments.presentationFormat", value)}
+                      />
+                    </>
+                  ) : null}
                 </div>
               </div>
             </article>
@@ -582,86 +605,4 @@ function DouyinDetailFields(props: {
       />
     </>
   );
-}
-
-function resolveCalendarItemTitle(item?: XiaohongshuMarketingCalendarItem | null) {
-  if (!item) {
-    return "未命名主题";
-  }
-  return (
-    item.brandMarketing.theme
-    || item.xiaohongshu.brandAccount.topic
-    || item.douyin.brandAccount.topic
-    || item.moments.topic
-    || "未命名主题"
-  );
-}
-
-function buildEmptyCalendarItem(date: string): XiaohongshuMarketingCalendarItem {
-  return {
-    id: date ? `cal_preview_${date.replace(/-/g, "")}` : "cal_preview_empty",
-    date,
-    festivalOrSolarTerm: "",
-    brandMarketing: {
-      theme: "",
-      description: "",
-    },
-    xiaohongshu: {
-      brandAccount: {
-        topic: "",
-        description: "",
-        contentType: "",
-        noteKeywords: [],
-        coverKeywords: [],
-        titleSuggestions: [],
-        expectedPerformance: "",
-      },
-      employeeAccount: {
-        topic: "",
-        description: "",
-        contentType: "",
-        noteKeywords: [],
-        coverKeywords: [],
-        titleSuggestions: [],
-        expectedPerformance: "",
-      },
-    },
-    douyin: {
-      brandAccount: {
-        topic: "",
-        description: "",
-        contentType: "",
-        presentationFormat: "",
-        copyKeywords: [],
-        coverKeywords: [],
-        titleSuggestions: [],
-        expectedPerformance: "",
-      },
-      ipAccount: {
-        topic: "",
-        description: "",
-        contentType: "",
-        presentationFormat: "",
-        copyKeywords: [],
-        coverKeywords: [],
-        titleSuggestions: [],
-        expectedPerformance: "",
-      },
-      employeeAccount: {
-        topic: "",
-        description: "",
-        contentType: "",
-        presentationFormat: "",
-        copyKeywords: [],
-        coverKeywords: [],
-        titleSuggestions: [],
-        expectedPerformance: "",
-      },
-    },
-    moments: {
-      topic: "",
-      description: "",
-      presentationFormat: "",
-    },
-  };
 }

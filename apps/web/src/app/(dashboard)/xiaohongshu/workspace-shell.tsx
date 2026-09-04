@@ -109,6 +109,7 @@ import { OpenClawMarketingPlanWorkspace } from "../brand-growth/openclaw-marketi
 import { OpenClawStrategyOptimizationWorkspace } from "../brand-growth/openclaw-strategy-optimization-workspace";
 import { OpenClawVideoWorkspace } from "../brand-growth/openclaw-video-workspace";
 import { formatCollaboratorRoleLabel } from "../personal-center/route-helpers";
+import { ContentMarketingCalendarWorkspace } from "./content-marketing-calendar-workspace";
 
 export type XiaohongshuSectionKey =
   | "plan"
@@ -116,6 +117,7 @@ export type XiaohongshuSectionKey =
   | "remix"
   | "video"
   | "openclawMarketingPlan"
+  | "marketingCalendar"
   | "openclawCreativeMaterials"
   | "openclawDailyPlan"
   | "openclawLobsterDiary"
@@ -136,6 +138,7 @@ const xiaohongshuPrimarySections: Array<{ key: XiaohongshuSectionKey; label: str
 ];
 const xiaohongshuOpenClawSections: Array<{ key: XiaohongshuSectionKey; label: string; description: string }> = [
   { key: "openclawMarketingPlan", label: "营销策划方案", description: "展示由 OpenClaw 上传的 HTML 营销策划方案，支持点击查看 HTML 并在方案下留言。" },
+  { key: "marketingCalendar", label: "营销日历", description: "复用品牌增长报告下的营销日历工作区，只展示某书相关选题，并支持 OpenClaw 与用户共同创建、编辑。" },
   { key: "openclawCreativeMaterials", label: "创作素材", description: "展示由 OpenClaw 调用站内第三方平台能力后生成并保存的文本、图片、视频、语音和 BGM 等素材。" },
   { key: "openclawDailyPlan", label: "每日计划", description: "展示由 OpenClaw Agent 创建的每日计划记录，页面只支持查看与删除。" },
   { key: "openclawLobsterDiary", label: "每周复盘", description: "展示由 OpenClaw Agent 创建的每周复盘记录，支持查看后直接编辑并在内容下留言。" },
@@ -149,6 +152,7 @@ const xiaohongshuSectionPermissionMap: Record<XiaohongshuSectionKey, BrandPermis
   remix: "xiaohongshu.remix",
   video: "xiaohongshu.video",
   openclawMarketingPlan: "brandGrowth.report.topicLibrary",
+  marketingCalendar: "xiaohongshu.calendar",
   openclawCreativeMaterials: "brandGrowth.report.topicLibrary",
   openclawDailyPlan: "brandGrowth.report.topicLibrary",
   openclawLobsterDiary: "brandGrowth.report.topicLibrary",
@@ -158,6 +162,7 @@ const xiaohongshuSectionPermissionMap: Record<XiaohongshuSectionKey, BrandPermis
 
 function isXiaohongshuOpenClawSection(sectionKey: XiaohongshuSectionKey) {
   return sectionKey === "openclawMarketingPlan"
+    || sectionKey === "marketingCalendar"
     || sectionKey === "openclawCreativeMaterials"
     || sectionKey === "openclawDailyPlan"
     || sectionKey === "openclawLobsterDiary"
@@ -907,6 +912,8 @@ export function XiaohongshuWorkspaceShell(props: XiaohongshuWorkspaceShellProps)
     || activeSection === "openclawStrategyOptimization"
     || activeSection === "openclawVideoWorks"
       ? "OpenClaw板块"
+      : activeSection === "marketingCalendar"
+      ? "营销日历工作区"
       : activeSection === "original"
       ? "原创笔记工作区"
       : activeSection === "remix"
@@ -917,6 +924,8 @@ export function XiaohongshuWorkspaceShell(props: XiaohongshuWorkspaceShellProps)
   const heroDescription =
     activeSection === "openclawMarketingPlan"
       ? "当前展示由 OpenClaw 在小红书板块下上传的 HTML 营销策划方案，支持点击查看 HTML 并在方案下直接留言。"
+      : activeSection === "marketingCalendar"
+      ? "当前复用品牌增长报告中的同一份营销日历数据，只展示某书相关选题；OpenClaw 与用户都可以直接查看、创建和编辑当天内容。"
       : activeSection === "openclawCreativeMaterials"
       ? "当前展示由 OpenClaw 在小红书板块下沉淀的创作素材，可预览内容并在素材下直接留言。"
       : activeSection === "openclawDailyPlan"
@@ -1587,6 +1596,24 @@ export function XiaohongshuWorkspaceShell(props: XiaohongshuWorkspaceShellProps)
           onRefresh={refreshOpenClawWorkspaces}
           onDelete={handleDeleteOpenClawMarketingPlan}
           formatDateTime={formatDateTime}
+        />
+      );
+    }
+
+    if (activeSection === "marketingCalendar") {
+      return (
+        <ContentMarketingCalendarWorkspace
+          sectionLabel={currentSection.label}
+          sectionDescription={currentSection.description}
+          brandId={activeBrandId}
+          platformView="xiaohongshu"
+          canEditCalendar={Boolean(brandPermissionSettings?.currentUserPermissions["xiaohongshu.calendar"]?.edit)}
+          initialWorkspace={calendarWorkspace}
+          autoLoad={false}
+          externalLoading={isLoading}
+          onWorkspaceChange={setCalendarWorkspace}
+          onNotice={setNotice}
+          onError={setErrorMessage}
         />
       );
     }

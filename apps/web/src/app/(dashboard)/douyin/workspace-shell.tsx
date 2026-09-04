@@ -180,6 +180,7 @@ import { OpenClawLobsterDiaryWorkspace } from "../brand-growth/openclaw-lobster-
 import { OpenClawMarketingPlanWorkspace } from "../brand-growth/openclaw-marketing-plan-workspace";
 import { OpenClawStrategyOptimizationWorkspace } from "../brand-growth/openclaw-strategy-optimization-workspace";
 import { OpenClawVideoWorkspace } from "../brand-growth/openclaw-video-workspace";
+import { ContentMarketingCalendarWorkspace } from "../xiaohongshu/content-marketing-calendar-workspace";
 
 type LoadState = "loading" | "api" | "partial";
 export type DouyinSectionKey =
@@ -195,6 +196,7 @@ export type DouyinSectionKey =
   | "runningHub"
   | "adPreAudit"
   | "openclawMarketingPlan"
+  | "marketingCalendar"
   | "openclawCreativeMaterials"
   | "openclawDailyPlan"
   | "openclawLobsterDiary"
@@ -220,6 +222,7 @@ const douyinPrimarySections: Array<{ key: DouyinSectionKey; label: string; descr
 ];
 const douyinOpenClawSections: Array<{ key: DouyinSectionKey; label: string; description: string }> = [
   { key: "openclawMarketingPlan", label: "营销策划方案", description: "展示由 OpenClaw 上传的 HTML 营销策划方案，支持点击查看 HTML 并在方案下留言。" },
+  { key: "marketingCalendar", label: "营销日历", description: "复用品牌增长报告下的营销日历工作区，只展示某音/某号相关选题，并支持 OpenClaw 与用户共同创建、编辑。" },
   { key: "openclawCreativeMaterials", label: "创作素材", description: "展示由 OpenClaw 调用站内第三方平台能力后生成并保存的文本、图片、视频、语音和 BGM 等素材。" },
   { key: "openclawDailyPlan", label: "每日计划", description: "展示由 OpenClaw Agent 创建的每日计划记录，页面只支持查看与删除。" },
   { key: "openclawLobsterDiary", label: "每周复盘", description: "展示由 OpenClaw Agent 创建的每周复盘记录，支持查看后直接编辑并在内容下留言。" },
@@ -241,6 +244,7 @@ const douyinSectionPermissionMap: Record<DouyinSectionKey, BrandPermissionKey> =
   runningHub: "douyin.runningHub",
   adPreAudit: "douyin.adPreAudit",
   openclawMarketingPlan: "brandGrowth.report.topicLibrary",
+  marketingCalendar: "xiaohongshu.calendar",
   openclawCreativeMaterials: "brandGrowth.report.topicLibrary",
   openclawDailyPlan: "brandGrowth.report.topicLibrary",
   openclawLobsterDiary: "brandGrowth.report.topicLibrary",
@@ -250,6 +254,7 @@ const douyinSectionPermissionMap: Record<DouyinSectionKey, BrandPermissionKey> =
 
 function isDouyinOpenClawSection(sectionKey: DouyinSectionKey) {
   return sectionKey === "openclawMarketingPlan"
+    || sectionKey === "marketingCalendar"
     || sectionKey === "openclawCreativeMaterials"
     || sectionKey === "openclawDailyPlan"
     || sectionKey === "openclawLobsterDiary"
@@ -282,6 +287,7 @@ function createInitialSectionLoadState(): Record<DouyinSectionKey, boolean> {
     digitalHuman: false,
     runningHub: false,
     adPreAudit: false,
+    marketingCalendar: false,
     openclawMarketingPlan: false,
     openclawCreativeMaterials: false,
     openclawDailyPlan: false,
@@ -625,12 +631,16 @@ export function DouyinWorkspaceShell(props: DouyinWorkspaceShellProps) {
   );
   const currentSection = visibleSections.find((item) => item.key === activeSection) ?? visibleSections[0] ?? douyinSections[0];
   const heroTitle =
-    isDouyinOpenClawSection(activeSection)
+    activeSection === "marketingCalendar"
+      ? "营销日历工作区"
+      : isDouyinOpenClawSection(activeSection)
       ? "OpenClaw板块"
       : "抖音工作台";
   const heroDescription =
     activeSection === "openclawMarketingPlan"
       ? "当前展示由 OpenClaw 在抖音板块下上传的 HTML 营销策划方案，支持点击查看 HTML 并在方案下直接留言。"
+      : activeSection === "marketingCalendar"
+        ? "当前复用品牌增长报告中的同一份营销日历数据，只展示某音/某号相关选题；OpenClaw 与用户都可以直接查看、创建和编辑当天内容。"
       : activeSection === "openclawCreativeMaterials"
       ? "当前展示由 OpenClaw 调用站内第三方平台能力后保存的创作素材，支持查看预览与删除。"
       : activeSection === "openclawDailyPlan"
@@ -1512,6 +1522,7 @@ export function DouyinWorkspaceShell(props: DouyinWorkspaceShellProps) {
       digitalHuman: current.digitalHuman || shouldLoadDigitalHumanSupportWorkspace,
       runningHub: current.runningHub || currentSectionKey === "runningHub",
       adPreAudit: current.adPreAudit || shouldLoadAdPreAuditWorkspace,
+      marketingCalendar: current.marketingCalendar || currentSectionKey === "marketingCalendar",
       openclawMarketingPlan: current.openclawMarketingPlan || shouldLoadOpenClawMarketingPlanWorkspace,
       openclawCreativeMaterials: current.openclawCreativeMaterials || shouldLoadOpenClawCreativeMaterialWorkspace,
       openclawDailyPlan: current.openclawDailyPlan || shouldLoadOpenClawDailyPlanWorkspace,
@@ -3572,6 +3583,16 @@ export function DouyinWorkspaceShell(props: DouyinWorkspaceShellProps) {
                     onRefresh={() => loadWorkspace("openclawMarketingPlan")}
                     onDelete={handleDeleteOpenClawMarketingPlan}
                     formatDateTime={formatDateTime}
+                  />
+                ) : activeSection === "marketingCalendar" ? (
+                  <ContentMarketingCalendarWorkspace
+                    sectionLabel={currentSection.label}
+                    sectionDescription={currentSection.description}
+                    brandId={activeBrandId}
+                    platformView="douyin"
+                    canEditCalendar={canEditCurrentSection}
+                    onNotice={setNotice}
+                    onError={setErrorMessage}
                   />
                 ) : activeSection === "openclawCreativeMaterials" ? (
                   <OpenClawCreativeMaterialWorkspace

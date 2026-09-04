@@ -229,6 +229,17 @@ OpenClaw 调用任何工具时，服务端都必须基于绑定关系解析：
   - `get_openclaw_marketing_plans`
   - `create_openclaw_marketing_plan`
   - `delete_openclaw_marketing_plan`
+
+- 内容获客三端营销日历：
+  - 当前不新增第二套营销日历 MCP 工具
+  - 继续复用：
+    - `get_brand_growth_marketing_calendar_workspace`
+    - `generate_brand_growth_marketing_calendar`
+    - `update_brand_growth_marketing_calendar`
+  - 使用要求：
+    - 某书入口只读取/补写小红书字段
+    - 某音/某号入口只读取/补写抖音字段
+    - 公众号入口只读取/补写公众号字段
   - 当前用途：
     - 承接 OpenClaw 在某书 / 某音 / 公众号板块上传的 HTML 营销策划方案
     - 允许用户在网站内打开 HTML 并留言协作

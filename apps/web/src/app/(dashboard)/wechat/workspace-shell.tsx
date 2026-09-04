@@ -73,9 +73,11 @@ import { OpenClawLobsterDiaryWorkspace } from "../brand-growth/openclaw-lobster-
 import { OpenClawMarketingPlanWorkspace } from "../brand-growth/openclaw-marketing-plan-workspace";
 import { OpenClawStrategyOptimizationWorkspace } from "../brand-growth/openclaw-strategy-optimization-workspace";
 import { OpenClawVideoWorkspace } from "../brand-growth/openclaw-video-workspace";
+import { ContentMarketingCalendarWorkspace } from "../xiaohongshu/content-marketing-calendar-workspace";
 
 export type WechatSectionKey =
   | "openclawMarketingPlan"
+  | "marketingCalendar"
   | "setup"
   | "workflow"
   | "history"
@@ -105,6 +107,7 @@ function createDefaultWechatHtmlStyleConfig(): WechatHtmlStyleConfig {
 }
 const wechatPrimarySections: Array<{ key: WechatSectionKey; label: string; description: string }> = [
   { key: "openclawMarketingPlan", label: "营销策划方案", description: "展示由 OpenClaw 上传的 HTML 营销策划方案，支持点击查看 HTML 并在方案下留言。" },
+  { key: "marketingCalendar", label: "营销日历", description: "复用品牌增长报告下的营销日历工作区，只展示公众号相关选题，并支持 OpenClaw 与用户共同创建、编辑。" },
   { key: "setup", label: "配置初始化", description: "完成公众号 API 凭据、默认账号和发布基础设置。" },
   { key: "workflow", label: "创作工作流", description: "围绕营销日历、品牌资料和模型配置推进完整的公众号内容生产链路。" },
   { key: "history", label: "发布历史", description: "查看已发布记录、结果状态和失败重试入口。" },
@@ -638,6 +641,8 @@ export function WechatWorkspaceShell(props: WechatWorkspaceShellProps) {
   const heroDescription =
     activeSection === "openclawMarketingPlan"
       ? "当前展示由 OpenClaw 在公众号板块下上传的 HTML 营销策划方案，支持点击查看 HTML 并在方案下直接留言。"
+      : activeSection === "marketingCalendar"
+      ? "当前复用品牌增长报告中的同一份营销日历数据，只展示公众号相关选题；OpenClaw 与用户都可以直接查看、创建和编辑当天内容。"
       : activeSection === "openclawCreativeMaterials"
       ? "当前展示由 OpenClaw 在公众号板块下沉淀的创作素材，可预览内容并在素材下直接留言。"
       : activeSection === "openclawDailyPlan"
@@ -1564,6 +1569,22 @@ export function WechatWorkspaceShell(props: WechatWorkspaceShellProps) {
                 onRefresh={refreshOpenClawWorkspaces}
                 onDelete={handleDeleteOpenClawMarketingPlan}
                 formatDateTime={formatWechatHistoryTime}
+              />
+            ) : null}
+
+            {activeSection === "marketingCalendar" ? (
+              <ContentMarketingCalendarWorkspace
+                sectionLabel={currentSection.label}
+                sectionDescription={currentSection.description}
+                brandId={brandId}
+                platformView="wechat"
+                canEditCalendar
+                initialWorkspace={calendarWorkspace}
+                autoLoad={false}
+                externalLoading={isLoading}
+                onWorkspaceChange={setCalendarWorkspace}
+                onNotice={setNotice}
+                onError={setErrorMessage}
               />
             ) : null}
 

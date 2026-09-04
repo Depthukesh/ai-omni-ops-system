@@ -178,6 +178,8 @@
 - 已放弃的多-agent 方案文档已经移除，不再作为当前开发模式的一部分
 
 ## 最近应优先关注的文档
+- `docs/changes/2026-09-04-content-acquisition-marketing-calendar-platform-views.md`
+  - 给内容获客某书 / 某音/某号 / 公众号补独立 `营销日历` 入口，三端复用品牌增长报告下的同一份营销日历真源，并按平台过滤展示与编辑字段
 - `docs/changes/2026-09-04-standard-db-init-openclaw-runtime-table-schema-alignment.md`
   - 修复标准 Docker 运行态更新时 `db-init` 因 Prisma 将 OpenClaw 运行时表误判为待删除表而中断的问题；当前把软文街缓存、营销策划方案、策略优化记录和留言真源正式纳入 `prisma/schema.prisma`
 - `docs/changes/2026-09-04-openclaw-marketing-plan-html-workspace.md`

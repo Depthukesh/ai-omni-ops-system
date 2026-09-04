@@ -105,6 +105,13 @@
 
 当前承载：
 
+- 内容获客三端聚合入口
+  - 某书营销策划方案
+  - 某书营销日历
+  - 某音/某号营销策划方案
+  - 某音/某号营销日历
+  - 公众号营销策划方案
+  - 公众号营销日历
 - 原创图文
 - 二创图文
 - 视频笔记
@@ -117,9 +124,16 @@
 - `manage_xiaohongshu_video`
 - `create_xiaohongshu_mobile_draft_session`
 - `create_xiaohongshu_desktop_draft_session`
+- `get_brand_growth_marketing_calendar_workspace`
+- `generate_brand_growth_marketing_calendar`
+- `update_brand_growth_marketing_calendar`
 
 处理原则：
 
+- 当用户明确提到“内容获客某书 / 某音/某号 / 公众号的营销日历”时，仍读取同一份品牌增长营销日历真源，只是在回复或补写时按目标平台收口字段：
+  - 某书：只看/只补小红书块
+  - 某音/某号：只看/只补抖音块
+  - 公众号：只看/只补公众号块
 - 原创 / 二创图文优先走直连工具
 - 视频笔记优先走 `manage_xiaohongshu_video`
 - 草稿接力只有在用户明确要落到草稿箱时才继续发起
