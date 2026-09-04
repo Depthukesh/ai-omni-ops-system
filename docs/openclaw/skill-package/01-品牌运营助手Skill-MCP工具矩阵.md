@@ -462,19 +462,37 @@ RunningHub 上传节点补充规则：
   - 用于把 OpenClaw 生成完成的 HTML 营销策划方案写入某书 / 某音 / 公众号板块
   - 详情页默认支持 HTML 预览、打开 HTML 和留言协作
 
-### 14.4 策略优化记录
+### 14.4 腾讯投流获客
+
+- `get_openclaw_tencent_ad_leads`
+- `create_openclaw_tencent_ad_lead`
+- `delete_openclaw_tencent_ad_lead`
+
+腾讯投流获客当前统一字段：
+
+- `title`
+- `content`
+- `createdAt`
+
+腾讯投流获客补充：
+
+- `create_openclaw_tencent_ad_lead`
+  - 用于把 OpenClaw 生成完成的腾讯投流获客内容写入 `投流获客 -> 腾讯投流获客`
+  - 详情页默认支持正文查看、留言协作和删除
+
+### 14.5 策略优化记录
 
 - `get_openclaw_strategy_optimizations`
 - `create_openclaw_strategy_optimization`
 - `update_openclaw_strategy_optimization`
 - `delete_openclaw_strategy_optimization`
 
-### 14.5 音乐生成
+### 14.6 音乐生成
 
 - `create_volcengine_music_task`
 - `get_volcengine_music_task`
 
-### 14.6 创作素材
+### 14.7 创作素材
 
 - `get_openclaw_creative_materials`
 - `create_openclaw_creative_material`
@@ -498,7 +516,7 @@ RunningHub 上传节点补充规则：
     - `openclaw_upload`：OpenClaw 上传到网站或外部归档素材
   - 当 `sourceKind=material_library_upload` 且当前环境为 `local-single-user` 时，文件会按四分类写入用户配置的 `素材库`
 
-### 14.7 视频作品
+### 14.8 视频作品
 
 - `get_openclaw_video_works`
 - `create_openclaw_video_work`

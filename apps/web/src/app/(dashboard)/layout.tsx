@@ -13,6 +13,7 @@ const primaryNavItems = [
   { href: "/xiaohongshu", label: "内容获客", shortLabel: "客" },
   { href: "/geo", label: "GEO获客", shortLabel: "G" },
   { href: "/all-network-growth", label: "全网获客", shortLabel: "全" },
+  { href: "/paid-acquisition", label: "投流获客", shortLabel: "投" },
   { href: "/more-features", label: "更多功能", shortLabel: "更" },
   { href: "/personal-center", label: "个人中心", shortLabel: "我" },
 ];

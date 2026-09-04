@@ -178,6 +178,8 @@
 - 已放弃的多-agent 方案文档已经移除，不再作为当前开发模式的一部分
 
 ## 最近应优先关注的文档
+- `docs/changes/2026-09-04-paid-acquisition-tencent-ad-lead-workspace.md`
+  - 新增顶栏 `投流获客` 一级入口与左侧 `腾讯投流获客` 板块，列表固定展示标题 / 内容 / 创建时间 / 留言，并支持查看详情留言、删除，以及同步补齐 OpenClaw MCP / Skill / Prisma 真源
 - `docs/changes/2026-09-04-content-acquisition-marketing-calendar-platform-views.md`
   - 给内容获客某书 / 某音/某号 / 公众号补独立 `营销日历` 入口，三端复用品牌增长报告下的同一份营销日历真源，并按平台过滤展示与编辑字段
 - `docs/changes/2026-09-04-standard-db-init-openclaw-runtime-table-schema-alignment.md`

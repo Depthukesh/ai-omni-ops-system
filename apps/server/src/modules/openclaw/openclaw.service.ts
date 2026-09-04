@@ -30,6 +30,7 @@ import { OpenClawDailyPlanService } from "./openclaw-daily-plan.service";
 import { OpenClawGeoVisibilityReportService } from "./openclaw-geo-visibility-report.service";
 import { OpenClawLobsterDiaryService } from "./openclaw-lobster-diary.service";
 import { OpenClawMarketingPlanService } from "./openclaw-marketing-plan.service";
+import { OpenClawTencentAdLeadService } from "./openclaw-tencent-ad-lead.service";
 import { OpenClawStrategyOptimizationService } from "./openclaw-strategy-optimization.service";
 import { OpenClawVideoWorkService } from "./openclaw-video-work.service";
 import {
@@ -612,6 +613,25 @@ const OPENCLAW_WEBSITE_FUNCTION_CATALOG: OpenClawWebsiteFunctionCatalogItem[] = 
       "get_openclaw_platform_leads",
       "create_openclaw_platform_leads",
       "delete_openclaw_platform_lead",
+    ],
+  },
+  {
+    key: "openclaw_tencent_ad_lead_workspace",
+    domainKey: "paid_acquisition",
+    domainName: "投流获客",
+    name: "查看并维护腾讯投流获客列表",
+    summary: "适合由 OpenClaw 直接把腾讯投流获客内容写入投流获客工作台，并统一查看、留言协作或删除记录。",
+    pageUrl: "/paid-acquisition",
+    pageLabel: "打开 投流获客工作台",
+    riskLevel: "medium",
+    intentKeywords: ["投流获客", "腾讯投流获客", "腾讯广告线索", "投流线索", "广告获客", "投放线索"],
+    requiredInputKeys: ["title", "content"],
+    requiredInputs: ["标题", "内容"],
+    recommendedQuestions: ["帮我看投流获客里的腾讯投流获客列表", "帮我写入一条腾讯投流获客记录", "帮我删掉这条腾讯投流获客记录"],
+    mcpTools: [
+      "get_openclaw_tencent_ad_leads",
+      "create_openclaw_tencent_ad_lead",
+      "delete_openclaw_tencent_ad_lead",
     ],
   },
   {
@@ -2798,6 +2818,45 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
     },
   },
   {
+    name: "get_openclaw_tencent_ad_leads",
+    description: "查看投流获客工作台中的腾讯投流获客列表。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceScope: { type: "string", enum: ["paid_acquisition"], description: "可选：当前固定读取投流获客工作台。" },
+        limit: { type: "integer", minimum: 1, maximum: 100 },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "create_openclaw_tencent_ad_lead",
+    description: "把腾讯投流获客内容写入投流获客工作台。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceScope: { type: "string", enum: ["paid_acquisition"], description: "可选：当前固定写入投流获客工作台。" },
+        title: { type: "string", description: "投流获客标题。" },
+        content: { type: "string", description: "投流获客正文内容。" },
+      },
+      required: ["title", "content"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "delete_openclaw_tencent_ad_lead",
+    description: "删除投流获客工作台中的一条腾讯投流获客记录。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceScope: { type: "string", enum: ["paid_acquisition"], description: "可选：当前固定删除投流获客工作台数据。" },
+        recordId: { type: "string", description: "腾讯投流获客记录 ID。" },
+      },
+      required: ["recordId"],
+      additionalProperties: false,
+    },
+  },
+  {
     name: "create_xiaohongshu_rewrite_note",
     description: "基于素材库中的对标作品触发小红书二创图文生成。",
     inputSchema: {
@@ -3179,6 +3238,7 @@ export class OpenClawService {
     private readonly openClawLobsterDiaryService: OpenClawLobsterDiaryService,
     private readonly openClawDailyPlanService: OpenClawDailyPlanService,
     private readonly openClawMarketingPlanService: OpenClawMarketingPlanService,
+    private readonly openClawTencentAdLeadService: OpenClawTencentAdLeadService,
     private readonly openClawStrategyOptimizationService: OpenClawStrategyOptimizationService,
     private readonly openClawCreativeMaterialService: OpenClawCreativeMaterialService,
     private readonly openClawGeoVisibilityReportService: OpenClawGeoVisibilityReportService,
@@ -5114,7 +5174,7 @@ export class OpenClawService {
     const brandId = await this.requireCurrentBrandId(auth);
     await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "view", auth);
 
-    const workspaceScopes: OpenClawWorkspaceScope[] = ["brand_growth", "xiaohongshu", "douyin", "wechat", "geo", "all_network_growth"];
+    const workspaceScopes: OpenClawWorkspaceScope[] = ["brand_growth", "xiaohongshu", "douyin", "wechat", "geo", "all_network_growth", "paid_acquisition"];
     const workspaces = await Promise.all(
       workspaceScopes.map((scope) => this.openClawCreativeMaterialService.listWorkspace(brandId, scope, 200)),
     );
@@ -9285,6 +9345,110 @@ export class OpenClawService {
     });
   }
 
+  async getOpenClawTencentAdLeads(
+    headers: HeadersMap,
+    options?: {
+      workspaceScope?: string;
+      limit?: number;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "view", auth);
+    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope || "paid_acquisition");
+    const workspaceLabel = getOpenClawWorkspaceDisplayName(workspaceScope);
+    const workspacePath = getOpenClawWorkspaceDashboardPath(workspaceScope);
+    const workspace = await this.openClawTencentAdLeadService.listWorkspace(brandId, workspaceScope, options?.limit);
+    const items = workspace.items.slice(0, this.normalizeLimit(options?.limit));
+
+    return this.buildSummaryResponse({
+      title: `${workspaceLabel}腾讯投流获客`,
+      summary: workspace.total
+        ? `${workspaceLabel}工作台当前共有 ${workspace.total} 条腾讯投流获客记录。`
+        : `${workspaceLabel}工作台当前还没有腾讯投流获客记录，OpenClaw 可直接写入首条内容。`,
+      highlights: items.length
+        ? items.slice(0, 5).map((item) => `${item.createdAt}｜${item.title}`)
+        : ["记录数：0"],
+      data: {
+        total: workspace.total,
+        items,
+      },
+      links: [{ label: `打开${workspaceLabel}工作台`, url: workspacePath }],
+      resourceKind: "openclaw_tencent_ad_lead",
+    });
+  }
+
+  async createOpenClawTencentAdLead(
+    headers: HeadersMap,
+    options?: {
+      workspaceScope?: string;
+      title?: string;
+      content?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "edit", auth);
+    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope || "paid_acquisition");
+    const workspaceLabel = getOpenClawWorkspaceDisplayName(workspaceScope);
+    const workspacePath = getOpenClawWorkspaceDashboardPath(workspaceScope);
+
+    const item = await this.openClawTencentAdLeadService.createRecord({
+      brandId,
+      workspaceScope,
+      createdByUserId: auth.userId,
+      title: options?.title,
+      content: options?.content,
+    });
+
+    return this.buildSummaryResponse({
+      title: `${workspaceLabel}腾讯投流获客已写入`,
+      summary: `已在 ${workspaceLabel} 工作台写入腾讯投流获客《${item.title}》。`,
+      highlights: [
+        `创建时间：${item.createdAt}`,
+        `标题：${item.title}`,
+      ],
+      data: item,
+      links: [{ label: `打开${workspaceLabel}工作台`, url: workspacePath }],
+      resourceKind: "openclaw_tencent_ad_lead",
+      resultStatus: "COMPLETED",
+    });
+  }
+
+  async deleteOpenClawTencentAdLead(
+    headers: HeadersMap,
+    options?: {
+      workspaceScope?: string;
+      recordId?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "edit", auth);
+    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope || "paid_acquisition");
+    const workspaceLabel = getOpenClawWorkspaceDisplayName(workspaceScope);
+    const workspacePath = getOpenClawWorkspaceDashboardPath(workspaceScope);
+    const recordId = String(options?.recordId || "").trim();
+    if (!recordId) {
+      throw new BadRequestException("请提供 recordId");
+    }
+
+    const item = await this.openClawTencentAdLeadService.deleteRecord(brandId, workspaceScope, recordId);
+
+    return this.buildSummaryResponse({
+      title: `${workspaceLabel}腾讯投流获客已删除`,
+      summary: `已从 ${workspaceLabel} 工作台删除腾讯投流获客《${item.title}》。`,
+      highlights: [
+        `创建时间：${item.createdAt}`,
+        `记录 ID：${item.id}`,
+      ],
+      data: item,
+      links: [{ label: `打开${workspaceLabel}工作台`, url: workspacePath }],
+      resourceKind: "openclaw_tencent_ad_lead",
+      resultStatus: "COMPLETED",
+    });
+  }
+
   async createOpenClawVideoWork(
     headers: HeadersMap,
     options?: {
@@ -10328,7 +10492,7 @@ export class OpenClawService {
     if (!normalizedMaterialId) {
       return undefined;
     }
-    const scopes: OpenClawWorkspaceScope[] = ["wechat", "brand_growth", "douyin", "xiaohongshu", "geo", "all_network_growth"];
+    const scopes: OpenClawWorkspaceScope[] = ["wechat", "brand_growth", "douyin", "xiaohongshu", "geo", "all_network_growth", "paid_acquisition"];
     for (const scope of scopes) {
       const matched = await this.openClawCreativeMaterialService.getMaterialById(brandId, scope, normalizedMaterialId);
       if (matched) {
@@ -14261,6 +14425,22 @@ export class OpenClawService {
         return this.deleteOpenClawPlatformLead(headers, {
           workspaceScope: typeof toolArgs.workspaceScope === "string" ? toolArgs.workspaceScope : undefined,
           leadId: typeof toolArgs.leadId === "string" ? toolArgs.leadId : undefined,
+        });
+      case "get_openclaw_tencent_ad_leads":
+        return this.getOpenClawTencentAdLeads(headers, {
+          workspaceScope: typeof toolArgs.workspaceScope === "string" ? toolArgs.workspaceScope : undefined,
+          limit: typeof toolArgs.limit === "number" ? toolArgs.limit : undefined,
+        });
+      case "create_openclaw_tencent_ad_lead":
+        return this.createOpenClawTencentAdLead(headers, {
+          workspaceScope: typeof toolArgs.workspaceScope === "string" ? toolArgs.workspaceScope : undefined,
+          title: typeof toolArgs.title === "string" ? toolArgs.title : undefined,
+          content: typeof toolArgs.content === "string" ? toolArgs.content : undefined,
+        });
+      case "delete_openclaw_tencent_ad_lead":
+        return this.deleteOpenClawTencentAdLead(headers, {
+          workspaceScope: typeof toolArgs.workspaceScope === "string" ? toolArgs.workspaceScope : undefined,
+          recordId: typeof toolArgs.recordId === "string" ? toolArgs.recordId : undefined,
         });
       case "create_openclaw_video_work":
         return this.createOpenClawVideoWork(headers, {

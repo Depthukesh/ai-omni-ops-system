@@ -24,10 +24,11 @@ flowchart TD
     B --> B6["公众号兼容直达 /wechat"]
     B --> B7["GEO获客 /geo"]
     B --> B8["全网获客 /all-network-growth"]
-    B --> B9["设计工作台 /more-features/design"]
-    B --> B10["个人中心 /personal-center"]
-    B --> B11["后台 /admin"]
-    B --> B12["帮助页 /help/*"]
+    B --> B9["投流获客 /paid-acquisition"]
+    B --> B10["设计工作台 /more-features/design"]
+    B --> B11["个人中心 /personal-center"]
+    B --> B12["后台 /admin"]
+    B --> B13["帮助页 /help/*"]
 
     C --> C1["Auth"]
     C --> C2["Brands"]
@@ -200,9 +201,15 @@ flowchart TD
     F --> F3["评论获客由 OpenClaw 从品牌增长评论用户结果生成；平台获客由 OpenClaw 直接写入"]
     F --> F4["两块列表都按每页 20 条分页，并支持单条删除"]
 
+    I --> I1["投流获客：腾讯投流获客列表"]
+    I --> I2["字段固定为 标题 / 内容 / 创建时间 / 留言"]
+    I --> I3["支持查看详情、详情留言、删除单条记录"]
+    I --> I4["由 OpenClaw 直接写入 OpenClawTencentAdLead，固定 workspaceScope=paid_acquisition"]
+
     B --> G
     C --> G
     D --> G
+    B --> I
     G --> G1["OpenClaw create_design_work 支持 referenceMaterialId 复用站内创作素材参考图"]
     E --> H
     F --> H

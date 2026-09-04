@@ -29,6 +29,8 @@ import { OpenClawLobsterDiaryController } from "./openclaw-lobster-diary.control
 import { OpenClawLobsterDiaryService } from "./openclaw-lobster-diary.service";
 import { OpenClawMarketingPlanController } from "./openclaw-marketing-plan.controller";
 import { OpenClawMarketingPlanService } from "./openclaw-marketing-plan.service";
+import { OpenClawTencentAdLeadController } from "./openclaw-tencent-ad-lead.controller";
+import { OpenClawTencentAdLeadService } from "./openclaw-tencent-ad-lead.service";
 import { OpenClawStrategyOptimizationController } from "./openclaw-strategy-optimization.controller";
 import { OpenClawStrategyOptimizationService } from "./openclaw-strategy-optimization.service";
 import { OpenClawThirdPartyMediaDeliveryController } from "./openclaw-third-party-media-delivery.controller";
@@ -54,6 +56,7 @@ import { LocalRuntimeModule } from "../local-runtime/local-runtime.module";
     OpenClawThirdPartyMediaDeliveryController,
     OpenClawLobsterDiaryController,
     OpenClawMarketingPlanController,
+    OpenClawTencentAdLeadController,
     OpenClawStrategyOptimizationController,
     OpenClawDailyPlanController,
     OpenClawCreativeMaterialController,
@@ -70,6 +73,7 @@ import { LocalRuntimeModule } from "../local-runtime/local-runtime.module";
     OpenClawThirdPartyMediaResourceService,
     OpenClawLobsterDiaryService,
     OpenClawMarketingPlanService,
+    OpenClawTencentAdLeadService,
     OpenClawStrategyOptimizationService,
     OpenClawDailyPlanService,
     OpenClawCreativeMaterialService,
@@ -86,6 +90,7 @@ import { LocalRuntimeModule } from "../local-runtime/local-runtime.module";
     OpenClawThirdPartyMediaResourceService,
     OpenClawLobsterDiaryService,
     OpenClawMarketingPlanService,
+    OpenClawTencentAdLeadService,
     OpenClawStrategyOptimizationService,
     OpenClawDailyPlanService,
     OpenClawCreativeMaterialService,

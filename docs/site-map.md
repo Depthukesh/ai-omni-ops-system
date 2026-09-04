@@ -79,6 +79,8 @@
   - GEO获客工作台；承接 OpenClaw 保存的 GEO 诊断、关键词挖掘、网站诊断、知识库搭建、优化方案与多次生成内容
 - `/all-network-growth`
   - 全网获客工作台；承接 OpenClaw 从品牌增长评论用户结果生成的评论获客名单
+- `/paid-acquisition`
+  - 投流获客工作台；承接 OpenClaw 直接写入的腾讯投流获客列表
 - `/more-features`
   - 更多功能入口，当前重定向到 `/more-features/design`
 - `/more-features/design`
@@ -96,7 +98,7 @@
 
 ### 3.3 登录门卫规则
 
-- `/brand-growth`、`/xiaohongshu`、`/douyin`、`/wechat`、`/geo`、`/all-network-growth`、`/more-features/design`、`/personal-center/*` 默认要求登录
+- `/brand-growth`、`/xiaohongshu`、`/douyin`、`/wechat`、`/geo`、`/all-network-growth`、`/paid-acquisition`、`/more-features/design`、`/personal-center/*` 默认要求登录
 - 未登录时统一跳转 `/login?next=...`
 - `/admin` 额外要求管理员身份
 
@@ -365,6 +367,33 @@
 - 评论获客与平台获客真源默认都写入 `all_network_growth` workspace scope，避免继续散落在其它工作台或采集结果里仅做临时验证
 - 参考变更：`docs/changes/2026-08-15-all-network-growth-comment-leads.md`
 - 参考变更：`docs/changes/2026-08-18-all-network-growth-platform-leads-and-comment-pagination.md`
+
+### 4.5C 投流获客工作台 `/paid-acquisition`
+
+包含：
+
+- 腾讯投流获客
+
+当前特点：
+
+- 顶栏当前在 `全网获客` 后面新增独立一级入口 `投流获客`
+- 左侧目录当前先收口一个子板块 `腾讯投流获客`
+- 腾讯投流获客列表统一由 `OpenClawTencentAdLead` 真源承接，字段固定为：
+  - 标题
+  - 内容
+  - 创建时间
+  - 留言
+- 页面支持：
+  - 按每页 20 条分页查看
+  - 查看单条内容详情
+  - 在详情下留言协作
+  - 删除单条腾讯投流获客记录
+- OpenClaw / MCP / Skill 当前已同步暴露：
+  - `get_openclaw_tencent_ad_leads`
+  - `create_openclaw_tencent_ad_lead`
+  - `delete_openclaw_tencent_ad_lead`
+- 腾讯投流获客真源默认写入 `paid_acquisition` workspace scope，避免混入品牌增长或全网获客的既有内容型记录
+- 参考变更：`docs/changes/2026-09-04-paid-acquisition-tencent-ad-lead-workspace.md`
 
 ### 4.6 个人中心 `/personal-center`
 

@@ -595,6 +595,20 @@ RunningHub 关键规则：
 - `create_openclaw_platform_leads`
 - `delete_openclaw_platform_lead`
 
+### 3.22 投流获客腾讯投流获客
+
+典型问法：
+
+- 帮我看投流获客里的腾讯投流获客列表
+- 帮我写入一条腾讯投流获客记录
+- 帮我删掉这条腾讯投流获客记录
+
+优先工具：
+
+- `get_openclaw_tencent_ad_leads`
+- `create_openclaw_tencent_ad_lead`
+- `delete_openclaw_tencent_ad_lead`
+
 ## 4. 哪些场景应当回网页
 
 默认回网页承接的场景：

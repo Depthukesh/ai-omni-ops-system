@@ -377,7 +377,21 @@
 - `create_openclaw_platform_leads`
 - `delete_openclaw_platform_lead`
 
-### 3.9 后台管理 `/admin`
+### 3.9 投流获客 `/paid-acquisition`
+
+当前承载：
+
+- 腾讯投流获客列表
+- 查看详情后的留言协作
+- 由 OpenClaw 直接写入与删除单条投流获客记录
+
+当前优先 MCP：
+
+- `get_openclaw_tencent_ad_leads`
+- `create_openclaw_tencent_ad_lead`
+- `delete_openclaw_tencent_ad_lead`
+
+### 3.10 后台管理 `/admin`
 
 当前原则：
 
