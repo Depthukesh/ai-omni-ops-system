@@ -145,6 +145,7 @@
 
 - 某书
   - 营销策划方案
+    - 当前已切到 OpenClaw HTML 营销策划方案列表，支持点击查看 HTML、打开 HTML 和详情留言
   - 创作素材
   - 每日计划
   - 每周复盘
@@ -152,6 +153,7 @@
   - 作品列表
 - 某音/某号
   - 营销策划方案
+    - 当前已切到 OpenClaw HTML 营销策划方案列表，支持点击查看 HTML、打开 HTML 和详情留言
   - 数字人
   - RunningHub应用
   - 创作素材
@@ -160,6 +162,8 @@
   - 策略优化记录
   - 作品列表
 - 公众号
+  - 营销策划方案
+    - 当前为独立左侧菜单，位于 `配置初始化` 上方，承接 OpenClaw 上传的 HTML 营销策划方案并支持留言协作
   - 配置初始化
   - 创作工作流
   - 发布历史
@@ -175,9 +179,13 @@
 - 外层导航只负责一级 / 二级切换，内层继续复用 `XiaohongshuWorkspaceShell`、`DouyinWorkspaceShell`、`WechatWorkspaceShell`
 - 某书和公众号已补齐 OpenClaw 的创作素材、作品列表板块
 - OpenClaw 的创作素材、每日计划、每周复盘、策略优化记录、作品列表现在都支持在内容详情下留言；其中每周复盘和策略优化记录都支持在查看弹窗里直接编辑并保存
+- 三个子板块下的 `营销策划方案` 当前已统一收口为 `OpenClawMarketingPlan` 真源：
+  - 字段固定为 `标题 / HTML 内容 / 创建时间`
+  - 页面支持 `查看 HTML / 打开 HTML / 留言 / 删除`
 - 所有 OpenClaw 列表与留言列表统一按每页 20 条自动分页
 - 参考变更：`docs/changes/2026-08-30-openclaw-weekly-review-and-version-history-fix.md`
 - 参考变更：`docs/changes/2026-08-30-openclaw-strategy-optimization-records.md`
+- 参考变更：`docs/changes/2026-09-04-openclaw-marketing-plan-html-workspace.md`
 - 三个子板块下的 `创作素材` 现已统一补齐：
   - 标题
   - 素材标签

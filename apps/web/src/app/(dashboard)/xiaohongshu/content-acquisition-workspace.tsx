@@ -41,14 +41,14 @@ const contentAcquisitionGroups: ContentAcquisitionGroup[] = [
   {
     key: "xiaohongshu",
     label: "某书",
-    summary: "保留原小红书营销策划方案，并把 OpenClaw 回填的素材、计划、复盘、策略优化和作品收口到同一组导航。",
+    summary: "把 OpenClaw 上传的 HTML 营销策划方案、素材、计划、复盘、策略优化和作品收口到同一组导航。",
     pages: [
       {
         key: "xiaohongshu-plan",
         group: "xiaohongshu",
         label: "营销策划方案",
-        description: "复用原小红书营销策划方案工作区。",
-        section: "plan",
+        description: "查看 OpenClaw 在某书板块上传的 HTML 营销策划方案，并支持在方案下留言协作。",
+        section: "openclawMarketingPlan",
       },
       {
         key: "xiaohongshu-openclaw-creative-materials",
@@ -90,14 +90,14 @@ const contentAcquisitionGroups: ContentAcquisitionGroup[] = [
   {
     key: "douyin",
     label: "某音/某号",
-    summary: "保留原抖音营销策划方案、数字人、RunningHub 应用，并把 OpenClaw 五个内容板块统一纳入内容获客。",
+    summary: "把 OpenClaw 上传的 HTML 营销策划方案与数字人、RunningHub应用及其它内容板块统一纳入内容获客。",
     pages: [
       {
         key: "douyin-plan",
         group: "douyin",
         label: "营销策划方案",
-        description: "复用原某音/某号的营销策划方案工作区。",
-        section: "plan",
+        description: "查看 OpenClaw 在某音/某号板块上传的 HTML 营销策划方案，并支持在方案下留言协作。",
+        section: "openclawMarketingPlan",
       },
       {
         key: "douyin-digital-human",
@@ -153,8 +153,15 @@ const contentAcquisitionGroups: ContentAcquisitionGroup[] = [
   {
     key: "wechat",
     label: "公众号",
-    summary: "保留原公众号配置初始化、创作工作流和发布历史，并把 OpenClaw 内容回填统一纳入同一结构。",
+    summary: "在公众号下新增独立营销策划方案入口，并把 OpenClaw 回填内容统一纳入同一结构。",
     pages: [
+      {
+        key: "wechat-openclaw-marketing-plan",
+        group: "wechat",
+        label: "营销策划方案",
+        description: "查看 OpenClaw 在公众号板块上传的 HTML 营销策划方案，并支持在方案下留言协作。",
+        section: "openclawMarketingPlan",
+      },
       {
         key: "wechat-setup",
         group: "wechat",

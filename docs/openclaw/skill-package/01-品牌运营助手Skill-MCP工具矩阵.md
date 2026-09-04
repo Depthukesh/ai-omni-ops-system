@@ -439,19 +439,37 @@ RunningHub 上传节点补充规则：
 - `create_openclaw_daily_plan`
 - `delete_openclaw_daily_plan`
 
-### 14.3 策略优化记录
+### 14.3 营销策划方案
+
+- `get_openclaw_marketing_plans`
+- `create_openclaw_marketing_plan`
+- `delete_openclaw_marketing_plan`
+
+营销策划方案当前统一字段：
+
+- `title`
+- `htmlContent`
+- `createdAt`
+
+营销策划方案补充：
+
+- `create_openclaw_marketing_plan`
+  - 用于把 OpenClaw 生成完成的 HTML 营销策划方案写入某书 / 某音 / 公众号板块
+  - 详情页默认支持 HTML 预览、打开 HTML 和留言协作
+
+### 14.4 策略优化记录
 
 - `get_openclaw_strategy_optimizations`
 - `create_openclaw_strategy_optimization`
 - `update_openclaw_strategy_optimization`
 - `delete_openclaw_strategy_optimization`
 
-### 14.4 音乐生成
+### 14.5 音乐生成
 
 - `create_volcengine_music_task`
 - `get_volcengine_music_task`
 
-### 14.5 创作素材
+### 14.6 创作素材
 
 - `get_openclaw_creative_materials`
 - `create_openclaw_creative_material`
@@ -475,7 +493,7 @@ RunningHub 上传节点补充规则：
     - `openclaw_upload`：OpenClaw 上传到网站或外部归档素材
   - 当 `sourceKind=material_library_upload` 且当前环境为 `local-single-user` 时，文件会按四分类写入用户配置的 `素材库`
 
-### 14.6 视频作品
+### 14.7 视频作品
 
 - `get_openclaw_video_works`
 - `create_openclaw_video_work`

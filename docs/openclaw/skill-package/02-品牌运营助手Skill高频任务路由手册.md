@@ -449,6 +449,10 @@ RunningHub 关键规则：
   - `create_openclaw_lobster_diary`
   - `update_openclaw_lobster_diary`
   - `delete_openclaw_lobster_diary`
+- 营销策划方案：
+  - `get_openclaw_marketing_plans`
+  - `create_openclaw_marketing_plan`
+  - `delete_openclaw_marketing_plan`
 - 策略优化记录：
   - `get_openclaw_strategy_optimizations`
   - `create_openclaw_strategy_optimization`
@@ -474,6 +478,7 @@ RunningHub 关键规则：
 处理原则：
 
 - OpenClaw 的创作素材、视频作品、GEO获客内容、全网获客评论名单都是归档板块，不是生成引擎本身
+- OpenClaw 的营销策划方案当前是 HTML 归档板块；优先先读列表，再决定是否新建或删除
 - 音乐任务创建成功不代表最终完成，必须继续轮询结果
 - 当用户要求“生成后直接沉淀到素材库”时，优先把归档动作一并完成
 - 当用户明确要求“先看多元探索平台当前是否可供 OpenClaw 直用，再决定是否生成并沉淀素材”时，先走第三方接口配置域工具，不要直接跳过可用性检查

@@ -29,6 +29,7 @@ import { OpenClawInstallationService } from "./openclaw-installation.service";
 import { OpenClawDailyPlanService } from "./openclaw-daily-plan.service";
 import { OpenClawGeoVisibilityReportService } from "./openclaw-geo-visibility-report.service";
 import { OpenClawLobsterDiaryService } from "./openclaw-lobster-diary.service";
+import { OpenClawMarketingPlanService } from "./openclaw-marketing-plan.service";
 import { OpenClawStrategyOptimizationService } from "./openclaw-strategy-optimization.service";
 import { OpenClawVideoWorkService } from "./openclaw-video-work.service";
 import {
@@ -432,6 +433,25 @@ const OPENCLAW_WEBSITE_FUNCTION_CATALOG: OpenClawWebsiteFunctionCatalogItem[] = 
       "get_openclaw_daily_plans",
       "create_openclaw_daily_plan",
       "delete_openclaw_daily_plan",
+    ],
+  },
+  {
+    key: "openclaw_marketing_plan",
+    domainKey: "openclaw",
+    domainName: "OpenClaw 专区",
+    name: "查看并管理营销策划方案",
+    summary: "适合查看 OpenClaw 上传的 HTML 营销策划方案，用户可在站内点击查看 HTML 并留言协作。",
+    pageUrl: "/xiaohongshu",
+    pageLabel: "打开内容获客",
+    riskLevel: "low",
+    intentKeywords: ["营销策划方案", "html策划方案", "openclaw", "方案", "策划", "留言"],
+    requiredInputKeys: ["title", "htmlContent"],
+    requiredInputs: ["标题", "HTML 内容"],
+    recommendedQuestions: ["帮我上传一份营销策划方案", "帮我看当前品牌的营销策划方案列表"],
+    mcpTools: [
+      "get_openclaw_marketing_plans",
+      "create_openclaw_marketing_plan",
+      "delete_openclaw_marketing_plan",
     ],
   },
   {
@@ -2251,6 +2271,45 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
     },
   },
   {
+    name: "get_openclaw_marketing_plans",
+    description: "查看当前品牌指定板块下的营销策划方案列表。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat", "geo"], description: "可选：指定板块作用域，默认 brand_growth。" },
+        limit: { type: "integer", minimum: 1, maximum: 100 },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "create_openclaw_marketing_plan",
+    description: "为当前品牌指定板块上传一条 HTML 营销策划方案。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat", "geo"], description: "可选：写入哪个板块，默认 brand_growth。" },
+        title: { type: "string", description: "策划方案标题。" },
+        htmlContent: { type: "string", description: "完整 HTML 内容。" },
+      },
+      required: ["title", "htmlContent"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "delete_openclaw_marketing_plan",
+    description: "删除指定板块下的一条营销策划方案。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat", "geo"], description: "可选：删除所在板块，默认 brand_growth。" },
+        recordId: { type: "string", description: "营销策划方案 ID。" },
+      },
+      required: ["recordId"],
+      additionalProperties: false,
+    },
+  },
+  {
     name: "get_openclaw_strategy_optimizations",
     description: "查看当前品牌指定板块下的策略优化记录列表。",
     inputSchema: {
@@ -3119,6 +3178,7 @@ export class OpenClawService {
     private readonly openClawInstallationService: OpenClawInstallationService,
     private readonly openClawLobsterDiaryService: OpenClawLobsterDiaryService,
     private readonly openClawDailyPlanService: OpenClawDailyPlanService,
+    private readonly openClawMarketingPlanService: OpenClawMarketingPlanService,
     private readonly openClawStrategyOptimizationService: OpenClawStrategyOptimizationService,
     private readonly openClawCreativeMaterialService: OpenClawCreativeMaterialService,
     private readonly openClawGeoVisibilityReportService: OpenClawGeoVisibilityReportService,
@@ -7988,6 +8048,110 @@ export class OpenClawService {
       data: item,
       links: [{ label: `打开${workspaceLabel}工作台`, url: workspacePath }],
       resourceKind: "openclaw_lobster_diary",
+      resultStatus: "COMPLETED",
+    });
+  }
+
+  async getOpenClawMarketingPlans(
+    headers: HeadersMap,
+    options?: {
+      workspaceScope?: string;
+      limit?: number;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "view", auth);
+    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope);
+    const workspaceLabel = getOpenClawWorkspaceDisplayName(workspaceScope);
+    const workspacePath = getOpenClawWorkspaceDashboardPath(workspaceScope);
+    const workspace = await this.openClawMarketingPlanService.listWorkspace(brandId, workspaceScope, options?.limit);
+    const items = workspace.items.slice(0, this.normalizeLimit(options?.limit));
+
+    return this.buildSummaryResponse({
+      title: `${workspaceLabel}营销策划方案`,
+      summary: workspace.total
+        ? `当前品牌 ${workspaceLabel} 板块共有 ${workspace.total} 条营销策划方案。`
+        : `当前品牌 ${workspaceLabel} 板块还没有营销策划方案，OpenClaw 可先上传首条 HTML 方案。`,
+      highlights: items.length
+        ? items.slice(0, 5).map((item) => `${item.createdAt}｜${item.title}`)
+        : ["记录数：0"],
+      data: {
+        total: workspace.total,
+        items,
+      },
+      links: [{ label: `打开${workspaceLabel}工作台`, url: workspacePath }],
+      resourceKind: "openclaw_marketing_plan",
+    });
+  }
+
+  async createOpenClawMarketingPlan(
+    headers: HeadersMap,
+    options?: {
+      workspaceScope?: string;
+      title?: string;
+      htmlContent?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "edit", auth);
+    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope);
+    const workspaceLabel = getOpenClawWorkspaceDisplayName(workspaceScope);
+    const workspacePath = getOpenClawWorkspaceDashboardPath(workspaceScope);
+
+    const item = await this.openClawMarketingPlanService.createRecord({
+      brandId,
+      workspaceScope,
+      createdByUserId: auth.userId,
+      title: options?.title,
+      htmlContent: options?.htmlContent,
+    });
+
+    return this.buildSummaryResponse({
+      title: `${workspaceLabel}营销策划方案已上传`,
+      summary: `已在 ${workspaceLabel} 板块上传营销策划方案《${item.title}》。`,
+      highlights: [
+        `创建时间：${item.createdAt}`,
+        `标题：${item.title}`,
+      ],
+      data: item,
+      links: [{ label: `打开${workspaceLabel}工作台`, url: workspacePath }],
+      resourceKind: "openclaw_marketing_plan",
+      resultStatus: "COMPLETED",
+    });
+  }
+
+  async deleteOpenClawMarketingPlan(
+    headers: HeadersMap,
+    options?: {
+      workspaceScope?: string;
+      recordId?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "edit", auth);
+    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope);
+    const workspaceLabel = getOpenClawWorkspaceDisplayName(workspaceScope);
+    const workspacePath = getOpenClawWorkspaceDashboardPath(workspaceScope);
+    const recordId = String(options?.recordId || "").trim();
+    if (!recordId) {
+      throw new BadRequestException("请提供 recordId");
+    }
+
+    const item = await this.openClawMarketingPlanService.deleteRecord(brandId, workspaceScope, recordId);
+
+    return this.buildSummaryResponse({
+      title: `${workspaceLabel}营销策划方案已删除`,
+      summary: `已从 ${workspaceLabel} 板块删除营销策划方案《${item.title}》。`,
+      highlights: [
+        `创建时间：${item.createdAt}`,
+        `记录 ID：${item.id}`,
+      ],
+      data: item,
+      links: [{ label: `打开${workspaceLabel}工作台`, url: workspacePath }],
+      resourceKind: "openclaw_marketing_plan",
       resultStatus: "COMPLETED",
     });
   }
@@ -13864,6 +14028,22 @@ export class OpenClawService {
         return this.getOpenClawStrategyOptimizations(headers, {
           workspaceScope: typeof toolArgs.workspaceScope === "string" ? toolArgs.workspaceScope : undefined,
           limit: typeof toolArgs.limit === "number" ? toolArgs.limit : undefined,
+        });
+      case "get_openclaw_marketing_plans":
+        return this.getOpenClawMarketingPlans(headers, {
+          workspaceScope: typeof toolArgs.workspaceScope === "string" ? toolArgs.workspaceScope : undefined,
+          limit: typeof toolArgs.limit === "number" ? toolArgs.limit : undefined,
+        });
+      case "create_openclaw_marketing_plan":
+        return this.createOpenClawMarketingPlan(headers, {
+          workspaceScope: typeof toolArgs.workspaceScope === "string" ? toolArgs.workspaceScope : undefined,
+          title: typeof toolArgs.title === "string" ? toolArgs.title : undefined,
+          htmlContent: typeof toolArgs.htmlContent === "string" ? toolArgs.htmlContent : undefined,
+        });
+      case "delete_openclaw_marketing_plan":
+        return this.deleteOpenClawMarketingPlan(headers, {
+          workspaceScope: typeof toolArgs.workspaceScope === "string" ? toolArgs.workspaceScope : undefined,
+          recordId: typeof toolArgs.recordId === "string" ? toolArgs.recordId : undefined,
         });
       case "create_openclaw_strategy_optimization":
         return this.createOpenClawStrategyOptimization(headers, {

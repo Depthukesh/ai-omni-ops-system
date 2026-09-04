@@ -129,6 +129,9 @@ OpenClaw 调用任何工具时，服务端都必须基于绑定关系解析：
   - `route_website_function_by_intent`
   - `get_website_function_execution_plan`
 - OpenClaw 专区：
+  - `get_openclaw_marketing_plans`
+  - `create_openclaw_marketing_plan`
+  - `delete_openclaw_marketing_plan`
   - `get_openclaw_lobster_diaries`
   - `create_openclaw_lobster_diary`
   - `update_openclaw_lobster_diary`
@@ -222,6 +225,17 @@ OpenClaw 调用任何工具时，服务端都必须基于绑定关系解析：
     - `generatedAt`
     - `title`
     - `content`
+- OpenClaw 营销策划方案：
+  - `get_openclaw_marketing_plans`
+  - `create_openclaw_marketing_plan`
+  - `delete_openclaw_marketing_plan`
+  - 当前用途：
+    - 承接 OpenClaw 在某书 / 某音 / 公众号板块上传的 HTML 营销策划方案
+    - 允许用户在网站内打开 HTML 并留言协作
+  - 关键字段：
+    - `workspaceScope`
+    - `title`
+    - `htmlContent`
 - 火山音乐生成：
   - `create_volcengine_music_task`
   - `get_volcengine_music_task`

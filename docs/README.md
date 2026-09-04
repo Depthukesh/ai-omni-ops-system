@@ -178,6 +178,8 @@
 - 已放弃的多-agent 方案文档已经移除，不再作为当前开发模式的一部分
 
 ## 最近应优先关注的文档
+- `docs/changes/2026-09-04-openclaw-marketing-plan-html-workspace.md`
+  - 把内容获客某书 / 某音/某号 / 公众号下的 `营销策划方案` 统一收口为 OpenClaw HTML 方案列表，支持查看 HTML、打开 HTML、留言协作，并同步新增公众号独立左侧入口与 MCP / Skill 工具
 - `docs/changes/2026-09-03-ruanwenjie-credential-refresh-and-timestamp-fix.md`
   - 记录 GEO `第三方媒体投放` 当前真正卡住的是软文街品牌共享凭证已过期，以及 PostgreSQL 缓存时间字段写库类型错误；当前已恢复媒体同步与站内分页读取
 - `docs/changes/2026-09-02-runninghub-option-select-render-fix.md`

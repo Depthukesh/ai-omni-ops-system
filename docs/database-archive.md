@@ -301,6 +301,13 @@
     - 网站上传素材当前统一写入 `works/<brandId>/material-library/<category>/<YYYY>/<YYYY-MM>/<timestamp>-<title>.<ext>` 受控副本
     - `local-single-user` 安装态下，这类 `material-library/*` 存储键会进一步映射到用户自定义的 `素材库/<分类>/<brandId>/...` 本地目录；其它 OpenClaw 上传素材仍可继续走默认本地受控存储
     - 当前会额外在返回层派生 `materialCategory / sourceLabel / localFilePath`，供内容获客创作素材表与个人中心素材管理页直接展示
+- `OpenClawMarketingPlan`
+  - 用途：内容获客三板块共用的营销策划方案真源，承接 OpenClaw 上传的 HTML 方案
+  - 关键字段：`workspaceScope`、`title`、`htmlContent`、`createdAt`、`updatedAt`
+  - 当前约定：
+    - 当前固定用于 `xiaohongshu / douyin / wechat` 三个板块
+    - 页面端统一支持 HTML 预览、打开 HTML、新增留言和直接删除
+    - 当前延续 OpenClaw 运行时建表模式，不写入 `prisma/schema.prisma`，由服务启动后按 SQLite / PostgreSQL 当前运行模式受控自举
 - `OpenClawCommentLead`
   - 用途：全网获客工作台中 `评论获客` 板块的持久化真源
   - 关键字段：`workspaceScope`、`sourcePlatform`、`sourceUrl`、`sourceCommentId`、`userName`、`userComment`、`selectedReason`、`userProfileUrl`

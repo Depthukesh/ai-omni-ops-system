@@ -7,11 +7,13 @@ import {
   deleteOpenClawCreativeMaterial,
   deleteOpenClawDailyPlan,
   deleteOpenClawLobsterDiary,
+  deleteOpenClawMarketingPlan,
   deleteOpenClawStrategyOptimization,
   deleteOpenClawVideoWork,
   getOpenClawCreativeMaterialWorkspace,
   getOpenClawDailyPlanWorkspace,
   getOpenClawLobsterDiaryWorkspace,
+  getOpenClawMarketingPlanWorkspace,
   getOpenClawStrategyOptimizationWorkspace,
   getOpenClawVideoWorkWorkspace,
   updateOpenClawStrategyOptimization,
@@ -19,6 +21,7 @@ import {
   type OpenClawCreativeMaterialWorkspace as OpenClawCreativeMaterialWorkspaceRecord,
   type OpenClawDailyPlanWorkspace as OpenClawDailyPlanWorkspaceRecord,
   type OpenClawLobsterDiaryWorkspace as OpenClawLobsterDiaryWorkspaceRecord,
+  type OpenClawMarketingPlanWorkspace as OpenClawMarketingPlanWorkspaceRecord,
   type OpenClawStrategyOptimizationWorkspace as OpenClawStrategyOptimizationWorkspaceRecord,
   type OpenClawVideoWorkWorkspace as OpenClawVideoWorkWorkspaceRecord,
 } from "../../../services/openclaw";
@@ -67,10 +70,12 @@ import {
 import { OpenClawCreativeMaterialWorkspace } from "../brand-growth/openclaw-creative-material-workspace";
 import { OpenClawDailyPlanWorkspace } from "../brand-growth/openclaw-daily-plan-workspace";
 import { OpenClawLobsterDiaryWorkspace } from "../brand-growth/openclaw-lobster-diary-workspace";
+import { OpenClawMarketingPlanWorkspace } from "../brand-growth/openclaw-marketing-plan-workspace";
 import { OpenClawStrategyOptimizationWorkspace } from "../brand-growth/openclaw-strategy-optimization-workspace";
 import { OpenClawVideoWorkspace } from "../brand-growth/openclaw-video-workspace";
 
 export type WechatSectionKey =
+  | "openclawMarketingPlan"
   | "setup"
   | "workflow"
   | "history"
@@ -99,6 +104,7 @@ function createDefaultWechatHtmlStyleConfig(): WechatHtmlStyleConfig {
   return { styleType: "general" };
 }
 const wechatPrimarySections: Array<{ key: WechatSectionKey; label: string; description: string }> = [
+  { key: "openclawMarketingPlan", label: "营销策划方案", description: "展示由 OpenClaw 上传的 HTML 营销策划方案，支持点击查看 HTML 并在方案下留言。" },
   { key: "setup", label: "配置初始化", description: "完成公众号 API 凭据、默认账号和发布基础设置。" },
   { key: "workflow", label: "创作工作流", description: "围绕营销日历、品牌资料和模型配置推进完整的公众号内容生产链路。" },
   { key: "history", label: "发布历史", description: "查看已发布记录、结果状态和失败重试入口。" },
@@ -519,6 +525,8 @@ export function WechatWorkspaceShell(props: WechatWorkspaceShellProps) {
   const [sessions, setSessions] = useState<WechatWorkflowSessionRecord[]>([]);
   const [drafts, setDrafts] = useState<WechatArticleDraftRecord[]>([]);
   const [publishHistory, setPublishHistory] = useState<WechatPublishHistoryRecord[]>([]);
+  const [openClawMarketingPlanWorkspace, setOpenClawMarketingPlanWorkspace] =
+    useState<OpenClawMarketingPlanWorkspaceRecord>({ items: [], total: 0 });
   const [openClawCreativeMaterialWorkspace, setOpenClawCreativeMaterialWorkspace] =
     useState<OpenClawCreativeMaterialWorkspaceRecord>({ items: [], total: 0 });
   const [openClawDailyPlanWorkspace, setOpenClawDailyPlanWorkspace] = useState<OpenClawDailyPlanWorkspaceRecord>({ items: [], total: 0 });
@@ -541,6 +549,7 @@ export function WechatWorkspaceShell(props: WechatWorkspaceShellProps) {
   const [isSavingPublishConfirm, setIsSavingPublishConfirm] = useState(false);
   const [isPublishingWorkflow, setIsPublishingWorkflow] = useState(false);
   const [deletingWorkflowId, setDeletingWorkflowId] = useState("");
+  const [deletingOpenClawMarketingPlanId, setDeletingOpenClawMarketingPlanId] = useState("");
   const [deletingOpenClawCreativeMaterialId, setDeletingOpenClawCreativeMaterialId] = useState("");
   const [deletingOpenClawDailyPlanId, setDeletingOpenClawDailyPlanId] = useState("");
   const [deletingOpenClawDiaryId, setDeletingOpenClawDiaryId] = useState("");
@@ -627,7 +636,9 @@ export function WechatWorkspaceShell(props: WechatWorkspaceShellProps) {
       ? "OpenClaw板块"
       : currentSection.label;
   const heroDescription =
-    activeSection === "openclawCreativeMaterials"
+    activeSection === "openclawMarketingPlan"
+      ? "当前展示由 OpenClaw 在公众号板块下上传的 HTML 营销策划方案，支持点击查看 HTML 并在方案下直接留言。"
+      : activeSection === "openclawCreativeMaterials"
       ? "当前展示由 OpenClaw 在公众号板块下沉淀的创作素材，可预览内容并在素材下直接留言。"
       : activeSection === "openclawDailyPlan"
       ? "当前展示由 OpenClaw Agent 在公众号板块下创建的每日计划记录，可只读查看并手动删除。"
@@ -683,7 +694,8 @@ export function WechatWorkspaceShell(props: WechatWorkspaceShellProps) {
 
   async function refreshOpenClawWorkspaces(options?: { showNotice?: boolean }) {
     setErrorMessage("");
-    const [creativeMaterialResult, dailyPlanResult, diaryResult, strategyOptimizationResult, videoWorkResult] = await Promise.allSettled([
+    const [marketingPlanResult, creativeMaterialResult, dailyPlanResult, diaryResult, strategyOptimizationResult, videoWorkResult] = await Promise.allSettled([
+      getOpenClawMarketingPlanWorkspace(brandId, "wechat"),
       getOpenClawCreativeMaterialWorkspace(brandId, "wechat"),
       getOpenClawDailyPlanWorkspace(brandId, "wechat"),
       getOpenClawLobsterDiaryWorkspace(brandId, "wechat"),
@@ -691,6 +703,13 @@ export function WechatWorkspaceShell(props: WechatWorkspaceShellProps) {
       getOpenClawVideoWorkWorkspace(brandId, "wechat"),
     ]);
     const failedLabels: string[] = [];
+
+    if (marketingPlanResult.status === "fulfilled") {
+      setOpenClawMarketingPlanWorkspace(marketingPlanResult.value);
+    } else {
+      failedLabels.push("营销策划方案");
+      setOpenClawMarketingPlanWorkspace({ items: [], total: 0 });
+    }
 
     if (creativeMaterialResult.status === "fulfilled") {
       setOpenClawCreativeMaterialWorkspace(creativeMaterialResult.value);
@@ -759,6 +778,7 @@ export function WechatWorkspaceShell(props: WechatWorkspaceShellProps) {
           sessionsResult,
           draftsResult,
           historyResult,
+          openClawMarketingPlanResult,
           openClawCreativeMaterialResult,
           openClawDailyPlanResult,
           openClawLobsterDiaryResult,
@@ -774,6 +794,7 @@ export function WechatWorkspaceShell(props: WechatWorkspaceShellProps) {
             getWechatWorkflowSessions(brandId),
             getWechatArticleDrafts(brandId),
             getWechatPublishHistory(brandId),
+            getOpenClawMarketingPlanWorkspace(brandId, "wechat"),
             getOpenClawCreativeMaterialWorkspace(brandId, "wechat"),
             getOpenClawDailyPlanWorkspace(brandId, "wechat"),
             getOpenClawLobsterDiaryWorkspace(brandId, "wechat"),
@@ -812,6 +833,9 @@ export function WechatWorkspaceShell(props: WechatWorkspaceShellProps) {
         setSessions(sessionsResult.value.items);
         setDrafts(draftsResult.value.items);
         setPublishHistory(historyResult.value.items);
+        setOpenClawMarketingPlanWorkspace(
+          openClawMarketingPlanResult.status === "fulfilled" ? openClawMarketingPlanResult.value : { items: [], total: 0 },
+        );
         setOpenClawCreativeMaterialWorkspace(
           openClawCreativeMaterialResult.status === "fulfilled" ? openClawCreativeMaterialResult.value : { items: [], total: 0 },
         );
@@ -1333,6 +1357,20 @@ export function WechatWorkspaceShell(props: WechatWorkspaceShellProps) {
     }
   }
 
+  async function handleDeleteOpenClawMarketingPlan(recordId: string) {
+    setDeletingOpenClawMarketingPlanId(recordId);
+    setErrorMessage("");
+    try {
+      const response = await deleteOpenClawMarketingPlan(recordId, brandId, "wechat");
+      setOpenClawMarketingPlanWorkspace(response.workspace);
+      setNotice("营销策划方案已删除。");
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "删除营销策划方案失败。");
+    } finally {
+      setDeletingOpenClawMarketingPlanId("");
+    }
+  }
+
   async function handleDeleteOpenClawCreativeMaterial(materialId: string) {
     setDeletingOpenClawCreativeMaterialId(materialId);
     setErrorMessage("");
@@ -1514,6 +1552,20 @@ export function WechatWorkspaceShell(props: WechatWorkspaceShellProps) {
             )}
             {errorMessage ? <div className="wechat-banner wechat-banner--error">{errorMessage}</div> : null}
             {notice ? <div className="wechat-banner wechat-banner--notice">{notice}</div> : null}
+
+            {activeSection === "openclawMarketingPlan" ? (
+              <OpenClawMarketingPlanWorkspace
+                sectionLabel={currentSection.label}
+                sectionDescription={currentSection.description}
+                isLoading={isLoading}
+                canDelete
+                items={openClawMarketingPlanWorkspace.items}
+                deletingRecordId={deletingOpenClawMarketingPlanId}
+                onRefresh={refreshOpenClawWorkspaces}
+                onDelete={handleDeleteOpenClawMarketingPlan}
+                formatDateTime={formatWechatHistoryTime}
+              />
+            ) : null}
 
             {activeSection === "openclawCreativeMaterials" ? (
               <OpenClawCreativeMaterialWorkspace

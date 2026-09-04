@@ -103,7 +103,7 @@ export async function downloadOpenClawSkillPackage(downloadPath: string) {
 }
 
 export type OpenClawWorkspaceScope = "brand_growth" | "xiaohongshu" | "douyin" | "wechat" | "geo" | "all_network_growth";
-export type OpenClawCommentResourceType = "creative_material" | "daily_plan" | "lobster_diary" | "strategy_optimization" | "video_work";
+export type OpenClawCommentResourceType = "creative_material" | "daily_plan" | "lobster_diary" | "strategy_optimization" | "marketing_plan" | "video_work";
 export type OpenClawCreativeMaterialCategory = "text" | "image" | "audio" | "video";
 export type OpenClawCreativeMaterialSourceKind = "material_library_upload" | "openclaw_upload";
 export const CONTENT_ACQUISITION_OPENCLAW_WORKSPACE_SCOPES = ["xiaohongshu", "douyin", "wechat"] as const;
@@ -272,6 +272,48 @@ export async function updateOpenClawStrategyOptimization(
     `/openclaw/brands/${brandId}/strategy-optimizations/${recordId}`,
     "PATCH",
     payload,
+  );
+}
+
+export type OpenClawMarketingPlanRecord = {
+  id: string;
+  brandId: string;
+  workspaceScope: OpenClawWorkspaceScope;
+  createdByUserId: string;
+  title: string;
+  htmlContent: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type OpenClawMarketingPlanWorkspace = {
+  items: OpenClawMarketingPlanRecord[];
+  total: number;
+};
+
+export async function getOpenClawMarketingPlanWorkspace(
+  brandId: string,
+  workspaceScope: OpenClawWorkspaceScope,
+  limit?: number,
+) {
+  const query = new URLSearchParams({ workspaceScope });
+  if (typeof limit === "number") {
+    query.set("limit", String(limit));
+  }
+  return request<OpenClawMarketingPlanWorkspace>(`/openclaw/brands/${brandId}/marketing-plans?${query.toString()}`);
+}
+
+export async function deleteOpenClawMarketingPlan(
+  recordId: string,
+  brandId: string,
+  workspaceScope: OpenClawWorkspaceScope,
+) {
+  const query = new URLSearchParams({ workspaceScope });
+  return request<{ item: OpenClawMarketingPlanRecord; workspace: OpenClawMarketingPlanWorkspace }>(
+    `/openclaw/brands/${brandId}/marketing-plans/${recordId}?${query.toString()}`,
+    {
+      method: "DELETE",
+    },
   );
 }
 
