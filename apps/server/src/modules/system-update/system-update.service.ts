@@ -168,6 +168,16 @@ type GitWorkspaceInfo = {
   shortCommitSha: string | null;
   fullCommitSha: string | null;
   remoteUrl: string | null;
+  upstreamRemote: string | null;
+  upstreamBranch: string | null;
+  upstreamRef: string | null;
+};
+
+type GitUpdateTarget = {
+  remoteName: string;
+  branchName: string;
+  localBranchName: string | null;
+  source: "upstream" | "remote-head" | "local";
 };
 
 type ChangeDocEntry = {
@@ -965,7 +975,7 @@ export class SystemUpdateService {
     const changeDocs = await this.readRecentChangeDocs(current.projectRoot, gitInfo, 8);
     const recentSkillRelated = changeDocs.some((item) => item.likelyRequires.skillPackage);
     const recentMigrationRelated = changeDocs.some((item) => item.likelyRequires.migration);
-    const branchName = this.resolveRecommendedGitUpdateBranch(current.projectRoot, gitInfo);
+    const gitTarget = this.resolveRecommendedGitUpdateTarget(current.projectRoot, gitInfo);
     const composePath = "docker/docker-compose.local-postgres.yml";
     const releaseTag = current.releaseTag || this.buildGitReleaseTag(gitInfo) || "current-workspace";
     const summary = [
@@ -996,21 +1006,29 @@ export class SystemUpdateService {
         updateGuide: {
           commands: [
             "git fetch --all --prune",
-            `git pull origin ${branchName}`,
+            "$upstream = (git rev-parse --abbrev-ref --symbolic-full-name \"@{u}\" 2>$null).Trim()",
+            "if (-not $upstream) { $upstream = ((git symbolic-ref refs/remotes/origin/HEAD 2>$null) -replace '^refs/remotes/', '').Trim() }",
+            "if (-not $upstream) { throw \"未识别到当前部署分支，请先手动 git checkout 到你的部署分支后重试\" }",
+            "$remote, $branch = $upstream.Split('/', 2)",
+            "git checkout $branch",
+            "git pull --ff-only $remote $branch",
             `docker compose -f "${composePath}" up -d --build server web`,
             recentMigrationRelated ? `docker compose -f "${composePath}" run --rm db-init` : "如本次更新涉及 schema 或初始化链，再执行：docker compose -f \"docker/docker-compose.local-postgres.yml\" run --rm db-init",
           ],
           notices: [
             "Docker 标准运行态只负责版本提醒和更新指引，不会直接替你升级容器。",
+            "页面生成的标准运行态更新命令以 PowerShell 为准，会先自动识别当前工作区 upstream；如果没有 upstream，则回退到 origin/HEAD。",
             recentSkillRelated
               ? "最近版本记录里包含 Skill / MCP 相关改动，更新后请到个人中心 -> OpenClaw 安装中心重新同步对应 Skill 或安装说明。"
               : "如果本次改动涉及 Skill / MCP，请在更新完成后到个人中心 -> OpenClaw 安装中心同步最新 Skill 安装方式。",
-            gitInfo.branchName && gitInfo.branchName !== branchName
-              ? `检测到当前本地分支是 ${gitInfo.branchName}，但远端有效更新分支为 ${branchName}，已按远端分支生成 git pull 命令。`
-              : `当前更新命令默认跟随远端有效分支：${branchName}。`,
+            gitTarget.source === "upstream" && gitInfo.upstreamRef
+              ? `当前更新命令优先跟随工作区已绑定的上游分支：${gitInfo.upstreamRef}。`
+              : gitInfo.branchName && gitInfo.branchName !== gitTarget.branchName
+                ? `检测到当前本地分支是 ${gitInfo.branchName}，但远端有效更新分支为 ${gitTarget.branchName}，已按远端分支生成 git pull 命令。`
+                : `当前更新命令默认跟随远端有效分支：${gitTarget.branchName}。`,
             gitInfo.remoteUrl
               ? `当前仓库远端：${gitInfo.remoteUrl}`
-              : "当前仓库远端地址未能自动识别，若你的代码来自其它分支，请把 git pull 的分支名改成你自己的部署分支。",
+              : "当前仓库远端地址未能自动识别；如果你的部署工作区固定跟某个发布分支，请先 checkout 到该分支，再执行页面命令。",
           ],
           requires: {
             server: true,
@@ -1303,7 +1321,7 @@ export class SystemUpdateService {
     }
     if (updateAvailable) {
       if (current.runtimeMode !== "local-single-user") {
-        return "检测到可用新版本，请按下方引导执行 git pull、重建容器，并按需重新导入 Skill 包。";
+        return "检测到可用新版本，请按下方生成的 Git 更新命令、容器重建步骤执行，并按需重新导入 Skill 包。";
       }
       return "检测到可用新版本，可以先下载校验，再执行一键升级。";
     }
@@ -1540,17 +1558,29 @@ export class SystemUpdateService {
     try {
       const headContent = readFileSync(headPath, "utf8").replace(/^\uFEFF+/, "").trim();
       if (!headContent) {
-        return { branchName: null, shortCommitSha: null, fullCommitSha: null, remoteUrl: this.readGitRemoteUrl(projectRoot) };
+        return {
+          branchName: null,
+          shortCommitSha: null,
+          fullCommitSha: null,
+          remoteUrl: this.readGitRemoteUrl(projectRoot),
+          upstreamRemote: null,
+          upstreamBranch: null,
+          upstreamRef: null,
+        };
       }
 
       if (headContent.startsWith("ref:")) {
         const ref = headContent.replace(/^ref:\s*/, "").trim();
         const fullCommitSha = this.readGitRefCommit(projectRoot, ref);
+        const upstreamInfo = this.readGitUpstreamInfo(projectRoot);
         return {
           branchName: ref.split("/").pop() || null,
           shortCommitSha: fullCommitSha ? fullCommitSha.slice(0, 8) : null,
           fullCommitSha,
           remoteUrl: this.readGitRemoteUrl(projectRoot),
+          upstreamRemote: upstreamInfo?.remoteName || null,
+          upstreamBranch: upstreamInfo?.branchName || null,
+          upstreamRef: upstreamInfo?.fullRef || null,
         };
       }
 
@@ -1560,9 +1590,20 @@ export class SystemUpdateService {
         shortCommitSha: fullCommitSha ? fullCommitSha.slice(0, 8) : null,
         fullCommitSha,
         remoteUrl: this.readGitRemoteUrl(projectRoot),
+        upstreamRemote: null,
+        upstreamBranch: null,
+        upstreamRef: null,
       };
     } catch {
-      return { branchName: null, shortCommitSha: null, fullCommitSha: null, remoteUrl: this.readGitRemoteUrl(projectRoot) };
+      return {
+        branchName: null,
+        shortCommitSha: null,
+        fullCommitSha: null,
+        remoteUrl: this.readGitRemoteUrl(projectRoot),
+        upstreamRemote: null,
+        upstreamBranch: null,
+        upstreamRef: null,
+      };
     }
   }
 
@@ -1683,16 +1724,59 @@ export class SystemUpdateService {
       return null;
     }
     const normalizedRemote = remoteUrl.replace(/\.git$/i, "").replace(/^git@github\.com:/i, "https://github.com/");
-    const branchName = this.resolveRecommendedGitUpdateBranch(projectRoot, gitInfo);
-    return `${normalizedRemote}/blob/${encodeURIComponent(branchName)}/docs/changes/${encodeURIComponent(fileName)}`;
+    const target = this.resolveRecommendedGitUpdateTarget(projectRoot, gitInfo);
+    return `${normalizedRemote}/blob/${encodeURIComponent(target.branchName)}/docs/changes/${encodeURIComponent(fileName)}`;
   }
 
-  private resolveRecommendedGitUpdateBranch(projectRoot: string, gitInfo: GitWorkspaceInfo) {
+  private resolveRecommendedGitUpdateTarget(projectRoot: string, gitInfo: GitWorkspaceInfo): GitUpdateTarget {
+    if (gitInfo.upstreamBranch) {
+      return {
+        remoteName: gitInfo.upstreamRemote || "origin",
+        branchName: gitInfo.upstreamBranch,
+        localBranchName: gitInfo.branchName || gitInfo.upstreamBranch,
+        source: "upstream",
+      };
+    }
     const remoteHeadBranch = this.readGitRemoteHeadBranch(projectRoot);
     if (remoteHeadBranch) {
-      return remoteHeadBranch;
+      return {
+        remoteName: "origin",
+        branchName: remoteHeadBranch,
+        localBranchName: gitInfo.branchName || remoteHeadBranch,
+        source: "remote-head",
+      };
     }
-    return gitInfo.branchName || "main";
+    return {
+      remoteName: "origin",
+      branchName: gitInfo.branchName || "main",
+      localBranchName: gitInfo.branchName || null,
+      source: "local",
+    };
+  }
+
+  private readGitUpstreamInfo(projectRoot: string) {
+    try {
+      const output = execFileSync("git", ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"], {
+        cwd: projectRoot,
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "ignore"],
+        timeout: 5000,
+      }).replace(/^\uFEFF+/, "").trim();
+      if (!output) {
+        return null;
+      }
+      const firstSlashIndex = output.indexOf("/");
+      if (firstSlashIndex <= 0) {
+        return null;
+      }
+      return {
+        fullRef: output,
+        remoteName: output.slice(0, firstSlashIndex).trim() || "origin",
+        branchName: output.slice(firstSlashIndex + 1).trim() || null,
+      };
+    } catch {
+      return null;
+    }
   }
 
   private readGitRemoteHeadBranch(projectRoot: string) {

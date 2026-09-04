@@ -188,6 +188,8 @@
   - 给内容获客某书 / 某音/某号 / 公众号补独立 `营销日历` 入口，三端复用品牌增长报告下的同一份营销日历真源，并按平台过滤展示与编辑字段
 - `docs/changes/2026-09-04-standard-db-init-openclaw-runtime-table-schema-alignment.md`
   - 修复标准 Docker 运行态更新时 `db-init` 因 Prisma 将 OpenClaw 运行时表误判为待删除表而中断的问题；当前把软文街缓存、营销策划方案、策略优化记录和留言真源正式纳入 `prisma/schema.prisma`
+- `docs/changes/2026-09-04-version-workspace-upstream-branch-update-guide-fix.md`
+  - 修正个人中心 `版本与升级` 页面在标准运行态下把远端默认分支误当成部署分支的问题，更新引导改为内置 PowerShell 通用升级指令：自动识别当前工作区 upstream，再执行 `checkout + pull --ff-only + docker compose`
 - `docs/changes/2026-09-04-openclaw-marketing-plan-html-workspace.md`
   - 把内容获客某书 / 某音/某号 / 公众号下的 `营销策划方案` 统一收口为 OpenClaw HTML 方案列表，支持查看 HTML、打开 HTML、留言协作，并同步新增公众号独立左侧入口与 MCP / Skill 工具
 - `docs/changes/2026-09-03-ruanwenjie-credential-refresh-and-timestamp-fix.md`
