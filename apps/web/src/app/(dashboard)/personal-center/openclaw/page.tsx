@@ -552,6 +552,104 @@ export default function PersonalCenterOpenClawPage() {
           </div>
         </article>
       </div>
+
+      <article className="entity-card personal-card" style={{ marginTop: 16 }}>
+        <div className="entity-card-head">
+          <div>
+            <strong>{workspace?.openChatCutGuide?.title || "OpenChatCut 独立 Docker 部署"}</strong>
+            <p className="personal-meta">
+              {workspace?.openChatCutGuide?.summary || "推荐把 OpenChatCut 作为独立 Docker 服务部署，让 OpenClaw 同时连接本站 MCP 和 OpenChatCut MCP。"}
+            </p>
+          </div>
+          <div className="personal-context-actions" style={{ flexWrap: "wrap" }}>
+            {workspace?.openChatCutGuide?.docUrl ? (
+              <a href={workspace.openChatCutGuide.docUrl} target="_blank" rel="noreferrer" className="secondary-button">
+                查看部署说明
+              </a>
+            ) : null}
+            {workspace?.openChatCutGuide?.composeSnippet ? (
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => void handleCopy(workspace.openChatCutGuide.composeSnippet, "openchatcut-compose")}
+              >
+                {copiedKey === "openchatcut-compose" ? "已复制 compose" : "复制 compose 样板"}
+              </button>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="openclaw-skill-install-meta">
+          <div className="openclaw-install-target">
+            <span>仓库内样板</span>
+            <strong>{workspace?.openChatCutGuide?.composeFilePath || "docker/docker-compose.openchatcut.yml"}</strong>
+          </div>
+          <div className="openclaw-install-target">
+            <span>接入方式</span>
+            <strong>OpenClaw 双 MCP 编排</strong>
+          </div>
+        </div>
+
+        {(workspace?.openChatCutGuide?.topology || []).length ? (
+          <div className="personal-list" style={{ marginTop: 12, gap: 10 }}>
+            {(workspace?.openChatCutGuide?.topology || []).map((item) => (
+              <div key={item} className="openclaw-checklist-item">
+                {item}
+              </div>
+            ))}
+          </div>
+        ) : null}
+
+        <div className="openclaw-layout" style={{ marginTop: 16 }}>
+          <article className="entity-card personal-card">
+            <div className="entity-card-head">
+              <div>
+                <strong>部署步骤</strong>
+                <p className="personal-meta">先独立部署 OpenChatCut，再让 OpenClaw 同时连接两套 MCP，不把剪辑系统并入本站主 compose。</p>
+              </div>
+            </div>
+            <div className="openclaw-skill-steps">
+              {(workspace?.openChatCutGuide?.steps || []).map((item, index) => (
+                <div key={item} className="openclaw-skill-step">
+                  <span>{index + 1}</span>
+                  <strong>{item}</strong>
+                </div>
+              ))}
+            </div>
+          </article>
+
+          <article className="entity-card personal-card">
+            <div className="entity-card-head">
+              <div>
+                <strong>环境变量与持久化</strong>
+                <p className="personal-meta">优先把工程库、素材目录和 MCP Token 固定下来，再补模型 Key；第一阶段先跑内网单用户闭环。</p>
+              </div>
+            </div>
+            <div className="personal-list" style={{ gap: 10 }}>
+              {(workspace?.openChatCutGuide?.env || []).map((item) => (
+                <div key={item} className="openclaw-checklist-item">
+                  {item}
+                </div>
+              ))}
+            </div>
+          </article>
+        </div>
+
+        <label className="field" style={{ marginTop: 16 }}>
+          <span>OpenChatCut 独立 compose 样板</span>
+          <textarea value={workspace?.openChatCutGuide?.composeSnippet || ""} rows={18} readOnly spellCheck={false} />
+        </label>
+
+        {(workspace?.openChatCutGuide?.notes || []).length ? (
+          <div className="personal-list" style={{ marginTop: 12, gap: 10 }}>
+            {(workspace?.openChatCutGuide?.notes || []).map((item) => (
+              <div key={item} className="openclaw-checklist-item">
+                {item}
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </article>
     </section>
   );
 }

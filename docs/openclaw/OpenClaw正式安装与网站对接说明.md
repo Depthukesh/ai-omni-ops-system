@@ -81,6 +81,7 @@
   - MCP 安装配置复制
   - 令牌状态查看
   - Skill 示例提问
+  - OpenChatCut 独立 Docker 部署与双 MCP 集成说明
   - 正式交付检查清单
   - 正式说明文档跳转
 

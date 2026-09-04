@@ -1,0 +1,21 @@
+services:
+  openchatcut:
+    image: node:24-bookworm-slim
+    container_name: openchatcut
+    working_dir: /workspace
+    init: true
+    command: >
+      sh -lc "test -f .env.local || cp .env.example .env.local; npm install; npm run dev"
+    ports:
+      - "${OPENCHATCUT_HTTP_PORT:-15199}:5199"
+    environment:
+      HOME: /data/home
+      MEDIA_DIR: /data/media
+      OPENCHATCUT_MCP_TOKEN: ${OPENCHATCUT_MCP_TOKEN:-change-me}
+      OPENCHATCUT_EDITOR_URL: ${OPENCHATCUT_EDITOR_URL:-http://127.0.0.1:15199}
+      RESOURCE_PREVIEW_TOKEN: ${RESOURCE_PREVIEW_TOKEN:-change-me}
+    volumes:
+      - ${OPENCHATCUT_SOURCE_DIR:-../OpenChatCut}:/workspace
+      - ${OPENCHATCUT_HOME_DIR:-./local-data/openchatcut/home}:/data/home
+      - ${OPENCHATCUT_MEDIA_DIR:-./local-data/openchatcut/media}:/data/media
+    restart: unless-stopped

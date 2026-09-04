@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>OpenChatCut 独立 Docker 部署与双 MCP 集成说明</title>
+  <style>
+    body { font-family: "Microsoft YaHei", Arial, sans-serif; margin: 0; background: #0b1020; color: #e5e7eb; }
+    main { max-width: 980px; margin: 0 auto; padding: 40px 24px 64px; }
+    h1, h2 { color: #fff; }
+    h1 { font-size: 32px; margin-bottom: 16px; }
+    h2 { margin-top: 32px; font-size: 22px; border-left: 4px solid #f59e0b; padding-left: 12px; }
+    p, li { line-height: 1.75; color: #d1d5db; }
+    code, pre { font-family: Consolas, "Courier New", monospace; }
+    pre { background: #111827; border: 1px solid #374151; border-radius: 12px; padding: 16px; overflow: auto; }
+    .card { background: #111827; border: 1px solid #1f2937; border-radius: 16px; padding: 20px; margin-top: 16px; }
+    .muted { color: #9ca3af; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>OpenChatCut 独立 Docker 部署与双 MCP 集成说明</h1>
+    <p class="muted">当前推荐口径：OpenChatCut 独立 Docker 部署，不并入本站主 compose；OpenClaw 同时连接本站 MCP 与 OpenChatCut MCP，形成“本站产素材 -> OpenChatCut 剪辑导出”的闭环。</p>
+
+    <h2>推荐架构</h2>
+    <div class="card">
+      <ul>
+        <li>本站负责品牌、权限、任务、素材、作品与 OpenClaw MCP。</li>
+        <li>OpenChatCut 负责工程、时间线、导入素材、时间线编辑与导出。</li>
+        <li>OpenClaw 作为编排层，同时调用两套 MCP。</li>
+      </ul>
+    </div>
+
+    <h2>为什么独立部署</h2>
+    <div class="card">
+      <ul>
+        <li>OpenChatCut 当前是 local-first、工程型、单用户倾向的视频编辑器。</li>
+        <li>上游公开说明以源码运行和桌面包为主，不是官方 Docker 标准发布链。</li>
+        <li>剪辑、预览、导出、FFmpeg、GPU 与本站品牌后台属于两类不同运行时负载。</li>
+        <li>独立容器、独立端口、独立持久化目录更容易控制边界与排障。</li>
+      </ul>
+    </div>
+
+    <h2>目录建议</h2>
+    <div class="card">
+      <ul>
+        <li><code>OpenChatCut</code>：OpenChatCut 源码目录。</li>
+        <li><code>docker/local-data/openchatcut/home</code>：承接容器内 <code>HOME</code> 和 <code>~/.openchatcut</code>。</li>
+        <li><code>docker/local-data/openchatcut/media</code>：承接本站导出的图片、视频、音频副本。</li>
+      </ul>
+    </div>
+
+    <h2>Docker 样板</h2>
+    <div class="card">
+      <p>仓库内已补充：</p>
+      <ul>
+        <li><code>docker/docker-compose.openchatcut.yml</code></li>
+        <li><code>docker/openchatcut.env.example</code></li>
+      </ul>
+      <p>当前定位是实施样板，优先服务内网单用户验证闭环。</p>
+    </div>
+
+    <pre><code>services:
+  openchatcut:
+    image: node:24-bookworm-slim
+    container_name: openchatcut
+    working_dir: /workspace
+    init: true
+    command: &gt;
+      sh -lc "test -f .env.local || cp .env.example .env.local; npm install; npm run dev"
+    ports:
+      - "${OPENCHATCUT_HTTP_PORT:-15199}:5199"
+    environment:
+      HOME: /data/home
+      MEDIA_DIR: /data/media
+      OPENCHATCUT_MCP_TOKEN: ${OPENCHATCUT_MCP_TOKEN:-change-me}
+      OPENCHATCUT_EDITOR_URL: ${OPENCHATCUT_EDITOR_URL:-http://127.0.0.1:15199}
+      RESOURCE_PREVIEW_TOKEN: ${RESOURCE_PREVIEW_TOKEN:-change-me}
+    volumes:
+      - ${OPENCHATCUT_SOURCE_DIR:-../OpenChatCut}:/workspace
+      - ${OPENCHATCUT_HOME_DIR:-./local-data/openchatcut/home}:/data/home
+      - ${OPENCHATCUT_MEDIA_DIR:-./local-data/openchatcut/media}:/data/media
+    restart: unless-stopped</code></pre>
+
+    <h2>启动步骤</h2>
+    <div class="card">
+      <ol>
+        <li>检出 OpenChatCut 源码。</li>
+        <li>复制 <code>docker/openchatcut.env.example</code> 并改成真实路径、端口和 Token。</li>
+        <li>启动独立 compose。</li>
+        <li>确认 <code>15199</code> 页面可打开，再验证 MCP 地址。</li>
+        <li>最后让 OpenClaw 同时绑定本站 MCP 与 OpenChatCut MCP。</li>
+      </ol>
+    </div>
+
+    <pre><code>docker compose --env-file "docker/openchatcut.env.example" -f "docker/docker-compose.openchatcut.yml" up -d</code></pre>
+
+    <h2>双 MCP 口径</h2>
+    <div class="card">
+      <ul>
+        <li>本站 MCP：生成图片、视频、音频、字幕、BGM、音效等素材。</li>
+        <li>OpenChatCut MCP：创建工程、导入素材、组织时间线、导出成片。</li>
+        <li>OpenClaw：同时调用两边，不把视频剪辑逻辑塞回本站后台。</li>
+      </ul>
+    </div>
+
+    <h2>验证清单</h2>
+    <div class="card">
+      <ul>
+        <li>OpenChatCut 独立容器可启动。</li>
+        <li><code>15199</code> 页面可打开。</li>
+        <li>OpenChatCut MCP 可连通。</li>
+        <li>OpenClaw 可同时挂本站 MCP 与 OpenChatCut MCP。</li>
+        <li>本站生成的一张图、一个音频、一个视频片段可导入 OpenChatCut。</li>
+        <li>OpenChatCut 可完成一次最小时间线编辑并导出测试成片。</li>
+      </ul>
+    </div>
+
+    <h2>当前边界提醒</h2>
+    <div class="card">
+      <ul>
+        <li>这里提供的是本站实施样板，不是 upstream 官方标准 Docker 发布物。</li>
+        <li>第一阶段按单用户 / 单工作区联调，不把 OpenChatCut 当多租户共享剪辑服务。</li>
+        <li>外部 MCP 偏编辑会话与时间线草稿；导出、删除工程等副作用动作要单独确认工具面与审批策略。</li>
+      </ul>
+    </div>
+  </main>
+</body>
+</html>

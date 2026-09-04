@@ -426,6 +426,7 @@
   - 第三方接口配置
 - `/personal-center/openclaw`
   - OpenClaw 安装中心
+  - 当前同时提供品牌令牌、MCP 安装片段、Skill ZIP / Git 安装说明，以及 OpenChatCut 独立 Docker 部署与双 MCP 集成说明
 - `/personal-center/version`
   - 版本与升级
 - `/personal-center/security`

@@ -76,6 +76,17 @@ export type OpenClawInstallWorkspace = {
     githubPrompt: string;
     notes: string[];
   };
+  openChatCutGuide: {
+    title: string;
+    summary: string;
+    composeFilePath: string;
+    docUrl: string;
+    topology: string[];
+    steps: string[];
+    env: string[];
+    composeSnippet: string;
+    notes: string[];
+  };
   relationshipGuide: {
     title: string;
     items: Array<{
@@ -467,6 +478,37 @@ export class OpenClawInstallationService {
           "ZIP 会优先读取仓库里的 Markdown 真源；如果部署环境缺少文档文件，会自动回退到内置完整版内容，而不是只给空白占位说明。",
         ],
       },
+      openChatCutGuide: {
+        title: "OpenChatCut 独立 Docker 部署",
+        summary: "推荐把 OpenChatCut 作为独立 Docker 服务部署，不并入本站主 compose。OpenClaw 同时连接本站 MCP 和 OpenChatCut MCP：本站负责产素材与任务编排，OpenChatCut 负责真实时间线剪辑与导出。",
+        composeFilePath: "docker/docker-compose.openchatcut.yml",
+        docUrl: `${docsBaseUrl}/docs/openclaw/OpenChatCut%E7%8B%AC%E7%AB%8BDocker%E9%83%A8%E7%BD%B2%E4%B8%8E%E5%8F%8CMCP%E9%9B%86%E6%88%90%E8%AF%B4%E6%98%8E.html`,
+        topology: [
+          "本站 `server/web/postgres` 继续跑品牌、素材、任务与 OpenClaw MCP，不与 OpenChatCut 混容器。",
+          "OpenChatCut 以独立 Docker 服务运行，默认监听 5199，并只对内网或受控反向代理开放。",
+          "OpenClaw 同时挂两套 MCP：`ai-omni-ops-*` 负责生成素材与任务编排，`openchatcut` 负责工程、时间线与导出。",
+        ],
+        steps: [
+          "先在独立目录检出 OpenChatCut 源码，并准备独立的持久化目录。",
+          "复制仓库里的 `docker/docker-compose.openchatcut.yml` 作为部署样板，按环境变量改源码路径、端口与数据目录。",
+          "启动 OpenChatCut 后，先访问 5199 并确认编辑器可打开，再用 `OPENCHATCUT_MCP_TOKEN` 验证外部 MCP 地址。",
+          "最后让 OpenClaw 同时绑定本站 MCP 与 OpenChatCut MCP，按“本站产素材 -> OpenChatCut 剪辑导出”闭环联调。",
+        ],
+        env: [
+          "`OPENCHATCUT_SOURCE_DIR`：OpenChatCut 源码检出目录，建议与本站仓库平级放置。",
+          "`OPENCHATCUT_HTTP_PORT`：独立服务端口，默认建议 `15199`，避免占用主站端口。",
+          "`OPENCHATCUT_HOME_DIR`：OpenChatCut 本机工程库目录，容器内通过 `HOME` 承接 `~/.openchatcut`。",
+          "`OPENCHATCUT_MEDIA_DIR`：素材目录，对接本站导出的图片、视频、音频副本。",
+          "`OPENCHATCUT_MCP_TOKEN`：对外开放 MCP 时使用的 Bearer Token；只允许内网或反向代理访问。",
+          "可选补充 `.env.local` 里的 LLM / Image / Video / TTS Provider Key，但第一阶段不要求一次配齐。",
+        ],
+        composeSnippet: this.buildOpenChatCutComposeSnippet(),
+        notes: [
+          "当前上游 README 公开写法仍以源码运行和桌面包为主，没有把 Docker 定义成官方主安装方式；因此这里提供的是本站实施样板，而不是 upstream 官方标准发布物。",
+          "当前推荐先跑单用户 / 单工作区场景，不把 OpenChatCut 当多租户共享剪辑服务。",
+          "OpenChatCut 的外部 MCP 偏编辑会话和时间线草稿；导出、删除工程等立即产生副作用的动作，联调时要单独确认工具面和审批策略。",
+        ],
+      },
       relationshipGuide: {
         title: "MCP 与 Skill 关系",
         items: [
@@ -505,8 +547,38 @@ export class OpenClawInstallationService {
           label: "品牌运营助手 Skill 示例",
           url: `${docsBaseUrl}/docs/openclaw/%E5%93%81%E7%89%8C%E8%BF%90%E8%90%A5%E5%8A%A9%E6%89%8BSkill%E7%A4%BA%E4%BE%8BSKILL.html`,
         },
+        {
+          label: "OpenChatCut 独立 Docker 部署与双 MCP 集成",
+          url: `${docsBaseUrl}/docs/openclaw/OpenChatCut%E7%8B%AC%E7%AB%8BDocker%E9%83%A8%E7%BD%B2%E4%B8%8E%E5%8F%8CMCP%E9%9B%86%E6%88%90%E8%AF%B4%E6%98%8E.html`,
+        },
       ],
     };
+  }
+
+  private buildOpenChatCutComposeSnippet() {
+    return [
+      "services:",
+      "  openchatcut:",
+      "    image: node:24-bookworm-slim",
+      "    container_name: openchatcut",
+      "    working_dir: /workspace",
+      "    init: true",
+      "    command: >",
+      "      sh -lc \"test -f .env.local || cp .env.example .env.local; npm install; npm run dev\"",
+      "    ports:",
+      "      - \"${OPENCHATCUT_HTTP_PORT:-15199}:5199\"",
+      "    environment:",
+      "      HOME: /data/home",
+      "      MEDIA_DIR: /data/media",
+      "      OPENCHATCUT_MCP_TOKEN: ${OPENCHATCUT_MCP_TOKEN:-change-me}",
+      "      OPENCHATCUT_EDITOR_URL: ${OPENCHATCUT_EDITOR_URL:-http://127.0.0.1:15199}",
+      "      RESOURCE_PREVIEW_TOKEN: ${RESOURCE_PREVIEW_TOKEN:-change-me}",
+      "    volumes:",
+      "      - ${OPENCHATCUT_SOURCE_DIR:-../OpenChatCut}:/workspace",
+      "      - ${OPENCHATCUT_HOME_DIR:-./local-data/openchatcut/home}:/data/home",
+      "      - ${OPENCHATCUT_MEDIA_DIR:-./local-data/openchatcut/media}:/data/media",
+      "    restart: unless-stopped",
+    ].join("\n");
   }
 
   private buildMcpServerName(brandName: string) {

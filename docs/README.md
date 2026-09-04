@@ -158,6 +158,7 @@
 - 资源副本、作品、报告、媒体：`docs/generated-content-storage-standards.md`
 - 个人中心、多用户、品牌协作：`docs/personal-center-multi-user-system-plan.md`
 - OpenClaw：`docs/openclaw/README.md`
+  - 当前已补 `OpenChatCut独立Docker部署与双MCP集成说明.md`，用于承接 OpenClaw 后续调外部剪辑系统的独立部署方案
 
 ## 文档维护规则
 

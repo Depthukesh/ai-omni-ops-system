@@ -8,25 +8,27 @@
 
 1. `OpenClaw正式安装与网站对接说明.md`
    - 当前安装中心、安装令牌、MCP 地址、Skill ZIP 的使用说明，以及长任务 MCP timeout 配置建议
-2. `OpenClaw渠道、Skill与MCP对接说明.md`
+2. `OpenChatCut独立Docker部署与双MCP集成说明.md`
+   - OpenChatCut 独立 Docker 部署、持久化目录、双 MCP 编排边界，以及“本站产素材 -> OpenChatCut 剪辑导出”的推荐链路
+3. `OpenClaw渠道、Skill与MCP对接说明.md`
    - OpenClaw、Skill、MCP 与站内系统之间的分工关系
-3. `skill-package/00-品牌运营助手Skill网站功能域地图.md`
+4. `skill-package/00-品牌运营助手Skill网站功能域地图.md`
    - 当前整站功能域、页面入口、哪些能直连 MCP、哪些仍需页面承接
-4. `skill-package/01-品牌运营助手Skill-MCP工具矩阵.md`
+5. `skill-package/01-品牌运营助手Skill-MCP工具矩阵.md`
    - 当前真实 MCP 工具分组、统一管理入口与直连工具矩阵
-5. `skill-package/02-品牌运营助手Skill高频任务路由手册.md`
+6. `skill-package/02-品牌运营助手Skill高频任务路由手册.md`
    - 当前 Skill 应如何从自然语言路由到网站功能和工具链
-6. `品牌运营助手Skill示例SKILL.md`
+7. `品牌运营助手Skill示例SKILL.md`
    - 当前正式 Skill 主文档结构、外部文档注入方式、高频规则和 ZIP fallback 策略
-7. `OpenClaw第一阶段MCP工具清单.md`
+8. `OpenClaw第一阶段MCP工具清单.md`
    - 历史第一阶段工具说明，现主要作为背景参考
-8. `../changes/2026-09-04-openclaw-free-image-design-workspace.md`
+9. `../changes/2026-09-04-openclaw-free-image-design-workspace.md`
    - 记录 OpenClaw 图片模块默认改为自由生图，以及设计页收口为结果回看页的这次变更
-9. `06-OpenClaw接口与权限落地规格_v1.md`
+10. `06-OpenClaw接口与权限落地规格_v1.md`
    - 接口、权限、审计和能力暴露边界
-10. `07-OpenClaw无侵入接入与对话式体验方案_v1.md`
+11. `07-OpenClaw无侵入接入与对话式体验方案_v1.md`
    - 无侵入接入、灰度、降级、回滚与体验约束
-11. `05-OpenClaw详细开发方案_基于现有系统文档.md`
+12. `05-OpenClaw详细开发方案_基于现有系统文档.md`
    - 基于当前系统结构的整体开发方案
 
 ## 仍保留的补充文档
