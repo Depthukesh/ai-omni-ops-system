@@ -6,7 +6,7 @@ const defaultSection = {
   key: "design" as const,
   label: "设计",
   icon: "🎨",
-  description: "设计页独立承接图片、HTML、PPT、视频四类设计工作流，统一通过创建弹窗进入生成链路。",
+  description: "当前仅承接 OpenClaw 图片生成结果回看，作为自由生图模型的站内结果面板。",
 };
 
 export default function DesignPage() {

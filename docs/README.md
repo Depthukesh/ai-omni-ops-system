@@ -178,6 +178,8 @@
 - 已放弃的多-agent 方案文档已经移除，不再作为当前开发模式的一部分
 
 ## 最近应优先关注的文档
+- `docs/changes/2026-09-04-openclaw-free-image-design-workspace.md`
+  - 把 OpenClaw `create_design_work` 的图片模块收口为默认自由生图：不再强制走社媒配图模板、不默认植入品牌资料；同时 `更多功能 -> 设计` 收口为站内结果回看页，并撤下提示词中心入口
 - `docs/changes/2026-09-04-wechat-multi-official-account-workflow-routing.md`
   - 公众号 `配置初始化` 支持多公众号账号管理，`创作工作流` 可绑定具体公众号并按所选账号发布，`发布历史` 会标注对应公众号，同时同步补齐 OpenClaw MCP / Skill 说明
 - `docs/changes/2026-09-04-paid-acquisition-tencent-ad-lead-workspace.md`

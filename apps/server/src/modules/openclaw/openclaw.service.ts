@@ -212,15 +212,15 @@ const OPENCLAW_WEBSITE_FUNCTION_CATALOG: OpenClawWebsiteFunctionCatalogItem[] = 
     key: "design_workspace_control",
     domainKey: "design",
     domainName: "设计工作台",
-    name: "生成设计作品并查看结果",
-    summary: "适合通过对话发起图片、HTML、PPT 等设计任务并查看最近作品。",
+    name: "发起自由生图并查看结果",
+    summary: "适合通过对话直接调用生图模型自由出图，并在站内结果面板回看最近生成记录。",
     pageUrl: "/more-features/design",
     pageLabel: "打开设计工作台",
     riskLevel: "medium",
-    intentKeywords: ["设计", "海报", "图片", "封面", "ppt", "HTML", "视觉"],
+    intentKeywords: ["设计", "海报", "图片", "封面", "生图", "视觉"],
     requiredInputKeys: ["designGoal", "styleOrAssetRequirement"],
     requiredInputs: ["设计目标", "素材或风格要求"],
-    recommendedQuestions: ["帮我生成一张活动海报", "帮我看最近的设计作品结果"],
+    recommendedQuestions: ["帮我生成一张图片", "帮我看最近的生图结果"],
     mcpTools: ["get_design_workspace_options", "get_recent_design_works", "create_design_work"],
   },
   {
@@ -1865,7 +1865,7 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
   },
   {
     name: "get_design_workspace_options",
-    description: "查看设计工作台可用模块、设计类型、产品、营销日历和模型选项，并读取可直接传给 create_design_work.modelSelection 的 selectionKey。",
+    description: "查看设计工作台可用模型选项与图片生成配置，并读取可直接传给 create_design_work.modelSelection 的 selectionKey。",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
   },
   {
@@ -1881,7 +1881,7 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
   },
   {
     name: "create_design_work",
-    description: "在网站设计工作台中直接创建一个设计任务。支持纯文字需求，也支持补充参考图 URL 或参考图上传对象；图片设计可通过 imageSize 指定尺寸（格式 宽x高，如 1200x628）；如需指定生图模型，应先调用 get_design_workspace_options，再把返回的 selectionKey 传入 modelSelection。",
+    description: "在网站设计工作台中直接创建一个设计任务。当前图片模块默认走 OpenClaw 自由生图模式：不会自动套社媒配图模板、不会默认植入品牌资料、也不会强制生成中文排版文案。支持纯文字需求，也支持补充参考图 URL 或参考图上传对象；图片设计可通过 imageSize 指定尺寸（格式 宽x高，如 1200x628）；如需指定生图模型，应先调用 get_design_workspace_options，再把返回的 selectionKey 传入 modelSelection。",
     inputSchema: {
       type: "object",
       properties: {
@@ -6843,7 +6843,7 @@ export class OpenClawService {
     const workspace = await this.worksService.getDesignWorkspaceOptions(brandId);
     return this.buildSummaryResponse({
       title: "设计工作台可用选项",
-      summary: `当前品牌支持 ${Object.keys(workspace.moduleOptions).length} 个设计模块，可直接在对话里确认模块、设计类型、产品、营销日历和模型 selectionKey 后发起任务。`,
+      summary: `当前品牌可直接在 OpenClaw 中使用设计工作台模型选项发起任务；图片模块默认走自由生图模式，不再自动套社媒模板或品牌资料。`,
       highlights: [
         `营销日历选项：${workspace.calendarOptions.length}`,
         `产品选项：${workspace.productOptions.length}`,
@@ -6859,7 +6859,7 @@ export class OpenClawService {
         brandOptions: workspace.brandOptions,
         moduleOptions: workspace.moduleOptions,
       },
-      links: [{ label: "打开设计工作台", url: "/personal-center/works" }],
+      links: [{ label: "打开设计工作台", url: "/more-features/design" }],
     });
   }
 
@@ -6887,7 +6887,7 @@ export class OpenClawService {
         total: history.items.length,
         items,
       },
-      links: [{ label: "打开设计工作台", url: "/personal-center/works" }],
+      links: [{ label: "打开设计工作台", url: "/more-features/design" }],
     });
   }
 
@@ -6919,10 +6919,7 @@ export class OpenClawService {
     const debugTraceId = this.readHeaderValue(headers, "x-openclaw-debug-trace-id");
     await this.authService.assertBrandPermission(brandId, "personalCenter.works", "edit", auth);
 
-    const module = this.normalizeDesignModule(options?.module);
-    if (!module) {
-      throw new BadRequestException("请提供有效的设计模块：image、html、deck、video");
-    }
+    const module = this.normalizeDesignModule(options?.module) || "image";
     const referenceMaterialId = String(options?.referenceMaterialId || "").trim();
     const explicitReferenceImageUrl = String(options?.referenceImageUrl || "").trim();
     const resolvedReferenceImageUrl = explicitReferenceImageUrl
@@ -6963,7 +6960,7 @@ export class OpenClawService {
         title: String(options?.title || "").trim() || undefined,
         calendarItemId: String(options?.calendarItemId || "").trim() || undefined,
         productId: String(options?.productId || "").trim() || undefined,
-        injectBrandProfile: typeof options?.injectBrandProfile === "boolean" ? options.injectBrandProfile : undefined,
+        injectBrandProfile: typeof options?.injectBrandProfile === "boolean" ? options.injectBrandProfile : false,
         referenceImage: options?.referenceImage?.dataBase64
           ? {
             fileName: String(options.referenceImage.fileName || "").trim() || "reference-image",
@@ -6978,6 +6975,7 @@ export class OpenClawService {
           options?.additionalInstruction || options?.styleHint,
           "设计补充要求",
         ) || undefined,
+        rawImageMode: module === "image",
         debugTraceId: debugTraceId || undefined,
       }, auth);
 
@@ -7005,11 +7003,13 @@ export class OpenClawService {
           `任务 ID：${result.taskId}`,
           `执行品牌：${brandId}`,
           `模块：${module}`,
-          options?.designType ? `设计类型：${options.designType}` : "设计类型：按默认技能生成",
+          options?.designType ? `设计类型：${options.designType}` : module === "image" ? "设计类型：默认自由生图" : "设计类型：按默认技能生成",
           module === "image"
             ? `图片尺寸：${resolvedSpec || "未指定，默认 1242x1660"}`
             : `规格：${resolvedSpec || "未指定"}`,
-          options?.productId ? `产品：${options.productId}` : "产品：未指定",
+          module === "image"
+            ? `品牌资料植入：${typeof options?.injectBrandProfile === "boolean" ? (options.injectBrandProfile ? "显式开启" : "关闭") : "默认关闭"}`
+            : (options?.productId ? `产品：${options.productId}` : "产品：未指定"),
           options?.referenceImage?.dataBase64
             ? "参考图：已上传参考图"
             : (explicitReferenceImageUrl
@@ -7017,7 +7017,7 @@ export class OpenClawService {
               : (referenceMaterialId ? `参考图：已使用创作素材 ${referenceMaterialId}` : "参考图：未提供")),
         ],
         data: result,
-        links: [{ label: "打开设计工作台", url: "/personal-center/works" }],
+        links: [{ label: "打开设计工作台", url: "/more-features/design" }],
         resultStatus: "COMPLETED",
       });
     } catch (error) {

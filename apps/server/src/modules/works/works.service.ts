@@ -1123,6 +1123,7 @@ export type GenerateDesignWorkPayload = {
   modelSelection?: string;
   spec?: string;
   additionalInstruction?: string;
+  rawImageMode?: boolean;
   debugTraceId?: string;
 };
 
@@ -3189,7 +3190,7 @@ type WechatHtmlGenerationModelResult = {
   attemptTrail: string[];
 };
 
-type ImagePromptMode = "social_graphic" | "video_storyboard" | "wechat_graphic";
+type ImagePromptMode = "social_graphic" | "video_storyboard" | "wechat_graphic" | "free_image";
 
 type ImageProviderConfig = ThirdPartyChatConfig & {
   provider: "IMAGE_API";
@@ -4412,11 +4413,19 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
   ): Promise<DesignGeneratedWorkRecord> {
     const archive = await this.brandsService.getArchive(brandId);
     const calendarWorkspace = await this.reportsService.getXiaohongshuMarketingCalendarWorkspace(brandId);
-    const skillProfile = this.resolveDesignSkillProfile(payload.module, payload.skillSlug, payload.designType);
+    const rawImageMode = payload.module === "image" && payload.rawImageMode === true;
+    const skillProfile = rawImageMode
+      ? {
+          skillSlug: "design-openclaw-free-image",
+          label: "OpenClaw 自由生图",
+          promptId: "",
+        }
+      : this.resolveDesignSkillProfile(payload.module, payload.skillSlug, payload.designType);
     const selectedCalendarItem = calendarWorkspace.latest?.items.find((item) => item.id === payload.calendarItemId);
     const selectedProduct = archive.products.find((item) => item.id === payload.productId);
     const scopedSelection = this.parseScopedModelSelection(payload.modelSelection || "");
-    const title = String(payload.title || "").trim() || `${payload.designType || DESIGN_MODULE_TYPES[payload.module][0]}方案`;
+    const resolvedDesignType = String(payload.designType || "").trim() || (rawImageMode ? "自由生图" : DESIGN_MODULE_TYPES[payload.module][0]);
+    const title = String(payload.title || "").trim() || `${resolvedDesignType}方案`;
     const userId = await this.resolveTaskUserId(brandId, auth);
     const requestFingerprint = this.buildDesignTaskRequestFingerprint(payload, title, scopedSelection.modelName);
     if (payload.module === "image") {
@@ -4443,25 +4452,28 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       inputJson: {
         requestFingerprint,
         module: payload.module,
-        designType: payload.designType || skillProfile.label,
+        designType: resolvedDesignType,
         title,
         calendarItemId: payload.calendarItemId || "",
         productId: payload.productId || "",
-        injectBrandProfile: payload.injectBrandProfile !== false,
+        injectBrandProfile: rawImageMode ? payload.injectBrandProfile === true : payload.injectBrandProfile !== false,
         referenceImageUrl: payload.referenceImageUrl || "",
         referenceImageSignature: this.buildReferenceImageSignature(payload.referenceImage),
         modelSelection: payload.modelSelection || "",
         spec: payload.spec || "",
         additionalInstruction: payload.additionalInstruction || "",
+        rawImageMode,
       },
     });
     const debugTraceId = String(payload.debugTraceId || "").trim() || task.id;
     const designContext = {
       brandName: archive.brand.brandName || "当前品牌",
-      brandProfileSummary: payload.injectBrandProfile === false ? "" : this.buildDesignBrandProfileSummary(archive),
-      calendarLabel: selectedCalendarItem ? `${selectedCalendarItem.date} | ${selectedCalendarItem.topicName}` : "",
-      productLabel: selectedProduct?.productName || "不植入产品",
-      designType: payload.designType || skillProfile.label,
+      brandProfileSummary: rawImageMode
+        ? (payload.injectBrandProfile === true ? this.buildDesignBrandProfileSummary(archive) : "")
+        : (payload.injectBrandProfile === false ? "" : this.buildDesignBrandProfileSummary(archive)),
+      calendarLabel: rawImageMode ? "" : (selectedCalendarItem ? `${selectedCalendarItem.date} | ${selectedCalendarItem.topicName}` : ""),
+      productLabel: rawImageMode ? "" : (selectedProduct?.productName || "不植入产品"),
+      designType: resolvedDesignType,
       spec: String(payload.spec || "").trim(),
       additionalInstruction: String(payload.additionalInstruction || "").trim(),
     };
@@ -4503,7 +4515,13 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       });
 
       if (payload.module === "image") {
-        const skillPreference = await this.loadSkillModelPreference(skillProfile.skillSlug, skillProfile.promptId, ["gpt-image-2"]);
+        const skillPreference = rawImageMode
+          ? {
+              preferredModelName: "gpt-image-2",
+              configuredModels: ["gpt-image-2"],
+              preferredProviderIds: [],
+            }
+          : await this.loadSkillModelPreference(skillProfile.skillSlug, skillProfile.promptId, ["gpt-image-2"]);
         const providers = await this.loadImageGenerationProviders(
           brandId,
           undefined,
@@ -4514,10 +4532,18 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
             strictPreferredProvider: Boolean(scopedSelection.providerId),
           },
         );
-        const imagePrompt = await this.buildDesignImagePrompt(brandId, skillProfile.promptId, {
-          skillSlug: skillProfile.skillSlug,
-          ...designContext,
-        });
+        const imagePrompt = rawImageMode
+          ? this.buildDirectDesignImagePrompt({
+              brandName: designContext.brandName,
+              designType: designContext.designType,
+              spec: designContext.spec,
+              additionalInstruction: designContext.additionalInstruction,
+              brandProfileSummary: designContext.brandProfileSummary,
+            })
+          : await this.buildDesignImagePrompt(brandId, skillProfile.promptId, {
+              skillSlug: skillProfile.skillSlug,
+              ...designContext,
+            });
         const imageSizeOverride = this.resolveDesignImageGenerationSize(designContext.spec);
         const imageAsset = await this.generateImageAsset({
           brandId,
@@ -4527,11 +4553,13 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
           role: "COVER",
           order: 0,
           providers,
-          executionPrompt: `你是一名商业设计视觉生成助手，需要产出可直接用于营销和品牌传播的高完成度设计图，当前设计技能为：${skillProfile.label}。`,
+          executionPrompt: rawImageMode
+            ? "你是一名通用图像生成助手，按用户当前要求直接出图，不要额外植入海报文案、社媒版式、营销标签或无关业务信息。"
+            : `你是一名商业设计视觉生成助手，需要产出可直接用于营销和品牌传播的高完成度设计图，当前设计技能为：${skillProfile.label}。`,
           prompt: imagePrompt,
           referenceImageUrls: payload.referenceImageUrl ? [payload.referenceImageUrl] : [],
           referenceImagePayloads: payload.referenceImage ? [payload.referenceImage] : [],
-          promptMode: "social_graphic",
+          promptMode: rawImageMode ? "free_image" : "social_graphic",
           imageSizeOverride,
           includeFallbackPrompt: true,
         });
@@ -4547,7 +4575,13 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
           updatedAt: new Date().toISOString(),
           summary: this.buildDesignResultSummary(designContext, imageAsset.modelName),
           spec: designContext.spec,
-          tags: [skillProfile.label, designContext.designType, payload.injectBrandProfile === false ? "不植入品牌资料" : "植入品牌资料", designContext.productLabel, imageAsset.modelName],
+          tags: [
+            skillProfile.label,
+            designContext.designType,
+            designContext.brandProfileSummary ? "植入品牌资料" : "不植入品牌资料",
+            designContext.productLabel,
+            imageAsset.modelName,
+          ],
           assetUrl: imageAsset.url,
         };
         await this.markTaskSuccess(task.id, {
@@ -6938,6 +6972,25 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
       params.additionalInstruction ? `补充要求：${params.additionalInstruction}。` : "",
       knowledgeContext,
       "要求画面完成度高，适合商业传播，中文排版清晰，主体突出，保留足够安全边距。",
+    ].filter(Boolean).join("");
+  }
+
+  private buildDirectDesignImagePrompt(params: {
+    brandName: string;
+    designType: string;
+    spec: string;
+    additionalInstruction: string;
+    brandProfileSummary?: string;
+  }) {
+    return [
+      `请直接为“${params.brandName}”生成一张${params.designType || "图片"}。`,
+      params.spec ? `尺寸或规格要求：${params.spec}。` : "",
+      params.additionalInstruction ? `用户补充要求：${params.additionalInstruction}。` : "",
+      params.brandProfileSummary ? `仅当用户明确要求结合品牌资料时，再参考以下品牌信息：${params.brandProfileSummary}。` : "",
+      "不要自动添加海报标题、社媒标签、卖点文案、按钮、贴纸、边框或营销排版。",
+      "不要把图片默认做成社交媒体配图、轮播图、杂志海报、电商主视觉，除非用户明确要求。",
+      "优先根据用户当前输入直接出图；如果没有要求文字，就不要在画面里生成任何文字。",
+      "输出应聚焦主体、构图、材质、光线、色彩和风格一致性，不要额外引入无关业务信息。",
     ].filter(Boolean).join("");
   }
 
@@ -30451,6 +30504,20 @@ export class WorksService implements OnModuleInit, OnModuleDestroy {
         "必须严格按提示词中的角色、场景、动作、镜头关系和情绪出图，优先保证叙事一致性，不能只保留泛化氛围。",
         "如果输入中带有参考图，必须继承角色外观、构图、机位、光线和连续性，避免换脸、换服装、换场景。",
         "输出应接近电影分镜或关键帧画面，突出主体、动作瞬间、景别和镜头语言，避免做成电商海报或封面排版图。",
+      ]
+        .filter(Boolean)
+        .join("\n");
+    }
+    if (promptMode === "free_image") {
+      return [
+        executionPrompt?.trim() || "",
+        "",
+        prompt.trim(),
+        "",
+        "补充强制要求：这是一次自由生图任务，不要默认生成社媒排版图、信息海报、公众号配图、电商主视觉或任何带文字模板的成品。",
+        "如果输入里没有明确要求文字、标题、标签、按钮或版式元素，就不要自行在画面中添加任何文字。",
+        "如果输入中带有参考图，优先继承主体特征、构图、视角、光线、材质与整体风格，不要只保留泛化氛围。",
+        "优先保证主体质量、细节完整度、空间关系、色彩控制和构图稳定性，不要额外植入营销信息。",
       ]
         .filter(Boolean)
         .join("\n");

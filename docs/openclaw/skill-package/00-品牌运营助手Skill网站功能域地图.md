@@ -225,10 +225,7 @@
 
 当前承载：
 
-- 图片设计
-- HTML 设计
-- PPT 设计
-- 视频方案设计
+- OpenClaw 自由生图结果回看
 
 当前优先 MCP：
 
@@ -241,6 +238,12 @@
 - 真正创建任务前先看 options
 - 指定模型时必须使用返回的 `selectionKey`
 - 有参考图时优先带上 `referenceImageUrl` 或 `referenceImage`
+- 图片模块默认就是给 OpenClaw 直接调用生图模型自由出图：
+  - 不自动套社媒配图模板
+  - 不默认植入品牌资料
+  - 不强制补中文排版文案
+- `/more-features/design` 当前只是站内结果面板，不再给用户暴露手动创建入口
+- `/more-features/operations-prompt-center` 和 `/more-features/image-prompt-center` 当前都重定向回设计页
 
 ### 3.6 个人中心 `/personal-center`
 

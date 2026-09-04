@@ -275,15 +275,19 @@
 
 包含：
 
-- 图片设计
-- HTML 设计
-- PPT 设计
-- 视频方案设计
+- OpenClaw 自由生图结果回看
 
-当前已经接入真实品牌档案、营销日历和 Provider 配置。
+当前特点：
 
+- 用户侧当前不再提供手动创建设计任务入口，也不再暴露 `运营提示词中心`、`生图提示词中心`
+- `/more-features/operations-prompt-center` 与 `/more-features/image-prompt-center` 当前都会重定向回 `/more-features/design`
+- OpenClaw `create_design_work` 在图片模块下默认走自由生图：
+  - 不自动套社媒配图模板
+  - 不默认植入品牌资料
+  - 不强制生成中文排版文案
 - OpenClaw `create_design_work` 当前除 `referenceImageUrl` / 直接上传外，也支持 `referenceMaterialId`，可直接复用站内创作素材作为参考图
 - 参考变更：`docs/changes/2026-08-21-openclaw-design-work-reference-material-id.md`
+- 参考变更：`docs/changes/2026-09-04-openclaw-free-image-design-workspace.md`
 
 ### 4.5A GEO获客工作台 `/geo`
 

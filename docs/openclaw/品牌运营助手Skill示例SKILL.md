@@ -330,6 +330,8 @@
 - 如果用户明确指定尺寸，优先传 `create_design_work.imageSize="宽x高"`，例如 `1200x628`
 - 兼容旧链路时，也可以继续传 `create_design_work.spec="宽x高"`
 - 当前 `create_design_work` 在图片模块下如果未显式传 `modelSelection`，OpenClaw 默认会优先尝试工作台模型列表里 `providerName=多元探索` 的 `gpt-image-2`；若当前品牌没有多元探索可用项，才回退到工作台推荐项
+- 图片模块默认就是自由生图，不自动套社媒配图模板、不默认植入品牌资料，也不强制追加中文排版文案
+- `/more-features/design` 当前只是站内结果回看页，不再给用户手动创建任务，也不再暴露运营提示词中心或生图提示词中心
 - 如果用户说“用多元探索做图”，先检查多元探索平台 runtime 是否可用；确认可用后，仍然通过网站现有设计工作台工具链执行，不直接伪造一个不存在的多元探索专用设计工具
 - 一旦用户明确指定“就用多元探索”，必须从 `moduleOptions.image.models` 中筛选 `providerName` 属于多元探索的 `selectionKey`，不要仅按 Veo / Seedance / Kling 等模型家族猜测 provider
 
