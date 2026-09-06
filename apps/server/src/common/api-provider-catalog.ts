@@ -39,8 +39,8 @@ export const MATHMIND_API_BASE_URL = "https://api.mathmind.cn";
 export const AGNES_API_BASE_URL = "https://apihub.agnes-ai.com";
 export const STEPFUN_API_BASE_URL = "https://api.stepfun.com";
 export const DUOYUANX_API_BASE_URL = "https://duoyuanx.com";
-export const DUOYUANX_DOC_ROOT = "https://doc.duoyuanx.com/zh";
-const DUOYUANX_UPDATED_AT = "2026-07-22T00:00:00.000Z";
+export const DUOYUANX_DOC_ROOT = "https://docs.deepwl.cn/duoyuanx/zh";
+const DUOYUANX_UPDATED_AT = "2026-09-06T00:00:00.000Z";
 
 function createSeed(input: Omit<ApiProviderSeedRecord, "successRate" | "requestCount24h" | "totalCostYuan" | "lastCalledAt" | "updatedAt">): ApiProviderSeedRecord {
   return {
@@ -187,6 +187,16 @@ type StepfunAudioSeedInput = {
 };
 
 const DUOYUANX_TEXT_MODEL_WHITELIST = [
+  "gpt-5.5",
+  "gpt-5.5-pro",
+  "gpt-5.6-luna",
+  "gpt-5.6-sol",
+  "gpt-5.6-terra",
+  "gpt-6-astra",
+  "gpt-5.4",
+  "gpt-5.4-mini",
+  "gpt-5.3-codex",
+  "gpt-5-nano",
   "gpt-4o",
   "gpt-4o-mini",
   "gpt-4.1",
@@ -195,18 +205,29 @@ const DUOYUANX_TEXT_MODEL_WHITELIST = [
   "o1",
   "o3",
   "o4",
+  "claude-fable-5",
+  "claude-fable-5-1",
   "claude-sonnet-4-20250514",
   "claude-sonnet-4-5-20250929",
   "claude-sonnet-4-6",
+  "claude-sonnet-5",
   "claude-opus-4-20250514",
+  "claude-opus-4-5-20251101",
   "claude-opus-4-1-20250805",
+  "claude-opus-4-6-thinking",
   "claude-opus-4-6",
   "claude-opus-4-7",
+  "claude-opus-4-8",
+  "claude-opus-5",
   "claude-haiku-4-5-20251001",
+  "gemini-3.6-flash",
+  "gemini-3-flash-preview",
   "gemini-2.0-flash",
   "gemini-2.5-flash",
+  "gemini-2.5-flash-lite",
   "gemini-2.5-pro",
   "gemini-3.1-pro-preview",
+  "gemini-3.1-flash-lite-preview",
   "gemini-3-pro-image-preview",
   "gemini-3.1-flash-image-preview",
   "deepseek-chat",
@@ -217,20 +238,29 @@ const DUOYUANX_TEXT_MODEL_WHITELIST = [
   "deepseek-r1-distill-qwen-32b",
   "qwen-max",
   "qwen3-max",
+  "qwen3.7-max",
+  "qwen3.7-plus",
+  "qwen3.6-plus",
+  "qwen3.5-plus",
   "qwen3-omni-flash",
   "qwq",
 ];
 
 const DUOYUANX_IMAGE_MODEL_WHITELIST = [
   "gemini-3-pro-image-preview",
+  "gemini-2.5-flash-image",
   "gemini-2.5-flash-image-preview",
   "gemini-3.1-flash-image-preview",
   "gpt-image-2",
+  "gpt-image-2-all",
+  "qwen-image-3.0",
+  "qwen-image-3.0-pro",
   "jimeng-4.0",
   "jimeng-4.5",
   "doubao-seedream-4-0-250828",
   "doubao-seedream-4-5-251128",
   "doubao-seedream-5-0-260128",
+  "doubao-seedream-5-0-pro-260628",
   "grok-4-2-image",
   "gpt-image-1",
   "dall-e-3",
@@ -241,11 +271,14 @@ const DUOYUANX_VIDEO_MODEL_WHITELIST = [
   "veo_3_1",
   "veo_3_1-fast",
   "veo_3_1-extend",
+  "veo-3-1",
+  "veo-3-1-fast",
   "grok-video-3",
   "grok-video-3-pro",
   "grok-video-3-max",
   "omni-fast",
   "omni-fast-v2v",
+  "MiniMax-H3",
   "doubao-seedance-2-0-260128",
   "doubao-seedance-2-0-fast-260128",
   "doubao-seedance-1-0-pro_480p",

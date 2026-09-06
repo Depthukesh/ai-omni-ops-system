@@ -179,6 +179,8 @@
 - 已放弃的多-agent 方案文档已经移除，不再作为当前开发模式的一部分
 
 ## 最近应优先关注的文档
+- `docs/changes/2026-09-06-duoyuanx-model-catalog-refresh.md`
+  - 刷新多元探索第三方平台的模型目录与官方文档入口，补齐 GPT 5.5/5.6、Claude 5、Gemini 3.6、Qwen 3.7、Qwen Image、MiniMax-H3 等新模型口径
 - `docs/changes/2026-09-06-openchatcut-installation-hub-full-tutorial.md`
   - 把 `个人中心 -> OpenClaw -> 安装中心` 补成完整安装配置教程：收口源码目录、`openchatcut.env`、随机 Token、WorkBuddy 双 MCP、OpenChatCut 页面填写口径和验证顺序
 - `docs/changes/2026-09-06-openchatcut-controlled-fork-delivery-strategy.md`
