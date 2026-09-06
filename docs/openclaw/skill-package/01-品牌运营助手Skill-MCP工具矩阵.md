@@ -267,6 +267,37 @@
 - `list_my_brand_invite_notifications`
 - `accept_my_brand_invite`
 
+### 7.3 OpenClaw 安装中心
+
+当前 `OpenClaw 安装中心` 仍然主要是页面承接域，不新增一套专用写入型 MCP tools。
+
+Skill 在这个域里的职责是：
+
+- 识别用户是在问：
+  - OpenClaw MCP 怎么安装
+  - Skill ZIP / Git 怎么安装
+  - OpenChatCut 独立 Docker 怎么部署
+  - OpenChatCut 统一网关怎么接
+  - A / B / C 三类配置怎么填
+  - curl 测试命令先打哪几条
+- 然后把用户明确引导到 `个人中心 -> OpenClaw 安装中心`
+
+当前页面里已经集中提供：
+
+- 品牌安装令牌
+- MCP 安装片段
+- Skill ZIP / Git 安装说明
+- OpenChatCut 独立 Docker 说明
+- OpenChatCut 统一网关地址
+- A / B / C 三类配置示例
+- curl 测试命令
+
+注意：
+
+- 统一网关配置说明属于安装中心域，不属于第三方接口配置页本身
+- 第三方接口配置页负责的是“多元探索共享 Key 有没有配好、运行时是否可用”
+- 安装中心负责的是“OpenChatCut 里到底怎么填本站给出的统一网关口径”
+
 ### 7.3 技能中心
 
 - `get_skill_config_summary`
@@ -557,6 +588,7 @@ OpenChatCut 桥接补充：
   - 也支持显式传 `selectedMaterialIds`、`selectedVideoWorkIds`
   - 返回推荐素材和时间线草案，适合继续喂给 OpenChatCut MCP 做工程、时间线和导出
   - 这两个工具只整理本站已有素材真源，不会直接去调 OpenChatCut 外部服务
+- 如果用户继续追问“OpenChatCut 里的 Agent / 生图 / TTS / 转写 / 视频 / 音乐接口该怎么填”，下一跳不再是桥接工具，而是回到 `个人中心 -> OpenClaw 安装中心` 查看统一网关和 A / B / C 配置示例
 
 ## 15. GEO获客
 

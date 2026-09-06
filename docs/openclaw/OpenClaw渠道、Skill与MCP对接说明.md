@@ -26,6 +26,24 @@
 
 这层桥接只负责整理本站真源，方便 OpenClaw 后续继续把结果送进 OpenChatCut MCP，不直接替 OpenChatCut 创建外部工程。
 
+如果后续希望 OpenChatCut 的 Agent、图片、音频、视频、音乐能力统一走本站，不再在 OpenChatCut 内保存品牌级模型密钥，当前也已经补了独立网关：
+
+- `/api/openclaw/openchatcut-gateway/v1/models`
+- `/api/openclaw/openchatcut-gateway/v1/chat/completions`
+- `/api/openclaw/openchatcut-gateway/v1/images/generations`
+- `/api/openclaw/openchatcut-gateway/v1/audio/speech`
+- `/api/openclaw/openchatcut-gateway/v1/audio/transcriptions`
+- `/api/openclaw/openchatcut-gateway/v1/videos`
+- `/api/openclaw/openchatcut-gateway/suno/submit/:action`
+
+这层网关不直接暴露多元探索明文 Key，而是继续复用：
+
+- OpenClaw 安装令牌
+- `x-brand-id`
+- 品牌共享第三方平台密钥解析
+
+也就是说，OpenChatCut 可以改成“只连本站”，再由本站按品牌上下文转发到多元探索。
+
 ---
 
 ## 2. 对 OpenClaw 的正确理解

@@ -97,36 +97,60 @@
 
 这是当前推荐的第一阶段样板，重点是：
 
-- 用独立容器跑 OpenChatCut
+- 用自定义启动镜像跑 OpenChatCut 开发态
 - 用独立端口 `15199 -> 5199`
 - 用 `HOME` 承接 OpenChatCut 本地工程库
 - 用 `MEDIA_DIR` 承接素材目录
 - 用 `OPENCHATCUT_MCP_TOKEN` 保护外部 MCP
+- 用独立 `node_modules` 卷避免容器重启后全量重装依赖
 
 ### 启动前准备
 
 1. 在本站仓库平级或固定目录检出 OpenChatCut 源码
-2. 复制 `docker/openchatcut.env.example` 为你的环境文件
+2. 复制 `docker/openchatcut.env.example` 为 `docker/openchatcut.env`
 3. 把 `OPENCHATCUT_SOURCE_DIR` 改成真实源码目录
 4. 按实际环境修改端口、目录和 Token
 
 ### 启动命令
 
 ```powershell
-docker compose --env-file "docker/openchatcut.env.example" -f "docker/docker-compose.openchatcut.yml" up -d
+docker compose --env-file "docker/openchatcut.env" -f "docker/docker-compose.openchatcut.yml" up -d --build
 ```
+
+### 首次启动说明
+
+首次启动明显比普通 `docker compose up` 更慢，这是预期行为。当前启动镜像会先做这些事：
+
+1. `npm install --ignore-scripts --package-lock=false`
+2. `node scripts/sync-mediapipe.mjs`
+3. `node scripts/sync-whisper-cli.mjs`
+4. `npx tsx server/agent-runs/generate-tool-catalog.mts --check`
+5. `node scripts/dev-profile.mjs --host 0.0.0.0 --port 5199 --open false`
+
+这样处理的原因是：
+
+- 直接 `npm install && npm run dev` 在 Linux Docker 开发态下会被 `onnxruntime-node` 的原生安装链卡住
+- `dev-profile` 会依赖容器里存在 `git`
+- `sync-whisper-cli` 依赖容器里存在 `unzip`
+
+因此当前 Docker 样板专门补了：
+
+- `git`
+- `unzip`
+- 独立 `openchatcut_node_modules` 卷
 
 ### compose 样板
 
 ```yaml
 services:
   openchatcut:
-    image: node:24-bookworm-slim
+    build:
+      context: ..
+      dockerfile: docker/openchatcut.Dockerfile
+    image: local/openchatcut-dev:latest
     container_name: openchatcut
     working_dir: /workspace
     init: true
-    command: >
-      sh -lc "test -f .env.local || cp .env.example .env.local; npm install; npm run dev"
     ports:
       - "${OPENCHATCUT_HTTP_PORT:-15199}:5199"
     environment:
@@ -135,12 +159,31 @@ services:
       OPENCHATCUT_MCP_TOKEN: ${OPENCHATCUT_MCP_TOKEN:-change-me}
       OPENCHATCUT_EDITOR_URL: ${OPENCHATCUT_EDITOR_URL:-http://127.0.0.1:15199}
       RESOURCE_PREVIEW_TOKEN: ${RESOURCE_PREVIEW_TOKEN:-change-me}
+      BROWSER: none
+      VITE_CONFIG_NATIVE_IGNORE_WARNING: "true"
     volumes:
       - ${OPENCHATCUT_SOURCE_DIR:-../OpenChatCut}:/workspace
+      - openchatcut_node_modules:/workspace/node_modules
       - ${OPENCHATCUT_HOME_DIR:-./local-data/openchatcut/home}:/data/home
       - ${OPENCHATCUT_MEDIA_DIR:-./local-data/openchatcut/media}:/data/media
     restart: unless-stopped
+
+volumes:
+  openchatcut_node_modules:
 ```
+
+### 自定义启动镜像
+
+仓库内新增：
+
+- `docker/openchatcut.Dockerfile`
+- `docker/openchatcut-start.sh`
+
+当前职责：
+
+- 补齐 `git`、`unzip`
+- 在容器内走 Docker 友好的 OpenChatCut 启动顺序
+- 避免第一次就因为原生依赖脚本失败，导致容器持续重启
 
 ## 7. MCP 接入方式
 
@@ -172,6 +215,142 @@ http://openchatcut:5199/api/external-mcp/mcp
 
 - `OPENCHATCUT_MCP_TOKEN`
 - 反向代理或内网访问控制
+
+### 7.3 OpenChatCut 自定义模型接口统一走本站
+
+如果希望 OpenChatCut 的 Agent、图片、音频、视频、音乐能力都统一走本站，而不是在 OpenChatCut 内分别保存各家模型平台 Key，当前推荐直接接本站新增的 OpenChatCut 专用网关：
+
+```text
+https://你的域名/api/openclaw/openchatcut-gateway
+```
+
+统一请求头继续使用 OpenClaw 安装中心导出的品牌安装令牌：
+
+```text
+Authorization: Bearer ocp_xxx
+x-brand-id: br_xxx
+```
+
+当前已暴露的路径包括：
+
+- 文本 / Agent
+  - `GET /v1/models`
+  - `POST /v1/chat/completions`
+  - `POST /v1/responses`
+  - `POST /v1/messages`
+- 图片 / 音频
+  - `POST /v1/images/generations`
+  - `POST /v1/audio/speech`
+  - `POST /v1/audio/transcriptions`
+  - `POST /v1/audio/translations`
+- 视频 / 音乐
+  - `POST /v1/videos`
+  - `GET /v1/videos/:taskId`
+  - `POST /suno/submit/:action`
+  - `GET /suno/fetch`
+  - `GET /suno/fetch/:taskId`
+
+这层网关背后默认会：
+
+1. 先校验 OpenClaw 安装令牌和品牌一致性
+2. 再读取该品牌在“个人中心 -> 第三方平台”里配置的多元探索共享 Key
+3. 最后由服务端代 OpenChatCut 转发给多元探索
+
+也就是说，OpenChatCut 不再需要直接保存品牌级多元探索明文 Key。
+
+### 7.4 OpenChatCut 里怎么填
+
+推荐优先按下面四组口径填写：
+
+#### A 类：Agent 大脑
+
+页面：
+
+- `设置 -> API 密钥 -> Agent 模型 -> OpenAI`
+
+填写建议：
+
+- `API URL = https://你的域名/api/openclaw/openchatcut-gateway`
+- `API Key = OpenClaw 安装令牌（ocp_ 开头）`
+- `接口格式 = Chat Completions API`
+- `模型 = gpt-4o`
+
+如需换模型，也可以直接填多元探索已支持的文本模型，例如：
+
+- `claude-sonnet-4-6`
+- `gemini-2.5-pro`
+- `deepseek-v4-pro`
+- `qwen3-max`
+
+#### B1 类：生图 / 图生图
+
+页面：
+
+- `设置 -> API 密钥 -> AI 生成 -> 生图 -> OpenAI`
+
+填写建议：
+
+- `Base URL = https://你的域名/api/openclaw/openchatcut-gateway`
+- `API Key = OpenClaw 安装令牌（ocp_ 开头）`
+- `生图模型 = gpt-image-2`
+
+可替换模型示例：
+
+- `gemini-3.1-flash-image-preview`
+- `jimeng-4.5`
+- `doubao-seedream-4-5-251128`
+
+#### B2 类：配音 / TTS 与转写
+
+当前 OpenChatCut 配音、转写页默认按厂商字段拆开。第一阶段建议先统一指向 OpenAI 兼容页，底层仍由本站网关转多元探索：
+
+- 配音
+  - `Base URL = https://你的域名/api/openclaw/openchatcut-gateway`
+  - `API Key = OpenClaw 安装令牌（ocp_ 开头）`
+  - `模型 = tts-1` 或 `tts-1-hd`
+- 转写
+  - `Base URL = https://你的域名/api/openclaw/openchatcut-gateway`
+  - `API Key = OpenClaw 安装令牌（ocp_ 开头）`
+  - `模型 = whisper-1`
+
+#### C 类：生视频 / 生音乐
+
+视频和音乐当前仍保留多元探索原生任务路径：
+
+- 视频
+  - `Base URL = https://你的域名/api/openclaw/openchatcut-gateway`
+  - `API Key = OpenClaw 安装令牌（ocp_ 开头）`
+  - `模型 = omni-fast`
+- 音乐
+  - `Base URL = https://你的域名/api/openclaw/openchatcut-gateway`
+  - `API Key = OpenClaw 安装令牌（ocp_ 开头）`
+  - `模型 = chirp-v4`
+
+可替换视频模型示例：
+
+- `Kling-3.0-Omni`
+- `Hailuo-2.3`
+- `doubao-seedance-2-0-260128`
+
+### 7.5 先别直接进 OpenChatCut，先打 curl
+
+建议先用安装令牌验证两条最小命令：
+
+```bash
+curl -X GET "https://你的域名/api/openclaw/openchatcut-gateway/v1/models" \
+  -H "Authorization: Bearer ocp_xxx" \
+  -H "x-brand-id: br_xxx"
+```
+
+```bash
+curl -X POST "https://你的域名/api/openclaw/openchatcut-gateway/v1/chat/completions" \
+  -H "Authorization: Bearer ocp_xxx" \
+  -H "x-brand-id: br_xxx" \
+  -H "Content-Type: application/json" \
+  -d "{\"model\":\"gpt-4o\",\"messages\":[{\"role\":\"user\",\"content\":\"你好，请返回一个 ok\"}]}"
+```
+
+如果这两条都通过，再回到 OpenChatCut 填页面，定位会快很多。
 
 ## 8. OpenClaw 的双 MCP 编排口径
 

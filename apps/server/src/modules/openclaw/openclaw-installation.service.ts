@@ -81,9 +81,17 @@ export type OpenClawInstallWorkspace = {
     summary: string;
     composeFilePath: string;
     docUrl: string;
+    gatewayBaseUrl: string;
+    gatewayHeaders: string[];
     topology: string[];
     steps: string[];
     env: string[];
+    settingsExamples: Array<{
+      title: string;
+      summary: string;
+      lines: string[];
+    }>;
+    testCommands: string[];
     composeSnippet: string;
     notes: string[];
   };
@@ -483,6 +491,11 @@ export class OpenClawInstallationService {
         summary: "推荐把 OpenChatCut 作为独立 Docker 服务部署，不并入本站主 compose。OpenClaw 同时连接本站 MCP 和 OpenChatCut MCP：本站负责产素材与任务编排，OpenChatCut 负责真实时间线剪辑与导出。",
         composeFilePath: "docker/docker-compose.openchatcut.yml",
         docUrl: `${docsBaseUrl}/docs/openclaw/OpenChatCut%E7%8B%AC%E7%AB%8BDocker%E9%83%A8%E7%BD%B2%E4%B8%8E%E5%8F%8CMCP%E9%9B%86%E6%88%90%E8%AF%B4%E6%98%8E.html`,
+        gatewayBaseUrl: `${this.appConfigService.getPublicApiBaseUrl()}/openclaw/openchatcut-gateway`,
+        gatewayHeaders: [
+          `Authorization: ${headerValue}`,
+          `x-brand-id: ${input.brandId}`,
+        ],
         topology: [
           "本站 `server/web/postgres` 继续跑品牌、素材、任务与 OpenClaw MCP，不与 OpenChatCut 混容器。",
           "OpenChatCut 以独立 Docker 服务运行，默认监听 5199，并只对内网或受控反向代理开放。",
@@ -490,8 +503,9 @@ export class OpenClawInstallationService {
         ],
         steps: [
           "先在独立目录检出 OpenChatCut 源码，并准备独立的持久化目录。",
-          "复制仓库里的 `docker/docker-compose.openchatcut.yml` 作为部署样板，按环境变量改源码路径、端口与数据目录。",
-          "启动 OpenChatCut 后，先访问 5199 并确认编辑器可打开，再用 `OPENCHATCUT_MCP_TOKEN` 验证外部 MCP 地址。",
+          "复制仓库里的 `docker/openchatcut.env.example` 为 `docker/openchatcut.env`，按环境变量改源码路径、端口与数据目录。",
+          "执行 `docker compose --env-file \"docker/openchatcut.env\" -f \"docker/docker-compose.openchatcut.yml\" up -d --build` 启动独立服务。",
+          "首次启动会先安装依赖并同步 MediaPipe / whisper-cli，耗时会明显更长；等 15199 页面能打开后，再用 `OPENCHATCUT_MCP_TOKEN` 验证外部 MCP 地址。",
           "最后让 OpenClaw 同时绑定本站 MCP 与 OpenChatCut MCP，按“本站产素材 -> OpenChatCut 剪辑导出”闭环联调。",
         ],
         env: [
@@ -502,9 +516,19 @@ export class OpenClawInstallationService {
           "`OPENCHATCUT_MCP_TOKEN`：对外开放 MCP 时使用的 Bearer Token；只允许内网或反向代理访问。",
           "可选补充 `.env.local` 里的 LLM / Image / Video / TTS Provider Key，但第一阶段不要求一次配齐。",
         ],
+        settingsExamples: this.buildOpenChatCutGatewaySettingExamples({
+          gatewayBaseUrl: `${this.appConfigService.getPublicApiBaseUrl()}/openclaw/openchatcut-gateway`,
+        }),
+        testCommands: this.buildOpenChatCutGatewayTestCommands({
+          gatewayBaseUrl: `${this.appConfigService.getPublicApiBaseUrl()}/openclaw/openchatcut-gateway`,
+          headerValue,
+          brandId: input.brandId,
+        }),
         composeSnippet: this.buildOpenChatCutComposeSnippet(),
         notes: [
           "当前上游 README 公开写法仍以源码运行和桌面包为主，没有把 Docker 定义成官方主安装方式；因此这里提供的是本站实施样板，而不是 upstream 官方标准发布物。",
+          "当前 Docker 样板会用自定义启动镜像补齐 `git`、`unzip` 等系统依赖，并在容器内先执行 `npm install --ignore-scripts`，再补 `sync-mediapipe`、`sync-whisper-cli` 和工具目录校验，避免 `onnxruntime-node` 的 Linux 开发态安装链直接炸掉。",
+          "当前样板额外挂了 `openchatcut_node_modules` 卷，避免每次重启都从空目录重装全部依赖。",
           "当前推荐先跑单用户 / 单工作区场景，不把 OpenChatCut 当多租户共享剪辑服务。",
           "OpenChatCut 的外部 MCP 偏编辑会话和时间线草稿；导出、删除工程等立即产生副作用的动作，联调时要单独确认工具面和审批策略。",
         ],
@@ -559,12 +583,13 @@ export class OpenClawInstallationService {
     return [
       "services:",
       "  openchatcut:",
-      "    image: node:24-bookworm-slim",
+      "    build:",
+      "      context: ..",
+      "      dockerfile: docker/openchatcut.Dockerfile",
+      "    image: local/openchatcut-dev:latest",
       "    container_name: openchatcut",
       "    working_dir: /workspace",
       "    init: true",
-      "    command: >",
-      "      sh -lc \"test -f .env.local || cp .env.example .env.local; npm install; npm run dev\"",
       "    ports:",
       "      - \"${OPENCHATCUT_HTTP_PORT:-15199}:5199\"",
       "    environment:",
@@ -573,12 +598,84 @@ export class OpenClawInstallationService {
       "      OPENCHATCUT_MCP_TOKEN: ${OPENCHATCUT_MCP_TOKEN:-change-me}",
       "      OPENCHATCUT_EDITOR_URL: ${OPENCHATCUT_EDITOR_URL:-http://127.0.0.1:15199}",
       "      RESOURCE_PREVIEW_TOKEN: ${RESOURCE_PREVIEW_TOKEN:-change-me}",
+      "      BROWSER: none",
+      "      VITE_CONFIG_NATIVE_IGNORE_WARNING: \"true\"",
       "    volumes:",
       "      - ${OPENCHATCUT_SOURCE_DIR:-../OpenChatCut}:/workspace",
+      "      - openchatcut_node_modules:/workspace/node_modules",
       "      - ${OPENCHATCUT_HOME_DIR:-./local-data/openchatcut/home}:/data/home",
       "      - ${OPENCHATCUT_MEDIA_DIR:-./local-data/openchatcut/media}:/data/media",
       "    restart: unless-stopped",
+      "",
+      "volumes:",
+      "  openchatcut_node_modules:",
     ].join("\n");
+  }
+
+  private buildOpenChatCutGatewaySettingExamples(input: { gatewayBaseUrl: string }) {
+    return [
+      {
+        title: "A 类：Agent 大脑",
+        summary: "在 OpenChatCut 的 `设置 -> API 密钥 -> Agent 模型 -> OpenAI` 页面填写。接口格式改为 `Chat Completions API`，直接走本站统一网关。",
+        lines: [
+          `API URL = ${input.gatewayBaseUrl}`,
+          "API Key = OpenClaw 安装令牌（ocp_ 开头）",
+          "接口格式 = Chat Completions API",
+          "模型 = gpt-4o 或 claude-sonnet-4-6 或 gemini-2.5-pro",
+        ],
+      },
+      {
+        title: "B1 类：生图 / 图生图",
+        summary: "在 `设置 -> API 密钥 -> AI 生成 -> 生图 -> OpenAI` 页面填写。当前统一走 `/v1/images/generations`。",
+        lines: [
+          `Base URL = ${input.gatewayBaseUrl}`,
+          "API Key = OpenClaw 安装令牌（ocp_ 开头）",
+          "推荐模型 = gpt-image-2",
+          "可替换模型 = gemini-3.1-flash-image-preview / jimeng-4.5 / doubao-seedream-4-5-251128",
+        ],
+      },
+      {
+        title: "B2 类：配音 / TTS 与转写",
+        summary: "OpenChatCut 当前配音、转写设置页默认按厂商字段拆开。第一阶段建议先把这两类统一指向 OpenAI 兼容页，底层仍由本站网关转多元探索。",
+        lines: [
+          `配音 Base URL = ${input.gatewayBaseUrl}`,
+          "配音 API Key = OpenClaw 安装令牌（ocp_ 开头）",
+          "配音模型 = tts-1 或 tts-1-hd",
+          `转写 Base URL = ${input.gatewayBaseUrl}`,
+          "转写 API Key = OpenClaw 安装令牌（ocp_ 开头）",
+          "转写模型 = whisper-1",
+        ],
+      },
+      {
+        title: "C 类：生视频 / 生音乐",
+        summary: "视频和音乐当前仍保留多元探索原生任务路径。视频走 `/v1/videos`，音乐走 `/suno/submit/*` 与 `/suno/fetch/*`。",
+        lines: [
+          `视频 Base URL = ${input.gatewayBaseUrl}`,
+          "视频 API Key = OpenClaw 安装令牌（ocp_ 开头）",
+          "视频模型 = omni-fast 或 Kling-3.0-Omni 或 Hailuo-2.3",
+          `音乐 Base URL = ${input.gatewayBaseUrl}`,
+          "音乐 API Key = OpenClaw 安装令牌（ocp_ 开头）",
+          "音乐模型 = chirp-v4",
+        ],
+      },
+    ];
+  }
+
+  private buildOpenChatCutGatewayTestCommands(input: { gatewayBaseUrl: string; headerValue: string; brandId: string }) {
+    return [
+      [
+        `curl -X GET "${input.gatewayBaseUrl}/v1/models"`,
+        `  -H "Authorization: ${input.headerValue}"`,
+        `  -H "x-brand-id: ${input.brandId}"`,
+      ].join("\n"),
+      [
+        `curl -X POST "${input.gatewayBaseUrl}/v1/chat/completions"`,
+        `  -H "Authorization: ${input.headerValue}"`,
+        `  -H "x-brand-id: ${input.brandId}"`,
+        '  -H "Content-Type: application/json"',
+        '  -d "{\\"model\\":\\"gpt-4o\\",\\"messages\\":[{\\"role\\":\\"user\\",\\"content\\":\\"你好，请返回一个 ok\\"}]}"',
+      ].join("\n"),
+    ];
   }
 
   private buildMcpServerName(brandName: string) {

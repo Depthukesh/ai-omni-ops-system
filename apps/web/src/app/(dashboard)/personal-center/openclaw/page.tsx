@@ -635,6 +635,76 @@ export default function PersonalCenterOpenClawPage() {
           </article>
         </div>
 
+        {workspace?.openChatCutGuide?.gatewayBaseUrl ? (
+          <div className="openclaw-layout" style={{ marginTop: 16 }}>
+            <article className="entity-card personal-card">
+              <div className="entity-card-head">
+                <div>
+                  <strong>统一网关地址</strong>
+                  <p className="personal-meta">OpenChatCut 里的自定义模型接口，统一指到本站这一个入口；再由本站按品牌共享 Key 转发到多元探索。</p>
+                </div>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => void handleCopy(workspace.openChatCutGuide.gatewayBaseUrl, "openchatcut-gateway-url")}
+                >
+                  {copiedKey === "openchatcut-gateway-url" ? "已复制地址" : "复制网关地址"}
+                </button>
+              </div>
+              <label className="field">
+                <span>Base URL</span>
+                <textarea value={workspace.openChatCutGuide.gatewayBaseUrl} rows={3} readOnly spellCheck={false} />
+              </label>
+              {(workspace.openChatCutGuide.gatewayHeaders || []).length ? (
+                <label className="field" style={{ marginTop: 12 }}>
+                  <span>请求头</span>
+                  <textarea value={(workspace.openChatCutGuide.gatewayHeaders || []).join("\n")} rows={4} readOnly spellCheck={false} />
+                </label>
+              ) : null}
+            </article>
+
+            <article className="entity-card personal-card">
+              <div className="entity-card-head">
+                <div>
+                  <strong>OpenChatCut 配置示例</strong>
+                  <p className="personal-meta">按 A / B / C 三类能力给出可直接照抄的页签和字段口径，优先用本站现成支持的多元探索模型。</p>
+                </div>
+              </div>
+              <div className="personal-list" style={{ gap: 12 }}>
+                {(workspace.openChatCutGuide.settingsExamples || []).map((item) => (
+                  <div key={item.title} className="entity-card personal-card" style={{ padding: 16 }}>
+                    <strong>{item.title}</strong>
+                    <p className="personal-meta" style={{ marginTop: 6 }}>{item.summary}</p>
+                    <label className="field" style={{ marginTop: 10 }}>
+                      <span>填写口径</span>
+                      <textarea value={item.lines.join("\n")} rows={Math.max(5, item.lines.length + 1)} readOnly spellCheck={false} />
+                    </label>
+                  </div>
+                ))}
+              </div>
+            </article>
+          </div>
+        ) : null}
+
+        {(workspace?.openChatCutGuide?.testCommands || []).length ? (
+          <article className="entity-card personal-card" style={{ marginTop: 16 }}>
+            <div className="entity-card-head">
+              <div>
+                <strong>网关测试命令</strong>
+                <p className="personal-meta">先用 curl 打通 `models` 和 `chat/completions`，确认安装令牌、品牌头和多元探索共享 Key 都已连通，再回到 OpenChatCut 填页面。</p>
+              </div>
+            </div>
+            <div className="personal-list" style={{ gap: 12 }}>
+              {(workspace?.openChatCutGuide?.testCommands || []).map((item, index) => (
+                <label key={`${index}-${item}`} className="field">
+                  <span>测试命令 {index + 1}</span>
+                  <textarea value={item} rows={Math.max(4, item.split("\n").length + 1)} readOnly spellCheck={false} />
+                </label>
+              ))}
+            </div>
+          </article>
+        ) : null}
+
         <label className="field" style={{ marginTop: 16 }}>
           <span>OpenChatCut 独立 compose 样板</span>
           <textarea value={workspace?.openChatCutGuide?.composeSnippet || ""} rows={18} readOnly spellCheck={false} />

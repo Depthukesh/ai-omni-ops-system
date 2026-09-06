@@ -179,6 +179,10 @@
 - 已放弃的多-agent 方案文档已经移除，不再作为当前开发模式的一部分
 
 ## 最近应优先关注的文档
+- `docs/changes/2026-09-06-openchatcut-duoyuanx-gateway.md`
+  - 给本站新增 OpenChatCut 专用统一网关：复用 OpenClaw 安装令牌和品牌共享的多元探索 Key，对外暴露文本、图片、音频、视频、音乐五类接口，供 OpenChatCut 统一走本站转发
+- `docs/changes/2026-09-05-openchatcut-docker-startup-runtime-fix.md`
+  - 修正 OpenChatCut 独立 Docker 样板的真实启动链：补齐 `git` / `unzip`、改为 `npm install --ignore-scripts` 后手动执行 MediaPipe / whisper / tool catalog 预处理，并把安装中心和公开说明页同步到可落地命令
 - `docs/changes/2026-09-05-openchatcut-bridge-assets-and-storyboard-draft.md`
   - 给 OpenClaw 新增 `get_openchatcut_bridge_assets` 与 `build_openchatcut_storyboard_draft` 两个桥接工具，用于把站内创作素材和视频作品整理成可继续交给 OpenChatCut 的素材清单与时间线草案
 - `docs/changes/2026-09-04-openclaw-free-image-design-workspace.md`
