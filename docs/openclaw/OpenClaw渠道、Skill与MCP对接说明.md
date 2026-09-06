@@ -13,56 +13,6 @@
 
 > OpenClaw 的主入口不是网站前端，而是飞书、企微等外部沟通渠道；Skill 是让助手“会做事、会理解业务”的认知和工作流层，MCP 是让助手“能安全调用网站能力和历史数据”的标准化工具接入层，网站本身第一阶段主要提供后端能力层、绑定鉴权和复杂结果落点页。
 
-补充当前视频剪辑集成口径：
-
-> 如果后续引入 OpenChatCut，推荐让它作为独立 Docker 剪辑服务存在，而不是并入本站主系统。OpenClaw 同时连接本站 MCP 和 OpenChatCut MCP：本站负责素材生成与任务编排，OpenChatCut 负责时间线编辑与导出。
-
-当前本站 MCP 已补一层最小桥接能力：
-
-- `get_openchatcut_bridge_assets`
-  - 把指定板块下的创作素材和视频作品整理成统一素材清单
-- `build_openchatcut_storyboard_draft`
-  - 基于现有素材生成推荐素材和时间线草案
-
-这层桥接只负责整理本站真源，方便 OpenClaw 后续继续把结果送进 OpenChatCut MCP，不直接替 OpenChatCut 创建外部工程。
-
-如果后续希望 OpenChatCut 的 Agent、图片、音频、视频、音乐能力统一走本站，不再在 OpenChatCut 内保存品牌级模型密钥，当前也已经补了独立网关：
-
-- `/api/openclaw/openchatcut-gateway/v1/models`
-- `/api/openclaw/openchatcut-gateway/v1/chat/completions`
-- `/api/openclaw/openchatcut-gateway/v1/images/generations`
-- `/api/openclaw/openchatcut-gateway/v1/audio/speech`
-- `/api/openclaw/openchatcut-gateway/v1/audio/transcriptions`
-- `/api/openclaw/openchatcut-gateway/v1/videos`
-- `/api/openclaw/openchatcut-gateway/suno/submit/:action`
-
-这层网关不直接暴露多元探索明文 Key，而是继续复用：
-
-- OpenClaw 安装令牌
-- `x-brand-id`
-- 品牌共享第三方平台密钥解析
-
-也就是说，OpenChatCut 可以改成“只连本站”，再由本站按品牌上下文转发到多元探索。
-
-补充当前安装交付口径：
-
-> `个人中心 -> OpenClaw -> 安装中心` 现在不只提供品牌令牌和 MCP 片段，还已经把 OpenChatCut 从拉源码、生成 Token、编辑 `openchatcut.env`、WorkBuddy 双 MCP，到 OpenChatCut 页面填写和验证顺序，收口成了后台里的完整教程。
-
-并且当前安装中心已经把地址口径拆成两套：
-
-- `统一网关地址`
-  - 默认给 OpenChatCut Docker 页面直接填写
-  - 当本站主系统跑在宿主机本机时，会优先改写成 `host.docker.internal` 这一类容器可达地址
-- `宿主机调试地址`
-  - 只用于你在本机浏览器或 PowerShell 里手动执行 curl 验证
-  - 不建议直接原样抄回 OpenChatCut Docker 页面
-
-其中要特别记住一条：
-
-- WorkBuddy 连接 OpenChatCut MCP 时的 Bearer Token
-- 必须取自 `docker/openchatcut.env` 里的 `OPENCHATCUT_MCP_TOKEN`
-- 不是宿主机 `~/.openchatcut/mcp-token`
-
 ---
 
 ## 2. 对 OpenClaw 的正确理解

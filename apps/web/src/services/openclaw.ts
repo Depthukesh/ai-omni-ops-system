@@ -48,31 +48,6 @@ export type OpenClawInstallWorkspace = {
     githubPrompt: string;
     notes: string[];
   };
-  openChatCutGuide: {
-    title: string;
-    summary: string;
-    composeFilePath: string;
-    docUrl: string;
-    gatewayBaseUrl: string;
-    gatewayDebugBaseUrl: string;
-    gatewayHeaders: string[];
-    topology: string[];
-    steps: string[];
-    env: string[];
-    settingsExamples: Array<{
-      title: string;
-      summary: string;
-      lines: string[];
-    }>;
-    tutorialSections: Array<{
-      title: string;
-      summary: string;
-      lines: string[];
-    }>;
-    testCommands: string[];
-    composeSnippet: string;
-    notes: string[];
-  };
   relationshipGuide: {
     title: string;
     items: Array<{

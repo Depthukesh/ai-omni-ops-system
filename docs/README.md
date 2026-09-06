@@ -158,7 +158,7 @@
 - 资源副本、作品、报告、媒体：`docs/generated-content-storage-standards.md`
 - 个人中心、多用户、品牌协作：`docs/personal-center-multi-user-system-plan.md`
 - OpenClaw：`docs/openclaw/README.md`
-  - 当前已补 `OpenChatCut独立Docker部署与双MCP集成说明.md`，用于承接 OpenClaw 后续调外部剪辑系统的独立部署方案
+  - 当前应优先按正式安装说明与 Skill 文档使用，不再保留外部剪辑系统相关集成说明
 
 ## 文档维护规则
 
@@ -179,18 +179,12 @@
 - 已放弃的多-agent 方案文档已经移除，不再作为当前开发模式的一部分
 
 ## 最近应优先关注的文档
+- `docs/changes/2026-09-07-openchatcut-removal.md`
+  - 按最新决策把 OpenChatCut 从主系统里全量剥离：删除后端接入、安装中心教程、Docker 样板和相关文档索引
+- `docs/changes/2026-09-06-material-storage-display-root-fix.md`
+  - 修正素材管理页面把 Windows 展示路径误显示成 `/app/D:\...` 的问题，并把 Docker 本地标准运行态默认展示根目录改成实际对应的 `docker/local-data/*`
 - `docs/changes/2026-09-06-duoyuanx-model-catalog-refresh.md`
   - 刷新多元探索第三方平台的模型目录与官方文档入口，补齐 GPT 5.5/5.6、Claude 5、Gemini 3.6、Qwen 3.7、Qwen Image、MiniMax-H3 等新模型口径
-- `docs/changes/2026-09-06-openchatcut-installation-hub-full-tutorial.md`
-  - 把 `个人中心 -> OpenClaw -> 安装中心` 补成完整安装配置教程：收口源码目录、`openchatcut.env`、随机 Token、WorkBuddy 双 MCP、OpenChatCut 页面填写口径和验证顺序
-- `docs/changes/2026-09-06-openchatcut-controlled-fork-delivery-strategy.md`
-  - 把 OpenChatCut 的“本机调通”收口为“可复制交付”策略：本站主仓库只保留接入层与部署样板，OpenChatCut 本体后续走受控 fork / 受控镜像，并明确继续同步 upstream 的维护边界
-- `docs/changes/2026-09-06-openchatcut-duoyuanx-gateway.md`
-  - 给本站新增 OpenChatCut 专用统一网关：复用 OpenClaw 安装令牌和品牌共享的多元探索 Key，对外暴露文本、图片、音频、视频、音乐五类接口，供 OpenChatCut 统一走本站转发
-- `docs/changes/2026-09-05-openchatcut-docker-startup-runtime-fix.md`
-  - 修正 OpenChatCut 独立 Docker 样板的真实启动链：补齐 `git` / `unzip`、改为 `npm install --ignore-scripts` 后手动执行 MediaPipe / whisper / tool catalog 预处理，并把安装中心和公开说明页同步到可落地命令
-- `docs/changes/2026-09-05-openchatcut-bridge-assets-and-storyboard-draft.md`
-  - 给 OpenClaw 新增 `get_openchatcut_bridge_assets` 与 `build_openchatcut_storyboard_draft` 两个桥接工具，用于把站内创作素材和视频作品整理成可继续交给 OpenChatCut 的素材清单与时间线草案
 - `docs/changes/2026-09-04-openclaw-free-image-design-workspace.md`
   - 把 OpenClaw `create_design_work` 的图片模块收口为默认自由生图：不再强制走社媒配图模板、不默认植入品牌资料；同时 `更多功能 -> 设计` 收口为站内结果回看页，并撤下提示词中心入口
 - `docs/changes/2026-09-04-wechat-multi-official-account-workflow-routing.md`

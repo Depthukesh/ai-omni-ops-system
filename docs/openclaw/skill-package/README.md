@@ -19,13 +19,9 @@
 
 1. 先在网站安装中心完成 MCP 配置
 2. 确认品牌安装令牌、MCP 地址和 `x-brand-id` 可用
-3. 如果要接 OpenChatCut，再同步抄安装中心里的统一网关地址、A/B/C 配置示例和 curl 测试命令
-4. 如果要接 WorkBuddy 双 MCP，再直接复制安装中心里的双 MCP `mcp.json` 示例；其中 OpenChatCut 那条 Bearer Token 必须取自 `docker/openchatcut.env` 里的 `OPENCHATCUT_MCP_TOKEN`
-5. OpenChatCut 如果跑在 Docker，但主系统跑在宿主机，安装中心里“统一网关地址”现在会直接给出 Docker 可填写地址；默认不应再抄 `127.0.0.1:13011`，而要抄 `host.docker.internal:13011` 这一类宿主机可达地址
-6. Agent 大脑页的 API URL 必须带 `/v1`
-7. 再选择 Git 安装或 ZIP 导入
-8. 安装后把 Skill 绑定到 ai-omni-ops MCP
-9. 首次使用时先做查询、生成和任务回读验收
+3. 再选择 Git 安装或 ZIP 导入
+4. 安装后把 Skill 绑定到 ai-omni-ops MCP
+5. 首次使用时先做查询、生成和任务回读验收
 
 ## 3. Git 安装建议
 
@@ -61,8 +57,6 @@ ZIP 模式适合：
 - 帮我创建一份增长报告或营销规划
 - 帮我看内容获客里某书 / 某音 / 公众号的营销策划方案，并打开 HTML 查看后留言
 - 帮我看 OpenClaw 创作素材和视频作品
-- 帮我整理一份给 OpenChatCut 的素材清单，并生成一个剪辑草案
-- 告诉我 OpenChatCut 统一网关地址和 A/B/C 三类配置现在该怎么填
 - 帮我看 GEO 第三方媒体投放当前已经缓存了多少家软文街媒体，并继续同步下一批
 
 ## 6. 常见问题
@@ -79,20 +73,7 @@ ZIP 模式适合：
 
 检查 GitHub Skill 目录链接指向的分支是否正确；如果当前在交付分支验收，需要使用对应分支链接而不是旧链接。
 
-### 6.4 OpenChatCut 统一网关该怎么接
-
-优先到网站 `个人中心 -> OpenClaw 安装中心` 查看这四类现成信息：
-
-- OpenChatCut Docker 填写地址
-- 宿主机调试地址
-- 请求头里的 `Authorization` 和 `x-brand-id`
-- WorkBuddy 双 MCP 的完整 `mcp.json` 示例
-- A / B / C 三类配置示例
-- curl 测试命令
-
-Skill 自己不保存品牌密钥；OpenChatCut 后续应统一走本站网关，再由本站按当前品牌转发到多元探索。
-
-### 6.5 软文街媒体同步失败
+### 6.4 软文街媒体同步失败
 
 如果 GEO `第三方媒体投放` 的继续同步返回软文街鉴权失败，优先检查个人中心里当前品牌保存的软文街 `登录账号 / 登录密码` 是否已经更新为最新可用值，再继续判断是不是缓存或分页问题。
 

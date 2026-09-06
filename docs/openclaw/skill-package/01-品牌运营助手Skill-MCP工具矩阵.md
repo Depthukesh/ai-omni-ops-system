@@ -276,10 +276,6 @@ Skill 在这个域里的职责是：
 - 识别用户是在问：
   - OpenClaw MCP 怎么安装
   - Skill ZIP / Git 怎么安装
-  - OpenChatCut 独立 Docker 怎么部署
-  - OpenChatCut 统一网关怎么接
-  - A / B / C 三类配置怎么填
-  - curl 测试命令先打哪几条
 - 然后把用户明确引导到 `个人中心 -> OpenClaw 安装中心`
 
 当前页面里已经集中提供：
@@ -287,17 +283,10 @@ Skill 在这个域里的职责是：
 - 品牌安装令牌
 - MCP 安装片段
 - Skill ZIP / Git 安装说明
-- OpenChatCut 独立 Docker 说明
-- OpenChatCut Docker 填写地址
-- 宿主机调试地址
-- A / B / C 三类配置示例
-- curl 测试命令
 
 注意：
 
-- 统一网关配置说明属于安装中心域，不属于第三方接口配置页本身
 - 第三方接口配置页负责的是“多元探索共享 Key 有没有配好、运行时是否可用”
-- 安装中心负责的是“OpenChatCut 里到底怎么填本站给出的统一网关口径”
 
 ### 7.3 技能中心
 
@@ -572,24 +561,6 @@ RunningHub 上传节点补充规则：
 - `create_openclaw_video_work`
 - `delete_openclaw_video_work`
 - `create_openclaw_video_work_douyin_desktop_publish_session`
-
-### 14.9 OpenChatCut 桥接
-
-- `get_openchatcut_bridge_assets`
-- `build_openchatcut_storyboard_draft`
-
-OpenChatCut 桥接补充：
-
-- `get_openchatcut_bridge_assets`
-  - 汇总当前品牌指定板块下的 OpenClaw 创作素材和视频作品
-  - 返回可直接交给 OpenChatCut 之类外部剪辑系统的桥接素材清单
-  - 支持按 `materialCategories` 过滤 `image / video / audio / text`
-- `build_openchatcut_storyboard_draft`
-  - 基于当前板块素材自动生成一份剪辑草案
-  - 也支持显式传 `selectedMaterialIds`、`selectedVideoWorkIds`
-  - 返回推荐素材和时间线草案，适合继续喂给 OpenChatCut MCP 做工程、时间线和导出
-  - 这两个工具只整理本站已有素材真源，不会直接去调 OpenChatCut 外部服务
-- 如果用户继续追问“OpenChatCut 里的 Agent / 生图 / TTS / 转写 / 视频 / 音乐接口该怎么填”，下一跳不再是桥接工具，而是回到 `个人中心 -> OpenClaw 安装中心` 查看统一网关和 A / B / C 配置示例
 
 ## 15. GEO获客
 

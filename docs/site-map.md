@@ -426,8 +426,8 @@
   - 第三方接口配置
 - `/personal-center/openclaw`
   - OpenClaw 安装中心
-  - 当前同时提供品牌令牌、MCP 安装片段、Skill ZIP / Git 安装说明，以及 OpenChatCut 独立 Docker 部署、受控 fork / upstream 同步口径、完整安装配置教程（源码目录、`openchatcut.env`、WorkBuddy 双 MCP、A/B/C 页面填写与验证顺序）、统一模型网关地址、curl 测试命令和站内素材桥接草案工具
-  - 参考变更：`docs/changes/2026-09-05-openchatcut-bridge-assets-and-storyboard-draft.md`、`docs/changes/2026-09-05-openchatcut-docker-startup-runtime-fix.md`、`docs/changes/2026-09-06-openchatcut-duoyuanx-gateway.md`、`docs/changes/2026-09-06-openchatcut-controlled-fork-delivery-strategy.md`、`docs/changes/2026-09-06-openchatcut-installation-hub-full-tutorial.md`
+  - 当前提供品牌令牌、MCP 安装片段、Skill ZIP / Git 安装说明与正式交付检查清单
+  - 参考变更：`docs/changes/2026-09-07-openchatcut-removal.md`
 - `/personal-center/version`
   - 版本与升级
 - `/personal-center/security`
@@ -617,7 +617,6 @@
    - 下载 Skill ZIP 后手动导入客户端
 4. 通过受控 API / MCP 读取当前品牌上下文与能力
 5. 在用户权限范围内触发查询、生成和执行动作
-6. 当目标是外部剪辑系统时，可先通过本站 MCP 的 `get_openchatcut_bridge_assets` / `build_openchatcut_storyboard_draft` 整理素材清单与时间线草案，再继续交给 OpenChatCut MCP 做工程与导出
 
 ## 8. 当前关键技术边界
 

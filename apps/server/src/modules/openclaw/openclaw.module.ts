@@ -38,9 +38,6 @@ import { OpenClawThirdPartyMediaResourceService } from "./openclaw-third-party-m
 import { OpenClawService } from "./openclaw.service";
 import { OpenClawVideoWorkController } from "./openclaw-video-work.controller";
 import { OpenClawVideoWorkService } from "./openclaw-video-work.service";
-import { OpenClawOpenChatCutBridgeService } from "./openclaw-openchatcut-bridge.service";
-import { OpenClawOpenChatCutGatewayController } from "./openclaw-openchatcut-gateway.controller";
-import { OpenClawOpenChatCutGatewayService } from "./openclaw-openchatcut-gateway.service";
 import { OrdersModule } from "../orders/orders.module";
 import { ThirdPartyPlatformsModule } from "../third-party-platforms/third-party-platforms.module";
 import { StorageModule } from "../../storage/storage.module";
@@ -64,7 +61,6 @@ import { LocalRuntimeModule } from "../local-runtime/local-runtime.module";
     OpenClawDailyPlanController,
     OpenClawCreativeMaterialController,
     OpenClawVideoWorkController,
-    OpenClawOpenChatCutGatewayController,
   ],
   providers: [
     OpenClawService,
@@ -82,8 +78,6 @@ import { LocalRuntimeModule } from "../local-runtime/local-runtime.module";
     OpenClawDailyPlanService,
     OpenClawCreativeMaterialService,
     OpenClawVideoWorkService,
-    OpenClawOpenChatCutBridgeService,
-    OpenClawOpenChatCutGatewayService,
   ],
   exports: [
     OpenClawService,
@@ -101,8 +95,6 @@ import { LocalRuntimeModule } from "../local-runtime/local-runtime.module";
     OpenClawDailyPlanService,
     OpenClawCreativeMaterialService,
     OpenClawVideoWorkService,
-    OpenClawOpenChatCutBridgeService,
-    OpenClawOpenChatCutGatewayService,
   ],
 })
 export class OpenClawModule {}
