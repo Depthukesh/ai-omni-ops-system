@@ -9,7 +9,7 @@
 1. `OpenClaw正式安装与网站对接说明.md`
    - 当前安装中心、安装令牌、MCP 地址、Skill ZIP 的使用说明，以及长任务 MCP timeout 配置建议
 2. `OpenChatCut独立Docker部署与双MCP集成说明.md`
-   - OpenChatCut 独立 Docker 部署、持久化目录、双 MCP 编排边界，以及“本站产素材 -> OpenChatCut 剪辑导出”的推荐链路
+   - OpenChatCut 独立 Docker 部署、受控 fork / upstream 同步口径、双 MCP 编排边界，以及“本站产素材 -> OpenChatCut 剪辑导出”的推荐链路；后台安装中心当前还补了完整教程卡片，可直接复制源码目录、env、双 MCP 和验证命令
 3. `OpenClaw渠道、Skill与MCP对接说明.md`
    - OpenClaw、Skill、MCP 与站内系统之间的分工关系
 4. `skill-package/00-品牌运营助手Skill网站功能域地图.md`

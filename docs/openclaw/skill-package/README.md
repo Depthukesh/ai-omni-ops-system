@@ -20,9 +20,12 @@
 1. 先在网站安装中心完成 MCP 配置
 2. 确认品牌安装令牌、MCP 地址和 `x-brand-id` 可用
 3. 如果要接 OpenChatCut，再同步抄安装中心里的统一网关地址、A/B/C 配置示例和 curl 测试命令
-4. 再选择 Git 安装或 ZIP 导入
-5. 安装后把 Skill 绑定到 ai-omni-ops MCP
-6. 首次使用时先做查询、生成和任务回读验收
+4. 如果要接 WorkBuddy 双 MCP，再直接复制安装中心里的双 MCP `mcp.json` 示例；其中 OpenChatCut 那条 Bearer Token 必须取自 `docker/openchatcut.env` 里的 `OPENCHATCUT_MCP_TOKEN`
+5. OpenChatCut 如果跑在 Docker，但主系统跑在宿主机，OpenChatCut 页面里不要继续填 `127.0.0.1:13011`，而要改填 `host.docker.internal:13011`
+6. Agent 大脑页的 API URL 必须带 `/v1`
+7. 再选择 Git 安装或 ZIP 导入
+8. 安装后把 Skill 绑定到 ai-omni-ops MCP
+9. 首次使用时先做查询、生成和任务回读验收
 
 ## 3. Git 安装建议
 
@@ -82,6 +85,7 @@ ZIP 模式适合：
 
 - 统一网关 Base URL
 - 请求头里的 `Authorization` 和 `x-brand-id`
+- WorkBuddy 双 MCP 的完整 `mcp.json` 示例
 - A / B / C 三类配置示例
 - curl 测试命令
 

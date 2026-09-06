@@ -13,7 +13,8 @@ services:
       HOME: /data/home
       MEDIA_DIR: /data/media
       OPENCHATCUT_MCP_TOKEN: ${OPENCHATCUT_MCP_TOKEN:-change-me}
-      OPENCHATCUT_EDITOR_URL: ${OPENCHATCUT_EDITOR_URL:-http://127.0.0.1:15199}
+      OPENCHATCUT_TRUST_DOCKER_LOCALHOST: ${OPENCHATCUT_TRUST_DOCKER_LOCALHOST:-1}
+      OPENCHATCUT_EDITOR_URL: ${OPENCHATCUT_EDITOR_URL:-http://localhost:15199}
       RESOURCE_PREVIEW_TOKEN: ${RESOURCE_PREVIEW_TOKEN:-change-me}
       BROWSER: none
       VITE_CONFIG_NATIVE_IGNORE_WARNING: "true"
@@ -22,6 +23,8 @@ services:
       - openchatcut_node_modules:/workspace/node_modules
       - ${OPENCHATCUT_HOME_DIR:-./local-data/openchatcut/home}:/data/home
       - ${OPENCHATCUT_MEDIA_DIR:-./local-data/openchatcut/media}:/data/media
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped
 
 volumes:

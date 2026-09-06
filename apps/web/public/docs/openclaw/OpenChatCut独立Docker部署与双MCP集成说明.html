@@ -41,6 +41,16 @@
       </ul>
     </div>
 
+    <h2>受控 Fork 口径</h2>
+    <div class="card">
+      <ul>
+        <li>如果某个修复必须改 OpenChatCut 本体，不要在每台电脑上手工改官方源码。</li>
+        <li>本站主仓库只保留 Docker 样板、网关、安装中心和文档；OpenChatCut 本体应单独维护为受控 fork 或受控镜像。</li>
+        <li>受控 fork 不是和官方断开，而是按“官方仓库 = upstream / 我们的 fork = origin”持续同步。</li>
+        <li>能回提官方的 patch，后续应尽量回提官方，减少长期维护差异。</li>
+      </ul>
+    </div>
+
     <h2>目录建议</h2>
     <div class="card">
       <ul>
@@ -77,7 +87,7 @@
       HOME: /data/home
       MEDIA_DIR: /data/media
       OPENCHATCUT_MCP_TOKEN: ${OPENCHATCUT_MCP_TOKEN:-change-me}
-      OPENCHATCUT_EDITOR_URL: ${OPENCHATCUT_EDITOR_URL:-http://127.0.0.1:15199}
+      OPENCHATCUT_EDITOR_URL: ${OPENCHATCUT_EDITOR_URL:-http://localhost:15199}
       RESOURCE_PREVIEW_TOKEN: ${RESOURCE_PREVIEW_TOKEN:-change-me}
       BROWSER: none
       VITE_CONFIG_NATIVE_IGNORE_WARNING: "true"
@@ -94,13 +104,22 @@ volumes:
     <h2>启动步骤</h2>
     <div class="card">
       <ol>
-        <li>检出 OpenChatCut 源码。</li>
+        <li>检出 OpenChatCut 受控 fork 源码。</li>
         <li>复制 <code>docker/openchatcut.env.example</code> 为 <code>docker/openchatcut.env</code>，并改成真实路径、端口和 Token。</li>
         <li>执行带 <code>--build</code> 的独立 compose。</li>
         <li>首次启动会先安装依赖并同步 MediaPipe / whisper-cli，耗时会明显更长。</li>
         <li>确认 <code>15199</code> 页面可打开，再验证 MCP 地址。</li>
         <li>最后让 OpenClaw 同时绑定本站 MCP 与 OpenChatCut MCP。</li>
       </ol>
+    </div>
+
+    <h2>容器里的 127.0.0.1</h2>
+    <div class="card">
+      <p>如果 OpenChatCut 跑在 Docker 容器里，但你自己的主系统跑在宿主机，那么 OpenChatCut 设置页里的 API URL 不能继续填 <code>127.0.0.1:13011</code> 或 <code>localhost:13011</code>。</p>
+      <p>原因很直接：对容器里的服务端测试请求来说，这指向的是容器自己，不是宿主机上的主系统。</p>
+      <p>这类场景应改填：</p>
+      <pre><code>http://host.docker.internal:13011/api/openclaw/openchatcut-gateway/v1</code></pre>
+      <p>当前 compose 样板已补 <code>extra_hosts: host.docker.internal:host-gateway</code>，用于把容器内的 <code>host.docker.internal</code> 解析到宿主机。</p>
     </div>
 
     <pre><code>docker compose --env-file "docker/openchatcut.env" -f "docker/docker-compose.openchatcut.yml" up -d --build</code></pre>
@@ -112,7 +131,18 @@ volumes:
         <li>随后会执行 <code>sync-mediapipe</code>、<code>sync-whisper-cli</code> 和工具目录校验，再进入 OpenChatCut 开发态。</li>
         <li>启动镜像内已额外安装 <code>git</code> 和 <code>unzip</code>，以满足 <code>dev-profile</code> 与 <code>sync-whisper-cli</code> 的运行要求。</li>
         <li>当前额外挂了 <code>openchatcut_node_modules</code> 卷，避免每次重启都全量重装依赖。</li>
+        <li>当前受控 fork 已补 <code>OPENCHATCUT_TRUST_DOCKER_LOCALHOST=1</code>，用于兼容 Docker 端口发布场景下的本地浏览器写请求。</li>
+        <li>当前样板解决的是“Docker 可启动、页面可打开”；但 OpenChatCut 官方源码在 Docker 端口发布场景下，设置页部分写请求仍可能触发它自己的 request-origin 校验。</li>
+        <li>这类本体修复后续必须沉淀到受控 fork，而不是继续写成本机临时调通步骤。</li>
       </ul>
+    </div>
+
+    <h2>request-origin 修复</h2>
+    <div class="card">
+      <p>当前受控 fork 已补显式环境变量：</p>
+      <pre><code>OPENCHATCUT_TRUST_DOCKER_LOCALHOST=1</code></pre>
+      <p>它用于 Docker 端口发布场景下，允许通过 <code>localhost:15199</code> 或 <code>127.0.0.1:15199</code> 访问的本地浏览器请求绕过“容器内 socket 远端地址不是 loopback”这一条限制，解决设置页里常见的 <code>invalid request origin</code>。</p>
+      <p>这不是全局放开来源；仍然要求本地 Host/Origin 和浏览器同源约束成立。</p>
     </div>
 
     <h2>双 MCP 口径</h2>
@@ -127,7 +157,7 @@ volumes:
     <h2>OpenChatCut 统一模型网关</h2>
     <div class="card">
       <p>如果希望 OpenChatCut 的 Agent、图片、音频、视频、音乐能力统一走本站，而不是在 OpenChatCut 内分别保存品牌级模型 Key，当前推荐直接接本站新增的 OpenChatCut 专用网关：</p>
-      <pre><code>https://你的域名/api/openclaw/openchatcut-gateway</code></pre>
+      <pre><code>https://你的域名/api/openclaw/openchatcut-gateway/v1</code></pre>
       <p>统一请求头继续使用 OpenClaw 安装中心导出的品牌安装令牌：</p>
       <pre><code>Authorization: Bearer ocp_xxx
 x-brand-id: br_xxx</code></pre>
@@ -144,7 +174,7 @@ x-brand-id: br_xxx</code></pre>
     <div class="card">
       <p>建议优先按下面四组口径填写，先跑通，再决定是否细分到更多厂商页。</p>
       <ul>
-        <li><strong>A 类：Agent 大脑</strong><br />页面：<code>设置 -&gt; API 密钥 -&gt; Agent 模型 -&gt; OpenAI</code><br />填写：<code>API URL = https://你的域名/api/openclaw/openchatcut-gateway</code>、<code>API Key = OpenClaw 安装令牌</code>、<code>接口格式 = Chat Completions API</code>、<code>模型 = gpt-4o</code></li>
+        <li><strong>A 类：Agent 大脑</strong><br />页面：<code>设置 -&gt; API 密钥 -&gt; Agent 模型 -&gt; OpenAI</code><br />填写：<code>API URL = https://你的域名/api/openclaw/openchatcut-gateway/v1</code>、<code>API Key = OpenClaw 安装令牌</code>、<code>接口格式 = Chat Completions API</code>、<code>模型 = gpt-5.5</code></li>
         <li><strong>B1 类：生图 / 图生图</strong><br />页面：<code>设置 -&gt; API 密钥 -&gt; AI 生成 -&gt; 生图 -&gt; OpenAI</code><br />填写：<code>Base URL = https://你的域名/api/openclaw/openchatcut-gateway</code>、<code>API Key = OpenClaw 安装令牌</code>、<code>模型 = gpt-image-2</code></li>
         <li><strong>B2 类：配音 / TTS 与转写</strong><br />第一阶段先统一指向 OpenAI 兼容页。配音：<code>Base URL = https://你的域名/api/openclaw/openchatcut-gateway</code>、<code>模型 = tts-1</code> 或 <code>tts-1-hd</code>；转写：<code>Base URL = https://你的域名/api/openclaw/openchatcut-gateway</code>、<code>模型 = whisper-1</code></li>
         <li><strong>C 类：生视频 / 生音乐</strong><br />视频：<code>Base URL = https://你的域名/api/openclaw/openchatcut-gateway</code>、<code>模型 = omni-fast</code>；音乐：<code>Base URL = https://你的域名/api/openclaw/openchatcut-gateway</code>、<code>模型 = chirp-v4</code></li>
@@ -165,6 +195,32 @@ x-brand-id: br_xxx</code></pre>
   -d "{\"model\":\"gpt-4o\",\"messages\":[{\"role\":\"user\",\"content\":\"你好，请返回一个 ok\"}]}"</code></pre>
     </div>
 
+    <h2>WorkBuddy 双 MCP</h2>
+    <div class="card">
+      <p>如果要在 WorkBuddy 里同时挂本站 MCP 和 OpenChatCut MCP，推荐直接回网站 <code>个人中心 -&gt; OpenClaw -&gt; 安装中心</code> 复制现成的双 MCP 配置片段。</p>
+      <p>要特别记住：</p>
+      <ul>
+        <li>本站 MCP 继续使用 OpenClaw 安装令牌。</li>
+        <li>OpenChatCut MCP 的 Bearer Token 必须取自 <code>docker/openchatcut.env</code> 里的 <code>OPENCHATCUT_MCP_TOKEN</code>。</li>
+        <li>不要再去读宿主机 <code>~/.openchatcut/mcp-token</code> 作为当前 Docker 运行态的真实 Token。</li>
+      </ul>
+    </div>
+
+    <h2>完整教程入口</h2>
+    <div class="card">
+      <p>当前最推荐的实施入口已经不是单独翻文档，而是直接去网站：</p>
+      <pre><code>个人中心 -&gt; OpenClaw -&gt; 安装中心</code></pre>
+      <p>该页面已经收口了可直接复制的完整教程，覆盖：</p>
+      <ul>
+        <li>拉取 OpenChatCut 受控 fork 源码</li>
+        <li>生成随机 Token 并填写 <code>openchatcut.env</code></li>
+        <li>启动、看日志、更新和 Docker 重建命令</li>
+        <li>WorkBuddy 双 MCP 的 <code>mcp.json</code> 示例</li>
+        <li>OpenChatCut 页面里 A/B/C 三类配置填写顺序</li>
+        <li>从 curl 到页面再到双 MCP 的验证顺序</li>
+      </ul>
+    </div>
+
     <h2>验证清单</h2>
     <div class="card">
       <ul>
@@ -181,6 +237,7 @@ x-brand-id: br_xxx</code></pre>
     <div class="card">
       <ul>
         <li>这里提供的是本站实施样板，不是 upstream 官方标准 Docker 发布物。</li>
+        <li>不要把 OpenChatCut 整仓复制进本站主仓库，也不要让每台电脑手工改官方源码。</li>
         <li>第一阶段按单用户 / 单工作区联调，不把 OpenChatCut 当多租户共享剪辑服务。</li>
         <li>外部 MCP 偏编辑会话与时间线草稿；导出、删除工程等副作用动作要单独确认工具面与审批策略。</li>
       </ul>

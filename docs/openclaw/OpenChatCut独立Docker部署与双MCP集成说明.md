@@ -5,6 +5,7 @@
 这份文档只解决一件事：
 
 - 如何把 OpenChatCut 作为独立 Docker 服务部署
+- 如何把 OpenChatCut 本体收口到“受控 fork / 受控镜像”，而不是每台电脑手工改官方源码
 - 如何让 OpenClaw 同时连接本站 MCP 与 OpenChatCut MCP
 - 如何形成“本站产素材 -> OpenChatCut 剪辑导出”的闭环
 
@@ -44,6 +45,44 @@
 - 独立端口
 - 独立持久化目录
 - 独立反向代理/内网访问控制
+
+## 3.1 为什么还要受控 fork
+
+这一步不是“为了方便”，而是为了让后续安装具备可复制性。
+
+如果某个修复必须改 OpenChatCut 本体，但只是我在本机源码目录里手工改一下，会有三个直接问题：
+
+1. 别人的电脑重新安装后，问题会原样复现
+2. 无法判断哪些变更属于官方、哪些属于我们自己的实施补丁
+3. 后续接收 upstream 更新时，很容易丢 patch 或冲突失控
+
+因此当前正式口径是：
+
+- 本站主仓库只保留接入层：
+  - Docker 样板
+  - 网关
+  - 安装中心
+  - 文档
+- OpenChatCut 本体单独维护为一份受控 fork 或受控镜像
+- 不把整份 OpenChatCut 源码复制进本站主仓库
+- 不走“每台电脑手工改官方源码”
+
+## 3.2 受控 fork 与 upstream 的关系
+
+受控 fork 不是和官方断开，而是按下面这组关系长期维护：
+
+```text
+官方 OpenChatCut 仓库 = upstream
+我们的 OpenChatCut fork = origin
+```
+
+后续策略：
+
+1. 先把 Docker 必需修复、本站对接修复收口到 fork
+2. 再按小步方式持续同步 upstream 更新
+3. 能回提官方的 patch，尽量回提官方
+
+也就是说，fork 的目标不是长期魔改，而是先有一个可安装、可复制、可更新的受控版本。
 
 ## 4. 部署边界
 
@@ -106,10 +145,40 @@
 
 ### 启动前准备
 
-1. 在本站仓库平级或固定目录检出 OpenChatCut 源码
+1. 在本站仓库平级或固定目录检出 OpenChatCut 受控 fork 源码
 2. 复制 `docker/openchatcut.env.example` 为 `docker/openchatcut.env`
 3. 把 `OPENCHATCUT_SOURCE_DIR` 改成真实源码目录
 4. 按实际环境修改端口、目录和 Token
+
+### 重要提醒：容器里的 127.0.0.1 不是宿主机
+
+如果 OpenChatCut 自己跑在 Docker 容器里，但你自己的主系统跑在宿主机上，那么 OpenChatCut 设置页里填写自定义模型接口时：
+
+- `http://127.0.0.1:13011/...`
+- `http://localhost:13011/...`
+
+这类地址对浏览器来说可能能打开，但对 OpenChatCut 容器里的服务端测试请求来说，默认指向的是容器自己，不是宿主机上的主系统。
+
+因此这类场景应改成：
+
+```text
+http://host.docker.internal:13011/api/openclaw/openchatcut-gateway/v1
+```
+
+当前 compose 样板已补：
+
+```yaml
+extra_hosts:
+  - "host.docker.internal:host-gateway"
+```
+
+用于把容器内的 `host.docker.internal` 解析到宿主机。
+
+### 安装边界提醒
+
+- `OPENCHATCUT_SOURCE_DIR` 应指向受控 fork 检出目录，而不是要求每台电脑都先拉官方仓库再手工改源码
+- 本站主仓库不承接 OpenChatCut 整仓源码；这里只承接接入方式和部署方式
+- 如果后续要新增 OpenChatCut 本体修复，应先进入 fork，再反向同步安装说明
 
 ### 启动命令
 
@@ -157,7 +226,8 @@ services:
       HOME: /data/home
       MEDIA_DIR: /data/media
       OPENCHATCUT_MCP_TOKEN: ${OPENCHATCUT_MCP_TOKEN:-change-me}
-      OPENCHATCUT_EDITOR_URL: ${OPENCHATCUT_EDITOR_URL:-http://127.0.0.1:15199}
+      OPENCHATCUT_TRUST_DOCKER_LOCALHOST: ${OPENCHATCUT_TRUST_DOCKER_LOCALHOST:-1}
+      OPENCHATCUT_EDITOR_URL: ${OPENCHATCUT_EDITOR_URL:-http://localhost:15199}
       RESOURCE_PREVIEW_TOKEN: ${RESOURCE_PREVIEW_TOKEN:-change-me}
       BROWSER: none
       VITE_CONFIG_NATIVE_IGNORE_WARNING: "true"
@@ -184,6 +254,47 @@ volumes:
 - 补齐 `git`、`unzip`
 - 在容器内走 Docker 友好的 OpenChatCut 启动顺序
 - 避免第一次就因为原生依赖脚本失败，导致容器持续重启
+- 通过 `OPENCHATCUT_TRUST_DOCKER_LOCALHOST=1` 兼容 Docker 端口发布场景下的本地浏览器写请求
+
+### 当前已确认的 Docker 边界
+
+当前样板已经解决的是：
+
+- OpenChatCut 在 Docker 里可启动
+- `15199` 页面可打开
+- 外部 MCP 地址可继续对接
+
+当前样板还没有自动解决的是：
+
+- OpenChatCut 官方源码在 Docker 端口发布场景下，设置页部分写请求会触发它自己的 request-origin 校验
+- 也就是说，“页面能打开”不等于“设置页里所有写操作都天然可用”
+
+因此这类修复后续必须沉淀到受控 fork，而不是继续写成“本机临时调通步骤”。
+
+### Docker 发布端口下的 request-origin 修复
+
+当前受控 fork 已补一项显式环境变量：
+
+```text
+OPENCHATCUT_TRUST_DOCKER_LOCALHOST=1
+```
+
+作用：
+
+- 当 OpenChatCut 跑在 Docker 容器内，但浏览器是通过宿主机 `localhost:15199` 或 `127.0.0.1:15199` 访问时
+- 允许这类本地浏览器请求绕过“容器内 socket 远端地址不是 loopback”这一条限制
+- 从而解决设置页里“测试并读取模型”常见的：
+
+```text
+invalid request origin
+```
+
+注意边界：
+
+- 这不是全局放开来源
+- 只在显式设置该环境变量后生效
+- 仍然要求 `Host/Origin` 是本地 `localhost/127.0.0.1`
+- 仍然要求浏览器请求满足同源限制
 
 ## 7. MCP 接入方式
 
@@ -221,7 +332,7 @@ http://openchatcut:5199/api/external-mcp/mcp
 如果希望 OpenChatCut 的 Agent、图片、音频、视频、音乐能力都统一走本站，而不是在 OpenChatCut 内分别保存各家模型平台 Key，当前推荐直接接本站新增的 OpenChatCut 专用网关：
 
 ```text
-https://你的域名/api/openclaw/openchatcut-gateway
+https://你的域名/api/openclaw/openchatcut-gateway/v1
 ```
 
 统一请求头继续使用 OpenClaw 安装中心导出的品牌安装令牌：
@@ -270,17 +381,17 @@ x-brand-id: br_xxx
 
 填写建议：
 
-- `API URL = https://你的域名/api/openclaw/openchatcut-gateway`
+- `API URL = https://你的域名/api/openclaw/openchatcut-gateway/v1`
 - `API Key = OpenClaw 安装令牌（ocp_ 开头）`
 - `接口格式 = Chat Completions API`
-- `模型 = gpt-4o`
+- `模型 = gpt-5.5`
 
 如需换模型，也可以直接填多元探索已支持的文本模型，例如：
 
-- `claude-sonnet-4-6`
-- `gemini-2.5-pro`
+- `claude-sonnet-5`
+- `gemini-3.7-flash`
 - `deepseek-v4-pro`
-- `qwen3-max`
+- `qwen3.7-plus`
 
 #### B1 类：生图 / 图生图
 
@@ -352,12 +463,73 @@ curl -X POST "https://你的域名/api/openclaw/openchatcut-gateway/v1/chat/comp
 
 如果这两条都通过，再回到 OpenChatCut 填页面，定位会快很多。
 
+### 7.6 WorkBuddy 双 MCP 怎么配
+
+如果要在 WorkBuddy 里同时挂本站 MCP 和 OpenChatCut MCP，当前推荐直接按安装中心里给出的双 MCP 教程配置。
+
+最关键的区别只有一条：
+
+- 本站 MCP
+  - `Authorization` 继续使用 OpenClaw 安装令牌
+- OpenChatCut MCP
+  - `Authorization` 必须使用 `docker/openchatcut.env` 里的 `OPENCHATCUT_MCP_TOKEN`
+  - 不是宿主机 `~/.openchatcut/mcp-token`
+
+也就是说，OpenChatCut 这条 MCP 配置不是“无 header 裸连”，而是必须显式带：
+
+```text
+Authorization: Bearer <OPENCHATCUT_MCP_TOKEN>
+```
+
+### 7.7 完整安装配置流程现在优先看哪里
+
+当前最推荐的入口已经不是单独翻文档，而是直接去：
+
+- `个人中心 -> OpenClaw -> 安装中心`
+
+该页面现在已经把下面几段都做成了可直接复制的后台教程：
+
+1. 拉取 OpenChatCut 受控 fork 源码并准备目录
+2. 生成随机 Token 并填写 `docker/openchatcut.env`
+3. 首次启动、查看日志、源码更新与 Docker 重建命令
+4. WorkBuddy 双 MCP 的完整 `mcp.json`
+5. OpenChatCut 页面里 A/B/C 三类能力的填写顺序
+6. 从 curl 到页面再到双 MCP 的验证顺序
+
+所以实际交付时，建议按下面顺序走：
+
+1. 先在后台安装中心复制教程和配置
+2. 再启动 OpenChatCut Docker
+3. 再验证统一网关 curl
+4. 再填 OpenChatCut 页面
+5. 最后再把 WorkBuddy 双 MCP 一起挂上
+
 ## 8. OpenClaw 的双 MCP 编排口径
 
 后续给 OpenClaw 的正式口径应是：
 
 1. 先调用本站 MCP 创建素材
 2. 再调用 OpenChatCut MCP 组织时间线
+
+## 9. 后续维护策略
+
+后续推荐按下面方式维护：
+
+1. OpenChatCut 受控 fork 单独建仓
+2. 当前主仓库继续只保留：
+   - `docker/docker-compose.openchatcut.yml`
+   - `docker/openchatcut.env.example`
+   - `docker/openchatcut.Dockerfile`
+   - `docker/openchatcut-start.sh`
+   - 安装中心与统一网关
+   - 文档与变更记录
+3. 每次 OpenChatCut 本体发生修复时：
+   - 先进 fork
+   - 再回本站同步部署文档和安装口径
+4. 每次需要跟官方版本同步时：
+   - 先拉 upstream
+   - 再把我们自己的差异小步合并
+   - 再验证 Docker 启动、设置页写请求和双 MCP 链路
 3. 不把视频剪辑逻辑塞回本站业务系统
 
 建议把高频任务拆成三段：

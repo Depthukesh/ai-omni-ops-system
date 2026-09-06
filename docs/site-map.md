@@ -426,8 +426,8 @@
   - 第三方接口配置
 - `/personal-center/openclaw`
   - OpenClaw 安装中心
-  - 当前同时提供品牌令牌、MCP 安装片段、Skill ZIP / Git 安装说明，以及 OpenChatCut 独立 Docker 部署、双 MCP 集成说明、Docker 启动链修正指引、统一模型网关地址、A/B/C 三类配置示例、curl 测试命令和站内素材桥接草案工具
-  - 参考变更：`docs/changes/2026-09-05-openchatcut-bridge-assets-and-storyboard-draft.md`、`docs/changes/2026-09-05-openchatcut-docker-startup-runtime-fix.md`、`docs/changes/2026-09-06-openchatcut-duoyuanx-gateway.md`
+  - 当前同时提供品牌令牌、MCP 安装片段、Skill ZIP / Git 安装说明，以及 OpenChatCut 独立 Docker 部署、受控 fork / upstream 同步口径、完整安装配置教程（源码目录、`openchatcut.env`、WorkBuddy 双 MCP、A/B/C 页面填写与验证顺序）、统一模型网关地址、curl 测试命令和站内素材桥接草案工具
+  - 参考变更：`docs/changes/2026-09-05-openchatcut-bridge-assets-and-storyboard-draft.md`、`docs/changes/2026-09-05-openchatcut-docker-startup-runtime-fix.md`、`docs/changes/2026-09-06-openchatcut-duoyuanx-gateway.md`、`docs/changes/2026-09-06-openchatcut-controlled-fork-delivery-strategy.md`、`docs/changes/2026-09-06-openchatcut-installation-hub-full-tutorial.md`
 - `/personal-center/version`
   - 版本与升级
 - `/personal-center/security`

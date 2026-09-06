@@ -44,6 +44,16 @@
 
 也就是说，OpenChatCut 可以改成“只连本站”，再由本站按品牌上下文转发到多元探索。
 
+补充当前安装交付口径：
+
+> `个人中心 -> OpenClaw -> 安装中心` 现在不只提供品牌令牌和 MCP 片段，还已经把 OpenChatCut 从拉源码、生成 Token、编辑 `openchatcut.env`、WorkBuddy 双 MCP，到 OpenChatCut 页面填写和验证顺序，收口成了后台里的完整教程。
+
+其中要特别记住一条：
+
+- WorkBuddy 连接 OpenChatCut MCP 时的 Bearer Token
+- 必须取自 `docker/openchatcut.env` 里的 `OPENCHATCUT_MCP_TOKEN`
+- 不是宿主机 `~/.openchatcut/mcp-token`
+
 ---
 
 ## 2. 对 OpenClaw 的正确理解

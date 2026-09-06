@@ -179,6 +179,10 @@
 - 已放弃的多-agent 方案文档已经移除，不再作为当前开发模式的一部分
 
 ## 最近应优先关注的文档
+- `docs/changes/2026-09-06-openchatcut-installation-hub-full-tutorial.md`
+  - 把 `个人中心 -> OpenClaw -> 安装中心` 补成完整安装配置教程：收口源码目录、`openchatcut.env`、随机 Token、WorkBuddy 双 MCP、OpenChatCut 页面填写口径和验证顺序
+- `docs/changes/2026-09-06-openchatcut-controlled-fork-delivery-strategy.md`
+  - 把 OpenChatCut 的“本机调通”收口为“可复制交付”策略：本站主仓库只保留接入层与部署样板，OpenChatCut 本体后续走受控 fork / 受控镜像，并明确继续同步 upstream 的维护边界
 - `docs/changes/2026-09-06-openchatcut-duoyuanx-gateway.md`
   - 给本站新增 OpenChatCut 专用统一网关：复用 OpenClaw 安装令牌和品牌共享的多元探索 Key，对外暴露文本、图片、音频、视频、音乐五类接口，供 OpenChatCut 统一走本站转发
 - `docs/changes/2026-09-05-openchatcut-docker-startup-runtime-fix.md`

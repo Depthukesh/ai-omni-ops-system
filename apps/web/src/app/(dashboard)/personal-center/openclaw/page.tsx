@@ -635,6 +635,44 @@ export default function PersonalCenterOpenClawPage() {
           </article>
         </div>
 
+        {(workspace?.openChatCutGuide?.tutorialSections || []).length ? (
+          <article className="entity-card personal-card" style={{ marginTop: 16 }}>
+            <div className="entity-card-head">
+              <div>
+                <strong>完整安装配置教程</strong>
+                <p className="personal-meta">这里把源码目录、Token、`openchatcut.env`、启动更新命令、WorkBuddy 双 MCP 和 OpenChatCut 页面填写顺序都收成可直接复制的教程，不用再来回翻聊天记录。</p>
+              </div>
+            </div>
+            <div className="personal-list" style={{ gap: 12 }}>
+              {(workspace?.openChatCutGuide?.tutorialSections || []).map((item, index) => {
+                const tutorialValue = item.lines.join("\n");
+                const copyKey = `openchatcut-tutorial:${index}`;
+                return (
+                  <div key={`${item.title}-${index}`} className="entity-card personal-card" style={{ padding: 16 }}>
+                    <div className="entity-card-head">
+                      <div>
+                        <strong>{item.title}</strong>
+                        <p className="personal-meta" style={{ marginTop: 6 }}>{item.summary}</p>
+                      </div>
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        onClick={() => void handleCopy(tutorialValue, copyKey)}
+                      >
+                        {copiedKey === copyKey ? "已复制" : "复制本段"}
+                      </button>
+                    </div>
+                    <label className="field" style={{ marginTop: 10 }}>
+                      <span>教程内容</span>
+                      <textarea value={tutorialValue} rows={Math.max(6, tutorialValue.split("\n").length + 1)} readOnly spellCheck={false} />
+                    </label>
+                  </div>
+                );
+              })}
+            </div>
+          </article>
+        ) : null}
+
         {workspace?.openChatCutGuide?.gatewayBaseUrl ? (
           <div className="openclaw-layout" style={{ marginTop: 16 }}>
             <article className="entity-card personal-card">

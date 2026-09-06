@@ -63,6 +63,11 @@ export type OpenClawInstallWorkspace = {
       summary: string;
       lines: string[];
     }>;
+    tutorialSections: Array<{
+      title: string;
+      summary: string;
+      lines: string[];
+    }>;
     testCommands: string[];
     composeSnippet: string;
     notes: string[];
