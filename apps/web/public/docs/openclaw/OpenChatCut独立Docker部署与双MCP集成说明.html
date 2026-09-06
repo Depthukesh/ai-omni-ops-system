@@ -219,6 +219,11 @@ x-brand-id: br_xxx</code></pre>
         <li>OpenChatCut 页面里 A/B/C 三类配置填写顺序</li>
         <li>从 curl 到页面再到双 MCP 的验证顺序</li>
       </ul>
+      <p>安装中心里的地址口径当前也已经拆开：</p>
+      <ul>
+        <li><strong>统一网关地址</strong>：默认给 OpenChatCut Docker 页面直接填写；主系统跑在宿主机本机时，会优先显示 <code>host.docker.internal</code> 这类容器可达地址。</li>
+        <li><strong>宿主机调试地址</strong>：给浏览器 / PowerShell 本机手打 curl 用，不建议直接原样抄到 OpenChatCut Docker 页面里。</li>
+      </ul>
     </div>
 
     <h2>验证清单</h2>

@@ -496,6 +496,15 @@ Authorization: Bearer <OPENCHATCUT_MCP_TOKEN>
 5. OpenChatCut 页面里 A/B/C 三类能力的填写顺序
 6. 从 curl 到页面再到双 MCP 的验证顺序
 
+安装中心里的地址口径当前也已经拆开：
+
+- `统一网关地址`
+  - 默认给 OpenChatCut Docker 页面直接填写
+  - 如果主系统当前跑在宿主机本机，会优先显示 `host.docker.internal` 这类容器可达地址
+- `宿主机调试地址`
+  - 给浏览器 / PowerShell 本机手打 curl 用
+  - 不建议直接原样抄到 OpenChatCut Docker 页面里
+
 所以实际交付时，建议按下面顺序走：
 
 1. 先在后台安装中心复制教程和配置

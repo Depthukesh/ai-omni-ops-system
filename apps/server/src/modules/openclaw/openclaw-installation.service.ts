@@ -82,6 +82,7 @@ export type OpenClawInstallWorkspace = {
     composeFilePath: string;
     docUrl: string;
     gatewayBaseUrl: string;
+    gatewayDebugBaseUrl: string;
     gatewayHeaders: string[];
     topology: string[];
     steps: string[];
@@ -363,6 +364,7 @@ export class OpenClawInstallationService {
     const installToken = input.rawToken || input.activeToken?.tokenPreview || "请先在网站中生成安装令牌";
     const headerValue = input.rawToken ? `Bearer ${input.rawToken}` : "Bearer 请先生成安装令牌";
     const docsBaseUrl = this.appConfigService.getWebPublicBaseUrl();
+    const openChatCutGatewayUrls = this.buildOpenChatCutGatewayUrlSet();
     const skillGithubRef = this.getSkillPackageGithubRef();
     const skillGithubTreeUrl = this.buildSkillPackageGithubTreeUrl(skillGithubRef);
     const skillGithubPrompt = [
@@ -496,7 +498,8 @@ export class OpenClawInstallationService {
         summary: "推荐把 OpenChatCut 作为独立 Docker 服务部署，并长期维护一份受控 fork / 镜像口径，不并入本站主 compose，也不走“每台电脑手工改官方源码”。OpenClaw 同时连接本站 MCP 和 OpenChatCut MCP：本站负责产素材与任务编排，OpenChatCut 负责真实时间线剪辑与导出。",
         composeFilePath: "docker/docker-compose.openchatcut.yml",
         docUrl: `${docsBaseUrl}/docs/openclaw/OpenChatCut%E7%8B%AC%E7%AB%8BDocker%E9%83%A8%E7%BD%B2%E4%B8%8E%E5%8F%8CMCP%E9%9B%86%E6%88%90%E8%AF%B4%E6%98%8E.html`,
-        gatewayBaseUrl: `${this.appConfigService.getPublicApiBaseUrl()}/openclaw/openchatcut-gateway`,
+        gatewayBaseUrl: openChatCutGatewayUrls.gatewayBaseUrl,
+        gatewayDebugBaseUrl: openChatCutGatewayUrls.gatewayDebugBaseUrl,
         gatewayHeaders: [
           `Authorization: ${headerValue}`,
           `x-brand-id: ${input.brandId}`,
@@ -526,17 +529,18 @@ export class OpenClawInstallationService {
           "可选补充 `.env.local` 里的 LLM / Image / Video / TTS Provider Key，但第一阶段不要求一次配齐。",
         ],
         settingsExamples: this.buildOpenChatCutGatewaySettingExamples({
-          gatewayBaseUrl: `${this.appConfigService.getPublicApiBaseUrl()}/openclaw/openchatcut-gateway`,
+          gatewayBaseUrl: openChatCutGatewayUrls.gatewayBaseUrl,
         }),
         tutorialSections: this.buildOpenChatCutTutorialSections({
           mcpServerName,
           mcpUrl,
           headerValue,
           brandId: input.brandId,
-          gatewayBaseUrl: `${this.appConfigService.getPublicApiBaseUrl()}/openclaw/openchatcut-gateway`,
+          gatewayBaseUrl: openChatCutGatewayUrls.gatewayBaseUrl,
+          gatewayDebugBaseUrl: openChatCutGatewayUrls.gatewayDebugBaseUrl,
         }),
         testCommands: this.buildOpenChatCutGatewayTestCommands({
-          gatewayBaseUrl: `${this.appConfigService.getPublicApiBaseUrl()}/openclaw/openchatcut-gateway`,
+          gatewayBaseUrl: openChatCutGatewayUrls.gatewayDebugBaseUrl,
           headerValue,
           brandId: input.brandId,
         }),
@@ -550,6 +554,7 @@ export class OpenClawInstallationService {
           "当前 Docker 样板会用自定义启动镜像补齐 `git`、`unzip` 等系统依赖，并在容器内先执行 `npm install --ignore-scripts`，再补 `sync-mediapipe`、`sync-whisper-cli` 和工具目录校验，避免 `onnxruntime-node` 的 Linux 开发态安装链直接炸掉。",
           "当前样板额外挂了 `openchatcut_node_modules` 卷，避免每次重启都从空目录重装全部依赖。",
           "当前推荐先跑单用户 / 单工作区场景，不把 OpenChatCut 当多租户共享剪辑服务。",
+          `安装中心里的“统一网关地址”默认已经切成 OpenChatCut Docker 可直接填写的地址：${openChatCutGatewayUrls.gatewayBaseUrl}；宿主机本机调试命令请使用单独展示的“宿主机调试地址”。`,
           "OpenChatCut 的外部 MCP 偏编辑会话和时间线草稿；导出、删除工程等立即产生副作用的动作，联调时要单独确认工具面和审批策略。",
         ],
       },
@@ -633,6 +638,30 @@ export class OpenClawInstallationService {
     ].join("\n");
   }
 
+  private buildOpenChatCutGatewayUrlSet() {
+    const debugBaseUrl = `${this.appConfigService.getPublicApiBaseUrl()}/openclaw/openchatcut-gateway`;
+    const gatewayBaseUrl = this.buildOpenChatCutDockerReachableUrl(debugBaseUrl);
+    return {
+      gatewayBaseUrl,
+      gatewayDebugBaseUrl: debugBaseUrl,
+    };
+  }
+
+  private buildOpenChatCutDockerReachableUrl(value: string) {
+    try {
+      const parsed = new URL(value);
+      const hostname = String(parsed.hostname || "").trim().toLowerCase();
+      if (hostname === "127.0.0.1" || hostname === "localhost" || hostname === "::1" || hostname === "0.0.0.0") {
+        parsed.hostname = "host.docker.internal";
+      }
+      parsed.search = "";
+      parsed.hash = "";
+      return parsed.toString().replace(/\/+$/, "");
+    } catch {
+      return value;
+    }
+  }
+
   private buildOpenChatCutGatewaySettingExamples(input: { gatewayBaseUrl: string }) {
     return [
       {
@@ -688,6 +717,7 @@ export class OpenClawInstallationService {
     headerValue: string;
     brandId: string;
     gatewayBaseUrl: string;
+    gatewayDebugBaseUrl: string;
   }) {
     const workbuddySnippet = JSON.stringify({
       mcpServers: {
@@ -788,7 +818,7 @@ export class OpenClawInstallationService {
         title: "6. 正确验证顺序",
         summary: "先打网关 curl，再配 OpenChatCut 页面，最后再去 WorkBuddy 里挂双 MCP。这样最容易定位到底是品牌令牌、网关地址、宿主机连通性，还是 OpenChatCut 自己的配置页问题。",
         lines: [
-          `1) 先验证 ${input.gatewayBaseUrl}/v1/models 能返回模型列表`,
+          `1) 先在宿主机本机验证 ${input.gatewayDebugBaseUrl}/v1/models 能返回模型列表`,
           "2) 再验证 /v1/chat/completions 能返回一个最小文本响应",
           "3) 然后回 OpenChatCut 页面测试 Agent 大脑、生图、TTS/转写、视频/音乐",
           "4) 最后把 WorkBuddy 的双 MCP 一起挂上，分别测试 ai-omni-ops 和 openchatcut",

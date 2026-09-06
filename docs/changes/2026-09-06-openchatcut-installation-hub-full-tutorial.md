@@ -39,6 +39,15 @@
 5. OpenChatCut 页面里 A/B/C 三类能力的填写顺序
 6. 从 curl 到页面再到双 MCP 的验证顺序
 
+本轮还继续把后台里的网关地址拆成两套：
+
+- `统一网关地址`
+  - 默认给 OpenChatCut Docker 页面直接填写
+  - 当本站主系统当前是宿主机本机地址时，会优先改成 `host.docker.internal` 这类容器可达口径
+- `宿主机调试地址`
+  - 专门给浏览器 / PowerShell 本机执行 curl 调试使用
+  - 避免用户再把宿主机 `127.0.0.1:13011` 错抄回 OpenChatCut Docker 页面
+
 ### 2. 明确 OpenChatCut MCP Token 的真实来源
 
 安装中心教程与文档同步明确：

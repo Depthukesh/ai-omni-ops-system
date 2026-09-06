@@ -300,7 +300,8 @@ OpenClaw 安装中心补充说明：
   - MCP 安装片段
   - Skill ZIP / Git 安装说明
   - OpenChatCut 独立 Docker 说明
-  - OpenChatCut 统一网关地址
+  - OpenChatCut Docker 填写地址
+  - 宿主机调试地址
   - A / B / C 三类配置示例
   - curl 测试命令
 - Skill 在回答“OpenChatCut 应该怎么接本站”“A 类、B 类、C 类该怎么填”“先打什么测试命令”时，应明确把用户引到 `个人中心 -> OpenClaw 安装中心`

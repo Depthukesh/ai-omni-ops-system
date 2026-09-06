@@ -288,7 +288,8 @@ Skill 在这个域里的职责是：
 - MCP 安装片段
 - Skill ZIP / Git 安装说明
 - OpenChatCut 独立 Docker 说明
-- OpenChatCut 统一网关地址
+- OpenChatCut Docker 填写地址
+- 宿主机调试地址
 - A / B / C 三类配置示例
 - curl 测试命令
 

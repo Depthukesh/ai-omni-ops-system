@@ -48,6 +48,15 @@
 
 > `个人中心 -> OpenClaw -> 安装中心` 现在不只提供品牌令牌和 MCP 片段，还已经把 OpenChatCut 从拉源码、生成 Token、编辑 `openchatcut.env`、WorkBuddy 双 MCP，到 OpenChatCut 页面填写和验证顺序，收口成了后台里的完整教程。
 
+并且当前安装中心已经把地址口径拆成两套：
+
+- `统一网关地址`
+  - 默认给 OpenChatCut Docker 页面直接填写
+  - 当本站主系统跑在宿主机本机时，会优先改写成 `host.docker.internal` 这一类容器可达地址
+- `宿主机调试地址`
+  - 只用于你在本机浏览器或 PowerShell 里手动执行 curl 验证
+  - 不建议直接原样抄回 OpenChatCut Docker 页面
+
 其中要特别记住一条：
 
 - WorkBuddy 连接 OpenChatCut MCP 时的 Bearer Token

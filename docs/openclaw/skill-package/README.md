@@ -21,7 +21,7 @@
 2. 确认品牌安装令牌、MCP 地址和 `x-brand-id` 可用
 3. 如果要接 OpenChatCut，再同步抄安装中心里的统一网关地址、A/B/C 配置示例和 curl 测试命令
 4. 如果要接 WorkBuddy 双 MCP，再直接复制安装中心里的双 MCP `mcp.json` 示例；其中 OpenChatCut 那条 Bearer Token 必须取自 `docker/openchatcut.env` 里的 `OPENCHATCUT_MCP_TOKEN`
-5. OpenChatCut 如果跑在 Docker，但主系统跑在宿主机，OpenChatCut 页面里不要继续填 `127.0.0.1:13011`，而要改填 `host.docker.internal:13011`
+5. OpenChatCut 如果跑在 Docker，但主系统跑在宿主机，安装中心里“统一网关地址”现在会直接给出 Docker 可填写地址；默认不应再抄 `127.0.0.1:13011`，而要抄 `host.docker.internal:13011` 这一类宿主机可达地址
 6. Agent 大脑页的 API URL 必须带 `/v1`
 7. 再选择 Git 安装或 ZIP 导入
 8. 安装后把 Skill 绑定到 ai-omni-ops MCP
@@ -83,7 +83,8 @@ ZIP 模式适合：
 
 优先到网站 `个人中心 -> OpenClaw 安装中心` 查看这四类现成信息：
 
-- 统一网关 Base URL
+- OpenChatCut Docker 填写地址
+- 宿主机调试地址
 - 请求头里的 `Authorization` 和 `x-brand-id`
 - WorkBuddy 双 MCP 的完整 `mcp.json` 示例
 - A / B / C 三类配置示例

@@ -54,6 +54,7 @@ export type OpenClawInstallWorkspace = {
     composeFilePath: string;
     docUrl: string;
     gatewayBaseUrl: string;
+    gatewayDebugBaseUrl: string;
     gatewayHeaders: string[];
     topology: string[];
     steps: string[];

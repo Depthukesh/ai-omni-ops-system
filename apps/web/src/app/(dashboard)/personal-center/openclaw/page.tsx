@@ -679,7 +679,7 @@ export default function PersonalCenterOpenClawPage() {
               <div className="entity-card-head">
                 <div>
                   <strong>统一网关地址</strong>
-                  <p className="personal-meta">OpenChatCut 里的自定义模型接口，统一指到本站这一个入口；再由本站按品牌共享 Key 转发到多元探索。</p>
+                  <p className="personal-meta">这里默认展示的是给 OpenChatCut Docker 页面直接填写的网关地址；如果你是在宿主机本机手动 curl 调试，请用下面单独给出的宿主机调试地址。</p>
                 </div>
                 <button
                   type="button"
@@ -690,9 +690,15 @@ export default function PersonalCenterOpenClawPage() {
                 </button>
               </div>
               <label className="field">
-                <span>Base URL</span>
+                <span>OpenChatCut Docker 填写地址</span>
                 <textarea value={workspace.openChatCutGuide.gatewayBaseUrl} rows={3} readOnly spellCheck={false} />
               </label>
+              {workspace?.openChatCutGuide?.gatewayDebugBaseUrl ? (
+                <label className="field" style={{ marginTop: 12 }}>
+                  <span>宿主机调试地址</span>
+                  <textarea value={workspace.openChatCutGuide.gatewayDebugBaseUrl} rows={3} readOnly spellCheck={false} />
+                </label>
+              ) : null}
               {(workspace.openChatCutGuide.gatewayHeaders || []).length ? (
                 <label className="field" style={{ marginTop: 12 }}>
                   <span>请求头</span>
