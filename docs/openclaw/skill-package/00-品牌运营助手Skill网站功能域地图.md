@@ -297,7 +297,7 @@ OpenClaw 安装中心补充说明：
 
 - 当前页面内已经集中提供：
   - 品牌安装令牌
-  - MCP 安装片段
+  - MCP 安装片段（OpenClaw / WorkBuddy / Cursor / Claude Desktop / Codex）
   - Skill ZIP / Git 安装说明
 - 当前复制按钮、可视化安装和完整配置查看仍以页面承接为主，不要假装自己已经代用户点过网页按钮
 

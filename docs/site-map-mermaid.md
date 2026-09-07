@@ -142,7 +142,7 @@ flowchart TD
     H2 --> H22["本地资料目录设置 / launcher-settings.json"]
     H2 --> H23["重启后迁移并切换 localAppRoot"]
     I["后台管理台"]
-    J["OpenClaw 安装中心\n品牌令牌 / MCP / Skill / 正式交付检查清单"]
+    J["OpenClaw 安装中心\n品牌令牌 / OpenClaw·WorkBuddy·Cursor·Claude Desktop·Codex MCP / Skill / 正式交付检查清单"]
 
     A --> A1["品牌资料库"]
     A1 --> A11["品牌背景资料"]

@@ -14,13 +14,14 @@ import {
 } from "../../../../services/openclaw";
 import { buildPersonalCenterLoginPath, formatDateTime, formatCollaboratorRoleLabel, isAuthFailure } from "../route-helpers";
 
-type SnippetTabKey = "openclaw" | "workbuddy" | "cursor" | "claudeDesktop" | "mcpEndpoint";
+type SnippetTabKey = "openclaw" | "workbuddy" | "cursor" | "claudeDesktop" | "codex" | "mcpEndpoint";
 
 const snippetTabs: Array<{ key: SnippetTabKey; label: string }> = [
   { key: "openclaw", label: "OpenClaw" },
   { key: "workbuddy", label: "WorkBuddy" },
   { key: "cursor", label: "Cursor" },
   { key: "claudeDesktop", label: "Claude Desktop" },
+  { key: "codex", label: "Codex" },
   { key: "mcpEndpoint", label: "MCP 地址" },
 ];
 
@@ -422,7 +423,7 @@ export default function PersonalCenterOpenClawPage() {
           <div className="entity-card-head">
             <div>
               <strong>MCP 安装配置</strong>
-              <p className="personal-meta">面向正式环境，直接复制到 OpenClaw、WorkBuddy、Cursor 或 Claude Desktop 对应的 MCP 配置位置。</p>
+              <p className="personal-meta">面向正式环境，直接复制到 OpenClaw、WorkBuddy、Cursor、Claude Desktop 或 Codex 对应的 MCP 配置位置。</p>
             </div>
             <div className="personal-context-actions">
               <button

@@ -2,7 +2,7 @@
 
 ## 当前结论
 
-截至 2026-06-12，`OpenClaw / WorkBuddy / Cursor / Claude Desktop` 对接网站的正式安装链路已经基本成型，但**当前 MCP 还不能定义为“全部开发完成”**。
+截至 2026-09-07，`OpenClaw / WorkBuddy / Cursor / Claude Desktop / Codex` 对接网站的正式安装链路已经基本成型，但**当前 MCP 还不能定义为“全部开发完成”**。
 
 原因不是安装中心或 HTTP 网关没通，而是现在的产品目标已经升级为：
 
@@ -68,7 +68,7 @@
 2. 切到目标品牌
 3. 打开 `个人中心 -> OpenClaw 安装`
 4. 点击“生成正式安装令牌”
-5. 复制 `OpenClaw`、`WorkBuddy`、`Cursor` 或 `Claude Desktop` 配置片段
+5. 复制 `OpenClaw`、`WorkBuddy`、`Cursor`、`Claude Desktop` 或 `Codex` 配置片段
 6. 粘贴到对应客户端
 7. 直接开始用自然语言调用网站能力
 
@@ -177,6 +177,25 @@ WorkBuddy 正式配置示例：
   }
 }
 ```
+
+Codex / ChatGPT Desktop / IDE 扩展共用 `~/.codex/config.toml` 配置示例：
+
+```toml
+[mcp_servers."ai-omni-ops-品牌名"]
+url = "https://你的域名/api/openclaw/mcp"
+bearer_token_env_var = "OPENCLAW_INSTALL_TOKEN"
+http_headers = { "x-brand-id" = "br_xxx" }
+```
+
+补充说明：
+
+- `Codex CLI`、`ChatGPT Desktop`、IDE 扩展当前共用同一份 Codex 主机 MCP 配置
+- 安装中心当前导出的 `Codex` 片段，默认使用：
+  - `bearer_token_env_var` 承接 `Authorization: Bearer ...`
+  - `http_headers` 固定写入 `x-brand-id`
+- 使用前需要先在本机环境里设置：
+  - `OPENCLAW_INSTALL_TOKEN=ocp_xxx`
+- 如果后续要把品牌头也改成从环境变量读取，可再按 Codex 官方文档扩展到 `env_http_headers`
 
 ## 当前 MCP 开发状态
 
@@ -296,7 +315,7 @@ WorkBuddy 正式配置示例：
 - 服务端正式安装链路已验证通过：`installation-hub`、令牌轮换、`POST /api/openclaw/mcp` 的 `initialize / tools/list / tools/call` 已跑通
 - 网站安装页代码已落地：`apps/web/src/app/(dashboard)/personal-center/openclaw/page.tsx`
 - 线上站点 `https://17ai.site/personal-center/openclaw` 已可访问，正式安装页和令牌生成链路可用
-- WorkBuddy 配置模板已纳入安装页
+- WorkBuddy、Cursor、Claude Desktop 与 Codex 配置模板已纳入安装页
 - 服务端已补入小红书 / 抖音发布接力与技能配置治理相关 MCP 工具
 - 但“结果反馈、反馈分析、提示词优化建议”仍未落地，因此当前不建议判定为 MCP 全部开发完成
 
@@ -331,7 +350,7 @@ WorkBuddy 正式配置示例：
 3. 校验安装页里的文档链接能打开：
    - `OpenClaw正式安装与网站对接说明.html`
    - `品牌运营助手Skill示例SKILL.html`
-4. 使用页面生成的正式令牌，在真实 OpenClaw 或 WorkBuddy 客户端完成一次 MCP 挂载
+4. 使用页面生成的正式令牌，在真实 OpenClaw、WorkBuddy 或 Codex 客户端完成一次 MCP 挂载
 5. 在客户端里至少验证一次：
    - 获取当前品牌上下文
    - 查看最近任务摘要

@@ -27,6 +27,7 @@ export type OpenClawInstallWorkspace = {
     workbuddy: string;
     cursor: string;
     claudeDesktop: string;
+    codex: string;
     mcpEndpoint: string;
   };
   skillGuide: {

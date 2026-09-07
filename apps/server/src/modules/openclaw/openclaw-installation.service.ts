@@ -55,6 +55,7 @@ export type OpenClawInstallWorkspace = {
     workbuddy: string;
     cursor: string;
     claudeDesktop: string;
+    codex: string;
     mcpEndpoint: string;
   };
   skillGuide: {
@@ -410,6 +411,15 @@ export class OpenClawInstallationService {
             },
           },
         }, null, 2),
+        codex: [
+          `[mcp_servers."${mcpServerName}"]`,
+          `url = "${mcpUrl}"`,
+          `bearer_token_env_var = "OPENCLAW_INSTALL_TOKEN"`,
+          `http_headers = { "x-brand-id" = "${input.brandId}" }`,
+          "",
+          "# 先在启动 Codex / ChatGPT Desktop 的本机环境里设置：",
+          '# OPENCLAW_INSTALL_TOKEN = "请先生成安装令牌"',
+        ].join("\n"),
         mcpEndpoint: `POST ${mcpUrl}\nAuthorization: ${headerValue}\nx-brand-id: ${input.brandId}`,
       },
       skillGuide: {

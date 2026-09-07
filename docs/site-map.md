@@ -426,7 +426,8 @@
   - 第三方接口配置
 - `/personal-center/openclaw`
   - OpenClaw 安装中心
-  - 当前提供品牌令牌、MCP 安装片段、Skill ZIP / Git 安装说明与正式交付检查清单
+  - 当前提供品牌令牌、OpenClaw / WorkBuddy / Cursor / Claude Desktop / Codex 的 MCP 安装片段，以及 Skill ZIP / Git 安装说明与正式交付检查清单
+  - 参考变更：`docs/changes/2026-09-07-openclaw-codex-mcp-installation.md`
   - 参考变更：`docs/changes/2026-09-07-openchatcut-removal.md`
 - `/personal-center/version`
   - 版本与升级

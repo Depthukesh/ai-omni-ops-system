@@ -18,7 +18,7 @@
 ## 2. 推荐安装顺序
 
 1. 先在网站安装中心完成 MCP 配置
-2. 确认品牌安装令牌、MCP 地址和 `x-brand-id` 可用
+2. 确认品牌安装令牌、MCP 地址和 `x-brand-id` 可用；如果目标客户端是 Codex / ChatGPT Desktop，还要先在本机环境里准备 `OPENCLAW_INSTALL_TOKEN`
 3. 再选择 Git 安装或 ZIP 导入
 4. 安装后把 Skill 绑定到 ai-omni-ops MCP
 5. 首次使用时先做查询、生成和任务回读验收
@@ -38,6 +38,13 @@
 1. 拉取仓库里的 Skill 目录
 2. 安装到自己的 Skill 区
 3. 绑定 ai-omni-ops MCP
+
+如果目标客户端是 Codex / ChatGPT Desktop / IDE 扩展：
+
+- 安装中心里的 `Codex` 标签会导出 `config.toml` 片段
+- 这些客户端共用 `~/.codex/config.toml`
+- 令牌默认通过 `bearer_token_env_var = "OPENCLAW_INSTALL_TOKEN"` 读取
+- `x-brand-id` 会由安装中心片段直接写进 `http_headers`
 
 ## 4. ZIP 导入建议
 
