@@ -59,10 +59,23 @@
 
 - `python3`
 - `python3-pip`
+- `torch`（CPU 版）
+- `torchaudio`（CPU 版）
 - `pip` 安装阶段的镜像、超时与重试兜底：
   - 优先走清华 PyPI 镜像
   - 保留官方 `pypi.org` 作为额外索引兜底
   - 拉包超时与重试次数显式放宽，减少 `modelscope / funasr` 在网络抖动机器上安装失败
+- `HF_ENDPOINT=https://hf-mirror.com`
+  - 让 `Whisper` 首次下载模型时优先走 HuggingFace 镜像入口，降低容器里直接访问官方 Hub 失败的概率
+- `HF_HUB_DISABLE_XET=1`
+  - 避免 `huggingface_hub` 在容器里走 `xet` 下载链时出现 `401 Unauthorized`
+- 本地 ASR 结果解析增强
+  - 兼容 `Paraformer / FunASR` 在标准输出里夹带 notice 或其他提示信息的情况
+  - 服务端会优先解析最后一条合法 JSON，而不是要求整段 stdout 必须完全纯净
+- 抖音“提取文案”接口改为后台执行
+  - 点击后先立即把 `transcriptStatus` 写成 `PENDING` 并返回给前端
+  - 实际 `Paraformer -> Whisper` 识别在服务端后台继续跑，页面靠现有轮询刷新状态
+  - 避免用户等待一个长时间同步请求时误以为“点了没反应”
 - `docker/local-asr-requirements.txt` 自动安装：
   - `funasr`
   - `modelscope`

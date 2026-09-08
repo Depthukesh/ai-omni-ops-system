@@ -6,7 +6,9 @@ ENV PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple \
     PIP_EXTRA_INDEX_URL=https://pypi.org/simple \
     PIP_DEFAULT_TIMEOUT=180 \
     PIP_RETRIES=10 \
-    PIP_TRUSTED_HOST="pypi.tuna.tsinghua.edu.cn pypi.org files.pythonhosted.org"
+    PIP_TRUSTED_HOST="pypi.tuna.tsinghua.edu.cn pypi.org files.pythonhosted.org download.pytorch.org" \
+    HF_ENDPOINT=https://hf-mirror.com \
+    HF_HUB_DISABLE_XET=1
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends python3 python3-pip \
@@ -26,6 +28,7 @@ RUN pnpm install --no-frozen-lockfile
 COPY . .
 
 RUN python3 -m pip install --no-cache-dir --break-system-packages --upgrade pip setuptools wheel \
+  && python3 -m pip install --no-cache-dir --break-system-packages --index-url https://download.pytorch.org/whl/cpu torch torchaudio \
   && python3 -m pip install --no-cache-dir --prefer-binary --break-system-packages -r docker/local-asr-requirements.txt
 
 RUN npm run prisma:generate && npm run build:server

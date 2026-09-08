@@ -1596,6 +1596,40 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
         workspace: await this.getDouyinWorkspace(brandId),
       };
     }
+    const transcriptStatus = this.readMetaString(meta, "transcriptStatus");
+    if (transcriptStatus !== "PENDING") {
+      await this.updateCollectorAssetMeta(brandId, assetId, {
+        transcriptStatus: "PENDING",
+        transcriptLastError: "",
+        transcriptStatusUpdatedAt: new Date().toISOString(),
+      });
+      void this.runDouyinWorkTranscriptExtraction(brandId, assetId).catch((error) => {
+        const detail = error instanceof Error ? error.message : String(error);
+        this.logger.warn(`Async douyin transcript extraction failed for asset ${assetId}: ${detail}`);
+      });
+    }
+    const updatedAsset = await this.getCollectorAssetById(brandId, assetId);
+    return {
+      item: this.mapDouyinCollectedWork(updatedAsset, kind),
+      workspace: await this.getDouyinWorkspace(brandId),
+    };
+  }
+
+  private async runDouyinWorkTranscriptExtraction(brandId: string, assetId: string) {
+    this.ensureBrandExistsInMockOrDatabase(brandId);
+    const asset = await this.getCollectorAssetById(brandId, assetId);
+    const meta = this.asMeta(asset.metadataJson);
+    const kind = this.readMetaString(meta, "kind");
+    if (!this.isDouyinWorkKind(kind)) {
+      throw new BadRequestException("仅支持对抖音作品提取视频文案");
+    }
+    const existingTranscript = this.readMetaString(meta, "transcript");
+    if (existingTranscript) {
+      return {
+        item: this.mapDouyinCollectedWork(asset, kind),
+        workspace: await this.getDouyinWorkspace(brandId),
+      };
+    }
     const transcriptSourceUrl = this.normalizeHttpUrl(
       this.readMetaString(meta, "videoSourceUrl") || this.readMetaString(meta, "videoUrl"),
     );
@@ -1604,11 +1638,6 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     if (!canUseStoredVideo && !transcriptSourceUrl) {
       throw new BadRequestException("当前作品缺少可识别的视频地址，请先重新采集或等待视频缓存完成");
     }
-    await this.updateCollectorAssetMeta(brandId, assetId, {
-      transcriptStatus: "PENDING",
-      transcriptLastError: "",
-      transcriptStatusUpdatedAt: new Date().toISOString(),
-    });
     try {
       let result: LocalAsrTranscriptResult;
       if (canUseStoredVideo) {
@@ -1644,11 +1673,6 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       });
       throw error;
     }
-    const updatedAsset = await this.getCollectorAssetById(brandId, assetId);
-    return {
-      item: this.mapDouyinCollectedWork(updatedAsset, kind),
-      workspace: await this.getDouyinWorkspace(brandId),
-    };
   }
 
   private async transcribeStoredDouyinVideo(assetId: string, storageKey: string) {

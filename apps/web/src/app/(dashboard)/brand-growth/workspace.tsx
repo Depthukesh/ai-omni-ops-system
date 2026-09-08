@@ -3662,7 +3662,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     try {
       const response = await extractDouyinWorkTranscript(item.id, activeBrandId || archive.brand.id);
       setDouyinCollectionWorkspace(response.workspace);
-      setNotice("视频文案提取完成。");
+      setNotice("视频文案已开始提取，稍后将自动刷新结果。");
     } catch (error) {
       const message = error instanceof Error ? error.message : "提取失败";
       setErrorMessage(`视频文案提取失败：${message}`);

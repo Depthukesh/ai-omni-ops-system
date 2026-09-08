@@ -134,18 +134,37 @@ export class LocalAsrService {
       windowsHide: true,
       maxBuffer: 16 * 1024 * 1024,
       timeout: 10 * 60 * 1000,
+      env: {
+        ...process.env,
+        HF_HUB_DISABLE_XET: process.env.HF_HUB_DISABLE_XET || "1",
+      },
     });
     const rawOutput = String(result.stdout || "").trim();
     if (!rawOutput) {
       const stderr = String(result.stderr || "").trim();
       throw new ServiceUnavailableException(stderr || `${engine} 未返回可解析结果`);
     }
-    try {
-      return JSON.parse(rawOutput) as { text?: string; model?: string };
-    } catch (error) {
-      const detail = error instanceof Error ? error.message : "JSON parse failed";
-      throw new ServiceUnavailableException(`${engine} 返回结果无法解析：${detail}`);
+    const candidates = Array.from(
+      new Set([
+        rawOutput,
+        ...rawOutput
+          .split(/\r?\n/)
+          .map((line) => line.trim())
+          .filter(Boolean)
+          .reverse(),
+      ]),
+    );
+    for (const candidate of candidates) {
+      if (!candidate.startsWith("{") || !candidate.endsWith("}")) {
+        continue;
+      }
+      try {
+        return JSON.parse(candidate) as { text?: string; model?: string };
+      } catch {
+        // Continue trying other candidate lines.
+      }
     }
+    throw new ServiceUnavailableException(`${engine} 返回结果无法解析：${rawOutput.slice(0, 240)}`);
   }
 
   private async extractAudioTrack(inputPath: string, outputPath: string) {
