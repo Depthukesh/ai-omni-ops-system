@@ -59,6 +59,10 @@
 
 - `python3`
 - `python3-pip`
+- `pip` 安装阶段的镜像、超时与重试兜底：
+  - 优先走清华 PyPI 镜像
+  - 保留官方 `pypi.org` 作为额外索引兜底
+  - 拉包超时与重试次数显式放宽，减少 `modelscope / funasr` 在网络抖动机器上安装失败
 - `docker/local-asr-requirements.txt` 自动安装：
   - `funasr`
   - `modelscope`
