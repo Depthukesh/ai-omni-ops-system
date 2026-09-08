@@ -2397,9 +2397,6 @@ function DouyinVideoPreviewCell(props: {
           title={item.title || item.workId || "抖音视频预览"}
           onPreviewMedia={props.onPreviewMedia}
         />
-        <span className="panel-subtext" title={item.videoStoragePath || item.videoSourceUrl || ""}>
-          {item.videoStoragePath ? "站内存储已就绪" : "当前已生成站内受控预览"}
-        </span>
       </div>
     );
   }

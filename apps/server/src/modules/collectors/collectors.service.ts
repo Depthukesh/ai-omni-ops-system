@@ -12,7 +12,7 @@ import { PrismaService } from "../../prisma/prisma.service";
 import { OssStorageService } from "../../storage/oss-storage.service";
 import { SchedulerService } from "../scheduler/scheduler.service";
 import { GlmOpenService } from "../third-party-platforms/glm-open.service";
-import { LocalAsrService } from "../third-party-platforms/local-asr.service";
+import { LocalAsrService, type LocalAsrTranscriptResult } from "../third-party-platforms/local-asr.service";
 import { ThirdPartyPlatformsService } from "../third-party-platforms/third-party-platforms.service";
 
 const execFileAsync = promisify(execFile);
@@ -1596,10 +1596,12 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
         workspace: await this.getDouyinWorkspace(brandId),
       };
     }
-    const transcriptSourceUrl = this.readMetaString(meta, "videoSourceUrl") || this.readMetaString(meta, "videoUrl");
+    const transcriptSourceUrl = this.normalizeHttpUrl(
+      this.readMetaString(meta, "videoSourceUrl") || this.readMetaString(meta, "videoUrl"),
+    );
     const transcriptStorageKey = this.readMetaString(meta, "videoStorageKey");
     const canUseStoredVideo = this.readMetaString(meta, "videoCacheStatus") === "READY" && Boolean(transcriptStorageKey);
-    if (!transcriptSourceUrl && !canUseStoredVideo) {
+    if (!canUseStoredVideo && !transcriptSourceUrl) {
       throw new BadRequestException("当前作品缺少可识别的视频地址，请先重新采集或等待视频缓存完成");
     }
     await this.updateCollectorAssetMeta(brandId, assetId, {
@@ -1608,11 +1610,23 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       transcriptStatusUpdatedAt: new Date().toISOString(),
     });
     try {
-      const result = transcriptSourceUrl
-        ? await this.localAsrService.transcribeVideoFromUrl(transcriptSourceUrl, {
+      let result: LocalAsrTranscriptResult;
+      if (canUseStoredVideo) {
+        try {
+          result = await this.transcribeStoredDouyinVideo(assetId, transcriptStorageKey!);
+        } catch (error) {
+          if (!transcriptSourceUrl) {
+            throw error;
+          }
+          result = await this.localAsrService.transcribeVideoFromUrl(transcriptSourceUrl, {
             requestId: `douyin-${assetId}`,
-          })
-        : await this.transcribeStoredDouyinVideo(assetId, transcriptStorageKey!);
+          });
+        }
+      } else {
+        result = await this.localAsrService.transcribeVideoFromUrl(transcriptSourceUrl, {
+          requestId: `douyin-${assetId}`,
+        });
+      }
       await this.updateCollectorAssetMeta(brandId, assetId, {
         transcript: result.text,
         transcriptSource: `local-asr:${result.engine}:${result.model}`,
