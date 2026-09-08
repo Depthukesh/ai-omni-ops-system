@@ -216,6 +216,25 @@ export class OssStorageService {
     };
   }
 
+  private resolveDisplayPaths(baseDir: string, relativePath: string, _storageKey?: string) {
+    const normalizedBaseDir = String(baseDir || "").trim().replace(/[\\/]+$/, "");
+    const normalizedRelativePath = relativePath.replace(/\\/g, "/").replace(/^\/+/, "");
+    if (!normalizedBaseDir) {
+      return {
+        filePath: normalizedRelativePath,
+        metaPath: "",
+      };
+    }
+    const separator = /^(?:[a-zA-Z]:[\\/]|\\\\)/.test(normalizedBaseDir) ? "\\" : "/";
+    const normalizedTail = separator === "\\"
+      ? normalizedRelativePath.replace(/\//g, "\\")
+      : normalizedRelativePath.replace(/\\/g, "/");
+    return {
+      filePath: `${normalizedBaseDir}${separator}${normalizedTail}`,
+      metaPath: "",
+    };
+  }
+
   private listLocalFallbackPathCandidates(storageKey: string) {
     return this.listLocalPathCandidates(storageKey, false);
   }
@@ -228,8 +247,9 @@ export class OssStorageService {
     const normalizedKey = storageKey.replace(/\\/g, "/").replace(/^\/+/, "");
     const materialLibraryMatch = this.matchMaterialLibraryStorageKey(normalizedKey, displayOnly);
     const relativePath = materialLibraryMatch ? materialLibraryMatch.relativePath : normalizedKey;
+    const candidateResolver = displayOnly ? this.resolveDisplayPaths.bind(this) : this.resolveLocalFallbackPaths.bind(this);
     const candidates = [
-      this.resolveLocalFallbackPaths(
+      candidateResolver(
         materialLibraryMatch ? materialLibraryMatch.baseDir : (displayOnly ? this.getLocalDisplayRoot() : this.getLocalFallbackRoot()),
         relativePath,
         storageKey,
@@ -239,7 +259,7 @@ export class OssStorageService {
       const legacyRoot = displayOnly ? this.getLegacyLocalDisplayRoot() : this.getLegacyLocalFallbackRoot();
       const currentRoot = displayOnly ? this.getLocalDisplayRoot() : this.getLocalFallbackRoot();
       if (legacyRoot.toLowerCase() !== currentRoot.toLowerCase()) {
-        candidates.push(this.resolveLocalFallbackPaths(legacyRoot, relativePath, storageKey));
+        candidates.push(candidateResolver(legacyRoot, relativePath, storageKey));
       }
     }
     return candidates.filter((item, index, array) => array.findIndex((candidate) => candidate.filePath === item.filePath) === index);

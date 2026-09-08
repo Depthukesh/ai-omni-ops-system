@@ -2,6 +2,10 @@ FROM node:22-bookworm-slim
 
 WORKDIR /app
 
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends python3 python3-pip \
+  && rm -rf /var/lib/apt/lists/*
+
 RUN npm install -g pnpm@10.0.0
 
 COPY package.json pnpm-workspace.yaml ./
@@ -14,6 +18,8 @@ COPY packages/ui/package.json packages/ui/package.json
 RUN pnpm install --no-frozen-lockfile
 
 COPY . .
+
+RUN python3 -m pip install --no-cache-dir --break-system-packages -r docker/local-asr-requirements.txt
 
 RUN npm run prisma:generate && npm run build:server
 

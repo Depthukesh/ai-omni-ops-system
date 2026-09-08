@@ -179,6 +179,10 @@
 - 已放弃的多-agent 方案文档已经移除，不再作为当前开发模式的一部分
 
 ## 最近应优先关注的文档
+- `docs/changes/2026-09-08-douyin-transcript-local-asr-pipeline.md`
+  - 把抖音采集视频文案提取从 GLM 直接读视频切到本地 ASR 链路：Paraformer 主识别、Whisper 兜底，并同步补齐 Docker Python 运行时与 OpenClaw / Skill 说明
+- `docs/changes/2026-09-08-douyin-video-preview-and-transcript-hover-fix.md`
+  - 修复品牌增长抖音采集列表中的视频文案提取地址选择、视频预览列长路径撑高，以及视频文案悬浮预览体验
 - `docs/changes/2026-09-08-openclaw-geo-keyword-routing-and-generatedat-fix.md`
   - 修复 OpenClaw 在 GEO 关键词挖掘场景下误走策略优化工具时的 `generatedAt` 写库类型错误，并收紧 MCP schema，明确 GEO 内容应改用 `create_openclaw_geo_content`
 - `docs/changes/2026-09-07-openclaw-codex-mcp-installation.md`

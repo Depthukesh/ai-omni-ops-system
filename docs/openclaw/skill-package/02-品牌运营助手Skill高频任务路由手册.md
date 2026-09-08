@@ -253,9 +253,9 @@
   - `transcriptStatus`
   - `transcriptStatusUpdatedAt`
   - `transcriptLastError`
-- 如果错误里出现余额不足、欠费、quota、credit、balance 等信息，应直接告诉用户：
-  - 这是上游 GLM Key 额度问题
-  - 充值后可再次调用 `extract_douyin_work_transcript`
+- 如果错误里出现 `Paraformer runtime missing`、`Whisper runtime missing`、`未启用任何本地视频文案提取引擎` 等信息，应直接告诉用户：
+  - 当前问题是本地 ASR 运行时未安装或未配置，不是页面本身坏了
+  - 需要先准备本地 ASR 环境后，再次调用 `extract_douyin_work_transcript`
 - 如果状态长期停在 `PENDING`，当前后端会自动把超时任务收口成可重试失败态；Skill 不需要继续把它描述成“还在正常处理中”
 
 ### 3.9 统一素材库

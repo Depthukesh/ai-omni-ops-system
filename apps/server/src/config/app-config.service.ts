@@ -14,6 +14,22 @@ type LocalLauncherSettingsRecord = {
 
 @Injectable()
 export class AppConfigService {
+  private isWindowsAbsolutePathLiteral(value: string) {
+    const normalized = String(value || "").trim();
+    return /^[a-zA-Z]:[\\/]/.test(normalized) || /^\\\\[^\\]/.test(normalized);
+  }
+
+  private resolveConfiguredPath(value: string, options?: { preserveWindowsAbsoluteLiteral?: boolean }) {
+    const normalized = String(value || "").trim();
+    if (!normalized) {
+      return "";
+    }
+    if (options?.preserveWindowsAbsoluteLiteral && this.isWindowsAbsolutePathLiteral(normalized)) {
+      return normalized.replace(/\//g, "\\");
+    }
+    return resolve(normalized);
+  }
+
   getRuntimeMode(): AppRuntimeMode {
     const value = this.readFirst("APP_RUNTIME_MODE").toLowerCase();
     return value === "local-single-user" ? "local-single-user" : "standard";
@@ -57,7 +73,7 @@ export class AppConfigService {
   getLocalAppRoot() {
     const explicit = this.readFirst("LOCAL_APP_DATA_ROOT", "AI_OMNI_LOCAL_ROOT");
     if (explicit) {
-      return resolve(explicit);
+      return this.resolveConfiguredPath(explicit);
     }
 
     return this.getDefaultLocalAppRoot();
@@ -97,17 +113,17 @@ export class AppConfigService {
   getConfiguredMaterialLibraryBaseRoot() {
     const explicit = this.readFirst("MATERIAL_LIBRARY_BASE_ROOT", "LOCAL_MATERIAL_LIBRARY_BASE_ROOT");
     if (explicit) {
-      return resolve(explicit);
+      return this.resolveConfiguredPath(explicit);
     }
     const settings = this.readLocalLauncherSettings();
     const configured = String(settings.materialLibraryBaseRoot || "").trim();
-    return configured ? resolve(configured) : this.getDefaultMaterialLibraryBaseRoot();
+    return configured ? this.resolveConfiguredPath(configured) : this.getDefaultMaterialLibraryBaseRoot();
   }
 
   getConfiguredMaterialLibraryDisplayRoot() {
     const explicit = this.readFirst("MATERIAL_LIBRARY_DISPLAY_ROOT", "LOCAL_MATERIAL_LIBRARY_DISPLAY_ROOT");
     if (explicit) {
-      return resolve(explicit);
+      return this.resolveConfiguredPath(explicit, { preserveWindowsAbsoluteLiteral: true });
     }
     return this.getConfiguredMaterialLibraryBaseRoot();
   }
@@ -119,7 +135,7 @@ export class AppConfigService {
   getConfiguredLocalManagedStorageRoot() {
     const explicit = this.readFirst("MANAGED_STORAGE_ROOT", "LOCAL_MANAGED_STORAGE_ROOT");
     if (explicit) {
-      return resolve(explicit);
+      return this.resolveConfiguredPath(explicit);
     }
     return join(this.getConfiguredMaterialLibraryBaseRoot(), this.getLocalManagedStorageFolderName());
   }
@@ -127,7 +143,7 @@ export class AppConfigService {
   getConfiguredLocalManagedStorageDisplayRoot() {
     const explicit = this.readFirst("MANAGED_STORAGE_DISPLAY_ROOT", "LOCAL_MANAGED_STORAGE_DISPLAY_ROOT");
     if (explicit) {
-      return resolve(explicit);
+      return this.resolveConfiguredPath(explicit, { preserveWindowsAbsoluteLiteral: true });
     }
     return join(this.getConfiguredMaterialLibraryDisplayRoot(), this.getLocalManagedStorageFolderName());
   }
@@ -258,6 +274,55 @@ export class AppConfigService {
     return this.readFirst("OPENCLAW_INSTALL_TOKEN_SECRET", "AUTH_TOKEN_SECRET") || "ai-omni-ops-system-dev-secret";
   }
 
+  getVideoTranscriptAsrPrimary() {
+    return this.normalizeAsrEngine(this.readFirst("VIDEO_TRANSCRIPT_ASR_PRIMARY")) || "paraformer";
+  }
+
+  getVideoTranscriptAsrFallback() {
+    const configured = this.readFirst("VIDEO_TRANSCRIPT_ASR_FALLBACK");
+    if (!configured) {
+      return "whisper";
+    }
+    return this.normalizeAsrEngine(configured);
+  }
+
+  getLocalAsrPythonBin() {
+    const explicit = this.readFirst("LOCAL_ASR_PYTHON_BIN", "ASR_PYTHON_BIN");
+    if (explicit) {
+      return explicit;
+    }
+    return process.platform === "win32" ? "python" : "python3";
+  }
+
+  getLocalAsrScriptPath() {
+    const explicit = this.readFirst("LOCAL_ASR_SCRIPT_PATH", "VIDEO_TRANSCRIPT_ASR_SCRIPT_PATH");
+    if (explicit) {
+      return this.resolveConfiguredPath(explicit);
+    }
+    return resolve(process.cwd(), "scripts", "local-asr-transcribe.py");
+  }
+
+  getParaformerModelName() {
+    return this.readFirst("PARAFORMER_MODEL_NAME", "LOCAL_ASR_PARAFORMER_MODEL")
+      || "iic/speech_paraformer-large-vad-punc_asr_nat-zh-cn-16k-common-vocab8404-pytorch";
+  }
+
+  getWhisperModelName() {
+    return this.readFirst("WHISPER_MODEL_NAME", "LOCAL_ASR_WHISPER_MODEL") || "large-v3";
+  }
+
+  getWhisperDevice() {
+    return this.readFirst("WHISPER_DEVICE", "LOCAL_ASR_WHISPER_DEVICE") || "cpu";
+  }
+
+  getWhisperComputeType() {
+    return this.readFirst("WHISPER_COMPUTE_TYPE", "LOCAL_ASR_WHISPER_COMPUTE_TYPE") || "int8";
+  }
+
+  getDefaultTranscriptLanguage() {
+    return this.readFirst("VIDEO_TRANSCRIPT_LANGUAGE", "LOCAL_ASR_LANGUAGE") || "zh";
+  }
+
   getStandardRuntimeUpdateManifestUrl() {
     return this.readFirst("STANDARD_RUNTIME_UPDATE_MANIFEST_URL", "DOCKER_STANDARD_UPDATE_MANIFEST_URL");
   }
@@ -366,6 +431,17 @@ export class AppConfigService {
           return item.address;
         }
       }
+    }
+    return "";
+  }
+
+  private normalizeAsrEngine(value: string) {
+    const normalized = String(value || "").trim().toLowerCase();
+    if (normalized === "paraformer" || normalized === "whisper") {
+      return normalized;
+    }
+    if (normalized === "none" || normalized === "off" || normalized === "disabled") {
+      return "";
     }
     return "";
   }

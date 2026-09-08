@@ -2392,22 +2392,13 @@ function DouyinVideoPreviewCell(props: {
   if (item.videoUrl) {
     return (
       <div className="stack gap-8">
-        <a
-          href={item.videoUrl}
-          className="note-data-link"
-          onClick={(event) => {
-            event.preventDefault();
-            void props.onPreviewMedia({
-              url: item.videoUrl!,
-              title: item.title || item.workId || "抖音视频预览",
-              type: "VIDEO",
-            });
-          }}
-        >
-          打开预览
-        </a>
+        <ProtectedVideoLink
+          sourceUrl={item.videoUrl}
+          title={item.title || item.workId || "抖音视频预览"}
+          onPreviewMedia={props.onPreviewMedia}
+        />
         <span className="panel-subtext" title={item.videoStoragePath || item.videoSourceUrl || ""}>
-          {item.videoStoragePath ? `存储：${item.videoStoragePath}` : "当前已生成站内受控预览"}
+          {item.videoStoragePath ? "站内存储已就绪" : "当前已生成站内受控预览"}
         </span>
       </div>
     );
@@ -2490,6 +2481,33 @@ function CopyToastPortal() {
   );
 }
 
+function TranscriptHoverPreview(props: {
+  visible: boolean;
+  x: number;
+  y: number;
+  text: string;
+}) {
+  if (!props.visible || !props.text || typeof document === "undefined") {
+    return null;
+  }
+  const maxWidth = 420;
+  const offset = 18;
+  const viewportWidth = typeof window === "undefined" ? 1280 : window.innerWidth;
+  const viewportHeight = typeof window === "undefined" ? 720 : window.innerHeight;
+  const left = Math.min(props.x + offset, Math.max(16, viewportWidth - maxWidth - 16));
+  const top = Math.min(props.y + offset, Math.max(16, viewportHeight - 240));
+  return (
+    <div
+      className="table-text-hover-card"
+      role="tooltip"
+      aria-label="视频文案完整内容"
+      style={{ left, top }}
+    >
+      {props.text}
+    </div>
+  );
+}
+
 function DouyinTranscriptCell(props: {
   item: DouyinCollectedWorkRecord;
   extractingAssetId?: string;
@@ -2501,6 +2519,7 @@ function DouyinTranscriptCell(props: {
   const isExtracting = props.extractingAssetId === item.id || (item.transcriptStatus === "PENDING" && !pendingExpired);
   const canExtract = Boolean(item.videoUrl || item.videoSourceUrl || item.workUrl) || item.videoCacheStatus === "READY";
   const [copied, setCopied] = useState(false);
+  const [hoverPreview, setHoverPreview] = useState({ visible: false, x: 0, y: 0 });
 
   if (!canExtract && !hasTranscript) {
     return <span>-</span>;
@@ -2525,10 +2544,24 @@ function DouyinTranscriptCell(props: {
           className="table-text-cell"
           data-rows={1}
           onClick={() => void handleCopy()}
+          onMouseEnter={(event) => setHoverPreview({ visible: true, x: event.clientX, y: event.clientY })}
+          onMouseMove={(event) => {
+            if (!hoverPreview.visible || hoverPreview.x !== event.clientX || hoverPreview.y !== event.clientY) {
+              setHoverPreview({ visible: true, x: event.clientX, y: event.clientY });
+            }
+          }}
+          onMouseLeave={() => setHoverPreview({ visible: false, x: 0, y: 0 })}
+          onBlur={() => setHoverPreview({ visible: false, x: 0, y: 0 })}
           title={copied ? "已复制该行视频文案" : "点击复制该行完整视频文案"}
         >
           {transcriptText}
         </button>
+        <TranscriptHoverPreview
+          visible={hoverPreview.visible}
+          x={hoverPreview.x}
+          y={hoverPreview.y}
+          text={transcriptText}
+        />
       </div>
     );
   }

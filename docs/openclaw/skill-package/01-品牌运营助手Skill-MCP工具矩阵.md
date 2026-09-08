@@ -106,9 +106,9 @@
 - `extract_douyin_work_transcript`
   - 为指定抖音采集作品重新提取视频文案
   - 适用于：
-    - 上次因 API Key 余额不足而失败
+    - 上次因本地 ASR 运行时未就绪而失败
     - 上次长时间停在“提取中”，现在想重新提取
-    - 已补充额度，想直接重试
+    - 已补齐 Paraformer / Whisper 运行时，想直接重试
   - 调用前优先先读 `get_douyin_collection_workspace` 确认：
     - `assetId`
     - 当前视频是否已有可用预览或原作品地址

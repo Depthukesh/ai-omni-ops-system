@@ -12,6 +12,7 @@ import { PrismaService } from "../../prisma/prisma.service";
 import { OssStorageService } from "../../storage/oss-storage.service";
 import { SchedulerService } from "../scheduler/scheduler.service";
 import { GlmOpenService } from "../third-party-platforms/glm-open.service";
+import { LocalAsrService } from "../third-party-platforms/local-asr.service";
 import { ThirdPartyPlatformsService } from "../third-party-platforms/third-party-platforms.service";
 
 const execFileAsync = promisify(execFile);
@@ -755,6 +756,8 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     private readonly thirdPartyPlatformsService: ThirdPartyPlatformsService,
     @Inject(GlmOpenService)
     private readonly glmOpenService: GlmOpenService,
+    @Inject(LocalAsrService)
+    private readonly localAsrService: LocalAsrService,
   ) {}
 
   private isProductionStartupThrottleEnabled(flagName: string) {
@@ -1593,8 +1596,10 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
         workspace: await this.getDouyinWorkspace(brandId),
       };
     }
-    const transcriptSourceUrl = this.resolveDouyinTranscriptVideoUrl(asset, meta);
-    if (!transcriptSourceUrl) {
+    const transcriptSourceUrl = this.readMetaString(meta, "videoSourceUrl") || this.readMetaString(meta, "videoUrl");
+    const transcriptStorageKey = this.readMetaString(meta, "videoStorageKey");
+    const canUseStoredVideo = this.readMetaString(meta, "videoCacheStatus") === "READY" && Boolean(transcriptStorageKey);
+    if (!transcriptSourceUrl && !canUseStoredVideo) {
       throw new BadRequestException("当前作品缺少可识别的视频地址，请先重新采集或等待视频缓存完成");
     }
     await this.updateCollectorAssetMeta(brandId, assetId, {
@@ -1603,12 +1608,14 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       transcriptStatusUpdatedAt: new Date().toISOString(),
     });
     try {
-      const result = await this.glmOpenService.extractVideoTranscript(brandId, transcriptSourceUrl, {
-        userId: `douyin-${brandId}`,
-      });
+      const result = transcriptSourceUrl
+        ? await this.localAsrService.transcribeVideoFromUrl(transcriptSourceUrl, {
+            requestId: `douyin-${assetId}`,
+          })
+        : await this.transcribeStoredDouyinVideo(assetId, transcriptStorageKey!);
       await this.updateCollectorAssetMeta(brandId, assetId, {
         transcript: result.text,
-        transcriptSource: result.model || "glm-5v-turbo",
+        transcriptSource: `local-asr:${result.engine}:${result.model}`,
         transcriptStatus: "SUCCESS",
         transcriptLastError: "",
         transcriptStatusUpdatedAt: new Date().toISOString(),
@@ -1630,10 +1637,22 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
+  private async transcribeStoredDouyinVideo(assetId: string, storageKey: string) {
+    const storedObject = await this.ossStorageService.getObject(storageKey);
+    if (!storedObject?.buffer?.length) {
+      throw new ServiceUnavailableException("站内缓存视频不存在或已失效，暂时无法提取文案");
+    }
+    return this.localAsrService.transcribeVideoBuffer(storedObject.buffer, {
+      requestId: `douyin-${assetId}`,
+      fileName: `${assetId}.mp4`,
+      mimeType: storedObject.contentType || "video/mp4",
+    });
+  }
+
   private resolveDouyinTranscriptVideoUrl(asset: AssetRecord, meta: Record<string, unknown>) {
-    const directVideoUrl = this.resolveDouyinVideoPlaybackUrl(asset, meta)
-      || this.readMetaString(meta, "videoSourceUrl")
-      || this.readMetaString(meta, "videoUrl");
+    const directVideoUrl = this.readMetaString(meta, "videoSourceUrl")
+      || this.readMetaString(meta, "videoUrl")
+      || this.resolveDouyinVideoPlaybackUrl(asset, meta);
     if (directVideoUrl) {
       return directVideoUrl;
     }

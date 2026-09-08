@@ -3179,7 +3179,7 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
   },
   {
     name: "extract_douyin_work_transcript",
-    description: "为抖音采集作品提取视频文案；如果上次因为额度不足或任务卡住失败，补充 API Key 额度后可再次调用。",
+    description: "为抖音采集作品提取视频文案；当前默认走本地 ASR 链路：Paraformer 主识别，Whisper 兜底。",
     inputSchema: {
       type: "object",
       properties: {
