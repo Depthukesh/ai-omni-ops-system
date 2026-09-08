@@ -217,6 +217,7 @@ OpenClaw 通过 MCP 获取：
 - 任务摘要
 - 历史失败原因
 - GEO 板块下的 GEO 可见度诊断，以及关键词挖掘、网站诊断、知识库搭建、GEO优化方案、自媒体内容、第三方媒体、品牌网站等内容的列表、保存、删除与存储地址回显能力
+  - 其中关键词挖掘、网站诊断、知识库搭建、GEO优化方案统一通过 `create_openclaw_geo_content` 保存，不走 `create_openclaw_strategy_optimization`
 - 机会洞察工作区和 step1/2/3 的执行能力
 - 团队成员、邀请链接、邀请通知和权限模板
 - 内容历史

@@ -2331,11 +2331,11 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
   },
   {
     name: "get_openclaw_strategy_optimizations",
-    description: "查看当前品牌指定板块下的策略优化记录列表。",
+    description: "查看当前品牌在 brand_growth、xiaohongshu、douyin、wechat 板块下的策略优化记录列表；不用于 GEO 关键词挖掘等工作流内容。",
     inputSchema: {
       type: "object",
       properties: {
-        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat", "geo"], description: "可选：指定板块作用域，默认 brand_growth。" },
+        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat"], description: "可选：指定板块作用域，默认 brand_growth。" },
         limit: { type: "integer", minimum: 1, maximum: 100 },
       },
       additionalProperties: false,
@@ -2343,11 +2343,11 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
   },
   {
     name: "create_openclaw_strategy_optimization",
-    description: "为当前品牌指定板块创建一条策略优化记录。",
+    description: "为当前品牌在 brand_growth、xiaohongshu、douyin、wechat 板块创建一条策略优化记录；GEO 关键词挖掘等内容请改用 create_openclaw_geo_content。",
     inputSchema: {
       type: "object",
       properties: {
-        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat", "geo"], description: "可选：写入哪个板块，默认 brand_growth。" },
+        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat"], description: "可选：写入哪个板块，默认 brand_growth。" },
         generatedAt: { type: "string", description: "生成时间，支持 ISO 日期时间字符串。" },
         title: { type: "string", description: "记录标题。" },
         content: { type: "string", description: "记录正文内容。" },
@@ -2358,11 +2358,11 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
   },
   {
     name: "update_openclaw_strategy_optimization",
-    description: "更新指定板块下的一条策略优化记录。",
+    description: "更新当前品牌在 brand_growth、xiaohongshu、douyin、wechat 板块下的一条策略优化记录。",
     inputSchema: {
       type: "object",
       properties: {
-        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat", "geo"], description: "可选：记录所在板块，默认 brand_growth。" },
+        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat"], description: "可选：记录所在板块，默认 brand_growth。" },
         recordId: { type: "string", description: "策略优化记录 ID。" },
         title: { type: "string", description: "记录标题。" },
         content: { type: "string", description: "记录正文内容。" },
@@ -2373,11 +2373,11 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
   },
   {
     name: "delete_openclaw_strategy_optimization",
-    description: "删除指定板块下的一条策略优化记录。",
+    description: "删除当前品牌在 brand_growth、xiaohongshu、douyin、wechat 板块下的一条策略优化记录。",
     inputSchema: {
       type: "object",
       properties: {
-        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat", "geo"], description: "可选：删除所在板块，默认 brand_growth。" },
+        workspaceScope: { type: "string", enum: ["brand_growth", "xiaohongshu", "douyin", "wechat"], description: "可选：删除所在板块，默认 brand_growth。" },
         recordId: { type: "string", description: "策略优化记录 ID。" },
       },
       required: ["recordId"],

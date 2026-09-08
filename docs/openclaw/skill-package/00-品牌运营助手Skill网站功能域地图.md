@@ -370,6 +370,11 @@ OpenClaw 安装中心补充说明：
 - `get_openclaw_third_party_media_delivery_resources`
 - `sync_openclaw_third_party_media_delivery_resources`
 
+处理原则补充：
+
+- GEO 关键词挖掘、网站诊断、知识库搭建、GEO优化方案统一走 `create_openclaw_geo_content`
+- `create_openclaw_strategy_optimization` 不用于 GEO 板块
+
 ### 3.8 全网获客 `/all-network-growth`
 
 当前承载：

@@ -463,6 +463,7 @@ RunningHub 关键规则：
   - `create_openclaw_strategy_optimization`
   - `update_openclaw_strategy_optimization`
   - `delete_openclaw_strategy_optimization`
+  - 仅用于 `brand_growth / xiaohongshu / douyin / wechat`
 - 每日计划：
   - `get_openclaw_daily_plans`
   - `create_openclaw_daily_plan`
@@ -484,6 +485,7 @@ RunningHub 关键规则：
 
 - OpenClaw 的创作素材、视频作品、GEO获客内容、全网获客评论名单都是归档板块，不是生成引擎本身
 - OpenClaw 的营销策划方案当前是 HTML 归档板块；优先先读列表，再决定是否新建或删除
+- 策略优化记录不用于 GEO 关键词挖掘、网站诊断、知识库搭建、GEO优化方案
 - 音乐任务创建成功不代表最终完成，必须继续轮询结果
 - 当用户要求“生成后直接沉淀到素材库”时，优先把归档动作一并完成
 - 当用户明确要求“先看多元探索平台当前是否可供 OpenClaw 直用，再决定是否生成并沉淀素材”时，先走第三方接口配置域工具，不要直接跳过可用性检查
@@ -556,6 +558,7 @@ RunningHub 关键规则：
 
 处理原则补充：
 
+- GEO 关键词挖掘、网站诊断、知识库搭建、GEO优化方案统一使用 `create_openclaw_geo_content`，不要误用 `create_openclaw_strategy_optimization`
 - 用户问“第三方媒体投放为什么每次只看到一小部分”时，优先把它理解为缓存库读取与继续同步问题，而不是直接重拉第一页
 - 读列表时优先：
   - `get_openclaw_third_party_media_delivery_resources`

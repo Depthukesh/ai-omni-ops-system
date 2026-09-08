@@ -179,6 +179,8 @@
 - 已放弃的多-agent 方案文档已经移除，不再作为当前开发模式的一部分
 
 ## 最近应优先关注的文档
+- `docs/changes/2026-09-08-openclaw-geo-keyword-routing-and-generatedat-fix.md`
+  - 修复 OpenClaw 在 GEO 关键词挖掘场景下误走策略优化工具时的 `generatedAt` 写库类型错误，并收紧 MCP schema，明确 GEO 内容应改用 `create_openclaw_geo_content`
 - `docs/changes/2026-09-07-openclaw-codex-mcp-installation.md`
   - 给个人中心 OpenClaw 安装中心补入 Codex 的 `config.toml` MCP 配置片段，并同步更新安装文档、Skill 包说明和站点地图
 - `docs/changes/2026-09-07-openchatcut-removal.md`

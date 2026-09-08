@@ -38,6 +38,13 @@ export type OpenClawStrategyOptimizationWorkspace = {
   total: number;
 };
 
+const OPENCLAW_STRATEGY_OPTIMIZATION_WORKSPACE_SCOPES: OpenClawWorkspaceScope[] = [
+  "brand_growth",
+  "xiaohongshu",
+  "douyin",
+  "wechat",
+];
+
 @Injectable()
 export class OpenClawStrategyOptimizationService {
   private bootstrapPromise: Promise<void> | null = null;
@@ -47,7 +54,7 @@ export class OpenClawStrategyOptimizationService {
   constructor(private readonly prismaService: PrismaService) {}
 
   async listWorkspace(brandId: string, workspaceScope?: string, limit?: number): Promise<OpenClawStrategyOptimizationWorkspace> {
-    const items = await this.listRecords(brandId, workspaceScope, limit);
+    const items = await this.listRecords(brandId, this.normalizeWorkspaceScope(workspaceScope), limit);
     return {
       items,
       total: items.length,
@@ -63,9 +70,10 @@ export class OpenClawStrategyOptimizationService {
     content?: string;
   }): Promise<OpenClawStrategyOptimizationRecord> {
     const brandId = this.requireText(payload.brandId, "缺少品牌 ID");
-    const workspaceScope = normalizeOpenClawWorkspaceScope(payload.workspaceScope);
+    const workspaceScope = this.normalizeWorkspaceScope(payload.workspaceScope);
     const createdByUserId = this.requireText(payload.createdByUserId, "缺少创建人 ID");
     const generatedAt = this.normalizeGeneratedAt(payload.generatedAt);
+    const generatedAtDate = new Date(generatedAt);
     const title = this.requireText(payload.title, "请填写标题", 120);
     const content = this.requireText(payload.content, "请填写内容", 20_000);
     const id = `openclaw_strategy_optimization_${randomUUID()}`;
@@ -89,7 +97,7 @@ export class OpenClawStrategyOptimizationService {
           ${brandId},
           ${workspaceScope},
           ${createdByUserId},
-          ${generatedAt},
+          ${generatedAtDate},
           ${title},
           ${content},
           CURRENT_TIMESTAMP,
@@ -121,7 +129,7 @@ export class OpenClawStrategyOptimizationService {
 
   async deleteRecord(brandId: string, workspaceScope: string | undefined, recordId: string): Promise<OpenClawStrategyOptimizationRecord> {
     const normalizedBrandId = this.requireText(brandId, "缺少品牌 ID");
-    const normalizedWorkspaceScope = normalizeOpenClawWorkspaceScope(workspaceScope);
+    const normalizedWorkspaceScope = this.normalizeWorkspaceScope(workspaceScope);
     const normalizedRecordId = this.requireText(recordId, "缺少策略优化记录 ID");
     const existing = await this.findRecordById(normalizedBrandId, normalizedWorkspaceScope, normalizedRecordId);
     if (!existing) {
@@ -155,7 +163,7 @@ export class OpenClawStrategyOptimizationService {
     content?: string;
   }): Promise<OpenClawStrategyOptimizationRecord> {
     const brandId = this.requireText(payload.brandId, "缺少品牌 ID");
-    const workspaceScope = normalizeOpenClawWorkspaceScope(payload.workspaceScope);
+    const workspaceScope = this.normalizeWorkspaceScope(payload.workspaceScope);
     const recordId = this.requireText(payload.recordId, "缺少策略优化记录 ID");
     const existing = await this.findRecordById(brandId, workspaceScope, recordId);
     if (!existing) {
@@ -205,7 +213,7 @@ export class OpenClawStrategyOptimizationService {
     limit?: number,
   ): Promise<OpenClawStrategyOptimizationRecord[]> {
     const normalizedBrandId = this.requireText(brandId, "缺少品牌 ID");
-    const normalizedWorkspaceScope = normalizeOpenClawWorkspaceScope(workspaceScope);
+    const normalizedWorkspaceScope = this.normalizeWorkspaceScope(workspaceScope);
     const resolvedLimit = this.normalizeLimit(limit);
 
     if (await this.prismaService.canUseDatabase()) {
@@ -246,7 +254,7 @@ export class OpenClawStrategyOptimizationService {
     workspaceScope: string | undefined,
     recordId: string,
   ): Promise<OpenClawStrategyOptimizationRecord | undefined> {
-    const normalizedWorkspaceScope = normalizeOpenClawWorkspaceScope(workspaceScope);
+    const normalizedWorkspaceScope = this.normalizeWorkspaceScope(workspaceScope);
     if (await this.prismaService.canUseDatabase()) {
       await this.ensureTableReady();
       const rows = await this.prismaService.$queryRaw<OpenClawStrategyOptimizationRow[]>`
@@ -314,6 +322,16 @@ export class OpenClawStrategyOptimizationService {
       throw new BadRequestException("生成时间格式不正确");
     }
     return parsed.toISOString();
+  }
+
+  private normalizeWorkspaceScope(workspaceScope?: string): OpenClawWorkspaceScope {
+    const normalized = normalizeOpenClawWorkspaceScope(workspaceScope);
+    if (OPENCLAW_STRATEGY_OPTIMIZATION_WORKSPACE_SCOPES.includes(normalized)) {
+      return normalized;
+    }
+    throw new BadRequestException(
+      "策略优化记录只支持 brand_growth、xiaohongshu、douyin、wechat 板块。GEO 关键词挖掘 / 网站诊断 / 知识库搭建 / GEO优化方案 请改用 create_openclaw_geo_content。",
+    );
   }
 
   private normalizeLimit(limit?: number) {

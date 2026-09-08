@@ -526,6 +526,11 @@ RunningHub 上传节点补充规则：
 - `update_openclaw_strategy_optimization`
 - `delete_openclaw_strategy_optimization`
 
+补充说明：
+
+- 仅用于 `brand_growth / xiaohongshu / douyin / wechat`
+- 不用于 GEO 关键词挖掘、网站诊断、知识库搭建、GEO优化方案
+
 ### 14.6 音乐生成
 
 - `create_volcengine_music_task`
@@ -572,6 +577,10 @@ RunningHub 上传节点补充规则：
 - `delete_openclaw_geo_content`
 - `get_openclaw_third_party_media_delivery_resources`
 - `sync_openclaw_third_party_media_delivery_resources`
+
+补充说明：
+
+- GEO 关键词挖掘、网站诊断、知识库搭建、GEO优化方案统一通过 `create_openclaw_geo_content` 保存
 
 第三方媒体投放缓存补充：
 

@@ -1496,6 +1496,8 @@ OpenClaw 专区：
 
 - 每周复盘：\`get_openclaw_lobster_diaries\`、\`create_openclaw_lobster_diary\`、\`update_openclaw_lobster_diary\`
 - 策略优化记录：\`get_openclaw_strategy_optimizations\`、\`create_openclaw_strategy_optimization\`、\`update_openclaw_strategy_optimization\`
+  - 仅用于 \`brand_growth / xiaohongshu / douyin / wechat\`
+  - 不用于 GEO 关键词挖掘、网站诊断、知识库搭建、GEO优化方案
 - 每日计划：\`get_openclaw_daily_plans\`、\`create_openclaw_daily_plan\`
 - 音乐：\`create_volcengine_music_task\`、\`get_volcengine_music_task\`
 - 创作素材：\`get_openclaw_creative_materials\`、\`create_openclaw_creative_material\`
@@ -1518,6 +1520,7 @@ GEO获客：
 - \`get_openclaw_geo_contents\`
 - \`create_openclaw_geo_content\`
 - \`delete_openclaw_geo_content\`
+  - GEO 关键词挖掘、网站诊断、知识库搭建、GEO优化方案统一走这里保存与读取
 
 全网获客：
 
