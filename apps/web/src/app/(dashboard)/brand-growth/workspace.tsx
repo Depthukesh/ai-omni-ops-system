@@ -49,6 +49,7 @@ import {
 } from "./task-status-helpers";
 import {
   addDouyinBenchmarkWorkToMaterialLibrary,
+  addDouyinCreatorsToResultPool,
   addBenchmarkNoteToMaterialLibrary,
   addWechatMpBenchmarkArticleToMaterialLibrary,
   addWechatSearchItemToMaterialLibrary,
@@ -440,6 +441,16 @@ function createEmptyDouyinCollectionWorkspace(): DouyinCollectionWorkspace {
     creatorDeepFetchTasks: [],
     contentTags: [],
     cityOptions: [],
+    creatorSearchFieldOptions: {
+      searchTypes: [],
+      timeRangeDays: [],
+      sortFields: [],
+      sortTypes: [],
+      firstIndustries: [],
+      marketingTargets: [],
+      taskCategories: [],
+      tags: [],
+    },
   };
 }
 
@@ -768,6 +779,7 @@ type DouyinSyncForm = {
   creatorSearch: {
     keyword: string;
     seachType: string;
+    timeRangeDays: string;
     sortField: string;
     sortType: string;
     firstIndustryId: string;
@@ -844,8 +856,9 @@ function createEmptyDouyinSyncForm(): DouyinSyncForm {
     creatorSearch: {
       keyword: "",
       seachType: "2",
-      sortField: "",
-      sortType: "desc",
+      timeRangeDays: "180",
+      sortField: "score",
+      sortType: "2",
       firstIndustryId: "",
       marketingTarget: "",
       taskCategory: "",
@@ -3877,6 +3890,10 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
       const payload: DouyinCreatorSearchPayload = {
         keyword,
         seachType: douyinSyncForm.creatorSearch.seachType || undefined,
+        timeRangeDays:
+          douyinSyncForm.creatorSearch.seachType === "3"
+            ? (douyinSyncForm.creatorSearch.timeRangeDays || undefined)
+            : undefined,
         sortField: douyinSyncForm.creatorSearch.sortField || undefined,
         sortType: douyinSyncForm.creatorSearch.sortType || undefined,
         firstIndustryId: douyinSyncForm.creatorSearch.firstIndustryId.trim() || undefined,
@@ -3931,6 +3948,122 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     } catch (error) {
       const message = error instanceof Error ? error.message : "达人深抓失败";
       setErrorMessage(`达人深度抓取失败：${message}`);
+    } finally {
+      setIsSyncingDouyinWorkspace(false);
+    }
+  }
+
+  function resolveDouyinCreatorDeepFetchRequest(item: DouyinCreatorSearchRecord) {
+    if (item.oAuthorId) {
+      return { identifier: item.oAuthorId, identityType: "O_AUTHOR_ID" as DouyinCreatorIdentityType };
+    }
+    if (item.secUserId) {
+      return { identifier: item.secUserId, identityType: "SEC_USER_ID" as DouyinCreatorIdentityType };
+    }
+    if (item.uniqueId) {
+      return { identifier: item.uniqueId, identityType: "UNIQUE_ID" as DouyinCreatorIdentityType };
+    }
+    if (item.douyinUid) {
+      return { identifier: item.douyinUid, identityType: "UID" as DouyinCreatorIdentityType };
+    }
+    if (item.creatorId) {
+      return { identifier: item.creatorId, identityType: "AUTO" as DouyinCreatorIdentityType };
+    }
+    return null;
+  }
+
+  async function handleCreateDouyinCreatorDeepFetchTasksFromSearchResults(items: DouyinCreatorSearchRecord[]) {
+    if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.collection.douyinCollection"]?.edit) {
+      setErrorMessage("当前账号没有同步收集数据板块的编辑权限。");
+      return;
+    }
+
+    const groupedIdentifiers = new Map<DouyinCreatorIdentityType, Set<string>>();
+    let skippedCount = 0;
+    items.forEach((item) => {
+      const resolved = resolveDouyinCreatorDeepFetchRequest(item);
+      if (!resolved?.identifier) {
+        skippedCount += 1;
+        return;
+      }
+      if (!groupedIdentifiers.has(resolved.identityType)) {
+        groupedIdentifiers.set(resolved.identityType, new Set<string>());
+      }
+      groupedIdentifiers.get(resolved.identityType)?.add(resolved.identifier);
+    });
+
+    if (!groupedIdentifiers.size) {
+      setErrorMessage("当前搜索结果缺少可用于深抓的达人标识，暂时无法创建深抓任务。");
+      return;
+    }
+
+    setIsSyncingDouyinWorkspace(true);
+    clearMessages();
+
+    try {
+      const brandId = activeBrandId || archive.brand.id;
+      const linkType = parseOptionalNumericValue(douyinSyncForm.creatorDeepFetch.linkType);
+      const homepageVideoPageLimit = parseOptionalNumericValue(douyinSyncForm.creatorDeepFetch.homepageVideoPageLimit) || 1;
+      let createdCount = 0;
+      let latestWorkspace = douyinCollectionWorkspace;
+
+      for (const [identityType, identifiers] of groupedIdentifiers.entries()) {
+        const response = await createDouyinCreatorDeepFetchTasks(
+          {
+            identifiers: Array.from(identifiers),
+            identityType,
+            linkType,
+            homepageVideoPageLimit,
+          },
+          brandId,
+        );
+        createdCount += response.createdCount;
+        latestWorkspace = response.workspace;
+      }
+
+      setDouyinCollectionWorkspace(latestWorkspace);
+      setActiveDouyinCollectionCard("creatorDeepFetch");
+      setNotice(
+        skippedCount
+          ? `已从搜索结果创建 ${createdCount} 个达人深抓任务，已切换到达人深度抓取。另有 ${skippedCount} 条结果缺少可用标识，暂未创建任务。`
+          : `已从搜索结果创建 ${createdCount} 个达人深抓任务，已切换到达人深度抓取。`,
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "达人深抓失败";
+      setErrorMessage(`从搜索结果创建达人深抓任务失败：${message}`);
+    } finally {
+      setIsSyncingDouyinWorkspace(false);
+    }
+  }
+
+  async function handleAddDouyinCreatorsToResultPoolFromSearchResults(items: DouyinCreatorSearchRecord[]) {
+    if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.collection.douyinCollection"]?.edit) {
+      setErrorMessage("当前账号没有同步收集数据板块的编辑权限。");
+      return;
+    }
+
+    const searchResultIds = Array.from(new Set(items.map((item) => item.id).filter(Boolean)));
+    if (!searchResultIds.length) {
+      setErrorMessage("请先勾选至少一个达人后再加入结果池。");
+      return;
+    }
+
+    setIsSyncingDouyinWorkspace(true);
+    clearMessages();
+
+    try {
+      const response = await addDouyinCreatorsToResultPool(
+        {
+          searchResultIds,
+        },
+        activeBrandId || archive.brand.id,
+      );
+      setDouyinCollectionWorkspace(response.workspace);
+      setActiveDouyinCollectionCard("creatorResultPool");
+      setNotice(`已将 ${response.importedCount} 个达人直接加入结果池。`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "加入结果池失败";
+      setErrorMessage(`从搜索结果加入达人结果池失败：${message}`);
     } finally {
       setIsSyncingDouyinWorkspace(false);
     }
@@ -4698,6 +4831,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
         isSyncingFeishuWorkspace={isSyncingFeishuWorkspace}
         isSyncingXhsWorkspace={isSyncingXhsWorkspace}
         douyinWorkspace={douyinCollectionWorkspace}
+        creatorSearchFieldOptions={douyinCollectionWorkspace.creatorSearchFieldOptions}
         isSyncingDouyinWorkspace={isSyncingDouyinWorkspace}
         douyinSyncForm={douyinSyncForm}
         setDouyinSyncForm={setDouyinSyncForm}
@@ -4726,6 +4860,8 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
         onSyncSingleDouyinKeywordRecommendation={handleSyncSingleDouyinKeywordRecommendation}
         onSearchDouyinCreators={handleSearchDouyinCreators}
         onCreateDouyinCreatorDeepFetchTasks={handleCreateDouyinCreatorDeepFetchTasks}
+        onCreateDouyinCreatorDeepFetchTasksFromSearchResults={handleCreateDouyinCreatorDeepFetchTasksFromSearchResults}
+        onAddDouyinCreatorsToResultPoolFromSearchResults={handleAddDouyinCreatorsToResultPoolFromSearchResults}
         onLoadMoreDouyinComments={handleLoadMoreDouyinComments}
         sortedBrandAccounts={sortedBrandAccounts}
         sortedCompetitorAccounts={sortedCompetitorAccounts}

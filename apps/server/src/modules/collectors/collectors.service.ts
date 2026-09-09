@@ -314,6 +314,20 @@ export type DouyinCityOption = {
   label: string;
   value: number;
 };
+export type DouyinCreatorSearchFieldOption = {
+  label: string;
+  value: string;
+};
+export type DouyinCreatorSearchFieldOptions = {
+  searchTypes: DouyinCreatorSearchFieldOption[];
+  timeRangeDays: DouyinCreatorSearchFieldOption[];
+  sortFields: DouyinCreatorSearchFieldOption[];
+  sortTypes: DouyinCreatorSearchFieldOption[];
+  firstIndustries: DouyinCreatorSearchFieldOption[];
+  marketingTargets: DouyinCreatorSearchFieldOption[];
+  taskCategories: DouyinCreatorSearchFieldOption[];
+  tags: DouyinCreatorSearchFieldOption[];
+};
 export type DouyinCityHotspotTrendRecord = {
   datetime: string;
   hotScore?: number;
@@ -358,6 +372,7 @@ export type DouyinCreatorSearchRecord = {
   priceType?: string;
   cpm?: number;
   cpe?: number;
+  profileUrl?: string;
   marketingLabel?: string;
   taskCategoryLabel?: string;
   collectedAt: string;
@@ -387,6 +402,11 @@ export type DouyinCreatorProfileRecord = {
   priceType?: string;
   cpm?: number;
   cpe?: number;
+  profileUrl?: string;
+  contactPhone?: string;
+  contactWechat?: string;
+  contactEmail?: string;
+  mcnName?: string;
   marketingLabel?: string;
   taskCategoryLabel?: string;
   linkType?: number;
@@ -773,6 +793,7 @@ export type DouyinCollectionWorkspace = {
   creatorDeepFetchTasks: DouyinCreatorDeepFetchTaskRecord[];
   contentTags: DouyinContentTagOption[];
   cityOptions: DouyinCityOption[];
+  creatorSearchFieldOptions: DouyinCreatorSearchFieldOptions;
 };
 
 type FeishuMatchedTableMap = {
@@ -824,7 +845,10 @@ export type DailyHotspotWorkspace = {
   platforms: DailyHotspotPlatformRecord[];
 };
 
-type DouyinMetadataCacheKind = "DOUYIN_CONTENT_TAG_CACHE" | "DOUYIN_CITY_OPTION_CACHE";
+type DouyinMetadataCacheKind =
+  | "DOUYIN_CONTENT_TAG_CACHE"
+  | "DOUYIN_CITY_OPTION_CACHE"
+  | "DOUYIN_CREATOR_SEARCH_FIELD_OPTION_CACHE";
 
 @Injectable()
 export class CollectorsService implements OnModuleInit, OnModuleDestroy {
@@ -839,8 +863,10 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
   private static readonly REMOTE_VIDEO_DOWNLOAD_TIMEOUT_MS = 10 * 60 * 1000;
   private static readonly DOUYIN_CONTENT_TAG_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
   private static readonly DOUYIN_CITY_OPTION_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+  private static readonly DOUYIN_CREATOR_SEARCH_FIELD_OPTION_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
   private static readonly DOUYIN_CONTENT_TAG_CACHE_ASSET_TITLE = "__douyin_content_tag_cache__";
   private static readonly DOUYIN_CITY_OPTION_CACHE_ASSET_TITLE = "__douyin_city_option_cache__";
+  private static readonly DOUYIN_CREATOR_SEARCH_FIELD_OPTION_CACHE_ASSET_TITLE = "__douyin_creator_search_field_option_cache__";
   private static readonly DOUYIN_METADATA_CACHE_DESCRIPTION = "抖音采集元数据缓存，仅供服务端复用。";
   private static readonly DEFAULT_SYNC_CONCURRENCY = 2;
   private static readonly DEFAULT_SYNC_BATCH_LIMIT = 10;
@@ -853,6 +879,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
   private readonly douyinVideoCacheInFlight = new Set<string>();
   private douyinContentTagCache: { expiresAt: number; items: DouyinContentTagOption[] } | null = null;
   private douyinCityOptionCache: { expiresAt: number; items: DouyinCityOption[] } | null = null;
+  private douyinCreatorSearchFieldOptionCache: { expiresAt: number; item: DouyinCreatorSearchFieldOptions } | null = null;
   private readonly collectorSyncConcurrency = this.readPositiveIntegerEnv(
     "COLLECTORS_SYNC_CONCURRENCY",
     CollectorsService.DEFAULT_SYNC_CONCURRENCY,
@@ -1035,18 +1062,19 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
   }
 
   async getDouyinWorkspace(brandId: string): Promise<DouyinCollectionWorkspace> {
-    const [contentTags, cityOptions] = await Promise.all([
+    const [contentTags, cityOptions, creatorSearchFieldOptions] = await Promise.all([
       this.getDouyinContentTagsSafe(brandId),
       this.getDouyinCityOptionsSafe(brandId),
+      this.getDouyinCreatorSearchFieldOptionsSafe(brandId),
     ]);
     const creatorDeepFetchTasks = await this.listDouyinCreatorDeepFetchTasks(brandId);
     if (await this.prismaService.canUseDatabase()) {
       const assets = await this.reconcileStaleDouyinTranscriptStates(brandId, await this.listCollectorAssets(brandId));
       this.schedulePendingDouyinVideoCaches(assets);
-      return this.buildDouyinWorkspaceFromAssets(assets, contentTags, cityOptions, creatorDeepFetchTasks);
+      return this.buildDouyinWorkspaceFromAssets(assets, contentTags, cityOptions, creatorSearchFieldOptions, creatorDeepFetchTasks);
     }
 
-    return this.getDouyinWorkspaceFromMock(brandId, contentTags, cityOptions, creatorDeepFetchTasks);
+    return this.getDouyinWorkspaceFromMock(brandId, contentTags, cityOptions, creatorSearchFieldOptions, creatorDeepFetchTasks);
   }
 
   async listUnifiedMaterialLibraryItems(brandId: string): Promise<UnifiedMaterialLibraryItemRecord[]> {
@@ -1441,6 +1469,92 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     return {
       createdCount: tasks.length,
       tasks: tasks.map((task) => this.mapDouyinCreatorDeepFetchTaskRecord(task)),
+      workspace: await this.getDouyinWorkspace(brandId),
+    };
+  }
+
+  async addDouyinCreatorsToResultPool(
+    brandId: string,
+    input: {
+      searchResultIds?: string[];
+    } = {},
+  ) {
+    this.ensureBrandExistsInMockOrDatabase(brandId);
+    const searchResultIds = Array.from(new Set((input.searchResultIds ?? []).map((item) => String(item || "").trim()).filter(Boolean)));
+    if (!searchResultIds.length) {
+      throw new BadRequestException("请至少勾选一个达人后再加入结果池。");
+    }
+
+    const assets = await this.listDouyinCreatorSearchAssets(brandId);
+    const matchedAssets = assets.filter((item) => searchResultIds.includes(item.id));
+    if (!matchedAssets.length) {
+      throw new NotFoundException("未找到可加入结果池的达人搜索结果，请刷新后重试。");
+    }
+
+    const importedAt = new Date().toISOString();
+    const rows: DouyinCreatorProfileRecord[] = [];
+    for (const asset of matchedAssets) {
+      const searchRecord = this.mapDouyinCreatorSearchRecord(asset);
+      if (!searchRecord.creatorId || !searchRecord.nickname) {
+        continue;
+      }
+      const metadata = {
+        kind: "DOUYIN_CREATOR_PROFILE" as const,
+        sourceAccountId: searchRecord.creatorId,
+        creatorId: searchRecord.creatorId,
+        oAuthorId: searchRecord.oAuthorId,
+        secUserId: searchRecord.secUserId,
+        uniqueId: searchRecord.uniqueId,
+        douyinUid: searchRecord.douyinUid,
+        nickname: searchRecord.nickname,
+        avatar: searchRecord.avatar,
+        signature: searchRecord.signature,
+        region: searchRecord.region,
+        categoryLabels: searchRecord.categoryLabels,
+        contentThemeLabels: searchRecord.contentThemeLabels,
+        fansCount: searchRecord.fansCount,
+        expectedPlayCount: searchRecord.expectedPlayCount,
+        interactRate: searchRecord.interactRate,
+        playOverRate: searchRecord.playOverRate,
+        spreadIndex: searchRecord.spreadIndex,
+        price: searchRecord.price,
+        priceType: searchRecord.priceType,
+        cpm: searchRecord.cpm,
+        cpe: searchRecord.cpe,
+        marketingLabel: searchRecord.marketingLabel,
+        taskCategoryLabel: searchRecord.taskCategoryLabel,
+        fansDistributionSummary: [],
+        audienceDistributionSummary: [],
+        hotCommentTokens: [],
+        contentHotKeywords: [],
+        recommendedVideoTitles: [],
+        homepageVideoCount: undefined,
+        recommendedVideoCount: undefined,
+        lastTaskId: undefined,
+        lastFetchedAt: importedAt,
+        rawFields: {
+          importMode: "SEARCH_RESULT_DIRECT",
+          importedFromSearchResultId: asset.id,
+          searchRawFields: searchRecord.rawFields,
+        },
+      };
+      const profileAsset = await this.upsertCollectorAsset({
+        brandId,
+        kind: "DOUYIN_CREATOR_PROFILE",
+        matchValue: searchRecord.creatorId,
+        title: searchRecord.nickname,
+        description: searchRecord.signature || searchRecord.region || "抖音达人结果池快照",
+        fileUrl: searchRecord.secUserId ? this.buildDouyinUserUrl(searchRecord.secUserId) : asset.fileUrl,
+        metadata,
+      });
+      rows.push(this.mapDouyinCreatorProfileRecord(profileAsset));
+    }
+
+    await this.cleanupDuplicateCollectorAssets(brandId);
+
+    return {
+      importedCount: rows.length,
+      items: rows,
       workspace: await this.getDouyinWorkspace(brandId),
     };
   }
@@ -2455,11 +2569,12 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     brandId: string,
     contentTags: DouyinContentTagOption[] = [],
     cityOptions: DouyinCityOption[] = [],
+    creatorSearchFieldOptions: DouyinCreatorSearchFieldOptions = this.buildDefaultDouyinCreatorSearchFieldOptions(),
     creatorDeepFetchTasks: DouyinCreatorDeepFetchTaskRecord[] = [],
   ): DouyinCollectionWorkspace {
     this.ensureBrandExistsInMock(brandId);
     const assets = database.assets.filter((item) => item.brandId === brandId && item.category === "PLATFORM_EXPORT");
-    return this.buildDouyinWorkspaceFromAssets(assets, contentTags, cityOptions, creatorDeepFetchTasks);
+    return this.buildDouyinWorkspaceFromAssets(assets, contentTags, cityOptions, creatorSearchFieldOptions, creatorDeepFetchTasks);
   }
 
   private buildWorkspaceFromAssets(assets: AssetRecord[]): XhsCollectionWorkspace {
@@ -2506,6 +2621,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     assets: AssetRecord[],
     contentTags: DouyinContentTagOption[] = [],
     cityOptions: DouyinCityOption[] = [],
+    creatorSearchFieldOptions: DouyinCreatorSearchFieldOptions = this.buildDefaultDouyinCreatorSearchFieldOptions(),
     creatorDeepFetchTasks: DouyinCreatorDeepFetchTaskRecord[] = [],
   ): DouyinCollectionWorkspace {
     const brandAccounts = assets
@@ -2578,6 +2694,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       creatorDeepFetchTasks,
       contentTags,
       cityOptions,
+      creatorSearchFieldOptions,
     };
   }
 
@@ -2885,6 +3002,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       priceType: this.readMetaString(meta, "priceType") || undefined,
       cpm: this.readMetaNumber(meta, "cpm"),
       cpe: this.readMetaNumber(meta, "cpe"),
+      profileUrl: this.readMetaString(meta, "profileUrl") || asset.fileUrl || undefined,
       marketingLabel: this.readMetaString(meta, "marketingLabel") || undefined,
       taskCategoryLabel: this.readMetaString(meta, "taskCategoryLabel") || undefined,
       collectedAt: this.readMetaString(meta, "collectedAt") || new Date().toISOString(),
@@ -2918,6 +3036,11 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       priceType: this.readMetaString(meta, "priceType") || undefined,
       cpm: this.readMetaNumber(meta, "cpm"),
       cpe: this.readMetaNumber(meta, "cpe"),
+      profileUrl: this.readMetaString(meta, "profileUrl") || asset.fileUrl || undefined,
+      contactPhone: this.readMetaString(meta, "contactPhone") || undefined,
+      contactWechat: this.readMetaString(meta, "contactWechat") || undefined,
+      contactEmail: this.readMetaString(meta, "contactEmail") || undefined,
+      mcnName: this.readMetaString(meta, "mcnName") || undefined,
       marketingLabel: this.readMetaString(meta, "marketingLabel") || undefined,
       taskCategoryLabel: this.readMetaString(meta, "taskCategoryLabel") || undefined,
       linkType: this.readMetaNumber(meta, "linkType"),
@@ -5801,14 +5924,26 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       throw new BadRequestException("请至少填写关键词、行业或一个筛选条件后再搜索达人。");
     }
 
-    const raw = await this.fetchTikHub("/api/v1/douyin/xingtu_v2/search_creator", searchParams, brandId);
-    const items = this.extractDouyinCreatorSearchItems(raw).slice(0, 20);
+    let fallbackUsed = false;
+    let items: Record<string, unknown>[] = [];
+    try {
+      const raw = await this.fetchTikHub("/api/v1/douyin/xingtu_v2/search_creator", searchParams, brandId);
+      items = this.extractDouyinCreatorSearchItems(raw).slice(0, 20);
+    } catch (error) {
+      if (!this.shouldFallbackDouyinCreatorSearch(error, input)) {
+        throw error;
+      }
+      return this.collectAndStoreDouyinCreatorKeywordFallbackResults(brandId, input, searchParams);
+    }
     const collectedAt = new Date().toISOString();
     const rows: DouyinCreatorSearchRecord[] = [];
 
     for (const item of items) {
       const summary = this.buildDouyinCreatorSummaryFields(item);
       if (!summary.creatorId || !summary.nickname) {
+        this.logger.error(
+          `[Douyin Creator Search] skip item before upsert | brandId=${brandId} | creatorId=${summary.creatorId || "-"} | nickname=${summary.nickname || "-"} | raw=${this.buildCompactJsonPreview(item)}`,
+        );
         continue;
       }
       const metadata = {
@@ -5839,6 +5974,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
         collectedAt,
         rawFields: {
           searchParams,
+          fallbackSource: fallbackUsed ? "keyword_search" : undefined,
           item,
         },
       };
@@ -5854,7 +5990,172 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       rows.push(this.mapDouyinCreatorSearchRecord(asset));
     }
 
+    this.logger.error(
+      `[Douyin Creator Search] finished | brandId=${brandId} | fallbackUsed=${fallbackUsed} | candidateItems=${items.length} | storedRows=${rows.length}`,
+    );
+
     return rows;
+  }
+
+  private async collectAndStoreDouyinCreatorKeywordFallbackResults(
+    brandId: string,
+    input: DouyinCreatorSearchInput,
+    searchParams: Record<string, string>,
+  ): Promise<DouyinCreatorSearchRecord[]> {
+    const keyword = String(input.keyword || "").trim();
+    const raw = await this.fetchTikHub("/api/v1/douyin/billboard/fetch_hot_account_search_list", {
+      keyword,
+      cursor: "0",
+    }, brandId);
+    const items = this.extractDouyinCreatorHotAccountItems(raw).slice(0, 20);
+    const collectedAt = new Date().toISOString();
+    const rows: DouyinCreatorSearchRecord[] = [];
+
+    for (const item of items) {
+      const secUserId = this.pickString(item, ["user_id"]);
+      const nickname = this.pickString(item, ["nick_name"]);
+      if (!secUserId || !nickname) {
+        continue;
+      }
+      const metadata = {
+        kind: "DOUYIN_CREATOR_SEARCH_RESULT" as const,
+        sourceAccountId: secUserId,
+        creatorId: secUserId,
+        oAuthorId: "",
+        secUserId,
+        uniqueId: undefined,
+        douyinUid: undefined,
+        nickname,
+        avatar: this.pickString(item, ["avatar_url"]) || undefined,
+        signature: undefined,
+        region: undefined,
+        categoryLabels: this.collectStringList([
+          this.pickString(item, ["first_tag_name"]),
+          this.pickString(item, ["second_tag_name"]),
+        ]),
+        contentThemeLabels: [],
+        fansCount: this.pickNumber(item, ["fans_cnt"]),
+        expectedPlayCount: undefined,
+        interactRate: undefined,
+        playOverRate: undefined,
+        spreadIndex: undefined,
+        price: undefined,
+        priceType: undefined,
+        cpm: undefined,
+        cpe: undefined,
+        marketingLabel: undefined,
+        taskCategoryLabel: undefined,
+        collectedAt,
+        rawFields: {
+          searchParams,
+          fallbackSource: "hot_account_search",
+          item,
+        },
+      };
+      const asset = await this.upsertCollectorAsset({
+        brandId,
+        kind: "DOUYIN_CREATOR_SEARCH_RESULT",
+        matchValue: secUserId,
+        title: nickname,
+        description: "抖音达人关键词搜索结果",
+        fileUrl: this.buildDouyinUserUrl(secUserId),
+        metadata,
+      });
+      rows.push(this.mapDouyinCreatorSearchRecord(asset));
+    }
+
+    this.logger.error(
+      `[Douyin Creator Search] keyword fallback stored | brandId=${brandId} | keyword=${keyword || "-"} | candidateItems=${items.length} | storedRows=${rows.length}`,
+    );
+
+    return rows;
+  }
+
+  private shouldFallbackDouyinCreatorSearch(error: unknown, input: DouyinCreatorSearchInput) {
+    const keyword = String(input.keyword || "").trim();
+    if (!keyword) {
+      return false;
+    }
+    if (!(error instanceof ServiceUnavailableException)) {
+      return false;
+    }
+    const message = error.message || "";
+    return (
+      message.includes("Tikhub 接口请求失败: 400")
+      || message.includes("请求失败，请重试")
+      || message.includes("Request failed. Please retry")
+    );
+  }
+
+  private async collectFallbackDouyinCreatorSearchItems(brandId: string, input: DouyinCreatorSearchInput) {
+    const keyword = String(input.keyword || "").trim();
+    if (!keyword) {
+      return [];
+    }
+
+    const [hotAccountResult, suggestResult] = await Promise.allSettled([
+      this.fetchTikHub("/api/v1/douyin/billboard/fetch_hot_account_search_list", {
+        keyword,
+        cursor: "0",
+      }, brandId),
+      this.requestTikHub(
+        "/api/v1/douyin/index/fetch_daren_sug_great_user_list",
+        {
+          method: "POST",
+          params: {
+            keyword,
+            total: "20",
+          },
+        },
+        brandId,
+      ),
+    ]);
+
+    const suggestIndexByKey = new Map<string, Record<string, unknown>>();
+    if (suggestResult.status === "fulfilled") {
+      for (const item of this.extractDouyinCreatorSuggestItems(suggestResult.value)) {
+        const normalized = this.normalizeDouyinCreatorFallbackItem(item);
+        const key = this.buildDouyinCreatorFallbackMatchKey(normalized);
+        if (key) {
+          suggestIndexByKey.set(key, normalized);
+        }
+      }
+    }
+
+    const merged: Record<string, unknown>[] = [];
+    const seen = new Set<string>();
+    if (hotAccountResult.status === "fulfilled") {
+      for (const item of this.extractDouyinCreatorHotAccountItems(hotAccountResult.value)) {
+        const normalized = this.normalizeDouyinCreatorFallbackItem(item);
+        const key = this.buildDouyinCreatorFallbackMatchKey(normalized);
+        const matched = key ? suggestIndexByKey.get(key) : undefined;
+        const mergedItem = matched ? { ...matched, ...normalized } : normalized;
+        const uniqueKey = this.buildDouyinCreatorFallbackUniqueKey(mergedItem);
+        if (!uniqueKey || seen.has(uniqueKey)) {
+          continue;
+        }
+        seen.add(uniqueKey);
+        merged.push(mergedItem);
+      }
+    }
+
+    if (!merged.length && suggestResult.status === "fulfilled") {
+      for (const item of this.extractDouyinCreatorSuggestItems(suggestResult.value)) {
+        const normalized = this.normalizeDouyinCreatorFallbackItem(item);
+        const uniqueKey = this.buildDouyinCreatorFallbackUniqueKey(normalized);
+        if (!uniqueKey || seen.has(uniqueKey)) {
+          continue;
+        }
+        seen.add(uniqueKey);
+        merged.push(normalized);
+      }
+    }
+
+    this.logger.error(
+      `[Douyin Creator Search] fallback detail | brandId=${brandId} | keyword=${keyword} | hotStatus=${hotAccountResult.status} | suggestStatus=${suggestResult.status} | hotCount=${hotAccountResult.status === "fulfilled" ? this.extractDouyinCreatorHotAccountItems(hotAccountResult.value).length : 0} | suggestCount=${suggestResult.status === "fulfilled" ? this.extractDouyinCreatorSuggestItems(suggestResult.value).length : 0} | mergedCount=${merged.length}`,
+    );
+
+    return merged.slice(0, 20);
   }
 
   private async collectAndStoreDouyinCreatorProfile(
@@ -5950,6 +6251,10 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       priceType: summary.priceType,
       cpm: summary.cpm,
       cpe: summary.cpe,
+      contactPhone: summary.contactPhone,
+      contactWechat: summary.contactWechat,
+      contactEmail: summary.contactEmail,
+      mcnName: summary.mcnName,
       marketingLabel: summary.marketingLabel,
       taskCategoryLabel: summary.taskCategoryLabel,
       linkType: params.linkType,
@@ -5977,6 +6282,18 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       metadata,
     });
     return this.mapDouyinCreatorProfileRecord(asset);
+  }
+
+  private async listDouyinCreatorSearchAssets(brandId: string): Promise<AssetRecord[]> {
+    if (await this.prismaService.canUseDatabase()) {
+      return (await this.listCollectorAssets(brandId))
+        .filter((item) => item.metadataJson?.kind === "DOUYIN_CREATOR_SEARCH_RESULT");
+    }
+    this.ensureBrandExistsInMock(brandId);
+    return database.assets.filter((item) =>
+      item.brandId === brandId
+      && item.category === "PLATFORM_EXPORT"
+      && item.metadataJson?.kind === "DOUYIN_CREATOR_SEARCH_RESULT");
   }
 
   private async runDouyinCreatorDeepFetchTask(params: {
@@ -6031,13 +6348,14 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
   }
 
   private buildDouyinCreatorSearchParams(input: DouyinCreatorSearchInput) {
+    const seachType = String(input.seachType || "").trim() || "2";
     const entries = Object.entries({
       keyword: String(input.keyword || "").trim() || undefined,
-      seach_type: String(input.seachType || "").trim() || undefined,
-      time_range_days: String(input.timeRangeDays || "").trim() || undefined,
-      page: input.page ? String(input.page) : undefined,
-      sort_field: String(input.sortField || "").trim() || undefined,
-      sort_type: String(input.sortType || "").trim() || undefined,
+      seach_type: seachType,
+      time_range_days: String(input.timeRangeDays || "").trim() || "180",
+      page: String(input.page || 1),
+      sort_field: String(input.sortField || "").trim() || "score",
+      sort_type: String(input.sortType || "").trim() || "2",
       task_category: String(input.taskCategory || "").trim() || undefined,
       marketing_target: String(input.marketingTarget || "").trim() || undefined,
       first_industry_id: String(input.firstIndustryId || "").trim() || undefined,
@@ -8268,6 +8586,14 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  private async getDouyinCreatorSearchFieldOptionsSafe(brandId?: string): Promise<DouyinCreatorSearchFieldOptions> {
+    try {
+      return await this.getDouyinCreatorSearchFieldOptions(brandId);
+    } catch {
+      return this.douyinCreatorSearchFieldOptionCache?.item ?? this.buildDefaultDouyinCreatorSearchFieldOptions();
+    }
+  }
+
   private async getDouyinContentTags(brandId?: string) {
     if (this.douyinContentTagCache && this.douyinContentTagCache.expiresAt > Date.now()) {
       return this.douyinContentTagCache.items;
@@ -8342,6 +8668,59 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     return items;
   }
 
+  private async getDouyinCreatorSearchFieldOptions(brandId?: string): Promise<DouyinCreatorSearchFieldOptions> {
+    if (
+      this.douyinCreatorSearchFieldOptionCache
+      && this.douyinCreatorSearchFieldOptionCache.expiresAt > Date.now()
+    ) {
+      return this.douyinCreatorSearchFieldOptionCache.item;
+    }
+
+    const persisted = await this.readPersistedDouyinMetadataObjectCache(
+      CollectorsService.DOUYIN_CREATOR_SEARCH_FIELD_OPTION_CACHE_ASSET_TITLE,
+      "DOUYIN_CREATOR_SEARCH_FIELD_OPTION_CACHE",
+      (raw) => this.extractDouyinCreatorSearchFieldOptions(raw),
+    );
+    if (persisted) {
+      const merged = this.mergeDouyinCreatorSearchFieldOptions(
+        this.buildDefaultDouyinCreatorSearchFieldOptions(),
+        persisted,
+      );
+      this.douyinCreatorSearchFieldOptionCache = {
+        item: merged,
+        expiresAt: Date.now() + CollectorsService.DOUYIN_CREATOR_SEARCH_FIELD_OPTION_CACHE_TTL_MS,
+      };
+      return merged;
+    }
+
+    const settled = await Promise.allSettled([
+      this.fetchTikHub("/api/v1/douyin/xingtu_v2/get_author_market_fields", { market_scene: "1" }, brandId),
+      this.fetchTikHub("/api/v1/douyin/xingtu_v2/get_search_field_options", { platform_source: "1", task_category: "1" }, brandId),
+    ]);
+    const dynamic = this.extractDouyinCreatorSearchFieldOptions(
+      settled
+        .filter((item): item is PromiseFulfilledResult<unknown> => item.status === "fulfilled")
+        .map((item) => item.value),
+    );
+    const merged = this.mergeDouyinCreatorSearchFieldOptions(
+      this.buildDefaultDouyinCreatorSearchFieldOptions(),
+      dynamic ?? undefined,
+    );
+
+    this.douyinCreatorSearchFieldOptionCache = {
+      item: merged,
+      expiresAt: Date.now() + CollectorsService.DOUYIN_CREATOR_SEARCH_FIELD_OPTION_CACHE_TTL_MS,
+    };
+    await this.persistDouyinMetadataObjectCache({
+      brandId,
+      title: CollectorsService.DOUYIN_CREATOR_SEARCH_FIELD_OPTION_CACHE_ASSET_TITLE,
+      kind: "DOUYIN_CREATOR_SEARCH_FIELD_OPTION_CACHE",
+      item: merged,
+      ttlMs: CollectorsService.DOUYIN_CREATOR_SEARCH_FIELD_OPTION_CACHE_TTL_MS,
+    });
+    return merged;
+  }
+
   private async readPersistedDouyinMetadataCache<T>(
     title: string,
     kind: DouyinMetadataCacheKind,
@@ -8371,6 +8750,35 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     return this.extractFreshDouyinMetadataCacheItems(this.asMeta(asset.metadataJson), kind, now, extract);
   }
 
+  private async readPersistedDouyinMetadataObjectCache<T>(
+    title: string,
+    kind: DouyinMetadataCacheKind,
+    extract: (raw: unknown) => T | null,
+  ): Promise<T | null> {
+    const now = Date.now();
+    if (await this.prismaService.canUseDatabase()) {
+      const asset = await this.prismaService.businessAsset.findFirst({
+        where: {
+          category: AssetCategory.PLATFORM_EXPORT,
+          title,
+        },
+        orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
+      });
+      if (!asset) {
+        return null;
+      }
+      return this.extractFreshDouyinMetadataObjectCacheItem(this.asMeta(asset.metadataJson), kind, now, extract);
+    }
+
+    const asset = [...database.assets]
+      .reverse()
+      .find((item) => item.category === "PLATFORM_EXPORT" && item.title === title);
+    if (!asset) {
+      return null;
+    }
+    return this.extractFreshDouyinMetadataObjectCacheItem(this.asMeta(asset.metadataJson), kind, now, extract);
+  }
+
   private extractFreshDouyinMetadataCacheItems<T>(
     meta: Record<string, unknown>,
     kind: DouyinMetadataCacheKind,
@@ -8386,6 +8794,22 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     }
     const items = extract(meta.items);
     return items.length ? items : [];
+  }
+
+  private extractFreshDouyinMetadataObjectCacheItem<T>(
+    meta: Record<string, unknown>,
+    kind: DouyinMetadataCacheKind,
+    now: number,
+    extract: (raw: unknown) => T | null,
+  ) {
+    if (this.readMetaString(meta, "kind") !== kind) {
+      return null;
+    }
+    const expiresAt = this.readMetaNumber(meta, "expiresAt");
+    if (typeof expiresAt !== "number" || expiresAt <= now) {
+      return null;
+    }
+    return extract(meta.item);
   }
 
   private async persistDouyinMetadataCache<T>(params: {
@@ -8405,6 +8829,79 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       cachedAt: new Date().toISOString(),
       expiresAt: Date.now() + ttlMs,
       items,
+    };
+
+    if (await this.prismaService.canUseDatabase()) {
+      await this.ensureBrandExistsInDatabase(brandId);
+      const existing = await this.prismaService.businessAsset.findFirst({
+        where: {
+          category: AssetCategory.PLATFORM_EXPORT,
+          title,
+        },
+        orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
+      });
+
+      if (existing) {
+        await this.prismaService.businessAsset.update({
+          where: { id: existing.id },
+          data: {
+            description: CollectorsService.DOUYIN_METADATA_CACHE_DESCRIPTION,
+            metadataJson: metadata as Prisma.InputJsonValue,
+          },
+        });
+        return;
+      }
+
+      await this.prismaService.businessAsset.create({
+        data: {
+          brandId,
+          category: AssetCategory.PLATFORM_EXPORT,
+          title,
+          description: CollectorsService.DOUYIN_METADATA_CACHE_DESCRIPTION,
+          metadataJson: metadata as Prisma.InputJsonValue,
+        },
+      });
+      return;
+    }
+
+    this.ensureBrandExistsInMock(brandId);
+    const existing = [...database.assets]
+      .reverse()
+      .find((item) => item.category === "PLATFORM_EXPORT" && item.title === title);
+    if (existing) {
+      existing.description = CollectorsService.DOUYIN_METADATA_CACHE_DESCRIPTION;
+      existing.metadataJson = metadata as Record<string, unknown>;
+      return;
+    }
+
+    database.assets.push({
+      id: createId("asset"),
+      brandId,
+      category: "PLATFORM_EXPORT",
+      title,
+      description: CollectorsService.DOUYIN_METADATA_CACHE_DESCRIPTION,
+      sourceName: "抖音采集缓存",
+      metadataJson: metadata as Record<string, unknown>,
+    });
+  }
+
+  private async persistDouyinMetadataObjectCache<T>(params: {
+    brandId?: string;
+    title: string;
+    kind: DouyinMetadataCacheKind;
+    item: T;
+    ttlMs: number;
+  }) {
+    const { brandId, title, kind, item, ttlMs } = params;
+    if (!brandId) {
+      return;
+    }
+
+    const metadata = {
+      kind,
+      cachedAt: new Date().toISOString(),
+      expiresAt: Date.now() + ttlMs,
+      item,
     };
 
     if (await this.prismaService.canUseDatabase()) {
@@ -8541,6 +9038,165 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     }
 
     return [];
+  }
+
+  private buildDefaultDouyinCreatorSearchFieldOptions(): DouyinCreatorSearchFieldOptions {
+    return {
+      searchTypes: [
+        { label: "按昵称找人", value: "2" },
+        { label: "按内容找人", value: "3" },
+      ],
+      timeRangeDays: [
+        { label: "近 30 天", value: "30" },
+        { label: "近 90 天", value: "90" },
+        { label: "近 180 天", value: "180" },
+      ],
+      sortFields: [
+        { label: "综合匹配度", value: "score" },
+      ],
+      sortTypes: [
+        { label: "升序", value: "1" },
+        { label: "降序", value: "2" },
+      ],
+      firstIndustries: [
+        { label: "不限", value: "0" },
+      ],
+      marketingTargets: [],
+      taskCategories: [
+        { label: "抖音视频", value: "1" },
+        { label: "抖音直播", value: "6" },
+        { label: "头条图文", value: "11" },
+      ],
+      tags: [],
+    };
+  }
+
+  private mergeDouyinCreatorSearchFieldOptions(
+    base: DouyinCreatorSearchFieldOptions,
+    incoming?: Partial<DouyinCreatorSearchFieldOptions>,
+  ): DouyinCreatorSearchFieldOptions {
+    const dedupe = (items: DouyinCreatorSearchFieldOption[]) => {
+      const seen = new Set<string>();
+      return items.filter((item) => {
+        const key = `${item.value}::${item.label}`;
+        if (!item.value || !item.label || seen.has(key)) {
+          return false;
+        }
+        seen.add(key);
+        return true;
+      });
+    };
+    return {
+      searchTypes: dedupe([...(incoming?.searchTypes ?? []), ...base.searchTypes]),
+      timeRangeDays: dedupe([...(incoming?.timeRangeDays ?? []), ...base.timeRangeDays]),
+      sortFields: dedupe([...(incoming?.sortFields ?? []), ...base.sortFields]),
+      sortTypes: dedupe([...(incoming?.sortTypes ?? []), ...base.sortTypes]),
+      firstIndustries: dedupe([...(incoming?.firstIndustries ?? []), ...base.firstIndustries]),
+      marketingTargets: dedupe([...(incoming?.marketingTargets ?? []), ...base.marketingTargets]),
+      taskCategories: dedupe([...(incoming?.taskCategories ?? []), ...base.taskCategories]),
+      tags: dedupe([...(incoming?.tags ?? []), ...base.tags]),
+    };
+  }
+
+  private extractDouyinCreatorSearchFieldOptions(raw: unknown): Partial<DouyinCreatorSearchFieldOptions> | null {
+    const result: Partial<DouyinCreatorSearchFieldOptions> = {
+      searchTypes: this.extractDouyinCreatorSearchFieldOptionListByAliases(raw, ["seach_type", "search_type", "searchtype"]),
+      timeRangeDays: this.extractDouyinCreatorSearchFieldOptionListByAliases(raw, ["time_range_days", "timerangedays"]),
+      sortFields: this.extractDouyinCreatorSearchFieldOptionListByAliases(raw, ["sort_field", "sortfield"]),
+      sortTypes: this.extractDouyinCreatorSearchFieldOptionListByAliases(raw, ["sort_type", "sorttype"]),
+      firstIndustries: this.extractDouyinCreatorSearchFieldOptionListByAliases(raw, ["first_industry_id", "firstindustryid", "first_industry", "industry"]),
+      marketingTargets: this.extractDouyinCreatorSearchFieldOptionListByAliases(raw, ["marketing_target", "marketingtarget"]),
+      taskCategories: this.extractDouyinCreatorSearchFieldOptionListByAliases(raw, ["task_category", "taskcategory"]),
+      tags: this.extractDouyinCreatorSearchFieldOptionListByAliases(raw, ["tag", "tags"]),
+    };
+    const hasAnyDynamic = Object.values(result).some((items) => Array.isArray(items) && items.length > 0);
+    return hasAnyDynamic ? result : null;
+  }
+
+  private extractDouyinCreatorSearchFieldOptionListByAliases(raw: unknown, aliases: string[]) {
+    const normalizedAliases = aliases.map((item) => item.toLowerCase());
+    const queue: unknown[] = [raw];
+    let visited = 0;
+
+    while (queue.length && visited < 600) {
+      visited += 1;
+      const current = queue.shift();
+      const parsedString = this.tryParseJsonString(current);
+      if (parsedString !== current) {
+        queue.push(parsedString);
+        continue;
+      }
+      if (Array.isArray(current)) {
+        const normalized = this.normalizeDouyinCreatorSearchFieldOptionList(current);
+        if (normalized.length) {
+          return normalized;
+        }
+        queue.push(...current);
+        continue;
+      }
+      if (!current || typeof current !== "object") {
+        continue;
+      }
+
+      const record = this.asMeta(current);
+      for (const [key, value] of Object.entries(record)) {
+        const normalizedKey = key.toLowerCase().replace(/[^a-z0-9]/g, "");
+        if (normalizedAliases.some((alias) => normalizedKey === alias || normalizedKey.includes(alias) || alias.includes(normalizedKey))) {
+          const normalized = this.normalizeDouyinCreatorSearchFieldOptionList(value);
+          if (normalized.length) {
+            return normalized;
+          }
+        }
+        queue.push(this.tryParseJsonString(value));
+      }
+    }
+
+    return [];
+  }
+
+  private normalizeDouyinCreatorSearchFieldOptionList(raw: unknown): DouyinCreatorSearchFieldOption[] {
+    const source = this.tryParseJsonString(raw);
+    if (!Array.isArray(source)) {
+      return [];
+    }
+    return source
+      .map((item) => this.normalizeDouyinCreatorSearchFieldOption(item))
+      .filter((item): item is DouyinCreatorSearchFieldOption => Boolean(item));
+  }
+
+  private normalizeDouyinCreatorSearchFieldOption(raw: unknown): DouyinCreatorSearchFieldOption | null {
+    const parsed = this.tryParseJsonString(raw);
+    if (typeof parsed === "string") {
+      const normalized = parsed.trim();
+      return normalized ? { label: normalized, value: normalized } : null;
+    }
+    const meta = this.asMeta(parsed);
+    const label =
+      this.pickString(meta, ["label", "name", "text", "title", "desc", "display_name", "field_name", "tag_name"])
+      || String(this.pickNumber(meta, ["label", "name", "text", "title"]) ?? "").trim();
+    const value =
+      this.pickString(meta, ["value", "id", "key", "code", "enum", "field_value", "field_id", "tag_id", "industry_id"])
+      || String(this.pickNumber(meta, ["value", "id", "key", "code", "enum", "field_value", "field_id", "tag_id", "industry_id"]) ?? "").trim()
+      || label;
+    if (!label || !value) {
+      return null;
+    }
+    return { label, value };
+  }
+
+  private tryParseJsonString<T = unknown>(value: T): unknown {
+    if (typeof value !== "string") {
+      return value;
+    }
+    const normalized = value.trim();
+    if (!normalized || (!normalized.startsWith("[") && !normalized.startsWith("{"))) {
+      return value;
+    }
+    try {
+      return JSON.parse(normalized);
+    } catch {
+      return value;
+    }
   }
 
   private resolveDouyinContentTagLabels(tags: DouyinContentTagOption[], selection: DouyinContentTagSelection) {
@@ -8897,34 +9553,64 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
   }
 
   private buildDouyinCreatorSummaryFields(raw: unknown) {
+    const rawMeta = this.asMeta(raw);
+    const attributeDatas = this.asMeta(this.pickDeepValue(raw, ["attribute_datas", "attributeDatas"]));
+    const baseInfoData = this.asMeta(this.pickDeepValue(raw, ["baseInfo", "data"]));
+    const businessCardData = this.asMeta(this.pickDeepValue(raw, ["businessCardInfo", "data"]));
+    const businessCard = this.asMeta(this.pickDeepValue(raw, ["businessCardInfo", "data", "card_info"]));
+    const mcnInfo = this.asMeta(this.pickDeepValue(raw, ["mcn_info", "mcnInfo"]));
+    const commerceSpreadInfo = this.asMeta(this.pickDeepValue(raw, ["commerceSpreadInfo", "data"]));
+    const sourceRecords = [rawMeta, attributeDatas, baseInfoData, businessCardData, businessCard, mcnInfo, commerceSpreadInfo];
+    const pickStringFromSources = (keys: string[]) =>
+      sourceRecords.map((item) => this.pickString(item, keys)).find((item) => item && item.trim()) || "";
+    const pickNumberFromSources = (keys: string[]) => {
+      for (const item of sourceRecords) {
+        const value = this.pickNumber(item, keys);
+        if (value !== undefined) {
+          return value;
+        }
+      }
+      return undefined;
+    };
+    const homepageVideoItems = this.extractDouyinCreatorVideoItems(this.pickDeepValue(raw, ["homepageVideos"]));
+    const homepageInteractRates = homepageVideoItems
+      .map((item) => this.pickNumber(item, ["interact_rate"]))
+      .filter((item): item is number => typeof item === "number");
+    const homepageAverageInteractRate = homepageInteractRates.length
+      ? homepageInteractRates.reduce((sum, item) => sum + item, 0) / homepageInteractRates.length
+      : undefined;
     const creatorId =
-      this.pickString(raw, ["o_author_id", "author_id", "kol_id", "author_oid"])
-      || String(this.pickNumber(raw, ["o_author_id", "author_id", "kol_id", "author_oid"]) ?? "").trim();
-    const secUserId = this.pickString(raw, ["sec_user_id", "sec_uid", "secUid"]) || undefined;
-    const uniqueId = this.pickString(raw, ["unique_id", "douyin_id", "account_id"]) || undefined;
-    const douyinUid = this.pickString(raw, ["uid", "douyin_uid", "user_id"]) || undefined;
-    const nickname =
-      this.pickString(raw, ["nick_name", "nickname", "author_name", "name", "display_name"])
-      || (creatorId ? `达人 ${creatorId}` : "");
+      pickStringFromSources(["o_author_id", "author_id", "kol_id", "author_oid", "id"])
+      || String(pickNumberFromSources(["o_author_id", "author_id", "kol_id", "author_oid", "id"]) ?? "").trim();
+    const secUserId = pickStringFromSources(["sec_user_id", "sec_uid", "secUid"]) || undefined;
+    const uniqueId = pickStringFromSources(["unique_id", "douyin_id", "account_id"]) || undefined;
+    const douyinUid = pickStringFromSources(["uid", "douyin_uid", "user_id", "core_user_id"]) || undefined;
+    const nickname = pickStringFromSources(["nick_name", "nickname", "author_name", "name", "display_name"]) || (creatorId ? `达人 ${creatorId}` : "");
     const avatar =
-      this.extractFirstUrlFromObject(raw, "avatar_url")
-      || this.extractFirstUrlFromObject(raw, "avatar")
-      || this.extractFirstUrlFromObject(raw, "avatar_thumb")
-      || this.extractFirstUrlFromObject(raw, "avatar_medium")
-      || this.pickString(raw, ["avatar_url", "avatar", "head_url", "avatar_uri"])
+      this.extractFirstUrlFromObject(rawMeta, "avatar_url")
+      || this.extractFirstUrlFromObject(rawMeta, "avatar")
+      || this.extractFirstUrlFromObject(rawMeta, "avatar_thumb")
+      || this.extractFirstUrlFromObject(rawMeta, "avatar_medium")
+      || this.extractFirstUrlFromObject(attributeDatas, "avatar_uri")
+      || this.extractFirstUrlFromObject(baseInfoData, "avatar_uri")
+      || this.extractFirstUrlFromObject(businessCard, "avatar_uri")
+      || pickStringFromSources(["avatar_url", "avatar", "head_url", "avatar_uri"])
       || undefined;
-    const region =
-      this.pickString(raw, ["province_name", "city_name", "region", "location", "ip_location"])
-      || undefined;
+    const region = this.collectStringList([
+      pickStringFromSources(["province_name", "province"]),
+      pickStringFromSources(["city_name", "city", "region", "location", "ip_location"]),
+    ]).join(" / ") || undefined;
     const categoryLabels = this.collectStringList([
-      this.pickString(raw, ["first_industry_name"]),
-      this.pickString(raw, ["second_industry_name"]),
-      this.pickString(raw, ["category_name", "cate_name", "vertical_name"]),
-      this.extractDouyinCreatorTokenList(this.pickDeepValue(raw, ["categories", "industrys", "industries"])),
+      pickStringFromSources(["first_industry_name", "first_tag_name"]),
+      pickStringFromSources(["second_industry_name", "second_tag_name"]),
+      pickStringFromSources(["category_name", "cate_name", "vertical_name"]),
+      this.extractDouyinCreatorTokenList(this.pickDeepValue(raw, ["categories", "industrys", "industries", "tags_relation"])),
     ]);
     const contentThemeLabels = this.collectStringList([
-      this.pickString(raw, ["main_category_name", "content_label"]),
+      pickStringFromSources(["main_category_name", "content_label"]),
       this.extractDouyinCreatorTokenList(this.pickDeepValue(raw, ["tags", "persona_tags", "content_tags"])),
+      this.extractDouyinCreatorTokenList(this.pickDeepValue(attributeDatas, ["content_theme_labels_180d", "tags", "persona_tags", "content_tags"])),
+      this.extractDouyinCreatorTokenList(this.pickDeepValue(baseInfoData, ["content_theme_labels", "aweme_tags"])),
     ]);
     return {
       creatorId: creatorId || secUserId || uniqueId || douyinUid || "",
@@ -8934,26 +9620,116 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       douyinUid,
       nickname,
       avatar,
-      signature: this.pickString(raw, ["signature", "description", "desc", "introduce"]) || undefined,
+      signature:
+        pickStringFromSources(["signature", "description", "desc", "introduce", "self_intro"])
+        || undefined,
       region,
       categoryLabels,
       contentThemeLabels,
-      fansCount: this.pickNumber(raw, ["fans_cnt", "fans_count", "follower_count", "fans"]),
-      expectedPlayCount: this.pickNumber(raw, ["expected_play", "expected_play_count", "play_cnt", "avg_play"]),
-      interactRate: this.pickNumber(raw, ["interact_rate", "interaction_rate", "engagement_rate"]),
-      playOverRate: this.pickNumber(raw, ["play_over_rate", "finish_rate"]),
-      spreadIndex: this.pickNumber(raw, ["spread_index", "link_score", "commerce_spread_score"]),
-      price: this.pickNumber(raw, ["price", "quote_price", "video_price", "base_price"]),
-      priceType: this.pickString(raw, ["price_type", "quote_type", "price_desc"]) || undefined,
-      cpm: this.pickNumber(raw, ["cpm"]),
-      cpe: this.pickNumber(raw, ["cpe"]),
-      marketingLabel: this.pickString(raw, ["marketing_target_name", "marketing_label", "marketing_target"]) || undefined,
-      taskCategoryLabel: this.pickString(raw, ["task_category_name", "task_category_label", "task_category"]) || undefined,
+      fansCount: pickNumberFromSources(["follower", "fans_cnt", "fans_count", "follower_count", "fans"]),
+      expectedPlayCount: pickNumberFromSources(["expected_play_num", "expected_natural_play_num", "expected_play", "expected_play_count", "play_cnt", "avg_play", "vv", "sn_vv"]),
+      interactRate: pickNumberFromSources(["interact_rate_within_30d", "interact_rate", "interaction_rate", "engagement_rate"]) ?? homepageAverageInteractRate,
+      playOverRate: pickNumberFromSources(["play_over_rate", "finish_rate"]),
+      spreadIndex: pickNumberFromSources(["spread_index", "link_score", "commerce_spread_score", "credit_score"]),
+      price: pickNumberFromSources(["price", "quote_price", "video_price", "base_price", "lowest_price"]),
+      priceType: pickStringFromSources(["price_type", "quote_type", "price_desc"]) || undefined,
+      cpm: pickNumberFromSources(["cpm", "cpm_60", "cpm_20_60", "sn_cpm_60", "sn_cpm_20_60"]),
+      cpe: pickNumberFromSources(["cpe", "cpe_60", "cpe_20_60", "sn_cpe_60", "sn_cpe_20_60"]),
+      contactPhone: pickStringFromSources(["phone"]) || undefined,
+      contactWechat: pickStringFromSources(["wechat"]) || undefined,
+      contactEmail: pickStringFromSources(["email"]) || undefined,
+      mcnName: pickStringFromSources(["mcn_name", "name"]) || undefined,
+      marketingLabel: pickStringFromSources(["marketing_target_name", "marketing_label", "marketing_target"]) || undefined,
+      taskCategoryLabel: pickStringFromSources(["task_category_name", "task_category_label", "task_category"]) || undefined,
       profileUrl: secUserId ? this.buildDouyinUserUrl(secUserId) : undefined,
     };
   }
 
+  private extractDouyinCreatorHotAccountItems(raw: unknown) {
+    const candidates = this.extractNestedRecordArray(raw, (item) =>
+      Boolean(
+        this.pickString(item, ["nick_name"])
+        && (
+          this.pickString(item, ["user_id"])
+          || this.pickNumber(item, ["fans_cnt"]) !== undefined
+        ),
+      ));
+    return candidates;
+  }
+
+  private extractDouyinCreatorSuggestItems(raw: unknown) {
+    const candidates = this.extractNestedRecordArray(raw, (item) =>
+      Boolean(
+        this.pickString(item, ["user_name"])
+        && (
+          this.pickString(item, ["user_id", "aweme_id", "aweme_url"])
+          || this.pickNumber(item, ["follow_count"]) !== undefined
+        ),
+      ));
+    return candidates;
+  }
+
+  private normalizeDouyinCreatorFallbackItem(raw: unknown) {
+    const item = this.asMeta(raw);
+    const profileUrl = this.pickString(item, ["aweme_url"]) || undefined;
+    const secUserId =
+      this.pickString(item, ["sec_user_id"])
+      || this.extractDouyinSecUserIdFromUrl(profileUrl)
+      || this.pickString(item, ["user_id"]);
+    return {
+      sec_user_id: secUserId || undefined,
+      user_id: this.pickString(item, ["uid"]) || this.pickString(item, ["user_id"]) || undefined,
+      unique_id: this.pickString(item, ["aweme_id"]) || undefined,
+      nick_name: this.pickString(item, ["nick_name", "user_name", "nickname"]) || undefined,
+      avatar_url: this.pickString(item, ["avatar_url", "user_head_logo"]) || undefined,
+      fans_cnt: this.pickNumber(item, ["fans_cnt", "follow_count"]) ?? undefined,
+      like_cnt: this.pickNumber(item, ["like_cnt", "like_count"]) ?? undefined,
+      item_count: this.pickNumber(item, ["item_count", "publish_cnt"]) ?? undefined,
+      first_industry_name: this.pickString(item, ["first_tag_name"]) || undefined,
+      second_industry_name: this.pickString(item, ["second_tag_name"]) || undefined,
+      aweme_url: profileUrl,
+    } satisfies Record<string, unknown>;
+  }
+
+  private extractDouyinSecUserIdFromUrl(url?: string) {
+    if (!url) {
+      return undefined;
+    }
+    const match = url.match(/\/user\/([^/?#]+)/i);
+    return match?.[1]?.trim() || undefined;
+  }
+
+  private buildDouyinCreatorFallbackMatchKey(item: Record<string, unknown>) {
+    const nickname = this.pickString(item, ["nick_name", "user_name", "nickname"]);
+    const uniqueId = this.pickString(item, ["unique_id", "aweme_id"]);
+    const secUserId = this.pickString(item, ["sec_user_id"]);
+    return [nickname, uniqueId, secUserId]
+      .map((value) => String(value || "").trim().toLowerCase())
+      .find(Boolean);
+  }
+
+  private buildDouyinCreatorFallbackUniqueKey(item: Record<string, unknown>) {
+    return (
+      this.pickString(item, ["sec_user_id"])
+      || this.pickString(item, ["unique_id", "aweme_id"])
+      || this.pickString(item, ["nick_name", "user_name", "nickname"])
+      || undefined
+    );
+  }
+
   private extractDouyinCreatorDistributionSummary(raw: unknown) {
+    const cards = this.extractNestedRecordArray(raw, (item) =>
+      Boolean(this.pickString(item, ["description", "type_display"])));
+    if (cards.length) {
+      return cards
+        .map((item) => {
+          const typeDisplay = this.pickString(item, ["type_display"]);
+          const description = this.pickString(item, ["description"]);
+          return [typeDisplay, description].filter(Boolean).join(": ");
+        })
+        .filter(Boolean)
+        .slice(0, 6);
+    }
     const items = this.extractNestedRecordArray(raw, (item) =>
       Boolean(
         this.pickString(item, ["label", "name", "tag_name", "city_name", "province_name", "age_desc", "gender_desc"])

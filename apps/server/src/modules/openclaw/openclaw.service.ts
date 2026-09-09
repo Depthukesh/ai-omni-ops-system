@@ -1093,7 +1093,7 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
   },
   {
     name: "get_douyin_collection_workspace",
-    description: "查看当前品牌资料库中的抖音搜集数据工作区摘要。",
+    description: "查看当前品牌资料库中的抖音搜集数据工作区摘要，包含达人搜索结果、达人结果池、主页链接和已抓到的联系方式摘要。",
     inputSchema: {
       type: "object",
       properties: {
@@ -1218,6 +1218,7 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
       properties: {
         keyword: { type: "string", description: "必填：达人搜索关键词。" },
         seachType: { type: "string", description: "可选：搜索类型。" },
+        timeRangeDays: { type: "string", description: "可选：内容时间范围天数。" },
         sortField: { type: "string", description: "可选：排序字段。" },
         sortType: { type: "string", description: "可选：排序方向，例如 desc。" },
         firstIndustryId: { type: "string", description: "可选：一级行业 ID。" },

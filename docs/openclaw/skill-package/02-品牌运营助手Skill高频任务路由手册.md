@@ -246,6 +246,9 @@
   - 看 `videoStoragePath`
   - 看 `videoUrl`
   - 看 `videoSourceUrl`
+- 用户问“达人主页链接在哪里”或“这个达人怎么联系”时，也优先先读 `get_douyin_collection_workspace`
+  - 看达人搜索结果或达人结果池里的 `profileUrl`
+  - 看 `contactPhone` / `contactWechat` / `contactEmail` / `mcnName`
 - 用户问“为什么网页里打开预览失败”时，不要只盯着外部下载地址：
   - 当前网页预览优先依赖站内受控副本
   - 若受控副本未就绪、已过期或曾失败，应同时把原作品地址和缓存状态告诉用户

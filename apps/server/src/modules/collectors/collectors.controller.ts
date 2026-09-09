@@ -312,6 +312,20 @@ export class DouyinCollectorsController {
     return this.collectorsService.createDouyinCreatorDeepFetchTasks(brandId, payload ?? {}, auth);
   }
 
+  @Post("brands/:brandId/creator-result-pool")
+  async addCreatorsToResultPool(
+    @Param("brandId") brandId: string,
+    @Body()
+    payload: {
+      searchResultIds?: string[];
+    },
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(brandId, auth);
+    return this.collectorsService.addDouyinCreatorsToResultPool(brandId, payload ?? {});
+  }
+
   @Delete("brands/:brandId/brand-accounts/:accountId")
   async deleteBrandAccount(
     @Param("brandId") brandId: string,

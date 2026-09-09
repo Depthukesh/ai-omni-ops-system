@@ -347,7 +347,7 @@ const TOOL_DEFINITIONS = [
   },
   {
     name: "get_douyin_collection_workspace",
-    description: "查看当前品牌资料库中的抖音搜集数据工作区摘要。",
+    description: "查看当前品牌资料库中的抖音搜集数据工作区摘要，包含达人搜索结果、达人结果池、主页链接和已抓到的联系方式摘要。",
     inputSchema: {
       type: "object",
       properties: {

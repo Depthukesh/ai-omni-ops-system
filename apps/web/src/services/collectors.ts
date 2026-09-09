@@ -190,6 +190,20 @@ export type DouyinCityOption = {
   label: string;
   value: number;
 };
+export type DouyinCreatorSearchFieldOption = {
+  label: string;
+  value: string;
+};
+export type DouyinCreatorSearchFieldOptions = {
+  searchTypes: DouyinCreatorSearchFieldOption[];
+  timeRangeDays: DouyinCreatorSearchFieldOption[];
+  sortFields: DouyinCreatorSearchFieldOption[];
+  sortTypes: DouyinCreatorSearchFieldOption[];
+  firstIndustries: DouyinCreatorSearchFieldOption[];
+  marketingTargets: DouyinCreatorSearchFieldOption[];
+  taskCategories: DouyinCreatorSearchFieldOption[];
+  tags: DouyinCreatorSearchFieldOption[];
+};
 export type DouyinCityHotspotTrendRecord = {
   datetime: string;
   hotScore?: number;
@@ -358,6 +372,7 @@ export type DouyinCreatorSearchRecord = {
   priceType?: string;
   cpm?: number;
   cpe?: number;
+  profileUrl?: string;
   marketingLabel?: string;
   taskCategoryLabel?: string;
   collectedAt: string;
@@ -387,6 +402,11 @@ export type DouyinCreatorProfileRecord = {
   priceType?: string;
   cpm?: number;
   cpe?: number;
+  profileUrl?: string;
+  contactPhone?: string;
+  contactWechat?: string;
+  contactEmail?: string;
+  mcnName?: string;
   marketingLabel?: string;
   taskCategoryLabel?: string;
   linkType?: number;
@@ -439,6 +459,7 @@ export type DouyinCollectionWorkspace = {
   creatorDeepFetchTasks: DouyinCreatorDeepFetchTaskRecord[];
   contentTags: DouyinContentTagOption[];
   cityOptions: DouyinCityOption[];
+  creatorSearchFieldOptions: DouyinCreatorSearchFieldOptions;
 };
 
 export type UnifiedMaterialPlatform = "XIAOHONGSHU" | "DOUYIN" | "WECHAT_MP";
@@ -721,6 +742,10 @@ export type DouyinCreatorDeepFetchPayload = {
   homepageVideoPageLimit?: number;
 };
 
+export type DouyinCreatorResultPoolPayload = {
+  searchResultIds?: string[];
+};
+
 export const xhsCollectionSeed: XhsCollectionWorkspace = {
   brandAccounts: [
     {
@@ -906,6 +931,16 @@ export const douyinCollectionSeed: DouyinCollectionWorkspace = {
   creatorDeepFetchTasks: [],
   contentTags: [],
   cityOptions: [],
+  creatorSearchFieldOptions: {
+    searchTypes: [],
+    timeRangeDays: [],
+    sortFields: [],
+    sortTypes: [],
+    firstIndustries: [],
+    marketingTargets: [],
+    taskCategories: [],
+    tags: [],
+  },
 };
 
 export async function getDouyinCollectionWorkspace(brandId?: string) {
@@ -959,6 +994,18 @@ export async function createDouyinCreatorDeepFetchTasks(payload: DouyinCreatorDe
     workspace: DouyinCollectionWorkspace;
   }>(
     `/collectors/douyin/brands/${resolveBrandId(brandId)}/creator-deep-fetch-tasks`,
+    "POST",
+    payload,
+  );
+}
+
+export async function addDouyinCreatorsToResultPool(payload: DouyinCreatorResultPoolPayload = {}, brandId?: string) {
+  return jsonRequest<{
+    importedCount: number;
+    items: DouyinCreatorProfileRecord[];
+    workspace: DouyinCollectionWorkspace;
+  }>(
+    `/collectors/douyin/brands/${resolveBrandId(brandId)}/creator-result-pool`,
     "POST",
     payload,
   );

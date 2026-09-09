@@ -20,6 +20,7 @@ import type {
   DouyinCollectionWorkspace,
   DouyinCreatorDeepFetchTaskRecord,
   DouyinCreatorIdentityType,
+  DouyinCreatorSearchFieldOptions,
   DouyinCreatorProfileRecord,
   DouyinCreatorSearchRecord,
   DouyinCollectedTargetUserRecord,
@@ -373,6 +374,7 @@ export interface BrandGrowthCollectionWorkspaceProps {
   isSyncingFeishuWorkspace: boolean;
   isSyncingXhsWorkspace: boolean;
   douyinWorkspace: DouyinCollectionWorkspace;
+  creatorSearchFieldOptions: DouyinCreatorSearchFieldOptions;
   isSyncingDouyinWorkspace: boolean;
   douyinSyncForm: {
     brandAccountEntries: XhsAccountBindingEntry[];
@@ -404,6 +406,7 @@ export interface BrandGrowthCollectionWorkspaceProps {
     creatorSearch: {
       keyword: string;
       seachType: string;
+      timeRangeDays: string;
       sortField: string;
       sortType: string;
       firstIndustryId: string;
@@ -456,6 +459,7 @@ export interface BrandGrowthCollectionWorkspaceProps {
     creatorSearch: {
       keyword: string;
       seachType: string;
+      timeRangeDays: string;
       sortField: string;
       sortType: string;
       firstIndustryId: string;
@@ -503,6 +507,8 @@ export interface BrandGrowthCollectionWorkspaceProps {
   onSyncSingleDouyinKeywordRecommendation: ValueAction<string>;
   onSearchDouyinCreators: AsyncAction;
   onCreateDouyinCreatorDeepFetchTasks: AsyncAction;
+  onCreateDouyinCreatorDeepFetchTasksFromSearchResults: ValueAction<DouyinCreatorSearchRecord[]>;
+  onAddDouyinCreatorsToResultPoolFromSearchResults: ValueAction<DouyinCreatorSearchRecord[]>;
   onLoadMoreDouyinComments: AsyncAction;
   sortedBrandAccounts: XhsCollectedAccountRecord[];
   sortedCompetitorAccounts: XhsCollectedAccountRecord[];
@@ -2308,9 +2314,11 @@ function DouyinCitySubmitPanel(props: {
 function DouyinCreatorSearchSubmitPanel(props: {
   value: BrandGrowthCollectionWorkspaceProps["douyinSyncForm"]["creatorSearch"];
   onChange: ValueAction<BrandGrowthCollectionWorkspaceProps["douyinSyncForm"]["creatorSearch"]>;
+  options: BrandGrowthCollectionWorkspaceProps["creatorSearchFieldOptions"];
   isSubmitting: boolean;
   onSubmit: AsyncAction;
 }) {
+  const isContentSearch = props.value.seachType === "3";
   return (
     <article className="light-data-panel">
       <div className="collection-result-head">
@@ -2333,43 +2341,112 @@ function DouyinCreatorSearchSubmitPanel(props: {
         </label>
         <label className="field">
           <span>搜索类型</span>
-          <input
+          <select
             value={props.value.seachType}
             onChange={(event) => props.onChange({ ...props.value, seachType: event.target.value })}
-            placeholder="默认 2"
-          />
+          >
+            {props.options.searchTypes.map((item) => (
+              <option key={`creator-search-type-${item.value}`} value={item.value}>
+                {item.label}
+              </option>
+            ))}
+          </select>
         </label>
         <label className="field">
-          <span>一级行业 ID</span>
-          <input
+          <span>内容时间范围</span>
+          <select
+            value={props.value.timeRangeDays}
+            onChange={(event) => props.onChange({ ...props.value, timeRangeDays: event.target.value })}
+            disabled={!isContentSearch}
+          >
+            {props.options.timeRangeDays.map((item) => (
+              <option key={`creator-time-range-${item.value}`} value={item.value}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="field">
+          <span>排序字段</span>
+          <select
+            value={props.value.sortField}
+            onChange={(event) => props.onChange({ ...props.value, sortField: event.target.value })}
+          >
+            {props.options.sortFields.map((item) => (
+              <option key={`creator-sort-field-${item.value}`} value={item.value}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="field">
+          <span>排序方向</span>
+          <select
+            value={props.value.sortType}
+            onChange={(event) => props.onChange({ ...props.value, sortType: event.target.value })}
+          >
+            {props.options.sortTypes.map((item) => (
+              <option key={`creator-sort-type-${item.value}`} value={item.value}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="field">
+          <span>一级行业</span>
+          <select
             value={props.value.firstIndustryId}
             onChange={(event) => props.onChange({ ...props.value, firstIndustryId: event.target.value })}
-            placeholder="可选"
-          />
+          >
+            <option value="">请选择一级行业</option>
+            {props.options.firstIndustries.map((item) => (
+              <option key={`creator-first-industry-${item.value}`} value={item.value}>
+                {item.label}
+              </option>
+            ))}
+          </select>
         </label>
         <label className="field">
           <span>营销目标</span>
-          <input
+          <select
             value={props.value.marketingTarget}
             onChange={(event) => props.onChange({ ...props.value, marketingTarget: event.target.value })}
-            placeholder="可选"
-          />
+          >
+            <option value="">请选择营销目标</option>
+            {props.options.marketingTargets.map((item) => (
+              <option key={`creator-marketing-target-${item.value}`} value={item.value}>
+                {item.label}
+              </option>
+            ))}
+          </select>
         </label>
         <label className="field">
           <span>任务分类</span>
-          <input
+          <select
             value={props.value.taskCategory}
             onChange={(event) => props.onChange({ ...props.value, taskCategory: event.target.value })}
-            placeholder="可选"
-          />
+          >
+            <option value="">请选择任务分类</option>
+            {props.options.taskCategories.map((item) => (
+              <option key={`creator-task-category-${item.value}`} value={item.value}>
+                {item.label}
+              </option>
+            ))}
+          </select>
         </label>
         <label className="field">
           <span>达人标签</span>
-          <input
+          <select
             value={props.value.tag}
             onChange={(event) => props.onChange({ ...props.value, tag: event.target.value })}
-            placeholder="可选"
-          />
+          >
+            <option value="">请选择达人标签</option>
+            {props.options.tags.map((item) => (
+              <option key={`creator-tag-${item.value}`} value={item.value}>
+                {item.label}
+              </option>
+            ))}
+          </select>
         </label>
         <label className="field">
           <span>粉丝数区间</span>
@@ -2529,17 +2606,29 @@ function DouyinCreatorSearchTable(props: {
   formatDateTime: OptionalDateFormatter;
   formatCount: OptionalNumberFormatter;
   formatMetric: OptionalNumberFormatter;
+  selectedIds: string[];
+  allSelected: boolean;
+  onToggleSelect: (id: string, checked: boolean) => void;
+  onSelectAll: (checked: boolean) => void;
 }) {
   return (
     <ScrollableTableShell>
       <table className="soft-table douyin-data-table">
         <thead>
           <tr>
+            <th>
+              <TableSelectionCheckbox
+                checked={props.allSelected}
+                title="全选当前达人搜索结果"
+                onChange={(checked) => props.onSelectAll(checked)}
+              />
+            </th>
             <th>达人昵称</th>
             <th>头像</th>
             <th>达人 ID</th>
             <th>星图达人 ID</th>
             <th>抖音号</th>
+            <th>达人主页</th>
             <th>地区</th>
             <th>分类标签</th>
             <th>内容主题</th>
@@ -2558,11 +2647,27 @@ function DouyinCreatorSearchTable(props: {
         <tbody>
           {props.items.map((item) => (
             <tr key={item.id}>
+              <td>
+                <TableSelectionCheckbox
+                  checked={props.selectedIds.includes(item.id)}
+                  title={`勾选 ${item.nickname || item.creatorId || "达人"}`}
+                  onChange={(checked) => props.onToggleSelect(item.id, checked)}
+                />
+              </td>
               <td>{item.nickname || "-"}</td>
               <td><AvatarPreviewLink src={item.avatar} alt={`${item.nickname || "达人"}头像`} /></td>
               <td><CopyableCell value={item.creatorId} /></td>
               <td><CopyableCell value={item.oAuthorId} /></td>
               <td><CopyableCell value={item.uniqueId || item.secUserId || item.douyinUid} /></td>
+              <td>
+                {item.profileUrl ? (
+                  <a href={item.profileUrl} target="_blank" rel="noreferrer" className="note-data-link">
+                    打开主页
+                  </a>
+                ) : (
+                  "-"
+                )}
+              </td>
               <td>{item.region || "-"}</td>
               <td className="table-cell-wide">
                 <ExpandableTextCell value={stringifyCreatorSummary(item.categoryLabels)} emptyText="-" compactRows={2} />
@@ -2656,12 +2761,17 @@ function DouyinCreatorProfileTable(props: {
             <th>达人 ID</th>
             <th>星图达人 ID</th>
             <th>抖音号</th>
+            <th>达人主页</th>
             <th>地区</th>
             <th>分类标签</th>
             <th>粉丝数</th>
             <th>预估播放</th>
             <th>互动率</th>
             <th>报价</th>
+            <th>联系电话</th>
+            <th>微信号</th>
+            <th>邮箱</th>
+            <th>MCN</th>
             <th>粉丝画像摘要</th>
             <th>受众画像摘要</th>
             <th>评论热词</th>
@@ -2669,7 +2779,6 @@ function DouyinCreatorProfileTable(props: {
             <th>推荐视频标题</th>
             <th>主页视频数</th>
             <th>推荐视频数</th>
-            <th>最近任务</th>
             <th>最近抓取时间</th>
           </tr>
         </thead>
@@ -2681,6 +2790,15 @@ function DouyinCreatorProfileTable(props: {
               <td><CopyableCell value={item.creatorId} /></td>
               <td><CopyableCell value={item.oAuthorId} /></td>
               <td><CopyableCell value={item.uniqueId || item.secUserId || item.douyinUid} /></td>
+              <td>
+                {item.profileUrl ? (
+                  <a href={item.profileUrl} target="_blank" rel="noreferrer" className="note-data-link">
+                    打开主页
+                  </a>
+                ) : (
+                  "-"
+                )}
+              </td>
               <td>{item.region || "-"}</td>
               <td className="table-cell-wide">
                 <ExpandableTextCell value={stringifyCreatorSummary(item.categoryLabels)} emptyText="-" compactRows={2} />
@@ -2689,6 +2807,12 @@ function DouyinCreatorProfileTable(props: {
               <td>{props.formatCount(item.expectedPlayCount)}</td>
               <td>{props.formatMetric(item.interactRate)}</td>
               <td>{props.formatCount(item.price)}</td>
+              <td><CopyableCell value={item.contactPhone} /></td>
+              <td><CopyableCell value={item.contactWechat} /></td>
+              <td><CopyableCell value={item.contactEmail} /></td>
+              <td className="table-cell-wide">
+                <ExpandableTextCell value={item.mcnName} emptyText="-" compactRows={2} />
+              </td>
               <td className="table-cell-wide">
                 <ExpandableTextCell value={stringifyCreatorSummary(item.fansDistributionSummary)} emptyText="-" compactRows={3} />
               </td>
@@ -2706,7 +2830,6 @@ function DouyinCreatorProfileTable(props: {
               </td>
               <td>{props.formatCount(item.homepageVideoCount)}</td>
               <td>{props.formatCount(item.recommendedVideoCount)}</td>
-              <td><CopyableCell value={item.lastTaskId} /></td>
               <td>{props.formatDateTime(item.lastFetchedAt)}</td>
             </tr>
           ))}
@@ -2841,12 +2964,35 @@ function CopyableCell(props: {
   value?: string | number;
   emptyText?: string;
 }) {
+  const [copied, setCopied] = useState(false);
   const text = String(props.value ?? "").trim();
   if (!text) {
     return <span className="table-cell-empty">{props.emptyText || "-"}</span>;
   }
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      notifyCopyToast(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    } catch {
+      window.alert("复制失败，请手动选中文本复制。");
+    }
+  };
+
   return (
-    <ExpandableTextCell value={text} emptyText={props.emptyText} compactRows={1} />
+    <div className={`table-text-shell table-text-shell--copyable ${copied ? "is-copied" : ""}`} data-rows="1">
+      <button
+        type="button"
+        className="table-text-cell"
+        data-rows={1}
+        onClick={() => void handleCopy()}
+        title={copied ? "已复制" : "点击复制"}
+      >
+        {text}
+      </button>
+    </div>
   );
 }
 
@@ -4229,6 +4375,7 @@ function XhsBenchmarkNotesTable(props: {
 export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorkspaceProps) {
   const [selectedXhsNoteIds, setSelectedXhsNoteIds] = useState<string[]>([]);
   const [selectedDouyinWorkIds, setSelectedDouyinWorkIds] = useState<string[]>([]);
+  const [selectedDouyinCreatorSearchIds, setSelectedDouyinCreatorSearchIds] = useState<string[]>([]);
   const [isBatchAddingToMaterial, setIsBatchAddingToMaterial] = useState(false);
   const [isBatchDeletingItems, setIsBatchDeletingItems] = useState(false);
   const xiaohongshuSyncedCount =
@@ -4319,6 +4466,9 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
   const allXhsSelected = currentXhsVisibleItems.length > 0 && currentXhsVisibleItems.every((item) => selectedXhsNoteIds.includes(item.id));
   const allDouyinSelected =
     currentDouyinVisibleItems.length > 0 && currentDouyinVisibleItems.every((item) => selectedDouyinWorkIds.includes(item.id));
+  const allDouyinCreatorSearchSelected =
+    props.sortedDouyinCreatorSearchResults.length > 0
+    && props.sortedDouyinCreatorSearchResults.every((item) => selectedDouyinCreatorSearchIds.includes(item.id));
 
   useEffect(() => {
     const currentIds = new Set(currentXhsSelectableItems.map((item) => item.id));
@@ -4329,6 +4479,11 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
     const currentIds = new Set(currentDouyinSelectableItems.map((item) => item.id));
     setSelectedDouyinWorkIds((current) => current.filter((id) => currentIds.has(id)));
   }, [currentDouyinSelectableItems]);
+
+  useEffect(() => {
+    const currentIds = new Set(props.sortedDouyinCreatorSearchResults.map((item) => item.id));
+    setSelectedDouyinCreatorSearchIds((current) => current.filter((id) => currentIds.has(id)));
+  }, [props.sortedDouyinCreatorSearchResults]);
 
   async function handleBatchAddXhsNotesToMaterial() {
     const selectedItems = currentXhsSelectableItems.filter((item) => selectedXhsNoteIds.includes(item.id) && !item.isInMaterialLibrary);
@@ -4390,6 +4545,24 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
     } finally {
       setIsBatchDeletingItems(false);
     }
+  }
+
+  async function handleBatchCreateDouyinCreatorDeepFetchTasks() {
+    const selectedItems = props.sortedDouyinCreatorSearchResults.filter((item) => selectedDouyinCreatorSearchIds.includes(item.id));
+    if (!selectedItems.length) {
+      return;
+    }
+    await props.onCreateDouyinCreatorDeepFetchTasksFromSearchResults(selectedItems);
+    setSelectedDouyinCreatorSearchIds([]);
+  }
+
+  async function handleBatchAddDouyinCreatorsToResultPool() {
+    const selectedItems = props.sortedDouyinCreatorSearchResults.filter((item) => selectedDouyinCreatorSearchIds.includes(item.id));
+    if (!selectedItems.length) {
+      return;
+    }
+    await props.onAddDouyinCreatorsToResultPoolFromSearchResults(selectedItems);
+    setSelectedDouyinCreatorSearchIds([]);
   }
   if (props.activePage === "dailyHotspot") {
     return (
@@ -5921,6 +6094,7 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
               <DouyinCreatorSearchSubmitPanel
                 value={props.douyinSyncForm.creatorSearch}
                 onChange={(value) => props.setDouyinSyncForm((current) => ({ ...current, creatorSearch: value }))}
+                options={props.creatorSearchFieldOptions}
                 isSubmitting={props.isHydrating || props.isSyncingDouyinWorkspace}
                 onSubmit={props.onSearchDouyinCreators}
               />
@@ -5928,11 +6102,39 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                 <div className="collection-result-head">
                   <div>
                     <h3>达人搜索结果</h3>
-                    <p>沉淀搜索到的达人基础资料，供下一步批量发起深度抓取任务。</p>
+                    <p>先勾选搜索结果，再决定哪些进入达人深度抓取，哪些直接沉淀到达人结果池。</p>
                   </div>
-                  <span className={`archive-pill ${props.sortedDouyinCreatorSearchResults.length ? "status-ready" : "status-pending"}`}>
-                    已抓取 {props.sortedDouyinCreatorSearchResults.length} 条
-                  </span>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                    <span className={`archive-pill ${selectedDouyinCreatorSearchIds.length ? "status-ready" : "status-pending"}`}>
+                      已勾选 {selectedDouyinCreatorSearchIds.length} 条
+                    </span>
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      onClick={() => void handleBatchCreateDouyinCreatorDeepFetchTasks()}
+                      disabled={!selectedDouyinCreatorSearchIds.length || props.isHydrating || props.isSyncingDouyinWorkspace}
+                    >
+                      加入深抓
+                    </button>
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      onClick={() => void handleBatchAddDouyinCreatorsToResultPool()}
+                      disabled={!selectedDouyinCreatorSearchIds.length || props.isHydrating || props.isSyncingDouyinWorkspace}
+                    >
+                      加入结果池
+                    </button>
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      onClick={() => props.onDouyinCollectionCardChange("creatorResultPool")}
+                    >
+                      查看结果池
+                    </button>
+                    <span className={`archive-pill ${props.sortedDouyinCreatorSearchResults.length ? "status-ready" : "status-pending"}`}>
+                      已抓取 {props.sortedDouyinCreatorSearchResults.length} 条
+                    </span>
+                  </div>
                 </div>
                 {props.sortedDouyinCreatorSearchResults.length ? (
                   <DouyinCreatorSearchTable
@@ -5940,6 +6142,14 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                     formatDateTime={props.formatDateTime}
                     formatCount={props.formatCount}
                     formatMetric={props.formatMetric}
+                    selectedIds={selectedDouyinCreatorSearchIds}
+                    allSelected={allDouyinCreatorSearchSelected}
+                    onToggleSelect={(id, checked) =>
+                      setSelectedDouyinCreatorSearchIds((current) => (checked ? Array.from(new Set([...current, id])) : current.filter((item) => item !== id)))}
+                    onSelectAll={(checked) =>
+                      setSelectedDouyinCreatorSearchIds((current) => checked
+                        ? Array.from(new Set([...current, ...props.sortedDouyinCreatorSearchResults.map((item) => item.id)]))
+                        : current.filter((id) => !props.sortedDouyinCreatorSearchResults.some((item) => item.id === id)))}
                   />
                 ) : (
                   <div className="note-empty-state">当前还没有达人搜索结果，请先输入关键词并提交。</div>
@@ -6003,22 +6213,6 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                   />
                 ) : (
                   <div className="note-empty-state">当前还没有达人结果池数据，请先完成达人深度抓取。</div>
-                )}
-              </article>
-              <article className="light-data-panel">
-                <div className="collection-result-head">
-                  <div>
-                    <h3>最近深抓任务</h3>
-                    <p>结果池旁边保留最近任务列表，便于定位哪些达人还在执行中或抓取失败。</p>
-                  </div>
-                </div>
-                {props.sortedDouyinCreatorDeepFetchTasks.length ? (
-                  <DouyinCreatorDeepFetchTaskTable
-                    items={props.sortedDouyinCreatorDeepFetchTasks.slice(0, 20)}
-                    formatDateTime={props.formatDateTime}
-                  />
-                ) : (
-                  <div className="note-empty-state">当前还没有达人深抓任务记录。</div>
                 )}
               </article>
             </>
