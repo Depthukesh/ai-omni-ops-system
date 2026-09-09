@@ -112,6 +112,7 @@
   - 品牌背景、IP资料库、产品资料、品牌运营情况、第三方数据、企业知识库
 - 收集数据
   - 小红书采集、抖音采集、公众号采集（品牌公众号数据 / 对标作品信息及数据 / 微信搜一搜）、每日热点、飞书绑定
+  - 抖音采集当前已补齐达人抓取第一期：`达人搜索抓取`、`达人深度抓取`、`达人结果池`
 - 品牌增长报告
   - 品牌增长报告、可视化报告、半年营销规划、营销日历、选题库、素材库（统一素材库）
 - OpenClaw专区
@@ -136,10 +137,20 @@
 - 抖音采集表格当前会直接回显视频存储位置；若视频缓存失败或过期，页面会同时保留原作品回看入口，方便判断问题到底出在站内副本还是源作品
 - 抖音采集视频文案提取当前默认走本地 ASR 链路：Paraformer 主识别、Whisper 兜底；系统会记录状态更新时间，当本地 ASR 环境未就绪或任务长时间卡住时，会自动收口为可重试失败态
 - 小红书 / 抖音收集数据中的“评论数据”卡片现已补齐“从评论提取账号链接”动作，可直接把作品链接补拉为评论数据，再按关键词筛出评论用户并沉淀为目标用户账号链接结果，供 OpenClaw 与人工验证共用
+- 抖音收集数据当前新增达人抓取第一期：
+  - `达人搜索抓取`：按关键词、行业和商业指标抓达人基础资料
+  - `达人深度抓取`：按达人标识创建后台异步深抓任务
+  - `达人结果池`：回显达人画像、热词、推荐视频和主页视频摘要
+- 达人深抓结果当前继续复用 `collectors/douyin` workspace 聚合，不单开第二套数据页
+- OpenClaw / MCP / Skill 当前已同步暴露：
+  - `get_douyin_collection_workspace`
+  - `search_douyin_creators`
+  - `create_douyin_creator_deep_fetch_tasks`
 - 参考变更：`docs/changes/2026-08-15-brand-growth-comment-target-user-openclaw-chain.md`
 - 参考变更：`docs/changes/2026-08-25-brand-growth-ip-library.md`
 - 参考变更：`docs/changes/2026-08-27-ip-voice-material-preview-openclaw-git-skill.md`
 - 参考变更：`docs/changes/2026-08-27-douyin-collection-preview-and-transcript-retry-ux.md`
+- 参考变更：`docs/changes/2026-09-09-douyin-creator-collection-workbench-phase-1.md`
 
 ### 4.2 内容获客工作台 `/xiaohongshu`
 

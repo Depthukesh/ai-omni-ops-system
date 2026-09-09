@@ -335,6 +335,91 @@ export type DouyinCityHotspotRecord = {
   collectedAt: string;
 };
 
+export type DouyinCreatorSearchRecord = {
+  id: string;
+  kind: "DOUYIN_CREATOR_SEARCH_RESULT";
+  creatorId: string;
+  oAuthorId: string;
+  secUserId?: string;
+  uniqueId?: string;
+  douyinUid?: string;
+  nickname: string;
+  avatar?: string;
+  signature?: string;
+  region?: string;
+  categoryLabels?: string[];
+  contentThemeLabels?: string[];
+  fansCount?: number;
+  expectedPlayCount?: number;
+  interactRate?: number;
+  playOverRate?: number;
+  spreadIndex?: number;
+  price?: number;
+  priceType?: string;
+  cpm?: number;
+  cpe?: number;
+  marketingLabel?: string;
+  taskCategoryLabel?: string;
+  collectedAt: string;
+  rawFields?: Record<string, unknown>;
+};
+
+export type DouyinCreatorProfileRecord = {
+  id: string;
+  kind: "DOUYIN_CREATOR_PROFILE";
+  creatorId: string;
+  oAuthorId: string;
+  secUserId?: string;
+  uniqueId?: string;
+  douyinUid?: string;
+  nickname: string;
+  avatar?: string;
+  signature?: string;
+  region?: string;
+  categoryLabels?: string[];
+  contentThemeLabels?: string[];
+  fansCount?: number;
+  expectedPlayCount?: number;
+  interactRate?: number;
+  playOverRate?: number;
+  spreadIndex?: number;
+  price?: number;
+  priceType?: string;
+  cpm?: number;
+  cpe?: number;
+  marketingLabel?: string;
+  taskCategoryLabel?: string;
+  linkType?: number;
+  fansDistributionSummary?: string[];
+  audienceDistributionSummary?: string[];
+  hotCommentTokens?: string[];
+  contentHotKeywords?: string[];
+  recommendedVideoTitles?: string[];
+  homepageVideoCount?: number;
+  recommendedVideoCount?: number;
+  lastTaskId?: string;
+  lastFetchedAt: string;
+  rawFields?: Record<string, unknown>;
+};
+
+export type DouyinCreatorDeepFetchTaskRecord = {
+  id: string;
+  taskType: "DOUYIN_CREATOR_DEEP_FETCH";
+  taskTitle: string;
+  taskStatus: "PENDING" | "QUEUED" | "RUNNING" | "SUCCESS" | "FAILED" | "CANCELLED";
+  creatorId?: string;
+  oAuthorId?: string;
+  creatorName?: string;
+  creatorIdentifier?: string;
+  identityType?: "AUTO" | "O_AUTHOR_ID" | "UID" | "SEC_USER_ID" | "UNIQUE_ID";
+  linkType?: number;
+  errorMessage?: string;
+  startedAt?: string;
+  finishedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type DouyinCollectionWorkspace = {
   brandAccounts: DouyinCollectedAccountRecord[];
   competitorAccounts: DouyinCollectedAccountRecord[];
@@ -349,6 +434,9 @@ export type DouyinCollectionWorkspace = {
   highCompletionRateWorks: DouyinCollectedWorkRecord[];
   highLikeRateWorks: DouyinCollectedWorkRecord[];
   cityHotspots: DouyinCityHotspotRecord[];
+  creatorSearchResults: DouyinCreatorSearchRecord[];
+  creatorProfiles: DouyinCreatorProfileRecord[];
+  creatorDeepFetchTasks: DouyinCreatorDeepFetchTaskRecord[];
   contentTags: DouyinContentTagOption[];
   cityOptions: DouyinCityOption[];
 };
@@ -590,6 +678,49 @@ export type DouyinSyncPayload = {
   cityCode?: number;
 };
 
+export type DouyinCreatorIdentityType = "AUTO" | "O_AUTHOR_ID" | "UID" | "SEC_USER_ID" | "UNIQUE_ID";
+
+export type DouyinCreatorSearchPayload = {
+  keyword?: string;
+  seachType?: string;
+  timeRangeDays?: string;
+  page?: number;
+  sortField?: string;
+  sortType?: string;
+  taskCategory?: string;
+  marketingTarget?: string;
+  firstIndustryId?: string;
+  authorListId?: string;
+  tag?: string;
+  personaTags?: string;
+  gender?: string;
+  fansMin?: string;
+  fansMax?: string;
+  expectedPlayMin?: string;
+  expectedPlayMax?: string;
+  cpmMin?: string;
+  cpmMax?: string;
+  cpeMin?: string;
+  cpeMax?: string;
+  interactRateMin?: string;
+  interactRateMax?: string;
+  playOverRateMin?: string;
+  playOverRateMax?: string;
+  burstTextRateMin?: string;
+  burstTextRateMax?: string;
+  priceType?: string;
+  priceMin?: string;
+  priceMax?: string;
+  extraFilter?: string;
+};
+
+export type DouyinCreatorDeepFetchPayload = {
+  identifiers?: string[];
+  identityType?: DouyinCreatorIdentityType;
+  linkType?: number;
+  homepageVideoPageLimit?: number;
+};
+
 export const xhsCollectionSeed: XhsCollectionWorkspace = {
   brandAccounts: [
     {
@@ -770,6 +901,9 @@ export const douyinCollectionSeed: DouyinCollectionWorkspace = {
   highCompletionRateWorks: [],
   highLikeRateWorks: [],
   cityHotspots: [],
+  creatorSearchResults: [],
+  creatorProfiles: [],
+  creatorDeepFetchTasks: [],
   contentTags: [],
   cityOptions: [],
 };
@@ -801,6 +935,30 @@ export async function syncDouyinCollectionWorkspace(payload: DouyinSyncPayload =
     workspace: DouyinCollectionWorkspace;
   }>(
     `/collectors/douyin/brands/${resolveBrandId(brandId)}/sync`,
+    "POST",
+    payload,
+  );
+}
+
+export async function searchDouyinCreators(payload: DouyinCreatorSearchPayload = {}, brandId?: string) {
+  return jsonRequest<{
+    syncedCount: number;
+    items: DouyinCreatorSearchRecord[];
+    workspace: DouyinCollectionWorkspace;
+  }>(
+    `/collectors/douyin/brands/${resolveBrandId(brandId)}/creator-search`,
+    "POST",
+    payload,
+  );
+}
+
+export async function createDouyinCreatorDeepFetchTasks(payload: DouyinCreatorDeepFetchPayload = {}, brandId?: string) {
+  return jsonRequest<{
+    createdCount: number;
+    tasks: DouyinCreatorDeepFetchTaskRecord[];
+    workspace: DouyinCollectionWorkspace;
+  }>(
+    `/collectors/douyin/brands/${resolveBrandId(brandId)}/creator-deep-fetch-tasks`,
     "POST",
     payload,
   );

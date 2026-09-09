@@ -18,6 +18,10 @@ import type {
   DouyinCommentRecord,
   DouyinContentTagOption,
   DouyinCollectionWorkspace,
+  DouyinCreatorDeepFetchTaskRecord,
+  DouyinCreatorIdentityType,
+  DouyinCreatorProfileRecord,
+  DouyinCreatorSearchRecord,
   DouyinCollectedTargetUserRecord,
   DouyinKeywordRecommendationRecord,
   DouyinCollectedWorkRecord,
@@ -76,7 +80,10 @@ export type DouyinCollectionCardKey =
   | "lowFanExplosiveWorks"
   | "highCompletionRateWorks"
   | "highLikeRateWorks"
-  | "cityHotspots";
+  | "cityHotspots"
+  | "creatorSearch"
+  | "creatorDeepFetch"
+  | "creatorResultPool";
 
 export const douyinCollectionCards: Array<{
   key: DouyinCollectionCardKey;
@@ -94,6 +101,9 @@ export const douyinCollectionCards: Array<{
   { key: "highCompletionRateWorks", label: "获取高完播率榜" },
   { key: "highLikeRateWorks", label: "获取高点赞率榜" },
   { key: "cityHotspots", label: "同城热点榜" },
+  { key: "creatorSearch", label: "达人搜索抓取" },
+  { key: "creatorDeepFetch", label: "达人深度抓取" },
+  { key: "creatorResultPool", label: "达人结果池" },
 ];
 
 type DouyinFieldPreviewRow = {
@@ -295,6 +305,27 @@ const douyinFieldPreviewMap: Record<DouyinCollectionCardKey, DouyinFieldPreviewR
     { field: "sentenceTag", label: "热点分类标签", source: "获取同城热点榜", path: "data.data.objs[].sentence_tag", required: "可选", patch: "否" },
     { field: "trends", label: "近一小时趋势", source: "获取同城热点榜", path: "data.data.objs[].trends[]", required: "可选", patch: "否" },
   ],
+  creatorSearch: [
+    { field: "keyword", label: "搜索关键词", source: "搜索达人", path: "request.keyword", required: "必需", patch: "否" },
+    { field: "oAuthorId", label: "星图达人 ID", source: "搜索达人", path: "data.list[].author_id", required: "必需", patch: "否" },
+    { field: "nickname", label: "达人昵称", source: "搜索达人", path: "data.list[].nick_name", required: "必需", patch: "否" },
+    { field: "fansCount", label: "粉丝数", source: "搜索达人", path: "data.list[].fans_cnt", required: "可选", patch: "否" },
+    { field: "price", label: "商业报价", source: "搜索达人", path: "data.list[].price", required: "可选", patch: "否" },
+  ],
+  creatorDeepFetch: [
+    { field: "creatorIdentifier", label: "达人标识", source: "深抓任务", path: "task.inputJson.creatorIdentifier", required: "必需", patch: "否" },
+    { field: "identityType", label: "标识类型", source: "深抓任务", path: "task.inputJson.identityType", required: "必需", patch: "否" },
+    { field: "taskStatus", label: "任务状态", source: "深抓任务", path: "task.taskStatus", required: "必需", patch: "是" },
+    { field: "creatorId", label: "内部达人 ID", source: "深抓任务输出", path: "task.outputJson.creatorId", required: "可选", patch: "是" },
+    { field: "errorMessage", label: "错误信息", source: "深抓任务输出", path: "task.errorMessage", required: "可选", patch: "是" },
+  ],
+  creatorResultPool: [
+    { field: "creatorId", label: "达人 ID", source: "达人深抓结果", path: "metadataJson.creatorId", required: "必需", patch: "否" },
+    { field: "nickname", label: "达人昵称", source: "达人深抓结果", path: "metadataJson.nickname", required: "必需", patch: "否" },
+    { field: "fansDistributionSummary", label: "粉丝画像摘要", source: "达人深抓结果", path: "metadataJson.fansDistributionSummary[]", required: "可选", patch: "否" },
+    { field: "audienceDistributionSummary", label: "受众画像摘要", source: "达人深抓结果", path: "metadataJson.audienceDistributionSummary[]", required: "可选", patch: "否" },
+    { field: "hotCommentTokens", label: "评论热词", source: "达人深抓结果", path: "metadataJson.hotCommentTokens[]", required: "可选", patch: "否" },
+  ],
 };
 
 export interface BrandGrowthCollectionWorkspaceProps {
@@ -370,6 +401,30 @@ export interface BrandGrowthCollectionWorkspaceProps {
     cityHotspots: {
       cityCode: string;
     };
+    creatorSearch: {
+      keyword: string;
+      seachType: string;
+      sortField: string;
+      sortType: string;
+      firstIndustryId: string;
+      marketingTarget: string;
+      taskCategory: string;
+      tag: string;
+      fansMin: string;
+      fansMax: string;
+      expectedPlayMin: string;
+      expectedPlayMax: string;
+      interactRateMin: string;
+      interactRateMax: string;
+      priceMin: string;
+      priceMax: string;
+    };
+    creatorDeepFetch: {
+      identifiers: string;
+      identityType: DouyinCreatorIdentityType;
+      linkType: string;
+      homepageVideoPageLimit: string;
+    };
   };
   setDouyinSyncForm: Dispatch<SetStateAction<{
     brandAccountEntries: XhsAccountBindingEntry[];
@@ -398,6 +453,30 @@ export interface BrandGrowthCollectionWorkspaceProps {
     cityHotspots: {
       cityCode: string;
     };
+    creatorSearch: {
+      keyword: string;
+      seachType: string;
+      sortField: string;
+      sortType: string;
+      firstIndustryId: string;
+      marketingTarget: string;
+      taskCategory: string;
+      tag: string;
+      fansMin: string;
+      fansMax: string;
+      expectedPlayMin: string;
+      expectedPlayMax: string;
+      interactRateMin: string;
+      interactRateMax: string;
+      priceMin: string;
+      priceMax: string;
+    };
+    creatorDeepFetch: {
+      identifiers: string;
+      identityType: DouyinCreatorIdentityType;
+      linkType: string;
+      homepageVideoPageLimit: string;
+    };
   }>>;
   onSaveFeishuAppConfig: AsyncAction;
   onStartFeishuAuth: AsyncAction;
@@ -422,6 +501,8 @@ export interface BrandGrowthCollectionWorkspaceProps {
   onDeleteDouyinBrandAccount: ValueAction<DouyinCollectedAccountRecord>;
   onDeleteDouyinCompetitorAccount: ValueAction<DouyinCollectedAccountRecord>;
   onSyncSingleDouyinKeywordRecommendation: ValueAction<string>;
+  onSearchDouyinCreators: AsyncAction;
+  onCreateDouyinCreatorDeepFetchTasks: AsyncAction;
   onLoadMoreDouyinComments: AsyncAction;
   sortedBrandAccounts: XhsCollectedAccountRecord[];
   sortedCompetitorAccounts: XhsCollectedAccountRecord[];
@@ -452,6 +533,9 @@ export interface BrandGrowthCollectionWorkspaceProps {
   sortedDouyinHighCompletionRateWorks: DouyinCollectedWorkRecord[];
   sortedDouyinHighLikeRateWorks: DouyinCollectedWorkRecord[];
   sortedDouyinCityHotspots: DouyinCityHotspotRecord[];
+  sortedDouyinCreatorSearchResults: DouyinCreatorSearchRecord[];
+  sortedDouyinCreatorProfiles: DouyinCreatorProfileRecord[];
+  sortedDouyinCreatorDeepFetchTasks: DouyinCreatorDeepFetchTaskRecord[];
   brandNotesPage: number;
   setBrandNotesPage: Dispatch<SetStateAction<number>>;
   brandNotesPageCount: number;
@@ -2221,6 +2305,417 @@ function DouyinCitySubmitPanel(props: {
   );
 }
 
+function DouyinCreatorSearchSubmitPanel(props: {
+  value: BrandGrowthCollectionWorkspaceProps["douyinSyncForm"]["creatorSearch"];
+  onChange: ValueAction<BrandGrowthCollectionWorkspaceProps["douyinSyncForm"]["creatorSearch"]>;
+  isSubmitting: boolean;
+  onSubmit: AsyncAction;
+}) {
+  return (
+    <article className="light-data-panel">
+      <div className="collection-result-head">
+        <div>
+          <h3>达人搜索抓取</h3>
+          <p>按关键词、行业和核心商业指标抓取达人基础信息，第一期只做搜索结果沉淀，不做分析判断。</p>
+        </div>
+        <button type="button" className="primary-button" onClick={() => void props.onSubmit()} disabled={props.isSubmitting}>
+          {props.isSubmitting ? "提交中..." : "提交"}
+        </button>
+      </div>
+      <div className="form-grid two-column">
+        <label className="field">
+          <span>关键词</span>
+          <input
+            value={props.value.keyword}
+            onChange={(event) => props.onChange({ ...props.value, keyword: event.target.value })}
+            placeholder="例如：烘焙、美妆探店、母婴达人"
+          />
+        </label>
+        <label className="field">
+          <span>搜索类型</span>
+          <input
+            value={props.value.seachType}
+            onChange={(event) => props.onChange({ ...props.value, seachType: event.target.value })}
+            placeholder="默认 2"
+          />
+        </label>
+        <label className="field">
+          <span>一级行业 ID</span>
+          <input
+            value={props.value.firstIndustryId}
+            onChange={(event) => props.onChange({ ...props.value, firstIndustryId: event.target.value })}
+            placeholder="可选"
+          />
+        </label>
+        <label className="field">
+          <span>营销目标</span>
+          <input
+            value={props.value.marketingTarget}
+            onChange={(event) => props.onChange({ ...props.value, marketingTarget: event.target.value })}
+            placeholder="可选"
+          />
+        </label>
+        <label className="field">
+          <span>任务分类</span>
+          <input
+            value={props.value.taskCategory}
+            onChange={(event) => props.onChange({ ...props.value, taskCategory: event.target.value })}
+            placeholder="可选"
+          />
+        </label>
+        <label className="field">
+          <span>达人标签</span>
+          <input
+            value={props.value.tag}
+            onChange={(event) => props.onChange({ ...props.value, tag: event.target.value })}
+            placeholder="可选"
+          />
+        </label>
+        <label className="field">
+          <span>粉丝数区间</span>
+          <div className="field-inline">
+            <input
+              value={props.value.fansMin}
+              onChange={(event) => props.onChange({ ...props.value, fansMin: event.target.value })}
+              placeholder="最小值"
+            />
+            <input
+              value={props.value.fansMax}
+              onChange={(event) => props.onChange({ ...props.value, fansMax: event.target.value })}
+              placeholder="最大值"
+            />
+          </div>
+        </label>
+        <label className="field">
+          <span>预估播放区间</span>
+          <div className="field-inline">
+            <input
+              value={props.value.expectedPlayMin}
+              onChange={(event) => props.onChange({ ...props.value, expectedPlayMin: event.target.value })}
+              placeholder="最小值"
+            />
+            <input
+              value={props.value.expectedPlayMax}
+              onChange={(event) => props.onChange({ ...props.value, expectedPlayMax: event.target.value })}
+              placeholder="最大值"
+            />
+          </div>
+        </label>
+        <label className="field">
+          <span>互动率区间</span>
+          <div className="field-inline">
+            <input
+              value={props.value.interactRateMin}
+              onChange={(event) => props.onChange({ ...props.value, interactRateMin: event.target.value })}
+              placeholder="最小值"
+            />
+            <input
+              value={props.value.interactRateMax}
+              onChange={(event) => props.onChange({ ...props.value, interactRateMax: event.target.value })}
+              placeholder="最大值"
+            />
+          </div>
+        </label>
+        <label className="field">
+          <span>报价区间</span>
+          <div className="field-inline">
+            <input
+              value={props.value.priceMin}
+              onChange={(event) => props.onChange({ ...props.value, priceMin: event.target.value })}
+              placeholder="最小值"
+            />
+            <input
+              value={props.value.priceMax}
+              onChange={(event) => props.onChange({ ...props.value, priceMax: event.target.value })}
+              placeholder="最大值"
+            />
+          </div>
+        </label>
+      </div>
+    </article>
+  );
+}
+
+function DouyinCreatorDeepFetchSubmitPanel(props: {
+  value: BrandGrowthCollectionWorkspaceProps["douyinSyncForm"]["creatorDeepFetch"];
+  onChange: ValueAction<BrandGrowthCollectionWorkspaceProps["douyinSyncForm"]["creatorDeepFetch"]>;
+  isSubmitting: boolean;
+  onSubmit: AsyncAction;
+}) {
+  const identityOptions: DouyinCreatorIdentityType[] = ["AUTO", "O_AUTHOR_ID", "UID", "SEC_USER_ID", "UNIQUE_ID"];
+  return (
+    <article className="light-data-panel">
+      <div className="collection-result-head">
+        <div>
+          <h3>达人深度抓取</h3>
+          <p>输入达人标识批量创建深抓任务，后台异步拉达人画像、热词和主页作品摘要，工作台自动刷新任务进度。</p>
+        </div>
+        <button type="button" className="primary-button" onClick={() => void props.onSubmit()} disabled={props.isSubmitting}>
+          {props.isSubmitting ? "提交中..." : "创建任务"}
+        </button>
+      </div>
+      <div className="form-grid two-column">
+        <label className="field field-span-2">
+          <span>达人标识</span>
+          <textarea
+            value={props.value.identifiers}
+            onChange={(event) => props.onChange({ ...props.value, identifiers: event.target.value })}
+            placeholder="每行一个标识，可填星图达人ID、UID、sec_user_id 或抖音号"
+            rows={5}
+          />
+        </label>
+        <label className="field">
+          <span>标识类型</span>
+          <select
+            value={props.value.identityType}
+            onChange={(event) => props.onChange({ ...props.value, identityType: event.target.value as DouyinCreatorIdentityType })}
+          >
+            {identityOptions.map((item) => (
+              <option key={`creator-identity-${item}`} value={item}>
+                {item}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="field">
+          <span>linkType</span>
+          <input
+            value={props.value.linkType}
+            onChange={(event) => props.onChange({ ...props.value, linkType: event.target.value })}
+            placeholder="可选"
+          />
+        </label>
+        <label className="field">
+          <span>主页抓取页数</span>
+          <input
+            value={props.value.homepageVideoPageLimit}
+            onChange={(event) => props.onChange({ ...props.value, homepageVideoPageLimit: event.target.value })}
+            placeholder="默认 1，最多 5"
+          />
+        </label>
+      </div>
+    </article>
+  );
+}
+
+function getDouyinCreatorTaskStatusLabel(status: DouyinCreatorDeepFetchTaskRecord["taskStatus"]) {
+  switch (status) {
+    case "PENDING":
+      return "待执行";
+    case "QUEUED":
+      return "已排队";
+    case "RUNNING":
+      return "执行中";
+    case "SUCCESS":
+      return "成功";
+    case "FAILED":
+      return "失败";
+    case "CANCELLED":
+      return "已取消";
+    default:
+      return status;
+  }
+}
+
+function stringifyCreatorSummary(values?: string[]) {
+  if (!values?.length) {
+    return "-";
+  }
+  return values.join("；");
+}
+
+function DouyinCreatorSearchTable(props: {
+  items: DouyinCreatorSearchRecord[];
+  formatDateTime: OptionalDateFormatter;
+  formatCount: OptionalNumberFormatter;
+  formatMetric: OptionalNumberFormatter;
+}) {
+  return (
+    <ScrollableTableShell>
+      <table className="soft-table douyin-data-table">
+        <thead>
+          <tr>
+            <th>达人昵称</th>
+            <th>头像</th>
+            <th>达人 ID</th>
+            <th>星图达人 ID</th>
+            <th>抖音号</th>
+            <th>地区</th>
+            <th>分类标签</th>
+            <th>内容主题</th>
+            <th>粉丝数</th>
+            <th>预估播放</th>
+            <th>互动率</th>
+            <th>完播率</th>
+            <th>传播指数</th>
+            <th>报价</th>
+            <th>CPM</th>
+            <th>CPE</th>
+            <th>签名</th>
+            <th>采集时间</th>
+          </tr>
+        </thead>
+        <tbody>
+          {props.items.map((item) => (
+            <tr key={item.id}>
+              <td>{item.nickname || "-"}</td>
+              <td><AvatarPreviewLink src={item.avatar} alt={`${item.nickname || "达人"}头像`} /></td>
+              <td><CopyableCell value={item.creatorId} /></td>
+              <td><CopyableCell value={item.oAuthorId} /></td>
+              <td><CopyableCell value={item.uniqueId || item.secUserId || item.douyinUid} /></td>
+              <td>{item.region || "-"}</td>
+              <td className="table-cell-wide">
+                <ExpandableTextCell value={stringifyCreatorSummary(item.categoryLabels)} emptyText="-" compactRows={2} />
+              </td>
+              <td className="table-cell-wide">
+                <ExpandableTextCell value={stringifyCreatorSummary(item.contentThemeLabels)} emptyText="-" compactRows={2} />
+              </td>
+              <td>{props.formatCount(item.fansCount)}</td>
+              <td>{props.formatCount(item.expectedPlayCount)}</td>
+              <td>{props.formatMetric(item.interactRate)}</td>
+              <td>{props.formatMetric(item.playOverRate)}</td>
+              <td>{props.formatCount(item.spreadIndex)}</td>
+              <td>{props.formatCount(item.price)}</td>
+              <td>{props.formatCount(item.cpm)}</td>
+              <td>{props.formatCount(item.cpe)}</td>
+              <td className="table-cell-wide">
+                <ExpandableTextCell value={item.signature} emptyText="-" compactRows={2} />
+              </td>
+              <td>{props.formatDateTime(item.collectedAt)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </ScrollableTableShell>
+  );
+}
+
+function DouyinCreatorDeepFetchTaskTable(props: {
+  items: DouyinCreatorDeepFetchTaskRecord[];
+  formatDateTime: OptionalDateFormatter;
+}) {
+  return (
+    <ScrollableTableShell>
+      <table className="soft-table douyin-data-table">
+        <thead>
+          <tr>
+            <th>任务标题</th>
+            <th>状态</th>
+            <th>输入标识</th>
+            <th>标识类型</th>
+            <th>达人昵称</th>
+            <th>达人 ID</th>
+            <th>星图达人 ID</th>
+            <th>linkType</th>
+            <th>开始时间</th>
+            <th>完成时间</th>
+            <th>更新时间</th>
+            <th>错误信息</th>
+          </tr>
+        </thead>
+        <tbody>
+          {props.items.map((item) => (
+            <tr key={item.id}>
+              <td className="table-cell-wide">
+                <ExpandableTextCell value={item.taskTitle} emptyText="-" compactRows={2} />
+              </td>
+              <td>{getDouyinCreatorTaskStatusLabel(item.taskStatus)}</td>
+              <td><CopyableCell value={item.creatorIdentifier} /></td>
+              <td>{item.identityType || "-"}</td>
+              <td>{item.creatorName || "-"}</td>
+              <td><CopyableCell value={item.creatorId} /></td>
+              <td><CopyableCell value={item.oAuthorId} /></td>
+              <td>{item.linkType ?? "-"}</td>
+              <td>{props.formatDateTime(item.startedAt)}</td>
+              <td>{props.formatDateTime(item.finishedAt)}</td>
+              <td>{props.formatDateTime(item.updatedAt)}</td>
+              <td className="table-cell-wide">
+                <ExpandableTextCell value={item.errorMessage} emptyText="-" compactRows={2} />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </ScrollableTableShell>
+  );
+}
+
+function DouyinCreatorProfileTable(props: {
+  items: DouyinCreatorProfileRecord[];
+  formatDateTime: OptionalDateFormatter;
+  formatCount: OptionalNumberFormatter;
+  formatMetric: OptionalNumberFormatter;
+}) {
+  return (
+    <ScrollableTableShell>
+      <table className="soft-table douyin-data-table">
+        <thead>
+          <tr>
+            <th>达人昵称</th>
+            <th>头像</th>
+            <th>达人 ID</th>
+            <th>星图达人 ID</th>
+            <th>抖音号</th>
+            <th>地区</th>
+            <th>分类标签</th>
+            <th>粉丝数</th>
+            <th>预估播放</th>
+            <th>互动率</th>
+            <th>报价</th>
+            <th>粉丝画像摘要</th>
+            <th>受众画像摘要</th>
+            <th>评论热词</th>
+            <th>内容热词</th>
+            <th>推荐视频标题</th>
+            <th>主页视频数</th>
+            <th>推荐视频数</th>
+            <th>最近任务</th>
+            <th>最近抓取时间</th>
+          </tr>
+        </thead>
+        <tbody>
+          {props.items.map((item) => (
+            <tr key={item.id}>
+              <td>{item.nickname || "-"}</td>
+              <td><AvatarPreviewLink src={item.avatar} alt={`${item.nickname || "达人"}头像`} /></td>
+              <td><CopyableCell value={item.creatorId} /></td>
+              <td><CopyableCell value={item.oAuthorId} /></td>
+              <td><CopyableCell value={item.uniqueId || item.secUserId || item.douyinUid} /></td>
+              <td>{item.region || "-"}</td>
+              <td className="table-cell-wide">
+                <ExpandableTextCell value={stringifyCreatorSummary(item.categoryLabels)} emptyText="-" compactRows={2} />
+              </td>
+              <td>{props.formatCount(item.fansCount)}</td>
+              <td>{props.formatCount(item.expectedPlayCount)}</td>
+              <td>{props.formatMetric(item.interactRate)}</td>
+              <td>{props.formatCount(item.price)}</td>
+              <td className="table-cell-wide">
+                <ExpandableTextCell value={stringifyCreatorSummary(item.fansDistributionSummary)} emptyText="-" compactRows={3} />
+              </td>
+              <td className="table-cell-wide">
+                <ExpandableTextCell value={stringifyCreatorSummary(item.audienceDistributionSummary)} emptyText="-" compactRows={3} />
+              </td>
+              <td className="table-cell-wide">
+                <ExpandableTextCell value={stringifyCreatorSummary(item.hotCommentTokens)} emptyText="-" compactRows={2} />
+              </td>
+              <td className="table-cell-wide">
+                <ExpandableTextCell value={stringifyCreatorSummary(item.contentHotKeywords)} emptyText="-" compactRows={2} />
+              </td>
+              <td className="table-cell-wide">
+                <ExpandableTextCell value={stringifyCreatorSummary(item.recommendedVideoTitles)} emptyText="-" compactRows={3} />
+              </td>
+              <td>{props.formatCount(item.homepageVideoCount)}</td>
+              <td>{props.formatCount(item.recommendedVideoCount)}</td>
+              <td><CopyableCell value={item.lastTaskId} /></td>
+              <td>{props.formatDateTime(item.lastFetchedAt)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </ScrollableTableShell>
+  );
+}
+
 function ScrollableTableShell(props: {
   children: ReactNode;
 }) {
@@ -3755,7 +4250,10 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
     props.sortedDouyinLowFanExplosiveWorks.length +
     props.sortedDouyinHighCompletionRateWorks.length +
     props.sortedDouyinHighLikeRateWorks.length +
-    props.sortedDouyinCityHotspots.length;
+    props.sortedDouyinCityHotspots.length +
+    props.sortedDouyinCreatorSearchResults.length +
+    props.sortedDouyinCreatorProfiles.length +
+    props.sortedDouyinCreatorDeepFetchTasks.length;
   const feishuConfigReady = Boolean(props.feishuAppConfig?.appId || props.feishuAppConfigForm.appId.trim());
   const feishuBindingReady = Boolean(props.feishuBinding?.wikiUrl || props.feishuBindingForm.wikiUrl.trim());
   const douyinContentTags = props.douyinWorkspace.contentTags ?? [];
@@ -5414,6 +5912,113 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                   />
                 ) : (
                   <div className="note-empty-state">当前还没有采集到同城热点榜结果，请先选择城市并提交。</div>
+                )}
+              </article>
+            </>
+          ) : null}
+          {props.activeDouyinCollectionCard === "creatorSearch" ? (
+            <>
+              <DouyinCreatorSearchSubmitPanel
+                value={props.douyinSyncForm.creatorSearch}
+                onChange={(value) => props.setDouyinSyncForm((current) => ({ ...current, creatorSearch: value }))}
+                isSubmitting={props.isHydrating || props.isSyncingDouyinWorkspace}
+                onSubmit={props.onSearchDouyinCreators}
+              />
+              <article className="light-data-panel">
+                <div className="collection-result-head">
+                  <div>
+                    <h3>达人搜索结果</h3>
+                    <p>沉淀搜索到的达人基础资料，供下一步批量发起深度抓取任务。</p>
+                  </div>
+                  <span className={`archive-pill ${props.sortedDouyinCreatorSearchResults.length ? "status-ready" : "status-pending"}`}>
+                    已抓取 {props.sortedDouyinCreatorSearchResults.length} 条
+                  </span>
+                </div>
+                {props.sortedDouyinCreatorSearchResults.length ? (
+                  <DouyinCreatorSearchTable
+                    items={props.sortedDouyinCreatorSearchResults}
+                    formatDateTime={props.formatDateTime}
+                    formatCount={props.formatCount}
+                    formatMetric={props.formatMetric}
+                  />
+                ) : (
+                  <div className="note-empty-state">当前还没有达人搜索结果，请先输入关键词并提交。</div>
+                )}
+              </article>
+            </>
+          ) : null}
+          {props.activeDouyinCollectionCard === "creatorDeepFetch" ? (
+            <>
+              <DouyinCreatorDeepFetchSubmitPanel
+                value={props.douyinSyncForm.creatorDeepFetch}
+                onChange={(value) => props.setDouyinSyncForm((current) => ({ ...current, creatorDeepFetch: value }))}
+                isSubmitting={props.isHydrating || props.isSyncingDouyinWorkspace}
+                onSubmit={props.onCreateDouyinCreatorDeepFetchTasks}
+              />
+              <article className="light-data-panel">
+                <div className="collection-result-head">
+                  <div>
+                    <h3>达人深抓任务</h3>
+                    <p>任务提交后后台异步执行，成功后会自动写入达人结果池。</p>
+                  </div>
+                  <span className={`archive-pill ${
+                    props.sortedDouyinCreatorDeepFetchTasks.some((item) => ["PENDING", "QUEUED", "RUNNING"].includes(item.taskStatus))
+                      ? "status-in_progress"
+                      : props.sortedDouyinCreatorDeepFetchTasks.length
+                        ? "status-ready"
+                        : "status-pending"
+                  }`}>
+                    任务 {props.sortedDouyinCreatorDeepFetchTasks.length} 个
+                  </span>
+                </div>
+                {props.sortedDouyinCreatorDeepFetchTasks.length ? (
+                  <DouyinCreatorDeepFetchTaskTable
+                    items={props.sortedDouyinCreatorDeepFetchTasks}
+                    formatDateTime={props.formatDateTime}
+                  />
+                ) : (
+                  <div className="note-empty-state">当前还没有达人深抓任务，请先输入达人标识并创建任务。</div>
+                )}
+              </article>
+            </>
+          ) : null}
+          {props.activeDouyinCollectionCard === "creatorResultPool" ? (
+            <>
+              <article className="light-data-panel">
+                <div className="collection-result-head">
+                  <div>
+                    <h3>达人结果池</h3>
+                    <p>这里展示深度抓取后沉淀下来的达人画像快照，供后续 OpenClaw 自动分析复用。</p>
+                  </div>
+                  <span className={`archive-pill ${props.sortedDouyinCreatorProfiles.length ? "status-ready" : "status-pending"}`}>
+                    已沉淀 {props.sortedDouyinCreatorProfiles.length} 条
+                  </span>
+                </div>
+                {props.sortedDouyinCreatorProfiles.length ? (
+                  <DouyinCreatorProfileTable
+                    items={props.sortedDouyinCreatorProfiles}
+                    formatDateTime={props.formatDateTime}
+                    formatCount={props.formatCount}
+                    formatMetric={props.formatMetric}
+                  />
+                ) : (
+                  <div className="note-empty-state">当前还没有达人结果池数据，请先完成达人深度抓取。</div>
+                )}
+              </article>
+              <article className="light-data-panel">
+                <div className="collection-result-head">
+                  <div>
+                    <h3>最近深抓任务</h3>
+                    <p>结果池旁边保留最近任务列表，便于定位哪些达人还在执行中或抓取失败。</p>
+                  </div>
+                </div>
+                {props.sortedDouyinCreatorDeepFetchTasks.length ? (
+                  <DouyinCreatorDeepFetchTaskTable
+                    items={props.sortedDouyinCreatorDeepFetchTasks.slice(0, 20)}
+                    formatDateTime={props.formatDateTime}
+                  />
+                ) : (
+                  <div className="note-empty-state">当前还没有达人深抓任务记录。</div>
                 )}
               </article>
             </>

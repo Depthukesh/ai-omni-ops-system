@@ -53,6 +53,7 @@ import {
   addWechatMpBenchmarkArticleToMaterialLibrary,
   addWechatSearchItemToMaterialLibrary,
   buildUnifiedMaterialLibraryItems,
+  createDouyinCreatorDeepFetchTasks,
   deleteDouyinBrandAccount,
   deleteDouyinCollectedWork,
   deleteDouyinCompetitorAccount,
@@ -69,6 +70,7 @@ import {
   type XhsSubCommentPaginationState,
   type XhsSubCommentRecord,
   removeDouyinKeywordRecommendation,
+  searchDouyinCreators,
   removeDouyinBenchmarkWorkFromMaterialLibrary,
   syncDouyinCollectionWorkspace,
   syncDouyinTargetUsers,
@@ -81,6 +83,12 @@ import {
   syncXiaohongshuSearchNotes,
   syncXiaohongshuTargetUsers,
   type DouyinCollectedAccountRecord,
+  type DouyinCreatorDeepFetchPayload,
+  type DouyinCreatorDeepFetchTaskRecord,
+  type DouyinCreatorIdentityType,
+  type DouyinCreatorProfileRecord,
+  type DouyinCreatorSearchPayload,
+  type DouyinCreatorSearchRecord,
   type DouyinKeywordRecommendationRecord,
   type XhsAccountRole,
   type XhsSyncAccountEntry,
@@ -427,6 +435,9 @@ function createEmptyDouyinCollectionWorkspace(): DouyinCollectionWorkspace {
     highCompletionRateWorks: [],
     highLikeRateWorks: [],
     cityHotspots: [],
+    creatorSearchResults: [],
+    creatorProfiles: [],
+    creatorDeepFetchTasks: [],
     contentTags: [],
     cityOptions: [],
   };
@@ -754,6 +765,30 @@ type DouyinSyncForm = {
   cityHotspots: {
     cityCode: string;
   };
+  creatorSearch: {
+    keyword: string;
+    seachType: string;
+    sortField: string;
+    sortType: string;
+    firstIndustryId: string;
+    marketingTarget: string;
+    taskCategory: string;
+    tag: string;
+    fansMin: string;
+    fansMax: string;
+    expectedPlayMin: string;
+    expectedPlayMax: string;
+    interactRateMin: string;
+    interactRateMax: string;
+    priceMin: string;
+    priceMax: string;
+  };
+  creatorDeepFetch: {
+    identifiers: string;
+    identityType: DouyinCreatorIdentityType;
+    linkType: string;
+    homepageVideoPageLimit: string;
+  };
 };
 
 type XhsSyncForm = {
@@ -805,6 +840,30 @@ function createEmptyDouyinSyncForm(): DouyinSyncForm {
     },
     cityHotspots: {
       cityCode: "",
+    },
+    creatorSearch: {
+      keyword: "",
+      seachType: "2",
+      sortField: "",
+      sortType: "desc",
+      firstIndustryId: "",
+      marketingTarget: "",
+      taskCategory: "",
+      tag: "",
+      fansMin: "",
+      fansMax: "",
+      expectedPlayMin: "",
+      expectedPlayMax: "",
+      interactRateMin: "",
+      interactRateMax: "",
+      priceMin: "",
+      priceMax: "",
+    },
+    creatorDeepFetch: {
+      identifiers: "",
+      identityType: "AUTO",
+      linkType: "",
+      homepageVideoPageLimit: "1",
     },
   };
 }
@@ -1408,9 +1467,29 @@ export function BrandGrowthWorkspace() {
     ),
     [douyinCollectionWorkspace.cityHotspots],
   );
+  const sortedDouyinCreatorSearchResults = useMemo(
+    () => sortByCollectedAtDesc(douyinCollectionWorkspace.creatorSearchResults as DouyinCreatorSearchRecord[]),
+    [douyinCollectionWorkspace.creatorSearchResults],
+  );
+  const sortedDouyinCreatorProfiles = useMemo(
+    () => [...douyinCollectionWorkspace.creatorProfiles].sort(
+      (left, right) => Date.parse(right.lastFetchedAt || "") - Date.parse(left.lastFetchedAt || ""),
+    ),
+    [douyinCollectionWorkspace.creatorProfiles],
+  );
+  const sortedDouyinCreatorDeepFetchTasks = useMemo(
+    () => [...douyinCollectionWorkspace.creatorDeepFetchTasks].sort(
+      (left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt),
+    ),
+    [douyinCollectionWorkspace.creatorDeepFetchTasks],
+  );
+  const hasPendingDouyinCreatorDeepFetchTask = useMemo(
+    () => douyinCollectionWorkspace.creatorDeepFetchTasks.some((item) => ["PENDING", "QUEUED", "RUNNING"].includes(item.taskStatus)),
+    [douyinCollectionWorkspace.creatorDeepFetchTasks],
+  );
 
   useEffect(() => {
-    if (activePage !== "douyinCollection" || !hasPendingDouyinTranscript) {
+    if (activePage !== "douyinCollection" || (!hasPendingDouyinTranscript && !hasPendingDouyinCreatorDeepFetchTask)) {
       return;
     }
     const brandId = activeBrandId || archive.brand.id;
@@ -1458,7 +1537,7 @@ export function BrandGrowthWorkspace() {
         window.clearTimeout(timer);
       }
     };
-  }, [activeBrandId, activePage, archive.brand.id, hasPendingDouyinTranscript]);
+  }, [activeBrandId, activePage, archive.brand.id, hasPendingDouyinCreatorDeepFetchTask, hasPendingDouyinTranscript]);
 
   const brandNotesPageCount = Math.max(1, Math.ceil(sortedBrandNotes.length / brandNotesPageSize));
   const paginatedBrandNotes = useMemo(() => {
@@ -3681,8 +3760,13 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     clearMessages();
 
     try {
+      if (["creatorSearch", "creatorDeepFetch", "creatorResultPool"].includes(activeDouyinCollectionCard)) {
+        setErrorMessage("当前卡片请使用达人抓取专属入口提交。");
+        setIsSyncingDouyinWorkspace(false);
+        return;
+      }
       const payload: DouyinSyncPayload = {
-        scope: activeDouyinCollectionCard,
+        scope: activeDouyinCollectionCard as DouyinSyncPayload["scope"],
       };
       if (activeDouyinCollectionCard === "brandAccount" || activeDouyinCollectionCard === "brandWorks") {
         payload.brandAccountLinks = douyinSyncForm.brandAccountEntries.map((entry) => entry.locator.trim()).filter(Boolean);
@@ -3769,6 +3853,84 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     } catch (error) {
       const message = error instanceof Error ? error.message : "同步失败";
       setErrorMessage(`抖音同步失败：${message}`);
+    } finally {
+      setIsSyncingDouyinWorkspace(false);
+    }
+  }
+
+  async function handleSearchDouyinCreators() {
+    if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.collection.douyinCollection"]?.edit) {
+      setErrorMessage("当前账号没有同步收集数据板块的编辑权限。");
+      return;
+    }
+
+    const keyword = douyinSyncForm.creatorSearch.keyword.trim();
+    if (!keyword) {
+      setErrorMessage("请输入达人搜索关键词后再提交。");
+      return;
+    }
+
+    setIsSyncingDouyinWorkspace(true);
+    clearMessages();
+
+    try {
+      const payload: DouyinCreatorSearchPayload = {
+        keyword,
+        seachType: douyinSyncForm.creatorSearch.seachType || undefined,
+        sortField: douyinSyncForm.creatorSearch.sortField || undefined,
+        sortType: douyinSyncForm.creatorSearch.sortType || undefined,
+        firstIndustryId: douyinSyncForm.creatorSearch.firstIndustryId.trim() || undefined,
+        marketingTarget: douyinSyncForm.creatorSearch.marketingTarget.trim() || undefined,
+        taskCategory: douyinSyncForm.creatorSearch.taskCategory.trim() || undefined,
+        tag: douyinSyncForm.creatorSearch.tag.trim() || undefined,
+        fansMin: douyinSyncForm.creatorSearch.fansMin.trim() || undefined,
+        fansMax: douyinSyncForm.creatorSearch.fansMax.trim() || undefined,
+        expectedPlayMin: douyinSyncForm.creatorSearch.expectedPlayMin.trim() || undefined,
+        expectedPlayMax: douyinSyncForm.creatorSearch.expectedPlayMax.trim() || undefined,
+        interactRateMin: douyinSyncForm.creatorSearch.interactRateMin.trim() || undefined,
+        interactRateMax: douyinSyncForm.creatorSearch.interactRateMax.trim() || undefined,
+        priceMin: douyinSyncForm.creatorSearch.priceMin.trim() || undefined,
+        priceMax: douyinSyncForm.creatorSearch.priceMax.trim() || undefined,
+      };
+      const response = await searchDouyinCreators(payload, activeBrandId || archive.brand.id);
+      setDouyinCollectionWorkspace(response.workspace);
+      setNotice(`达人搜索抓取完成，已更新 ${response.syncedCount} 条达人结果。`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "达人搜索失败";
+      setErrorMessage(`达人搜索抓取失败：${message}`);
+    } finally {
+      setIsSyncingDouyinWorkspace(false);
+    }
+  }
+
+  async function handleCreateDouyinCreatorDeepFetchTasks() {
+    if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.collection.douyinCollection"]?.edit) {
+      setErrorMessage("当前账号没有同步收集数据板块的编辑权限。");
+      return;
+    }
+
+    const identifiers = parseDouyinSyncLines(douyinSyncForm.creatorDeepFetch.identifiers);
+    if (!identifiers.length) {
+      setErrorMessage("请至少输入一个达人标识后再创建深抓任务。");
+      return;
+    }
+
+    setIsSyncingDouyinWorkspace(true);
+    clearMessages();
+
+    try {
+      const payload: DouyinCreatorDeepFetchPayload = {
+        identifiers,
+        identityType: douyinSyncForm.creatorDeepFetch.identityType,
+        linkType: parseOptionalNumericValue(douyinSyncForm.creatorDeepFetch.linkType),
+        homepageVideoPageLimit: parseOptionalNumericValue(douyinSyncForm.creatorDeepFetch.homepageVideoPageLimit) || 1,
+      };
+      const response = await createDouyinCreatorDeepFetchTasks(payload, activeBrandId || archive.brand.id);
+      setDouyinCollectionWorkspace(response.workspace);
+      setNotice(`达人深度抓取任务已创建 ${response.createdCount} 个，工作台会自动刷新任务进度。`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "达人深抓失败";
+      setErrorMessage(`达人深度抓取失败：${message}`);
     } finally {
       setIsSyncingDouyinWorkspace(false);
     }
@@ -4562,6 +4724,8 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
         onDeleteDouyinBrandAccount={handleDeleteDouyinBrandAccount}
         onDeleteDouyinCompetitorAccount={handleDeleteDouyinCompetitorAccount}
         onSyncSingleDouyinKeywordRecommendation={handleSyncSingleDouyinKeywordRecommendation}
+        onSearchDouyinCreators={handleSearchDouyinCreators}
+        onCreateDouyinCreatorDeepFetchTasks={handleCreateDouyinCreatorDeepFetchTasks}
         onLoadMoreDouyinComments={handleLoadMoreDouyinComments}
         sortedBrandAccounts={sortedBrandAccounts}
         sortedCompetitorAccounts={sortedCompetitorAccounts}
@@ -4592,6 +4756,9 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
         sortedDouyinHighCompletionRateWorks={sortedDouyinHighCompletionRateWorks}
         sortedDouyinHighLikeRateWorks={sortedDouyinHighLikeRateWorks}
         sortedDouyinCityHotspots={sortedDouyinCityHotspots}
+        sortedDouyinCreatorSearchResults={sortedDouyinCreatorSearchResults}
+        sortedDouyinCreatorProfiles={sortedDouyinCreatorProfiles}
+        sortedDouyinCreatorDeepFetchTasks={sortedDouyinCreatorDeepFetchTasks}
         brandNotesPage={brandNotesPage}
         setBrandNotesPage={setBrandNotesPage}
         brandNotesPageCount={brandNotesPageCount}

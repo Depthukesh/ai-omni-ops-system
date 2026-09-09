@@ -251,6 +251,67 @@ export class DouyinCollectorsController {
     return this.collectorsService.syncDouyinWorkspace(brandId, payload ?? {});
   }
 
+  @Post("brands/:brandId/creator-search")
+  async searchCreators(
+    @Param("brandId") brandId: string,
+    @Body()
+    payload: {
+      keyword?: string;
+      seachType?: string;
+      timeRangeDays?: string;
+      page?: number;
+      sortField?: string;
+      sortType?: string;
+      taskCategory?: string;
+      marketingTarget?: string;
+      firstIndustryId?: string;
+      authorListId?: string;
+      tag?: string;
+      personaTags?: string;
+      gender?: string;
+      fansMin?: string;
+      fansMax?: string;
+      expectedPlayMin?: string;
+      expectedPlayMax?: string;
+      cpmMin?: string;
+      cpmMax?: string;
+      cpeMin?: string;
+      cpeMax?: string;
+      interactRateMin?: string;
+      interactRateMax?: string;
+      playOverRateMin?: string;
+      playOverRateMax?: string;
+      burstTextRateMin?: string;
+      burstTextRateMax?: string;
+      priceType?: string;
+      priceMin?: string;
+      priceMax?: string;
+      extraFilter?: string;
+    },
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(brandId, auth);
+    return this.collectorsService.searchDouyinCreators(brandId, payload ?? {});
+  }
+
+  @Post("brands/:brandId/creator-deep-fetch-tasks")
+  async createCreatorDeepFetchTasks(
+    @Param("brandId") brandId: string,
+    @Body()
+    payload: {
+      identifiers?: string[];
+      identityType?: "AUTO" | "O_AUTHOR_ID" | "UID" | "SEC_USER_ID" | "UNIQUE_ID";
+      linkType?: number;
+      homepageVideoPageLimit?: number;
+    },
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(brandId, auth);
+    return this.collectorsService.createDouyinCreatorDeepFetchTasks(brandId, payload ?? {}, auth);
+  }
+
   @Delete("brands/:brandId/brand-accounts/:accountId")
   async deleteBrandAccount(
     @Param("brandId") brandId: string,

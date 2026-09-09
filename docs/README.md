@@ -58,6 +58,8 @@
 - 作用：记录重要改动的背景、范围、验证和后续事项
 - 要求：真实代码改动默认同步补一条变更记录
 - 最新补充：
+  - `docs/changes/2026-09-09-douyin-creator-collection-workbench-phase-1.md`
+    - 给 `品牌增长策略 -> 收集数据 -> 抖音` 补齐达人抓取第一期：`达人搜索抓取`、`达人深度抓取`、`达人结果池`，并将深抓执行态收口到轻任务与抖音 workspace 聚合
   - `docs/changes/2026-08-31-runninghub-openclaw-jsonnull-guard.md`
     - 说明 RunningHub `errorCode=803 / JsonNull` 的真实根因是必填媒体节点空提交，并补齐服务端前置拦截与 OpenClaw Skill / MCP / 安装中心指引
   - `docs/changes/2026-08-31-douyin-runninghub-app-sync-2.md`

@@ -290,14 +290,14 @@ const OPENCLAW_WEBSITE_FUNCTION_CATALOG: OpenClawWebsiteFunctionCatalogItem[] = 
     domainKey: "brand_growth",
     domainName: "品牌增长",
     name: "查看并同步抖音搜集数据",
-    summary: "适合读取品牌资料库中的抖音搜集数据工作区，并直接触发品牌账号、竞品账号、对标作品、搜索结果和评论数据同步。",
+    summary: "适合读取品牌资料库中的抖音搜集数据工作区，并直接触发品牌账号、竞品账号、对标作品、搜索结果、评论数据，以及达人搜索抓取和达人深度抓取。",
     pageUrl: "/brand-growth",
     pageLabel: "打开品牌增长工作台",
     riskLevel: "medium",
-    intentKeywords: ["品牌资料库", "搜集数据", "抖音板块", "抖音采集", "对标账号", "对标作品", "搜索结果", "评论数据"],
+    intentKeywords: ["品牌资料库", "搜集数据", "抖音板块", "抖音采集", "对标账号", "对标作品", "搜索结果", "评论数据", "达人搜索", "达人深抓", "达人结果池"],
     requiredInputKeys: ["brandId"],
     requiredInputs: ["当前品牌"],
-    recommendedQuestions: ["帮我看品牌资料库里抖音搜集数据板块", "帮我同步一下抖音对标账号和对标作品"],
+    recommendedQuestions: ["帮我看品牌资料库里抖音搜集数据板块", "帮我搜索一批适合品牌的抖音达人", "帮我给这批达人发起深度抓取"],
     mcpTools: [
       "get_douyin_collection_workspace",
       "sync_douyin_brand_accounts",
@@ -306,6 +306,8 @@ const OPENCLAW_WEBSITE_FUNCTION_CATALOG: OpenClawWebsiteFunctionCatalogItem[] = 
       "sync_douyin_search_works",
       "sync_douyin_comment_data",
       "sync_douyin_target_users",
+      "search_douyin_creators",
+      "create_douyin_creator_deep_fetch_tasks",
     ],
   },
   {
@@ -1205,6 +1207,56 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
         matchKeywords: { type: "array", items: { type: "string" } },
         syncCommentsFirst: { type: "boolean" },
       },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "search_douyin_creators",
+    description: "按关键词、行业和商业指标搜索抖音达人，并把结果沉淀到品牌资料库的达人搜索结果池。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        keyword: { type: "string", description: "必填：达人搜索关键词。" },
+        seachType: { type: "string", description: "可选：搜索类型。" },
+        sortField: { type: "string", description: "可选：排序字段。" },
+        sortType: { type: "string", description: "可选：排序方向，例如 desc。" },
+        firstIndustryId: { type: "string", description: "可选：一级行业 ID。" },
+        marketingTarget: { type: "string", description: "可选：营销目标。" },
+        taskCategory: { type: "string", description: "可选：任务分类。" },
+        tag: { type: "string", description: "可选：达人标签。" },
+        fansMin: { type: "string", description: "可选：粉丝数最小值。" },
+        fansMax: { type: "string", description: "可选：粉丝数最大值。" },
+        expectedPlayMin: { type: "string", description: "可选：预估播放最小值。" },
+        expectedPlayMax: { type: "string", description: "可选：预估播放最大值。" },
+        interactRateMin: { type: "string", description: "可选：互动率最小值。" },
+        interactRateMax: { type: "string", description: "可选：互动率最大值。" },
+        priceMin: { type: "string", description: "可选：报价最小值。" },
+        priceMax: { type: "string", description: "可选：报价最大值。" },
+      },
+      required: ["keyword"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "create_douyin_creator_deep_fetch_tasks",
+    description: "按达人标识批量创建抖音达人深度抓取任务，后台异步补拉画像、热词和主页作品摘要。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        identifiers: {
+          type: "array",
+          description: "必填：达人标识列表，可传星图达人 ID、UID、sec_user_id 或抖音号。",
+          items: { type: "string" },
+        },
+        identityType: {
+          type: "string",
+          enum: ["AUTO", "O_AUTHOR_ID", "UID", "SEC_USER_ID", "UNIQUE_ID"],
+          description: "可选：达人标识类型，默认 AUTO。",
+        },
+        linkType: { type: "integer", description: "可选：星图链接类型。" },
+        homepageVideoPageLimit: { type: "integer", minimum: 1, maximum: 5, description: "可选：主页作品抓取页数，默认 1，最大 5。" },
+      },
+      required: ["identifiers"],
       additionalProperties: false,
     },
   },
@@ -4336,7 +4388,7 @@ export class OpenClawService {
 
     return this.buildSummaryResponse({
       title: "抖音搜集数据工作区",
-      summary: `当前品牌资料库中的抖音搜集数据已包含 ${counts.brandAccounts} 个品牌账号、${counts.competitorAccounts} 个竞品账号、${counts.benchmarkWorks} 条对标作品、${counts.searchWorks} 条搜索结果、${counts.commentData} 条评论数据和 ${counts.targetUsers} 条目标用户。`,
+      summary: `当前品牌资料库中的抖音搜集数据已包含 ${counts.brandAccounts} 个品牌账号、${counts.competitorAccounts} 个竞品账号、${counts.benchmarkWorks} 条对标作品、${counts.searchWorks} 条搜索结果、${counts.commentData} 条评论数据、${counts.targetUsers} 条目标用户，以及 ${counts.creatorSearchResults} 条达人搜索结果、${counts.creatorProfiles} 条达人结果池快照和 ${counts.creatorDeepFetchTasks} 条达人深抓任务。`,
       highlights: [
         `品牌账号：${counts.brandAccounts}`,
         `竞品账号：${counts.competitorAccounts}`,
@@ -4346,6 +4398,9 @@ export class OpenClawService {
         `搜索结果：${counts.searchWorks}`,
         `评论数据：${counts.commentData}`,
         `目标用户：${counts.targetUsers}`,
+        `达人搜索结果：${counts.creatorSearchResults}`,
+        `达人结果池：${counts.creatorProfiles}`,
+        `达人深抓任务：${counts.creatorDeepFetchTasks}`,
       ],
       data: {
         counts,
@@ -4362,6 +4417,9 @@ export class OpenClawService {
         highCompletionRateWorks: workspace.highCompletionRateWorks.slice(0, limit),
         highLikeRateWorks: workspace.highLikeRateWorks.slice(0, limit),
         cityHotspots: workspace.cityHotspots.slice(0, limit),
+        creatorSearchResults: workspace.creatorSearchResults.slice(0, limit),
+        creatorProfiles: workspace.creatorProfiles.slice(0, limit),
+        creatorDeepFetchTasks: workspace.creatorDeepFetchTasks.slice(0, limit),
         contentTags: workspace.contentTags.slice(0, limit),
         cityOptions: workspace.cityOptions.slice(0, limit),
       },
@@ -4601,6 +4659,148 @@ export class OpenClawService {
       links: [{ label: "打开品牌增长工作台", url: "/brand-growth" }],
       resultStatus: "COMPLETED",
       resourceKind: "douyin_collection",
+    });
+  }
+
+  async searchDouyinCreators(
+    headers: HeadersMap,
+    options?: {
+      keyword?: string;
+      seachType?: string;
+      sortField?: string;
+      sortType?: string;
+      firstIndustryId?: string;
+      marketingTarget?: string;
+      taskCategory?: string;
+      tag?: string;
+      fansMin?: string;
+      fansMax?: string;
+      expectedPlayMin?: string;
+      expectedPlayMax?: string;
+      interactRateMin?: string;
+      interactRateMax?: string;
+      priceMin?: string;
+      priceMax?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.collection.douyinCollection", "edit", auth);
+
+    const keyword = this.normalizeSafeInstruction(options?.keyword, "抖音达人搜索关键词");
+    if (!keyword) {
+      throw new BadRequestException("请提供 keyword");
+    }
+
+    const result = await this.collectorsService.searchDouyinCreators(brandId, {
+      keyword,
+      seachType: this.normalizeSafeInstruction(options?.seachType, "抖音达人搜索类型") || undefined,
+      sortField: this.normalizeSafeInstruction(options?.sortField, "抖音达人排序字段") || undefined,
+      sortType: this.normalizeSafeInstruction(options?.sortType, "抖音达人排序方向") || undefined,
+      firstIndustryId: this.normalizeSafeInstruction(options?.firstIndustryId, "抖音达人一级行业") || undefined,
+      marketingTarget: this.normalizeSafeInstruction(options?.marketingTarget, "抖音达人营销目标") || undefined,
+      taskCategory: this.normalizeSafeInstruction(options?.taskCategory, "抖音达人任务分类") || undefined,
+      tag: this.normalizeSafeInstruction(options?.tag, "抖音达人标签") || undefined,
+      fansMin: this.normalizeSafeInstruction(options?.fansMin, "抖音达人粉丝数下限") || undefined,
+      fansMax: this.normalizeSafeInstruction(options?.fansMax, "抖音达人粉丝数上限") || undefined,
+      expectedPlayMin: this.normalizeSafeInstruction(options?.expectedPlayMin, "抖音达人预估播放下限") || undefined,
+      expectedPlayMax: this.normalizeSafeInstruction(options?.expectedPlayMax, "抖音达人预估播放上限") || undefined,
+      interactRateMin: this.normalizeSafeInstruction(options?.interactRateMin, "抖音达人互动率下限") || undefined,
+      interactRateMax: this.normalizeSafeInstruction(options?.interactRateMax, "抖音达人互动率上限") || undefined,
+      priceMin: this.normalizeSafeInstruction(options?.priceMin, "抖音达人报价下限") || undefined,
+      priceMax: this.normalizeSafeInstruction(options?.priceMax, "抖音达人报价上限") || undefined,
+    });
+    const counts = this.buildDouyinCollectionCounts(result.workspace);
+
+    return this.buildSummaryResponse({
+      title: "抖音达人搜索结果已同步",
+      summary: `已按关键词“${keyword}”同步 ${result.syncedCount} 条达人搜索结果，当前工作区里共有 ${counts.creatorSearchResults} 条达人搜索结果。`,
+      highlights: [
+        `关键词：${keyword}`,
+        `本次同步：${result.syncedCount}`,
+        `达人搜索结果池：${counts.creatorSearchResults}`,
+        `达人结果池：${counts.creatorProfiles}`,
+      ],
+      data: {
+        syncedCount: result.syncedCount,
+        items: result.items,
+        counts,
+        workspace: {
+          creatorSearchResults: result.workspace.creatorSearchResults,
+          creatorProfiles: result.workspace.creatorProfiles,
+          creatorDeepFetchTasks: result.workspace.creatorDeepFetchTasks,
+        },
+      },
+      links: [{ label: "打开品牌增长工作台", url: "/brand-growth" }],
+      resultStatus: "COMPLETED",
+      resourceKind: "douyin_creator_collection",
+    });
+  }
+
+  async createDouyinCreatorDeepFetchTasks(
+    headers: HeadersMap,
+    options?: {
+      identifiers?: string[];
+      identityType?: string;
+      linkType?: number;
+      homepageVideoPageLimit?: number;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.collection.douyinCollection", "edit", auth);
+
+    const identifiers = this.normalizeStringArray(options?.identifiers);
+    if (!identifiers.length) {
+      throw new BadRequestException("请至少提供一个达人标识");
+    }
+    const identityType = this.normalizeSafeInstruction(options?.identityType, "抖音达人标识类型") || "AUTO";
+    if (!["AUTO", "O_AUTHOR_ID", "UID", "SEC_USER_ID", "UNIQUE_ID"].includes(identityType)) {
+      throw new BadRequestException("identityType 仅支持 AUTO、O_AUTHOR_ID、UID、SEC_USER_ID、UNIQUE_ID");
+    }
+
+    const result = await this.collectorsService.createDouyinCreatorDeepFetchTasks(
+      brandId,
+      {
+        identifiers,
+        identityType: identityType as "AUTO" | "O_AUTHOR_ID" | "UID" | "SEC_USER_ID" | "UNIQUE_ID",
+        linkType: typeof options?.linkType === "number" && Number.isFinite(options.linkType)
+          ? Math.trunc(options.linkType)
+          : undefined,
+        homepageVideoPageLimit: typeof options?.homepageVideoPageLimit === "number" && Number.isFinite(options.homepageVideoPageLimit)
+          ? Math.max(1, Math.min(5, Math.trunc(options.homepageVideoPageLimit)))
+          : undefined,
+      },
+      auth,
+    );
+    const counts = this.buildDouyinCollectionCounts(result.workspace);
+
+    return this.buildSummaryResponse({
+      title: "抖音达人深抓任务已创建",
+      summary: `已创建 ${result.createdCount} 个达人深抓任务，当前工作区里共有 ${counts.creatorDeepFetchTasks} 条达人深抓任务和 ${counts.creatorProfiles} 条达人结果池快照。`,
+      highlights: [
+        `本次创建：${result.createdCount}`,
+        `标识类型：${identityType}`,
+        `达人深抓任务：${counts.creatorDeepFetchTasks}`,
+        `达人结果池：${counts.creatorProfiles}`,
+      ],
+      data: {
+        createdCount: result.createdCount,
+        tasks: result.tasks,
+        counts,
+        workspace: {
+          creatorSearchResults: result.workspace.creatorSearchResults,
+          creatorProfiles: result.workspace.creatorProfiles,
+          creatorDeepFetchTasks: result.workspace.creatorDeepFetchTasks,
+        },
+      },
+      links: [{ label: "打开品牌增长工作台", url: "/brand-growth" }],
+      resultStatus: "IN_PROGRESS",
+      resourceKind: "douyin_creator_collection",
+      nextActions: [
+        { label: "继续查看抖音搜集数据工作区", action: "continue_in_chat", target: "get_douyin_collection_workspace" },
+        { label: "打开品牌增长工作台", action: "open_page", target: "/brand-growth" },
+      ],
     });
   }
 
@@ -13382,6 +13582,9 @@ export class OpenClawService {
       highCompletionRateWorks: workspace.highCompletionRateWorks.length,
       highLikeRateWorks: workspace.highLikeRateWorks.length,
       cityHotspots: workspace.cityHotspots.length,
+      creatorSearchResults: workspace.creatorSearchResults.length,
+      creatorProfiles: workspace.creatorProfiles.length,
+      creatorDeepFetchTasks: workspace.creatorDeepFetchTasks.length,
     };
   }
 
@@ -13761,6 +13964,34 @@ export class OpenClawService {
             ? toolArgs.matchKeywords.map((item) => String(item || ""))
             : undefined,
           syncCommentsFirst: toolArgs.syncCommentsFirst === true,
+        });
+      case "search_douyin_creators":
+        return this.searchDouyinCreators(headers, {
+          keyword: typeof toolArgs.keyword === "string" ? toolArgs.keyword : undefined,
+          seachType: typeof toolArgs.seachType === "string" ? toolArgs.seachType : undefined,
+          sortField: typeof toolArgs.sortField === "string" ? toolArgs.sortField : undefined,
+          sortType: typeof toolArgs.sortType === "string" ? toolArgs.sortType : undefined,
+          firstIndustryId: typeof toolArgs.firstIndustryId === "string" ? toolArgs.firstIndustryId : undefined,
+          marketingTarget: typeof toolArgs.marketingTarget === "string" ? toolArgs.marketingTarget : undefined,
+          taskCategory: typeof toolArgs.taskCategory === "string" ? toolArgs.taskCategory : undefined,
+          tag: typeof toolArgs.tag === "string" ? toolArgs.tag : undefined,
+          fansMin: typeof toolArgs.fansMin === "string" ? toolArgs.fansMin : undefined,
+          fansMax: typeof toolArgs.fansMax === "string" ? toolArgs.fansMax : undefined,
+          expectedPlayMin: typeof toolArgs.expectedPlayMin === "string" ? toolArgs.expectedPlayMin : undefined,
+          expectedPlayMax: typeof toolArgs.expectedPlayMax === "string" ? toolArgs.expectedPlayMax : undefined,
+          interactRateMin: typeof toolArgs.interactRateMin === "string" ? toolArgs.interactRateMin : undefined,
+          interactRateMax: typeof toolArgs.interactRateMax === "string" ? toolArgs.interactRateMax : undefined,
+          priceMin: typeof toolArgs.priceMin === "string" ? toolArgs.priceMin : undefined,
+          priceMax: typeof toolArgs.priceMax === "string" ? toolArgs.priceMax : undefined,
+        });
+      case "create_douyin_creator_deep_fetch_tasks":
+        return this.createDouyinCreatorDeepFetchTasks(headers, {
+          identifiers: Array.isArray(toolArgs.identifiers)
+            ? toolArgs.identifiers.map((item) => String(item || ""))
+            : undefined,
+          identityType: typeof toolArgs.identityType === "string" ? toolArgs.identityType : undefined,
+          linkType: typeof toolArgs.linkType === "number" ? toolArgs.linkType : undefined,
+          homepageVideoPageLimit: typeof toolArgs.homepageVideoPageLimit === "number" ? toolArgs.homepageVideoPageLimit : undefined,
         });
       case "sync_douyin_keyword_recommendations":
         return this.syncDouyinKeywordRecommendations(headers, {
