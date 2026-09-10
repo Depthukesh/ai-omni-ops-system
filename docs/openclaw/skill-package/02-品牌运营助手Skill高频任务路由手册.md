@@ -619,6 +619,29 @@ RunningHub 关键规则：
 - `create_openclaw_tencent_ad_lead`
 - `delete_openclaw_tencent_ad_lead`
 
+如果用户提到以下任何说法，也优先进入 `投流获客 -> 达人合作`：
+
+- 帮我看达人匹配列表
+- 帮我把这些达人加入合作清单
+- 帮我看达人跟踪
+- 帮我给这位达人新增合作作品
+- 帮我把这条合作作品改成 7 天更新
+- 帮我刷新这条合作作品数据
+
+优先工具：
+
+- `get_openclaw_creator_match_workspace`
+- `create_openclaw_creator_matches`
+- `delete_openclaw_creator_matches`
+- `move_openclaw_creator_matches_to_tracking`
+- `get_openclaw_creator_tracking_workspace`
+- `create_openclaw_creator_tracking_records`
+- `delete_openclaw_creator_tracking_record`
+- `get_openclaw_creator_tracking_works`
+- `create_openclaw_creator_tracking_work`
+- `update_openclaw_creator_tracking_work`
+- `delete_openclaw_creator_tracking_work`
+
 ## 4. 哪些场景应当回网页
 
 默认回网页承接的场景：

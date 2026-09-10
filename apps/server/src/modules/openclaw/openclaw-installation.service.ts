@@ -1134,13 +1134,31 @@ RunningHub 当前常见 appKey 示例：
 
 ### 3.9 投流获客 \`/paid-acquisition\`
 
-当前承载腾讯投流获客列表；由 OpenClaw 直接写入标题和正文内容，网页侧支持查看详情、留言协作与删除。
+当前承载：
+
+- 腾讯投流获客列表
+- 达人合作
+  - 达人匹配
+  - 达人跟踪
+
+其中腾讯投流获客仍由 OpenClaw 直接写入标题和正文内容；达人合作则由 OpenClaw 从达人结果池筛出匹配达人、加入达人跟踪，并持续维护合作作品与自动更新周期。
 
 当前优先 MCP：
 
 - \`get_openclaw_tencent_ad_leads\`
 - \`create_openclaw_tencent_ad_lead\`
 - \`delete_openclaw_tencent_ad_lead\`
+- \`get_openclaw_creator_match_workspace\`
+- \`create_openclaw_creator_matches\`
+- \`delete_openclaw_creator_matches\`
+- \`move_openclaw_creator_matches_to_tracking\`
+- \`get_openclaw_creator_tracking_workspace\`
+- \`create_openclaw_creator_tracking_records\`
+- \`delete_openclaw_creator_tracking_record\`
+- \`get_openclaw_creator_tracking_works\`
+- \`create_openclaw_creator_tracking_work\`
+- \`update_openclaw_creator_tracking_work\`
+- \`delete_openclaw_creator_tracking_work\`
 
 ### 3.10 后台管理 \`/admin\`
 

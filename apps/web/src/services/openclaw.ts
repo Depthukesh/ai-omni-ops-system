@@ -382,6 +382,268 @@ export async function deleteOpenClawTencentAdLead(
   );
 }
 
+export type OpenClawCreatorWorkNextAction = "复投" | "调整" | "暂停";
+
+export type OpenClawCreatorMatchRecord = {
+  id: string;
+  brandId: string;
+  workspaceScope: OpenClawWorkspaceScope;
+  createdByUserId: string;
+  sourceProfileId: string;
+  creatorId: string;
+  oAuthorId: string;
+  secUserId?: string;
+  uniqueId?: string;
+  douyinUid?: string;
+  nickname: string;
+  avatar?: string;
+  signature?: string;
+  region?: string;
+  categoryLabels?: string[];
+  contentThemeLabels?: string[];
+  fansCount?: number;
+  expectedPlayCount?: number;
+  interactRate?: number;
+  playOverRate?: number;
+  spreadIndex?: number;
+  price?: number;
+  priceType?: string;
+  cpm?: number;
+  cpe?: number;
+  profileUrl?: string;
+  contactPhone?: string;
+  contactWechat?: string;
+  contactEmail?: string;
+  mcnName?: string;
+  marketingLabel?: string;
+  taskCategoryLabel?: string;
+  recommendedReason: string;
+  isInTrackingList: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type OpenClawCreatorMatchWorkspace = {
+  items: OpenClawCreatorMatchRecord[];
+  total: number;
+};
+
+export type OpenClawCreatorTrackingRecord = {
+  id: string;
+  brandId: string;
+  workspaceScope: OpenClawWorkspaceScope;
+  createdByUserId: string;
+  sourceProfileId: string;
+  creatorId: string;
+  oAuthorId: string;
+  secUserId?: string;
+  uniqueId?: string;
+  douyinUid?: string;
+  nickname: string;
+  avatar?: string;
+  signature?: string;
+  region?: string;
+  categoryLabels?: string[];
+  contentThemeLabels?: string[];
+  fansCount?: number;
+  expectedPlayCount?: number;
+  interactRate?: number;
+  playOverRate?: number;
+  spreadIndex?: number;
+  price?: number;
+  priceType?: string;
+  cpm?: number;
+  cpe?: number;
+  profileUrl?: string;
+  contactPhone?: string;
+  contactWechat?: string;
+  contactEmail?: string;
+  mcnName?: string;
+  marketingLabel?: string;
+  taskCategoryLabel?: string;
+  cooperationWorkCount: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type OpenClawCreatorTrackingWorkspace = {
+  items: OpenClawCreatorTrackingRecord[];
+  total: number;
+};
+
+export type OpenClawCreatorTrackingWorkRecord = {
+  id: string;
+  brandId: string;
+  workspaceScope: OpenClawWorkspaceScope;
+  trackingId: string;
+  createdByUserId: string;
+  douyinWorkUrl: string;
+  awemeId: string;
+  title: string;
+  coverUrl?: string;
+  playCount?: number;
+  likeCount?: number;
+  collectCount?: number;
+  commentCount?: number;
+  shareCount?: number;
+  resultEvaluation: string;
+  nextAction?: OpenClawCreatorWorkNextAction;
+  refreshIntervalDays: number;
+  lastSyncedAt: string;
+  nextRefreshAt: string;
+  lastSyncError?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type OpenClawCreatorTrackingWorkWorkspace = {
+  trackingId: string;
+  items: OpenClawCreatorTrackingWorkRecord[];
+  total: number;
+};
+
+export async function getOpenClawCreatorMatchWorkspace(
+  brandId: string,
+  workspaceScope: OpenClawWorkspaceScope,
+  limit?: number,
+) {
+  const query = new URLSearchParams({ workspaceScope });
+  if (typeof limit === "number") {
+    query.set("limit", String(limit));
+  }
+  return request<OpenClawCreatorMatchWorkspace>(`/openclaw/brands/${brandId}/creator-cooperations/matching?${query.toString()}`);
+}
+
+export async function deleteOpenClawCreatorMatches(
+  brandId: string,
+  workspaceScope: OpenClawWorkspaceScope,
+  recordIds: string[],
+) {
+  return jsonRequest<{ deletedCount: number; workspace: OpenClawCreatorMatchWorkspace }>(
+    `/openclaw/brands/${brandId}/creator-cooperations/matching/delete-batch`,
+    "POST",
+    {
+      workspaceScope,
+      recordIds,
+    },
+  );
+}
+
+export async function addOpenClawCreatorMatchesToTracking(
+  brandId: string,
+  workspaceScope: OpenClawWorkspaceScope,
+  recordIds: string[],
+) {
+  return jsonRequest<{
+    items: OpenClawCreatorTrackingRecord[];
+    matchingWorkspace: OpenClawCreatorMatchWorkspace;
+    trackingWorkspace: OpenClawCreatorTrackingWorkspace;
+  }>(`/openclaw/brands/${brandId}/creator-cooperations/matching/add-to-tracking`, "POST", {
+    workspaceScope,
+    recordIds,
+  });
+}
+
+export async function getOpenClawCreatorTrackingWorkspace(
+  brandId: string,
+  workspaceScope: OpenClawWorkspaceScope,
+  limit?: number,
+) {
+  const query = new URLSearchParams({ workspaceScope });
+  if (typeof limit === "number") {
+    query.set("limit", String(limit));
+  }
+  return request<OpenClawCreatorTrackingWorkspace>(`/openclaw/brands/${brandId}/creator-cooperations/tracking?${query.toString()}`);
+}
+
+export async function deleteOpenClawCreatorTrackingRecord(
+  brandId: string,
+  workspaceScope: OpenClawWorkspaceScope,
+  trackingId: string,
+) {
+  const query = new URLSearchParams({ workspaceScope });
+  return request<{ item: OpenClawCreatorTrackingRecord; workspace: OpenClawCreatorTrackingWorkspace }>(
+    `/openclaw/brands/${brandId}/creator-cooperations/tracking/${trackingId}?${query.toString()}`,
+    {
+      method: "DELETE",
+    },
+  );
+}
+
+export async function getOpenClawCreatorTrackingWorkWorkspace(
+  brandId: string,
+  workspaceScope: OpenClawWorkspaceScope,
+  trackingId: string,
+  limit?: number,
+) {
+  const query = new URLSearchParams({ workspaceScope });
+  if (typeof limit === "number") {
+    query.set("limit", String(limit));
+  }
+  return request<OpenClawCreatorTrackingWorkWorkspace>(
+    `/openclaw/brands/${brandId}/creator-cooperations/tracking/${trackingId}/works?${query.toString()}`,
+  );
+}
+
+export async function createOpenClawCreatorTrackingWork(
+  brandId: string,
+  workspaceScope: OpenClawWorkspaceScope,
+  trackingId: string,
+  payload: {
+    douyinWorkUrl: string;
+    refreshIntervalDays?: number;
+    resultEvaluation?: string;
+    nextAction?: OpenClawCreatorWorkNextAction | "";
+  },
+) {
+  return jsonRequest<{ item: OpenClawCreatorTrackingWorkRecord; workspace: OpenClawCreatorTrackingWorkWorkspace }>(
+    `/openclaw/brands/${brandId}/creator-cooperations/tracking/${trackingId}/works`,
+    "POST",
+    {
+      workspaceScope,
+      ...payload,
+    },
+  );
+}
+
+export async function updateOpenClawCreatorTrackingWork(
+  brandId: string,
+  workspaceScope: OpenClawWorkspaceScope,
+  trackingId: string,
+  workId: string,
+  payload: {
+    douyinWorkUrl?: string;
+    refreshIntervalDays?: number;
+    resultEvaluation?: string;
+    nextAction?: OpenClawCreatorWorkNextAction | "";
+    refreshNow?: boolean;
+  },
+) {
+  return jsonRequest<{ item: OpenClawCreatorTrackingWorkRecord; workspace: OpenClawCreatorTrackingWorkWorkspace }>(
+    `/openclaw/brands/${brandId}/creator-cooperations/tracking/${trackingId}/works/${workId}`,
+    "PATCH",
+    {
+      workspaceScope,
+      ...payload,
+    },
+  );
+}
+
+export async function deleteOpenClawCreatorTrackingWork(
+  brandId: string,
+  workspaceScope: OpenClawWorkspaceScope,
+  trackingId: string,
+  workId: string,
+) {
+  const query = new URLSearchParams({ workspaceScope });
+  return request<{ item: OpenClawCreatorTrackingWorkRecord; workspace: OpenClawCreatorTrackingWorkWorkspace }>(
+    `/openclaw/brands/${brandId}/creator-cooperations/tracking/${trackingId}/works/${workId}?${query.toString()}`,
+    {
+      method: "DELETE",
+    },
+  );
+}
+
 export type OpenClawDailyPlanRecord = {
   id: string;
   brandId: string;

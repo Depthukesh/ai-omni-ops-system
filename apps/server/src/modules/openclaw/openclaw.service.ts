@@ -31,6 +31,10 @@ import { OpenClawGeoVisibilityReportService } from "./openclaw-geo-visibility-re
 import { OpenClawLobsterDiaryService } from "./openclaw-lobster-diary.service";
 import { OpenClawMarketingPlanService } from "./openclaw-marketing-plan.service";
 import { OpenClawTencentAdLeadService } from "./openclaw-tencent-ad-lead.service";
+import {
+  OpenClawCreatorCooperationService,
+  type OpenClawCreatorWorkNextAction,
+} from "./openclaw-creator-cooperation.service";
 import { OpenClawStrategyOptimizationService } from "./openclaw-strategy-optimization.service";
 import { OpenClawVideoWorkService } from "./openclaw-video-work.service";
 import {
@@ -634,6 +638,33 @@ const OPENCLAW_WEBSITE_FUNCTION_CATALOG: OpenClawWebsiteFunctionCatalogItem[] = 
       "get_openclaw_tencent_ad_leads",
       "create_openclaw_tencent_ad_lead",
       "delete_openclaw_tencent_ad_lead",
+    ],
+  },
+  {
+    key: "openclaw_creator_cooperation_workspace",
+    domainKey: "paid_acquisition",
+    domainName: "投流获客",
+    name: "查看并维护达人合作工作区",
+    summary: "适合由 OpenClaw 从达人结果池筛出匹配达人、加入达人跟踪，并持续维护合作作品与自动更新周期。",
+    pageUrl: "/paid-acquisition",
+    pageLabel: "打开 投流获客工作台",
+    riskLevel: "medium",
+    intentKeywords: ["达人合作", "达人匹配", "达人跟踪", "合作清单", "合作作品", "达人合作作品"],
+    requiredInputKeys: [],
+    requiredInputs: [],
+    recommendedQuestions: ["帮我看达人匹配列表", "帮我把这几位达人加入达人跟踪", "帮我给这位达人新增合作作品并设置 7 天更新"],
+    mcpTools: [
+      "get_openclaw_creator_match_workspace",
+      "create_openclaw_creator_matches",
+      "delete_openclaw_creator_matches",
+      "move_openclaw_creator_matches_to_tracking",
+      "get_openclaw_creator_tracking_workspace",
+      "create_openclaw_creator_tracking_records",
+      "delete_openclaw_creator_tracking_record",
+      "get_openclaw_creator_tracking_works",
+      "create_openclaw_creator_tracking_work",
+      "update_openclaw_creator_tracking_work",
+      "delete_openclaw_creator_tracking_work",
     ],
   },
   {
@@ -2910,6 +2941,191 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
     },
   },
   {
+    name: "get_openclaw_creator_match_workspace",
+    description: "查看投流获客下达人合作中的达人匹配列表。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceScope: { type: "string", enum: ["paid_acquisition"], description: "可选：当前固定读取投流获客工作台。" },
+        limit: { type: "integer", minimum: 1, maximum: 200 },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "create_openclaw_creator_matches",
+    description: "把达人结果池中的达人写入达人匹配列表，并补充推荐理由。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceScope: { type: "string", enum: ["paid_acquisition"], description: "可选：当前固定写入投流获客工作台。" },
+        items: {
+          type: "array",
+          minItems: 1,
+          items: {
+            type: "object",
+            properties: {
+              sourceProfileId: { type: "string", description: "可选：达人结果池记录 ID。" },
+              creatorId: { type: "string", description: "可选：达人 ID，可与 sourceProfileId 二选一。" },
+              recommendedReason: { type: "string", description: "推荐理由。" },
+            },
+            required: ["recommendedReason"],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ["items"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "delete_openclaw_creator_matches",
+    description: "批量删除达人匹配列表中的记录。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceScope: { type: "string", enum: ["paid_acquisition"], description: "可选：当前固定删除投流获客工作台数据。" },
+        recordIds: {
+          type: "array",
+          minItems: 1,
+          items: { type: "string" },
+        },
+      },
+      required: ["recordIds"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "move_openclaw_creator_matches_to_tracking",
+    description: "把达人匹配列表中的达人加入达人跟踪。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceScope: { type: "string", enum: ["paid_acquisition"], description: "可选：当前固定写入投流获客工作台。" },
+        recordIds: {
+          type: "array",
+          minItems: 1,
+          items: { type: "string" },
+        },
+      },
+      required: ["recordIds"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_openclaw_creator_tracking_workspace",
+    description: "查看投流获客下达人合作中的达人跟踪列表。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceScope: { type: "string", enum: ["paid_acquisition"], description: "可选：当前固定读取投流获客工作台。" },
+        limit: { type: "integer", minimum: 1, maximum: 200 },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "create_openclaw_creator_tracking_records",
+    description: "直接把达人结果池中的达人建档到达人跟踪列表。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceScope: { type: "string", enum: ["paid_acquisition"], description: "可选：当前固定写入投流获客工作台。" },
+        items: {
+          type: "array",
+          minItems: 1,
+          items: {
+            type: "object",
+            properties: {
+              sourceProfileId: { type: "string", description: "可选：达人结果池记录 ID。" },
+              creatorId: { type: "string", description: "可选：达人 ID，可与 sourceProfileId 二选一。" },
+            },
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ["items"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "delete_openclaw_creator_tracking_record",
+    description: "删除达人跟踪中的一位达人及其合作作品记录。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceScope: { type: "string", enum: ["paid_acquisition"], description: "可选：当前固定删除投流获客工作台数据。" },
+        trackingId: { type: "string", description: "达人跟踪记录 ID。" },
+      },
+      required: ["trackingId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_openclaw_creator_tracking_works",
+    description: "查看某位达人跟踪记录下的合作作品列表。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceScope: { type: "string", enum: ["paid_acquisition"], description: "可选：当前固定读取投流获客工作台。" },
+        trackingId: { type: "string", description: "达人跟踪记录 ID。" },
+        limit: { type: "integer", minimum: 1, maximum: 200 },
+      },
+      required: ["trackingId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "create_openclaw_creator_tracking_work",
+    description: "给某位达人新增合作作品，并抓取首轮抖音作品数据与自动更新周期。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceScope: { type: "string", enum: ["paid_acquisition"], description: "可选：当前固定写入投流获客工作台。" },
+        trackingId: { type: "string", description: "达人跟踪记录 ID。" },
+        douyinWorkUrl: { type: "string", description: "抖音作品链接。" },
+        refreshIntervalDays: { type: "integer", minimum: 1, maximum: 365, description: "多少天自动更新一次作品数据。" },
+        resultEvaluation: { type: "string", description: "可选：结果评估。" },
+        nextAction: { type: "string", enum: ["复投", "调整", "暂停"], description: "可选：再次选择。" },
+      },
+      required: ["trackingId", "douyinWorkUrl"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "update_openclaw_creator_tracking_work",
+    description: "更新合作作品的结果评估、再次选择、自动更新周期，或立即刷新作品数据。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceScope: { type: "string", enum: ["paid_acquisition"], description: "可选：当前固定写入投流获客工作台。" },
+        trackingId: { type: "string", description: "达人跟踪记录 ID。" },
+        workId: { type: "string", description: "合作作品记录 ID。" },
+        douyinWorkUrl: { type: "string", description: "可选：新的抖音作品链接。" },
+        refreshIntervalDays: { type: "integer", minimum: 1, maximum: 365, description: "可选：多少天自动更新一次。" },
+        resultEvaluation: { type: "string", description: "可选：结果评估。" },
+        nextAction: { type: "string", enum: ["复投", "调整", "暂停"], description: "可选：再次选择。" },
+        refreshNow: { type: "boolean", description: "可选：是否立即刷新一次作品数据。" },
+      },
+      required: ["trackingId", "workId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "delete_openclaw_creator_tracking_work",
+    description: "删除某位达人下的一条合作作品记录。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceScope: { type: "string", enum: ["paid_acquisition"], description: "可选：当前固定删除投流获客工作台数据。" },
+        trackingId: { type: "string", description: "达人跟踪记录 ID。" },
+        workId: { type: "string", description: "合作作品记录 ID。" },
+      },
+      required: ["trackingId", "workId"],
+      additionalProperties: false,
+    },
+  },
+  {
     name: "create_xiaohongshu_rewrite_note",
     description: "基于素材库中的对标作品触发小红书二创图文生成。",
     inputSchema: {
@@ -3292,6 +3508,7 @@ export class OpenClawService {
     private readonly openClawDailyPlanService: OpenClawDailyPlanService,
     private readonly openClawMarketingPlanService: OpenClawMarketingPlanService,
     private readonly openClawTencentAdLeadService: OpenClawTencentAdLeadService,
+    private readonly openClawCreatorCooperationService: OpenClawCreatorCooperationService,
     private readonly openClawStrategyOptimizationService: OpenClawStrategyOptimizationService,
     private readonly openClawCreativeMaterialService: OpenClawCreativeMaterialService,
     private readonly openClawGeoVisibilityReportService: OpenClawGeoVisibilityReportService,
@@ -9650,6 +9867,399 @@ export class OpenClawService {
     });
   }
 
+  async getOpenClawCreatorMatchWorkspace(
+    headers: HeadersMap,
+    options?: {
+      workspaceScope?: string;
+      limit?: number;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "view", auth);
+    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope || "paid_acquisition");
+    const workspaceLabel = getOpenClawWorkspaceDisplayName(workspaceScope);
+    const workspacePath = getOpenClawWorkspaceDashboardPath(workspaceScope);
+    const workspace = await this.openClawCreatorCooperationService.listMatchingWorkspace(brandId, workspaceScope, options?.limit);
+    const items = workspace.items.slice(0, this.normalizeLimit(options?.limit));
+
+    return this.buildSummaryResponse({
+      title: `${workspaceLabel}达人匹配列表`,
+      summary: workspace.total
+        ? `${workspaceLabel}工作台当前共有 ${workspace.total} 条达人匹配记录。`
+        : `${workspaceLabel}工作台当前还没有达人匹配记录，OpenClaw 可从达人结果池写入首批候选达人。`,
+      highlights: items.length
+        ? items.slice(0, 5).map((item) => `${item.nickname}｜${item.recommendedReason}`)
+        : ["记录数：0"],
+      data: {
+        total: workspace.total,
+        items,
+      },
+      links: [{ label: `打开${workspaceLabel}工作台`, url: workspacePath }],
+      resourceKind: "openclaw_creator_match",
+    });
+  }
+
+  async createOpenClawCreatorMatches(
+    headers: HeadersMap,
+    options?: {
+      workspaceScope?: string;
+      items?: Array<{
+        sourceProfileId?: string;
+        creatorId?: string;
+        recommendedReason?: string;
+      }>;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "edit", auth);
+    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope || "paid_acquisition");
+    const workspaceLabel = getOpenClawWorkspaceDisplayName(workspaceScope);
+    const workspacePath = getOpenClawWorkspaceDashboardPath(workspaceScope);
+    const items = await this.openClawCreatorCooperationService.createMatchingRecords({
+      brandId,
+      workspaceScope,
+      createdByUserId: auth.userId,
+      items: options?.items,
+    });
+
+    return this.buildSummaryResponse({
+      title: `${workspaceLabel}达人匹配已写入`,
+      summary: `已向 ${workspaceLabel} 达人匹配列表写入 ${items.length} 位候选达人。`,
+      highlights: items.slice(0, 5).map((item) => `${item.nickname}｜${item.recommendedReason}`),
+      data: items,
+      links: [{ label: `打开${workspaceLabel}工作台`, url: workspacePath }],
+      resourceKind: "openclaw_creator_match",
+      resultStatus: "COMPLETED",
+    });
+  }
+
+  async deleteOpenClawCreatorMatches(
+    headers: HeadersMap,
+    options?: {
+      workspaceScope?: string;
+      recordIds?: string[];
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "edit", auth);
+    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope || "paid_acquisition");
+    const workspaceLabel = getOpenClawWorkspaceDisplayName(workspaceScope);
+    const workspacePath = getOpenClawWorkspaceDashboardPath(workspaceScope);
+    const deletedCount = await this.openClawCreatorCooperationService.deleteMatchingRecords(
+      brandId,
+      workspaceScope,
+      Array.isArray(options?.recordIds) ? options.recordIds : [],
+    );
+
+    return this.buildSummaryResponse({
+      title: `${workspaceLabel}达人匹配已删除`,
+      summary: `已从 ${workspaceLabel} 达人匹配列表删除 ${deletedCount} 条记录。`,
+      highlights: [`删除数量：${deletedCount}`],
+      data: {
+        deletedCount,
+      },
+      links: [{ label: `打开${workspaceLabel}工作台`, url: workspacePath }],
+      resourceKind: "openclaw_creator_match",
+      resultStatus: "COMPLETED",
+    });
+  }
+
+  async moveOpenClawCreatorMatchesToTracking(
+    headers: HeadersMap,
+    options?: {
+      workspaceScope?: string;
+      recordIds?: string[];
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "edit", auth);
+    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope || "paid_acquisition");
+    const workspaceLabel = getOpenClawWorkspaceDisplayName(workspaceScope);
+    const workspacePath = getOpenClawWorkspaceDashboardPath(workspaceScope);
+    const items = await this.openClawCreatorCooperationService.moveMatchesToTracking({
+      brandId,
+      workspaceScope,
+      createdByUserId: auth.userId,
+      recordIds: Array.isArray(options?.recordIds) ? options.recordIds : [],
+    });
+
+    return this.buildSummaryResponse({
+      title: `${workspaceLabel}达人已加入跟踪`,
+      summary: `已把 ${items.length} 位达人加入 ${workspaceLabel} 的达人跟踪列表。`,
+      highlights: items.slice(0, 5).map((item) => `${item.nickname}｜合作作品 ${item.cooperationWorkCount} 条`),
+      data: items,
+      links: [{ label: `打开${workspaceLabel}工作台`, url: workspacePath }],
+      resourceKind: "openclaw_creator_tracking",
+      resultStatus: "COMPLETED",
+    });
+  }
+
+  async getOpenClawCreatorTrackingWorkspace(
+    headers: HeadersMap,
+    options?: {
+      workspaceScope?: string;
+      limit?: number;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "view", auth);
+    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope || "paid_acquisition");
+    const workspaceLabel = getOpenClawWorkspaceDisplayName(workspaceScope);
+    const workspacePath = getOpenClawWorkspaceDashboardPath(workspaceScope);
+    const workspace = await this.openClawCreatorCooperationService.listTrackingWorkspace(brandId, workspaceScope, options?.limit);
+    const items = workspace.items.slice(0, this.normalizeLimit(options?.limit));
+
+    return this.buildSummaryResponse({
+      title: `${workspaceLabel}达人跟踪列表`,
+      summary: workspace.total
+        ? `${workspaceLabel}工作台当前共有 ${workspace.total} 位跟踪达人。`
+        : `${workspaceLabel}工作台当前还没有达人跟踪记录。`,
+      highlights: items.length
+        ? items.slice(0, 5).map((item) => `${item.nickname}｜合作作品 ${item.cooperationWorkCount} 条`)
+        : ["记录数：0"],
+      data: {
+        total: workspace.total,
+        items,
+      },
+      links: [{ label: `打开${workspaceLabel}工作台`, url: workspacePath }],
+      resourceKind: "openclaw_creator_tracking",
+    });
+  }
+
+  async createOpenClawCreatorTrackingRecords(
+    headers: HeadersMap,
+    options?: {
+      workspaceScope?: string;
+      items?: Array<{
+        sourceProfileId?: string;
+        creatorId?: string;
+      }>;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "edit", auth);
+    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope || "paid_acquisition");
+    const workspaceLabel = getOpenClawWorkspaceDisplayName(workspaceScope);
+    const workspacePath = getOpenClawWorkspaceDashboardPath(workspaceScope);
+    const items = await this.openClawCreatorCooperationService.createTrackingRecords({
+      brandId,
+      workspaceScope,
+      createdByUserId: auth.userId,
+      items: options?.items,
+    });
+
+    return this.buildSummaryResponse({
+      title: `${workspaceLabel}达人跟踪已建档`,
+      summary: `已在 ${workspaceLabel} 达人跟踪列表建档 ${items.length} 位达人。`,
+      highlights: items.slice(0, 5).map((item) => `${item.nickname}｜合作作品 ${item.cooperationWorkCount} 条`),
+      data: items,
+      links: [{ label: `打开${workspaceLabel}工作台`, url: workspacePath }],
+      resourceKind: "openclaw_creator_tracking",
+      resultStatus: "COMPLETED",
+    });
+  }
+
+  async deleteOpenClawCreatorTrackingRecord(
+    headers: HeadersMap,
+    options?: {
+      workspaceScope?: string;
+      trackingId?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "edit", auth);
+    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope || "paid_acquisition");
+    const workspaceLabel = getOpenClawWorkspaceDisplayName(workspaceScope);
+    const workspacePath = getOpenClawWorkspaceDashboardPath(workspaceScope);
+    const trackingId = String(options?.trackingId || "").trim();
+    if (!trackingId) {
+      throw new BadRequestException("请提供 trackingId");
+    }
+    const item = await this.openClawCreatorCooperationService.deleteTrackingRecord(brandId, workspaceScope, trackingId);
+
+    return this.buildSummaryResponse({
+      title: `${workspaceLabel}达人跟踪已删除`,
+      summary: `已从 ${workspaceLabel} 达人跟踪列表删除《${item.nickname}》及其合作作品记录。`,
+      highlights: [`达人 ID：${item.creatorId}`],
+      data: item,
+      links: [{ label: `打开${workspaceLabel}工作台`, url: workspacePath }],
+      resourceKind: "openclaw_creator_tracking",
+      resultStatus: "COMPLETED",
+    });
+  }
+
+  async getOpenClawCreatorTrackingWorks(
+    headers: HeadersMap,
+    options?: {
+      workspaceScope?: string;
+      trackingId?: string;
+      limit?: number;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "view", auth);
+    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope || "paid_acquisition");
+    const workspaceLabel = getOpenClawWorkspaceDisplayName(workspaceScope);
+    const workspacePath = getOpenClawWorkspaceDashboardPath(workspaceScope);
+    const trackingId = String(options?.trackingId || "").trim();
+    if (!trackingId) {
+      throw new BadRequestException("请提供 trackingId");
+    }
+    const workspace = await this.openClawCreatorCooperationService.listTrackingWorkWorkspace(
+      brandId,
+      workspaceScope,
+      trackingId,
+      options?.limit,
+    );
+    const items = workspace.items.slice(0, this.normalizeLimit(options?.limit));
+
+    return this.buildSummaryResponse({
+      title: `${workspaceLabel}合作作品列表`,
+      summary: workspace.total
+        ? `当前达人共有 ${workspace.total} 条合作作品记录。`
+        : "当前达人还没有合作作品记录。",
+      highlights: items.length
+        ? items.slice(0, 5).map((item) => `${item.title}｜播放 ${item.playCount ?? 0}｜${item.nextAction || "未设置"}`)
+        : ["记录数：0"],
+      data: {
+        trackingId: workspace.trackingId,
+        total: workspace.total,
+        items,
+      },
+      links: [{ label: `打开${workspaceLabel}工作台`, url: workspacePath }],
+      resourceKind: "openclaw_creator_tracking_work",
+    });
+  }
+
+  async createOpenClawCreatorTrackingWork(
+    headers: HeadersMap,
+    options?: {
+      workspaceScope?: string;
+      trackingId?: string;
+      douyinWorkUrl?: string;
+      refreshIntervalDays?: number;
+      resultEvaluation?: string;
+      nextAction?: OpenClawCreatorWorkNextAction;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "edit", auth);
+    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope || "paid_acquisition");
+    const workspaceLabel = getOpenClawWorkspaceDisplayName(workspaceScope);
+    const workspacePath = getOpenClawWorkspaceDashboardPath(workspaceScope);
+    const item = await this.openClawCreatorCooperationService.createTrackingWork({
+      brandId,
+      workspaceScope,
+      trackingId: options?.trackingId || "",
+      createdByUserId: auth.userId,
+      douyinWorkUrl: options?.douyinWorkUrl,
+      refreshIntervalDays: options?.refreshIntervalDays,
+      resultEvaluation: options?.resultEvaluation,
+      nextAction: options?.nextAction,
+    });
+
+    return this.buildSummaryResponse({
+      title: `${workspaceLabel}合作作品已创建`,
+      summary: `已新增合作作品《${item.title}》，并设置每 ${item.refreshIntervalDays} 天自动更新一次数据。`,
+      highlights: [
+        `播放：${item.playCount ?? 0}`,
+        `点赞：${item.likeCount ?? 0}`,
+        `再次选择：${item.nextAction || "未设置"}`,
+      ],
+      data: item,
+      links: [{ label: `打开${workspaceLabel}工作台`, url: workspacePath }],
+      resourceKind: "openclaw_creator_tracking_work",
+      resultStatus: "COMPLETED",
+    });
+  }
+
+  async updateOpenClawCreatorTrackingWork(
+    headers: HeadersMap,
+    options?: {
+      workspaceScope?: string;
+      trackingId?: string;
+      workId?: string;
+      douyinWorkUrl?: string;
+      refreshIntervalDays?: number;
+      resultEvaluation?: string;
+      nextAction?: OpenClawCreatorWorkNextAction;
+      refreshNow?: boolean;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "edit", auth);
+    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope || "paid_acquisition");
+    const workspaceLabel = getOpenClawWorkspaceDisplayName(workspaceScope);
+    const workspacePath = getOpenClawWorkspaceDashboardPath(workspaceScope);
+    const item = await this.openClawCreatorCooperationService.updateTrackingWork({
+      brandId,
+      workspaceScope,
+      trackingId: options?.trackingId || "",
+      workId: options?.workId || "",
+      douyinWorkUrl: options?.douyinWorkUrl,
+      refreshIntervalDays: options?.refreshIntervalDays,
+      resultEvaluation: options?.resultEvaluation,
+      nextAction: options?.nextAction,
+      refreshNow: options?.refreshNow,
+    });
+
+    return this.buildSummaryResponse({
+      title: `${workspaceLabel}合作作品已更新`,
+      summary: `已更新合作作品《${item.title}》的评估信息${options?.refreshNow ? "，并立即刷新了一次作品数据" : ""}。`,
+      highlights: [
+        `结果评估：${item.resultEvaluation || "未填写"}`,
+        `再次选择：${item.nextAction || "未设置"}`,
+        `下次刷新：${item.nextRefreshAt}`,
+      ],
+      data: item,
+      links: [{ label: `打开${workspaceLabel}工作台`, url: workspacePath }],
+      resourceKind: "openclaw_creator_tracking_work",
+      resultStatus: "COMPLETED",
+    });
+  }
+
+  async deleteOpenClawCreatorTrackingWork(
+    headers: HeadersMap,
+    options?: {
+      workspaceScope?: string;
+      trackingId?: string;
+      workId?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "edit", auth);
+    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope || "paid_acquisition");
+    const workspaceLabel = getOpenClawWorkspaceDisplayName(workspaceScope);
+    const workspacePath = getOpenClawWorkspaceDashboardPath(workspaceScope);
+    const item = await this.openClawCreatorCooperationService.deleteTrackingWork(
+      brandId,
+      workspaceScope,
+      options?.trackingId || "",
+      options?.workId || "",
+    );
+
+    return this.buildSummaryResponse({
+      title: `${workspaceLabel}合作作品已删除`,
+      summary: `已删除合作作品《${item.title}》。`,
+      highlights: [`作品 ID：${item.id}`],
+      data: item,
+      links: [{ label: `打开${workspaceLabel}工作台`, url: workspacePath }],
+      resourceKind: "openclaw_creator_tracking_work",
+      resultStatus: "COMPLETED",
+    });
+  }
+
   async createOpenClawVideoWork(
     headers: HeadersMap,
     options?: {
@@ -14673,6 +15283,88 @@ export class OpenClawService {
         return this.deleteOpenClawTencentAdLead(headers, {
           workspaceScope: typeof toolArgs.workspaceScope === "string" ? toolArgs.workspaceScope : undefined,
           recordId: typeof toolArgs.recordId === "string" ? toolArgs.recordId : undefined,
+        });
+      case "get_openclaw_creator_match_workspace":
+        return this.getOpenClawCreatorMatchWorkspace(headers, {
+          workspaceScope: typeof toolArgs.workspaceScope === "string" ? toolArgs.workspaceScope : undefined,
+          limit: typeof toolArgs.limit === "number" ? toolArgs.limit : undefined,
+        });
+      case "create_openclaw_creator_matches":
+        return this.createOpenClawCreatorMatches(headers, {
+          workspaceScope: typeof toolArgs.workspaceScope === "string" ? toolArgs.workspaceScope : undefined,
+          items: Array.isArray(toolArgs.items)
+            ? toolArgs.items.map((item) => ({
+              sourceProfileId: item && typeof item === "object" && typeof item.sourceProfileId === "string" ? item.sourceProfileId : undefined,
+              creatorId: item && typeof item === "object" && typeof item.creatorId === "string" ? item.creatorId : undefined,
+              recommendedReason: item && typeof item === "object" && typeof item.recommendedReason === "string" ? item.recommendedReason : undefined,
+            }))
+            : undefined,
+        });
+      case "delete_openclaw_creator_matches":
+        return this.deleteOpenClawCreatorMatches(headers, {
+          workspaceScope: typeof toolArgs.workspaceScope === "string" ? toolArgs.workspaceScope : undefined,
+          recordIds: Array.isArray(toolArgs.recordIds)
+            ? toolArgs.recordIds.map((item) => String(item || "").trim()).filter(Boolean)
+            : undefined,
+        });
+      case "move_openclaw_creator_matches_to_tracking":
+        return this.moveOpenClawCreatorMatchesToTracking(headers, {
+          workspaceScope: typeof toolArgs.workspaceScope === "string" ? toolArgs.workspaceScope : undefined,
+          recordIds: Array.isArray(toolArgs.recordIds)
+            ? toolArgs.recordIds.map((item) => String(item || "").trim()).filter(Boolean)
+            : undefined,
+        });
+      case "get_openclaw_creator_tracking_workspace":
+        return this.getOpenClawCreatorTrackingWorkspace(headers, {
+          workspaceScope: typeof toolArgs.workspaceScope === "string" ? toolArgs.workspaceScope : undefined,
+          limit: typeof toolArgs.limit === "number" ? toolArgs.limit : undefined,
+        });
+      case "create_openclaw_creator_tracking_records":
+        return this.createOpenClawCreatorTrackingRecords(headers, {
+          workspaceScope: typeof toolArgs.workspaceScope === "string" ? toolArgs.workspaceScope : undefined,
+          items: Array.isArray(toolArgs.items)
+            ? toolArgs.items.map((item) => ({
+              sourceProfileId: item && typeof item === "object" && typeof item.sourceProfileId === "string" ? item.sourceProfileId : undefined,
+              creatorId: item && typeof item === "object" && typeof item.creatorId === "string" ? item.creatorId : undefined,
+            }))
+            : undefined,
+        });
+      case "delete_openclaw_creator_tracking_record":
+        return this.deleteOpenClawCreatorTrackingRecord(headers, {
+          workspaceScope: typeof toolArgs.workspaceScope === "string" ? toolArgs.workspaceScope : undefined,
+          trackingId: typeof toolArgs.trackingId === "string" ? toolArgs.trackingId : undefined,
+        });
+      case "get_openclaw_creator_tracking_works":
+        return this.getOpenClawCreatorTrackingWorks(headers, {
+          workspaceScope: typeof toolArgs.workspaceScope === "string" ? toolArgs.workspaceScope : undefined,
+          trackingId: typeof toolArgs.trackingId === "string" ? toolArgs.trackingId : undefined,
+          limit: typeof toolArgs.limit === "number" ? toolArgs.limit : undefined,
+        });
+      case "create_openclaw_creator_tracking_work":
+        return this.createOpenClawCreatorTrackingWork(headers, {
+          workspaceScope: typeof toolArgs.workspaceScope === "string" ? toolArgs.workspaceScope : undefined,
+          trackingId: typeof toolArgs.trackingId === "string" ? toolArgs.trackingId : undefined,
+          douyinWorkUrl: typeof toolArgs.douyinWorkUrl === "string" ? toolArgs.douyinWorkUrl : undefined,
+          refreshIntervalDays: typeof toolArgs.refreshIntervalDays === "number" ? toolArgs.refreshIntervalDays : undefined,
+          resultEvaluation: typeof toolArgs.resultEvaluation === "string" ? toolArgs.resultEvaluation : undefined,
+          nextAction: typeof toolArgs.nextAction === "string" ? toolArgs.nextAction as OpenClawCreatorWorkNextAction : undefined,
+        });
+      case "update_openclaw_creator_tracking_work":
+        return this.updateOpenClawCreatorTrackingWork(headers, {
+          workspaceScope: typeof toolArgs.workspaceScope === "string" ? toolArgs.workspaceScope : undefined,
+          trackingId: typeof toolArgs.trackingId === "string" ? toolArgs.trackingId : undefined,
+          workId: typeof toolArgs.workId === "string" ? toolArgs.workId : undefined,
+          douyinWorkUrl: typeof toolArgs.douyinWorkUrl === "string" ? toolArgs.douyinWorkUrl : undefined,
+          refreshIntervalDays: typeof toolArgs.refreshIntervalDays === "number" ? toolArgs.refreshIntervalDays : undefined,
+          resultEvaluation: typeof toolArgs.resultEvaluation === "string" ? toolArgs.resultEvaluation : undefined,
+          nextAction: typeof toolArgs.nextAction === "string" ? toolArgs.nextAction as OpenClawCreatorWorkNextAction : undefined,
+          refreshNow: typeof toolArgs.refreshNow === "boolean" ? toolArgs.refreshNow : undefined,
+        });
+      case "delete_openclaw_creator_tracking_work":
+        return this.deleteOpenClawCreatorTrackingWork(headers, {
+          workspaceScope: typeof toolArgs.workspaceScope === "string" ? toolArgs.workspaceScope : undefined,
+          trackingId: typeof toolArgs.trackingId === "string" ? toolArgs.trackingId : undefined,
+          workId: typeof toolArgs.workId === "string" ? toolArgs.workId : undefined,
         });
       case "create_openclaw_video_work":
         return this.createOpenClawVideoWork(headers, {

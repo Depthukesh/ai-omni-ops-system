@@ -201,6 +201,8 @@
   - 公众号 `配置初始化` 支持多公众号账号管理，`创作工作流` 可绑定具体公众号并按所选账号发布，`发布历史` 会标注对应公众号，同时同步补齐 OpenClaw MCP / Skill 说明
 - `docs/changes/2026-09-04-paid-acquisition-tencent-ad-lead-workspace.md`
   - 新增顶栏 `投流获客` 一级入口与左侧 `腾讯投流获客` 板块，列表固定展示标题 / 内容 / 创建时间 / 留言，并支持查看详情留言、删除，以及同步补齐 OpenClaw MCP / Skill / Prisma 真源
+- `docs/changes/2026-09-10-paid-acquisition-creator-cooperation-workspace.md`
+  - 在 `投流获客` 下新增 `达人合作` 板块，并拆成 `达人匹配 / 达人跟踪`；OpenClaw 可从达人结果池写入匹配达人、加入跟踪、维护合作作品与 X 天自动更新，同时同步补齐 MCP / Skill / Prisma 真源
 - `docs/changes/2026-09-04-content-acquisition-marketing-calendar-platform-views.md`
   - 给内容获客某书 / 某音/某号 / 公众号补独立 `营销日历` 入口，三端复用品牌增长报告下的同一份营销日历真源，并按平台过滤展示与编辑字段
 - `docs/changes/2026-09-04-standard-db-init-openclaw-runtime-table-schema-alignment.md`

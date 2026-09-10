@@ -204,10 +204,14 @@ flowchart TD
     F --> F3["评论获客由 OpenClaw 从品牌增长评论用户结果生成；平台获客由 OpenClaw 直接写入"]
     F --> F4["两块列表都按每页 20 条分页，并支持单条删除"]
 
-    I --> I1["投流获客：腾讯投流获客列表"]
-    I --> I2["字段固定为 标题 / 内容 / 创建时间 / 留言"]
-    I --> I3["支持查看详情、详情留言、删除单条记录"]
-    I --> I4["由 OpenClaw 直接写入 OpenClawTencentAdLead，固定 workspaceScope=paid_acquisition"]
+    I --> I1["投流获客：腾讯投流获客 + 达人合作"]
+    I --> I2["腾讯投流获客：字段固定为 标题 / 内容 / 创建时间 / 留言"]
+    I --> I3["达人合作：左侧再拆 达人匹配 / 达人跟踪"]
+    I --> I4["达人匹配：沿用达人结果池快照，并补 推荐理由 / 是否加入合作清单"]
+    I --> I5["达人跟踪：按达人建档，补 合作作品数量"]
+    I --> I6["作品详情：标题 / 链接 / 播放 / 点赞 / 收藏 / 评论 / 转发 / 结果评估 / 再次选择 / X天更新"]
+    I --> I7["OpenClaw 真源：OpenClawTencentAdLead + OpenClawCreatorCooperationMatch + OpenClawCreatorCooperationTracking + OpenClawCreatorCooperationWork"]
+    I --> I8["合作作品按每日调度扫描到期记录，再按 X 天周期自动刷新抖音作品数据"]
 
     B --> G
     C --> G

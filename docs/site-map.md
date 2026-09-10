@@ -397,27 +397,70 @@
 包含：
 
 - 腾讯投流获客
+- 达人合作
+  - 达人匹配
+  - 达人跟踪
 
 当前特点：
 
 - 顶栏当前在 `全网获客` 后面新增独立一级入口 `投流获客`
-- 左侧目录当前先收口一个子板块 `腾讯投流获客`
+- 左侧目录当前收口两个子板块：
+  - `腾讯投流获客`
+  - `达人合作`
+- `达人合作` 下再拆两块左侧子板块：
+  - `达人匹配`
+  - `达人跟踪`
 - 腾讯投流获客列表统一由 `OpenClawTencentAdLead` 真源承接，字段固定为：
   - 标题
   - 内容
   - 创建时间
   - 留言
+- 达人匹配列表统一由 `OpenClawCreatorCooperationMatch` 真源承接，数据来源是抖音达人结果池快照，除达人基础字段外补充：
+  - 推荐理由
+  - 是否加入合作清单
+- 达人跟踪列表统一由 `OpenClawCreatorCooperationTracking` 真源承接，按达人维度建档，除达人基础字段外补充：
+  - 合作作品数量
+- 达人跟踪详情里的合作作品列表统一由 `OpenClawCreatorCooperationWork` 真源承接，字段固定为：
+  - 标题
+  - 链接
+  - 播放数
+  - 点赞数
+  - 收藏数
+  - 评论数
+  - 转发数
+  - 结果评估
+  - 再次选择
+  - X 天自动更新频率
 - 页面支持：
   - 按每页 20 条分页查看
   - 查看单条内容详情
   - 在详情下留言协作
   - 删除单条腾讯投流获客记录
+  - 在达人匹配里批量勾选达人
+  - 批量删除达人匹配记录
+  - 批量把达人加入达人跟踪
+  - 在达人跟踪里按达人查看合作作品详情
+  - 在达人详情弹窗里新增合作作品、编辑结果评估 / 再次选择 / 更新周期、手动刷新或删除作品
+- 合作作品数据按 `X` 天频率自动刷新；当前通过每日调度扫描到期作品并重新抓取抖音作品快照
 - OpenClaw / MCP / Skill 当前已同步暴露：
   - `get_openclaw_tencent_ad_leads`
   - `create_openclaw_tencent_ad_lead`
   - `delete_openclaw_tencent_ad_lead`
+  - `get_openclaw_creator_match_workspace`
+  - `create_openclaw_creator_matches`
+  - `delete_openclaw_creator_matches`
+  - `move_openclaw_creator_matches_to_tracking`
+  - `get_openclaw_creator_tracking_workspace`
+  - `create_openclaw_creator_tracking_records`
+  - `delete_openclaw_creator_tracking_record`
+  - `get_openclaw_creator_tracking_works`
+  - `create_openclaw_creator_tracking_work`
+  - `update_openclaw_creator_tracking_work`
+  - `delete_openclaw_creator_tracking_work`
 - 腾讯投流获客真源默认写入 `paid_acquisition` workspace scope，避免混入品牌增长或全网获客的既有内容型记录
+- 达人合作三张真源表也统一写入 `paid_acquisition` workspace scope，避免与品牌增长抖音采集快照或全网获客线索混用
 - 参考变更：`docs/changes/2026-09-04-paid-acquisition-tencent-ad-lead-workspace.md`
+- 参考变更：`docs/changes/2026-09-10-paid-acquisition-creator-cooperation-workspace.md`
 
 ### 4.6 个人中心 `/personal-center`
 

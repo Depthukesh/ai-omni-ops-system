@@ -346,6 +346,183 @@ const TOOL_DEFINITIONS = [
     },
   },
   {
+    name: "get_openclaw_creator_match_workspace",
+    description: "查看投流获客下达人合作中的达人匹配列表。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceScope: { type: "string", enum: ["paid_acquisition"] },
+        limit: { type: "integer", minimum: 1, maximum: 200 },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "create_openclaw_creator_matches",
+    description: "把达人结果池中的达人写入达人匹配列表，并补充推荐理由。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceScope: { type: "string", enum: ["paid_acquisition"] },
+        items: {
+          type: "array",
+          minItems: 1,
+          items: {
+            type: "object",
+            properties: {
+              sourceProfileId: { type: "string" },
+              creatorId: { type: "string" },
+              recommendedReason: { type: "string" },
+            },
+            required: ["recommendedReason"],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ["items"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "delete_openclaw_creator_matches",
+    description: "批量删除达人匹配列表中的记录。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceScope: { type: "string", enum: ["paid_acquisition"] },
+        recordIds: { type: "array", minItems: 1, items: { type: "string" } },
+      },
+      required: ["recordIds"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "move_openclaw_creator_matches_to_tracking",
+    description: "把达人匹配列表中的达人加入达人跟踪。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceScope: { type: "string", enum: ["paid_acquisition"] },
+        recordIds: { type: "array", minItems: 1, items: { type: "string" } },
+      },
+      required: ["recordIds"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_openclaw_creator_tracking_workspace",
+    description: "查看投流获客下达人合作中的达人跟踪列表。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceScope: { type: "string", enum: ["paid_acquisition"] },
+        limit: { type: "integer", minimum: 1, maximum: 200 },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "create_openclaw_creator_tracking_records",
+    description: "直接把达人结果池中的达人建档到达人跟踪列表。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceScope: { type: "string", enum: ["paid_acquisition"] },
+        items: {
+          type: "array",
+          minItems: 1,
+          items: {
+            type: "object",
+            properties: {
+              sourceProfileId: { type: "string" },
+              creatorId: { type: "string" },
+            },
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ["items"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "delete_openclaw_creator_tracking_record",
+    description: "删除达人跟踪中的一位达人及其合作作品记录。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceScope: { type: "string", enum: ["paid_acquisition"] },
+        trackingId: { type: "string" },
+      },
+      required: ["trackingId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_openclaw_creator_tracking_works",
+    description: "查看某位达人跟踪记录下的合作作品列表。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceScope: { type: "string", enum: ["paid_acquisition"] },
+        trackingId: { type: "string" },
+        limit: { type: "integer", minimum: 1, maximum: 200 },
+      },
+      required: ["trackingId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "create_openclaw_creator_tracking_work",
+    description: "给某位达人新增合作作品，并抓取首轮抖音作品数据与自动更新周期。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceScope: { type: "string", enum: ["paid_acquisition"] },
+        trackingId: { type: "string" },
+        douyinWorkUrl: { type: "string" },
+        refreshIntervalDays: { type: "integer", minimum: 1, maximum: 365 },
+        resultEvaluation: { type: "string" },
+        nextAction: { type: "string", enum: ["复投", "调整", "暂停"] },
+      },
+      required: ["trackingId", "douyinWorkUrl"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "update_openclaw_creator_tracking_work",
+    description: "更新合作作品的结果评估、再次选择、自动更新周期，或立即刷新作品数据。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceScope: { type: "string", enum: ["paid_acquisition"] },
+        trackingId: { type: "string" },
+        workId: { type: "string" },
+        douyinWorkUrl: { type: "string" },
+        refreshIntervalDays: { type: "integer", minimum: 1, maximum: 365 },
+        resultEvaluation: { type: "string" },
+        nextAction: { type: "string", enum: ["复投", "调整", "暂停"] },
+        refreshNow: { type: "boolean" },
+      },
+      required: ["trackingId", "workId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "delete_openclaw_creator_tracking_work",
+    description: "删除某位达人下的一条合作作品记录。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceScope: { type: "string", enum: ["paid_acquisition"] },
+        trackingId: { type: "string" },
+        workId: { type: "string" },
+      },
+      required: ["trackingId", "workId"],
+      additionalProperties: false,
+    },
+  },
+  {
     name: "get_douyin_collection_workspace",
     description: "查看当前品牌资料库中的抖音搜集数据工作区摘要，包含达人搜索结果、达人结果池、主页链接和已抓到的联系方式摘要。",
     inputSchema: {

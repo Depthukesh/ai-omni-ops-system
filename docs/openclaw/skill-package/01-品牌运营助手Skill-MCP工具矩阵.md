@@ -522,7 +522,55 @@ RunningHub 上传节点补充规则：
   - 用于把 OpenClaw 生成完成的腾讯投流获客内容写入 `投流获客 -> 腾讯投流获客`
   - 详情页默认支持正文查看、留言协作和删除
 
-### 14.5 策略优化记录
+### 14.5 达人合作
+
+- `get_openclaw_creator_match_workspace`
+- `create_openclaw_creator_matches`
+- `delete_openclaw_creator_matches`
+- `move_openclaw_creator_matches_to_tracking`
+- `get_openclaw_creator_tracking_workspace`
+- `create_openclaw_creator_tracking_records`
+- `delete_openclaw_creator_tracking_record`
+- `get_openclaw_creator_tracking_works`
+- `create_openclaw_creator_tracking_work`
+- `update_openclaw_creator_tracking_work`
+- `delete_openclaw_creator_tracking_work`
+
+达人合作当前统一字段：
+
+- 达人匹配
+  - 延续达人结果池的达人基础字段
+  - `recommendedReason`
+  - `isInTrackingList`
+- 达人跟踪
+  - 延续达人结果池的达人基础字段
+  - `cooperationWorkCount`
+- 合作作品
+  - `title`
+  - `douyinWorkUrl`
+  - `playCount`
+  - `likeCount`
+  - `collectCount`
+  - `commentCount`
+  - `shareCount`
+  - `resultEvaluation`
+  - `nextAction`
+  - `refreshIntervalDays`
+  - `lastSyncedAt`
+  - `nextRefreshAt`
+
+达人合作补充：
+
+- `create_openclaw_creator_matches`
+  - 用于把达人结果池中的达人写入 `投流获客 -> 达人合作 -> 达人匹配`
+- `move_openclaw_creator_matches_to_tracking`
+  - 用于把达人匹配中的达人加入 `达人跟踪`
+- `create_openclaw_creator_tracking_work`
+  - 用于给某位达人新增合作作品，并同步写入首轮作品数据与自动更新频率
+- `update_openclaw_creator_tracking_work`
+  - 用于更新结果评估 / 再次选择 / 自动更新周期，或手动刷新一次作品数据
+
+### 14.6 策略优化记录
 
 - `get_openclaw_strategy_optimizations`
 - `create_openclaw_strategy_optimization`
@@ -534,7 +582,7 @@ RunningHub 上传节点补充规则：
 - 仅用于 `brand_growth / xiaohongshu / douyin / wechat`
 - 不用于 GEO 关键词挖掘、网站诊断、知识库搭建、GEO优化方案
 
-### 14.6 音乐生成
+### 14.7 音乐生成
 
 - `create_volcengine_music_task`
 - `get_volcengine_music_task`

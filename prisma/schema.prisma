@@ -1272,6 +1272,71 @@ model OpenClawTencentAdLead {
   @@map("OpenClawTencentAdLead")
 }
 
+model OpenClawCreatorCooperationMatch {
+  id               String   @id
+  brandId          String
+  workspaceScope   String   @default("paid_acquisition")
+  createdByUserId  String
+  sourceProfileId  String   @default("")
+  creatorId        String
+  nickname         String   @default("")
+  recommendedReason String  @default("")
+  snapshotJson     String   @default("{}")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([brandId, workspaceScope, createdAt(sort: Desc), updatedAt(sort: Desc)], map: "OpenClawCreatorCooperationMatch_brand_scope_created_idx")
+  @@index([brandId, workspaceScope, creatorId], map: "OpenClawCreatorCooperationMatch_brand_scope_creator_idx")
+  @@map("OpenClawCreatorCooperationMatch")
+}
+
+model OpenClawCreatorCooperationTracking {
+  id               String   @id
+  brandId          String
+  workspaceScope   String   @default("paid_acquisition")
+  createdByUserId  String
+  sourceProfileId  String   @default("")
+  creatorId        String
+  nickname         String   @default("")
+  snapshotJson     String   @default("{}")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([brandId, workspaceScope, createdAt(sort: Desc), updatedAt(sort: Desc)], map: "OpenClawCreatorCooperationTracking_brand_scope_created_idx")
+  @@index([brandId, workspaceScope, creatorId], map: "OpenClawCreatorCooperationTracking_brand_scope_creator_idx")
+  @@map("OpenClawCreatorCooperationTracking")
+}
+
+model OpenClawCreatorCooperationWork {
+  id                 String   @id
+  brandId            String
+  workspaceScope     String   @default("paid_acquisition")
+  trackingId         String
+  createdByUserId    String
+  douyinWorkUrl      String   @default("")
+  awemeId            String   @default("")
+  title              String   @default("")
+  coverUrl           String   @default("")
+  playCount          Float?
+  likeCount          Float?
+  collectCount       Float?
+  commentCount       Float?
+  shareCount         Float?
+  resultEvaluation   String   @default("")
+  nextAction         String   @default("")
+  refreshIntervalDays Int     @default(7)
+  lastSyncedAt       DateTime @default(now())
+  nextRefreshAt      DateTime @default(now())
+  lastSyncError      String   @default("")
+  rawFieldsJson      String   @default("{}")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([brandId, workspaceScope, trackingId, createdAt(sort: Desc)], map: "OpenClawCreatorCooperationWork_brand_scope_tracking_idx")
+  @@index([nextRefreshAt], map: "OpenClawCreatorCooperationWork_refresh_idx")
+  @@map("OpenClawCreatorCooperationWork")
+}
+
 model KnowledgeBase {
   id            String   @id
   name          String

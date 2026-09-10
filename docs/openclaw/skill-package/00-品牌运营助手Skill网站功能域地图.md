@@ -404,6 +404,9 @@ OpenClaw 安装中心补充说明：
 当前承载：
 
 - 腾讯投流获客列表
+- 达人合作
+  - 达人匹配
+  - 达人跟踪
 - 查看详情后的留言协作
 - 由 OpenClaw 直接写入与删除单条投流获客记录
 
@@ -412,6 +415,17 @@ OpenClaw 安装中心补充说明：
 - `get_openclaw_tencent_ad_leads`
 - `create_openclaw_tencent_ad_lead`
 - `delete_openclaw_tencent_ad_lead`
+- `get_openclaw_creator_match_workspace`
+- `create_openclaw_creator_matches`
+- `delete_openclaw_creator_matches`
+- `move_openclaw_creator_matches_to_tracking`
+- `get_openclaw_creator_tracking_workspace`
+- `create_openclaw_creator_tracking_records`
+- `delete_openclaw_creator_tracking_record`
+- `get_openclaw_creator_tracking_works`
+- `create_openclaw_creator_tracking_work`
+- `update_openclaw_creator_tracking_work`
+- `delete_openclaw_creator_tracking_work`
 
 ### 3.10 后台管理 `/admin`
 

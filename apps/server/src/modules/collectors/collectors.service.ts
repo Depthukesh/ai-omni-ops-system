@@ -714,6 +714,33 @@ export type DouyinCollectedWorkRecord = {
   score?: number;
 };
 
+export type DouyinWorkDetailSnapshot = {
+  workId: string;
+  title: string;
+  description?: string;
+  workType?: string;
+  authorName?: string;
+  authorUniqueId?: string;
+  externalUserId?: string;
+  workUrl?: string;
+  coverUrl?: string;
+  imageList?: string[];
+  videoUrl?: string;
+  hashtags?: string[];
+  publishTimeText?: string;
+  durationMs?: number;
+  likeCount?: number;
+  playCount?: number;
+  shareCount?: number;
+  commentCount?: number;
+  collectCount?: number;
+  recommendCount?: number;
+  authorFollowerCount?: number;
+  authorLikedCount?: number;
+  authorAvatar?: string;
+  collectedAt: string;
+};
+
 export type DouyinKeywordRecommendationRecord = {
   id: string;
   kind: DouyinKeywordRecommendationKind;
@@ -5730,6 +5757,62 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     this.enqueueDouyinTranscriptExtraction(transcriptReadyAsset);
 
     return this.mapDouyinCollectedWork(transcriptReadyAsset, "DOUYIN_BENCHMARK_WORK");
+  }
+
+  async getDouyinWorkDetailSnapshot(brandId: string, sourceUrlOrAwemeId: string): Promise<DouyinWorkDetailSnapshot> {
+    const workId = this.normalizeDouyinAwemeId(sourceUrlOrAwemeId);
+    if (!workId) {
+      throw new BadRequestException("抖音作品链接或 aweme_id 无效");
+    }
+
+    const detailRaw = await this.fetchTikHub("/api/v1/douyin/app/v3/fetch_one_video_v3", { aweme_id: workId }, brandId);
+    const detail = this.extractDouyinAwemeDetail(detailRaw);
+    let statisticsMap = new Map<string, Record<string, unknown>>();
+    try {
+      statisticsMap = this.extractDouyinStatisticsMap(
+        await this.fetchTikHub("/api/v1/douyin/app/v3/fetch_video_statistics", { aweme_ids: workId }, brandId),
+      );
+    } catch {
+      statisticsMap = new Map<string, Record<string, unknown>>();
+    }
+
+    const statistics = statisticsMap.get(workId) ?? {};
+    const author = this.asMeta(detail.author);
+    const detailStatistics = this.asMeta(detail.statistics);
+    const workType = this.deriveDouyinWorkType({}, detail);
+
+    return {
+      workId,
+      title: this.pickString(detail, ["desc"]) || `抖音作品 ${workId}`,
+      description: this.pickString(detail, ["desc"]) || "",
+      workType,
+      authorName: this.pickString(author, ["nickname"]) || undefined,
+      authorUniqueId: this.pickString(author, ["unique_id"]) || undefined,
+      externalUserId: this.pickString(author, ["uid"]) || undefined,
+      workUrl:
+        this.normalizeDouyinShareUrl(this.extractShareUrl(detail))
+        || this.normalizeDouyinNoteUrl(workId, workType),
+      coverUrl: this.extractDouyinCoverUrl(detail) || undefined,
+      imageList: this.extractDouyinImageList(detail),
+      videoUrl: this.extractDouyinVideoUrl(detail) || undefined,
+      hashtags: this.extractDouyinHashtags(detail),
+      publishTimeText: this.formatUnixTimestampText(this.pickNumber(detail, ["create_time"])),
+      durationMs: this.pickNumber(this.asMeta(detail.video), ["duration"]),
+      likeCount:
+        this.pickNumber(statistics, ["digg_count"])
+        ?? this.pickNumber(detailStatistics, ["digg_count"]),
+      playCount: this.pickNumber(statistics, ["play_count"]),
+      shareCount:
+        this.pickNumber(statistics, ["share_count"])
+        ?? this.pickNumber(detailStatistics, ["share_count"]),
+      commentCount: this.pickNumber(detailStatistics, ["comment_count"]),
+      collectCount: this.pickNumber(detailStatistics, ["collect_count"]),
+      recommendCount: this.pickNumber(detailStatistics, ["recommend_count"]),
+      authorFollowerCount: this.pickNumber(author, ["follower_count"]),
+      authorLikedCount: this.pickNumber(author, ["total_favorited"]),
+      authorAvatar: this.extractFirstUrlFromObject(author, "avatar_300x300") || undefined,
+      collectedAt: new Date().toISOString(),
+    };
   }
 
   private normalizeDouyinSearchSelectValue(value: string | undefined, allowedValues: string[], fallback: string) {

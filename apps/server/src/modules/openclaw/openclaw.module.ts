@@ -31,6 +31,8 @@ import { OpenClawMarketingPlanController } from "./openclaw-marketing-plan.contr
 import { OpenClawMarketingPlanService } from "./openclaw-marketing-plan.service";
 import { OpenClawTencentAdLeadController } from "./openclaw-tencent-ad-lead.controller";
 import { OpenClawTencentAdLeadService } from "./openclaw-tencent-ad-lead.service";
+import { OpenClawCreatorCooperationController } from "./openclaw-creator-cooperation.controller";
+import { OpenClawCreatorCooperationService } from "./openclaw-creator-cooperation.service";
 import { OpenClawStrategyOptimizationController } from "./openclaw-strategy-optimization.controller";
 import { OpenClawStrategyOptimizationService } from "./openclaw-strategy-optimization.service";
 import { OpenClawThirdPartyMediaDeliveryController } from "./openclaw-third-party-media-delivery.controller";
@@ -42,9 +44,10 @@ import { OrdersModule } from "../orders/orders.module";
 import { ThirdPartyPlatformsModule } from "../third-party-platforms/third-party-platforms.module";
 import { StorageModule } from "../../storage/storage.module";
 import { LocalRuntimeModule } from "../local-runtime/local-runtime.module";
+import { SchedulerModule } from "../scheduler/scheduler.module";
 
 @Module({
-  imports: [AuthModule, TasksModule, BrandsModule, ReportsModule, UserSkillsModule, WorksModule, CollectorsModule, FeedbackModule, PublishingModule, ThirdPartyPlatformsModule, OrdersModule, StorageModule, LocalRuntimeModule],
+  imports: [AuthModule, TasksModule, BrandsModule, ReportsModule, UserSkillsModule, WorksModule, CollectorsModule, FeedbackModule, PublishingModule, ThirdPartyPlatformsModule, OrdersModule, StorageModule, LocalRuntimeModule, SchedulerModule],
   controllers: [
     OpenClawController,
     OpenClawCommentController,
@@ -57,6 +60,7 @@ import { LocalRuntimeModule } from "../local-runtime/local-runtime.module";
     OpenClawLobsterDiaryController,
     OpenClawMarketingPlanController,
     OpenClawTencentAdLeadController,
+    OpenClawCreatorCooperationController,
     OpenClawStrategyOptimizationController,
     OpenClawDailyPlanController,
     OpenClawCreativeMaterialController,
@@ -74,6 +78,7 @@ import { LocalRuntimeModule } from "../local-runtime/local-runtime.module";
     OpenClawLobsterDiaryService,
     OpenClawMarketingPlanService,
     OpenClawTencentAdLeadService,
+    OpenClawCreatorCooperationService,
     OpenClawStrategyOptimizationService,
     OpenClawDailyPlanService,
     OpenClawCreativeMaterialService,
@@ -91,6 +96,7 @@ import { LocalRuntimeModule } from "../local-runtime/local-runtime.module";
     OpenClawLobsterDiaryService,
     OpenClawMarketingPlanService,
     OpenClawTencentAdLeadService,
+    OpenClawCreatorCooperationService,
     OpenClawStrategyOptimizationService,
     OpenClawDailyPlanService,
     OpenClawCreativeMaterialService,
