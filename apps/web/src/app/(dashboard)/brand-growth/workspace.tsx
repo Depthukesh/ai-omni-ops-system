@@ -4246,6 +4246,40 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     }
   }
 
+  async function handleSyncSingleDouyinCompetitorWork(entry: XhsAccountBindingEntry) {
+    if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.collection.douyinCollection"]?.edit) {
+      setErrorMessage("当前账号没有同步收集数据板块的编辑权限。");
+      return;
+    }
+
+    const locator = entry.locator.trim();
+    if (!locator) {
+      setErrorMessage("请先填写竞品抖音账号后再提交采集。");
+      return;
+    }
+
+    setIsSyncingDouyinWorkspace(true);
+    clearMessages();
+
+    try {
+      const response = await syncDouyinCollectionWorkspace(
+        {
+          scope: "competitorWorks",
+          competitorAccountLinks: [locator],
+          competitorAccountEntries: buildXhsSyncAccountEntries([entry]),
+        },
+        activeBrandId || archive.brand.id,
+      );
+      setDouyinCollectionWorkspace(response.workspace);
+      setNotice(`竞品作品采集完成，已更新 ${response.breakdown.competitorWorks} 条作品。`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "同步失败";
+      setErrorMessage(`竞品作品采集失败：${message}`);
+    } finally {
+      setIsSyncingDouyinWorkspace(false);
+    }
+  }
+
   async function handleSyncSingleDouyinCompetitorAccount(entry: XhsAccountBindingEntry) {
     if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.collection.douyinCollection"]?.edit) {
       setErrorMessage("当前账号没有同步收集数据板块的编辑权限。");
@@ -4854,6 +4888,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
         onSyncAllDouyinBrandAccounts={handleSyncAllDouyinBrandAccounts}
         onSyncAllDouyinCompetitorAccounts={handleSyncAllDouyinCompetitorAccounts}
         onSyncSingleDouyinBrandAccount={handleSyncSingleDouyinBrandAccount}
+        onSyncSingleDouyinCompetitorWork={handleSyncSingleDouyinCompetitorWork}
         onSyncSingleDouyinCompetitorAccount={handleSyncSingleDouyinCompetitorAccount}
         onDeleteDouyinBrandAccount={handleDeleteDouyinBrandAccount}
         onDeleteDouyinCompetitorAccount={handleDeleteDouyinCompetitorAccount}

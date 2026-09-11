@@ -501,6 +501,7 @@ export interface BrandGrowthCollectionWorkspaceProps {
   onSyncAllDouyinBrandAccounts: AsyncAction;
   onSyncAllDouyinCompetitorAccounts: AsyncAction;
   onSyncSingleDouyinBrandAccount: ValueAction<XhsAccountBindingEntry>;
+  onSyncSingleDouyinCompetitorWork: ValueAction<XhsAccountBindingEntry>;
   onSyncSingleDouyinCompetitorAccount: ValueAction<XhsAccountBindingEntry>;
   onDeleteDouyinBrandAccount: ValueAction<DouyinCollectedAccountRecord>;
   onDeleteDouyinCompetitorAccount: ValueAction<DouyinCollectedAccountRecord>;
@@ -5558,20 +5559,13 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                     >
                       {props.isHydrating || props.isSyncingDouyinWorkspace ? "同步中..." : "同步竞品账号信息"}
                     </button>
-                    <button
-                      type="button"
-                      className="primary-button"
-                      onClick={() => void props.onSyncDouyinWorkspace()}
-                      disabled={props.isHydrating || props.isSyncingDouyinWorkspace || !props.douyinSyncForm.competitorAccountEntries.length}
-                    >
-                      {props.isHydrating || props.isSyncingDouyinWorkspace ? "提交中..." : "提交"}
-                    </button>
                   </div>
                 </div>
                 {props.douyinSyncForm.competitorAccountEntries.length ? (
                   <div className="xhs-account-entry-list">
                     {props.douyinSyncForm.competitorAccountEntries.map((entry) => {
-                      const hasSyncedResult = props.sortedDouyinCompetitorAccounts.some((item) => doesDouyinAccountMatchEntry(item, entry));
+                      const matchedAccount = props.sortedDouyinCompetitorAccounts.find((item) => doesDouyinAccountMatchEntry(item, entry));
+                      const hasSyncedResult = Boolean(matchedAccount);
                       return (
                         <div key={`douyin-competitor-work-source-${entry.id}`} className="xhs-account-entry-row">
                           <div className="xhs-account-entry-row__body">
@@ -5580,9 +5574,18 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                                 {hasSyncedResult ? "作品源已就绪" : "待同步账号"}
                               </span>
                             </div>
+                            {matchedAccount?.accountName ? <strong>{matchedAccount.accountName}</strong> : null}
                             <strong>{entry.locator}</strong>
                           </div>
                           <div className="xhs-account-entry-row__actions">
+                            <button
+                              type="button"
+                              className="primary-button"
+                              onClick={() => void props.onSyncSingleDouyinCompetitorWork(entry)}
+                              disabled={props.isHydrating || props.isSyncingDouyinWorkspace}
+                            >
+                              {props.isHydrating || props.isSyncingDouyinWorkspace ? "提交中..." : "提交"}
+                            </button>
                             <button
                               type="button"
                               className="note-inline-button"
