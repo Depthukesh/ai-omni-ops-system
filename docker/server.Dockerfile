@@ -16,6 +16,14 @@ RUN apt-get update \
 
 RUN npm install -g pnpm@10.0.0
 
+COPY docker/local-asr-requirements.txt docker/local-asr-requirements.txt
+
+# Keep heavyweight ASR Python dependencies in a stable layer so ordinary
+# source-code changes do not force torch/torchaudio to download again.
+RUN python3 -m pip install --no-cache-dir --break-system-packages --upgrade pip setuptools wheel \
+  && python3 -m pip install --no-cache-dir --break-system-packages --index-url https://download.pytorch.org/whl/cpu torch torchaudio \
+  && python3 -m pip install --no-cache-dir --prefer-binary --break-system-packages -r docker/local-asr-requirements.txt
+
 COPY package.json pnpm-workspace.yaml ./
 COPY apps/server/package.json apps/server/package.json
 COPY apps/web/package.json apps/web/package.json
@@ -26,10 +34,6 @@ COPY packages/ui/package.json packages/ui/package.json
 RUN pnpm install --no-frozen-lockfile
 
 COPY . .
-
-RUN python3 -m pip install --no-cache-dir --break-system-packages --upgrade pip setuptools wheel \
-  && python3 -m pip install --no-cache-dir --break-system-packages --index-url https://download.pytorch.org/whl/cpu torch torchaudio \
-  && python3 -m pip install --no-cache-dir --prefer-binary --break-system-packages -r docker/local-asr-requirements.txt
 
 RUN npm run prisma:generate && npm run build:server
 
