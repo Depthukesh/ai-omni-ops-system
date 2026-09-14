@@ -12619,16 +12619,28 @@ ${normalizedMarkdown}`;
       this.resolveBrandAwareApiKeys(settings.brandId, doubaoProvider, apiKeyFallbackOptions),
     ]);
     const thirdPartyModels = thirdPartyProvider
-      ? this.pickProviderModels(thirdPartyProvider.modelWhitelist, effectiveRequestedModels, ["gpt-5.4", "claude-sonnet-4-6"])
+      ? this.pickProviderModels(
+        this.collectProviderModelCandidates(thirdPartyProvider),
+        effectiveRequestedModels,
+        ["gpt-5.4", "claude-sonnet-4-6"],
+      )
       : [];
     const deepseekModels = deepseekProvider
-      ? this.pickProviderModels(deepseekProvider.modelWhitelist, effectiveRequestedModels, ["deepseek-v4-pro", "deepseek-v4-flash"])
+      ? this.pickProviderModels(
+        this.collectProviderModelCandidates(deepseekProvider),
+        effectiveRequestedModels,
+        ["deepseek-v4-pro", "deepseek-v4-flash"],
+      )
       : [];
     const kimiModels = kimiProvider
-      ? this.pickProviderModels(kimiProvider.modelWhitelist, effectiveRequestedModels, ["kimi-k2.6"])
+      ? this.pickProviderModels(this.collectProviderModelCandidates(kimiProvider), effectiveRequestedModels, ["kimi-k2.6"])
       : [];
     const arkModels = doubaoProvider
-      ? this.pickProviderModels(doubaoProvider.modelWhitelist, effectiveRequestedModels, ["doubao-seed-2-0-pro-260215"])
+      ? this.pickProviderModels(
+        this.collectProviderModelCandidates(doubaoProvider),
+        effectiveRequestedModels,
+        ["doubao-seed-2-0-pro-260215", "doubao-seed-2-0-mini-260215", "doubao-seed-1-8-251228"],
+      )
       : [];
 
     const providers: XiaohongshuMarketingProviderConfig[] = [];
@@ -12850,6 +12862,16 @@ ${normalizedMarkdown}`;
       ? normalizedAvailable.filter((item) => normalizedRequested.includes(item))
       : normalizedAvailable;
     return this.orderModels(target.length ? target : normalizedAvailable, preferredModels);
+  }
+
+  private collectProviderModelCandidates(provider?: ApiProviderRecord) {
+    if (!provider) {
+      return [];
+    }
+    return Array.from(new Set([
+      ...provider.modelWhitelist.map((item) => item.trim()).filter(Boolean),
+      String(provider.defaultModel || "").trim(),
+    ].filter(Boolean)));
   }
 
   async getReportAsset(brandId: string, fileName: string) {

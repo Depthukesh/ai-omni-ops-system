@@ -24,6 +24,7 @@
   - 再直接触发首版 7 天营销日历生成
 - 同时补齐营销日历模型 provider 兜底：如果当前环境只有 `text-global` 这类第三方文本 provider，而没有启用 `text-domestic-deepseek/kimi/doubao`，营销日历也能复用全局文本 provider，不再直接报“营销日历模型配置读取失败”。
 - 并把营销日历默认可选模型列表补齐为和营销策划方案一致的全局+国内混合顺序，避免当前环境虽然存在 `text-global`，但只挂了 `gpt-5.4 / claude-sonnet-4-6` 这类模型时，仍因为旧代码只筛 `deepseek/kimi/doubao` 而继续报错。
+- 同时放宽 provider 模型候选读取：营销日历不再只依赖 provider 的 `modelWhitelist`，也会把 provider 的 `defaultModel` 作为候选模型；这样即使后台白名单没填全，只要默认模型已配置，营销日历仍可正常生成。
 
 ### 2. OpenClaw 兼容内容获客营销日历别名 action
 
