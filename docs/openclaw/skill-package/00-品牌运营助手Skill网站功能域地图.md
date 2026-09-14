@@ -78,9 +78,9 @@
 
 其中 `manage_growth_reports` 当前已覆盖营销日历按日期补写能力：
 
-- 先 `get_xiaohongshu_marketing_calendar_workspace` 获取最新一期营销日历与 `reportId`
-- 再 `upsert_xiaohongshu_marketing_calendar_item`
-- 通过 `calendarDate=YYYY-MM-DD` 精确更新某一天，而不是整版手工覆盖
+- 优先直接使用 `upsert_xiaohongshu_marketing_calendar_item` / `upsert_douyin_marketing_calendar_item` / `upsert_wechat_marketing_calendar_item`
+- 通过 `selectedDate=YYYY-MM-DD` 配合 `payload.item` 精确更新某一天，而不是整版手工覆盖
+- 如果已经知道 `reportId` 可以一并传入；如果没有，后端会优先续写当前最新营销日历，没有再自动创建首条记录，因此不再要求 OpenClaw 先专门查询 `reportId`
 
 为避免页面左侧“品牌增长报告”分栏和 OpenClaw 工具命名脱节，当前额外补了一层品牌增长语义别名：
 
@@ -140,7 +140,9 @@
   - 某音/某号：只看/只补抖音块
   - 公众号：只看/只补公众号块
 - 当前营销日历已经去掉技能中心依赖：OpenClaw 直接提交即可，后端不再要求营销日历 skill / prompt 先存在或先配置
-- 当 OpenClaw 已经自己产出每日营销选题时，直接携带 `payload.items` 提交即可；后端只负责写入营销日历，不再要求这条 OpenClaw 链路再走后端模型生成
+- 当 OpenClaw 已经自己产出每日营销选题时：
+  - 如果是整版一次性提交，可以直接携带 `payload.items`
+  - 如果是逐天补写，优先走 `upsert_*_marketing_calendar_item + selectedDate + payload.item`
 - 内容获客页面已去掉“生成营销日历”按钮，当前默认入口就是 OpenClaw 直提营销日历
 - 原创 / 二创图文优先走直连工具
 - 视频笔记优先走 `manage_xiaohongshu_video`

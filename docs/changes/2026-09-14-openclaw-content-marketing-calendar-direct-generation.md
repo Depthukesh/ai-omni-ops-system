@@ -49,7 +49,23 @@
 - 这条直提链路也不再要求营销日历 skill / prompt 先存在或先配置
 - 内容获客页面原有的“生成营销日历”按钮已移除，避免用户继续误走“页面触发后端生成”的旧链路
 
-### 4. Skill / MCP 文档口径同步
+### 4. OpenClaw 营销日历按天 upsert
+
+- `manage_growth_reports` 现在新增：
+  - `upsert_xiaohongshu_marketing_calendar_item`
+  - `upsert_douyin_marketing_calendar_item`
+  - `upsert_wechat_marketing_calendar_item`
+- 这组动作用于 OpenClaw 分天提交营销日历内容，避免继续通过整版 `generate/update` 硬塞 30 天 JSON
+- 提交时优先传：
+  - `selectedDate=YYYY-MM-DD`
+  - `payload.item`
+  - 可选 `payload.title`
+- `reportId` 现在变成可选：
+  - 如果已知 `reportId`，会写入该版本
+  - 如果未提供，后端会优先续写当前最新营销日历
+  - 如果当前还没有营销日历，则会自动创建首条记录后再写入当天内容
+
+### 5. Skill / MCP 文档口径同步
 
 - `docs/openclaw/skill-package/00-品牌运营助手Skill网站功能域地图.md`
 - `docs/openclaw/skill-package/01-品牌运营助手Skill-MCP工具矩阵.md`
@@ -61,6 +77,7 @@
 - 不再默认提示“必须先生成品牌增长报告 / 机会洞察总报告”
 - `manage_growth_reports` 已兼容内容获客营销日历别名 action
 - OpenClaw 可以直接提交 `payload.items` 写入营销日历
+- OpenClaw 也可以按天走 `upsert_*_marketing_calendar_item`，优先使用这组动作逐天回填营销日历
 
 ## 影响范围
 
@@ -73,10 +90,12 @@
 - 没有新增第二套营销日历真源，继续复用原有品牌增长营销日历存储
 - 没有改前端营销日历编辑协议
 - OpenClaw 直提链路只新增“无 reportId 直接创建”的入口，不影响原有前端按钮的营销日历异步生成链路
+- OpenClaw 单日回填优先走新增 `upsert_*_marketing_calendar_item`，避免大 JSON 整版覆盖导致的误清空与提交体过大问题
 
 ## 验证建议
 
 - 在未先生成品牌增长报告、未先生成机会洞察总报告的品牌下，直接从内容获客营销日历发起生成，确认任务可正常进入 `QUEUED/RUNNING`
 - 用 OpenClaw 走 `generate_douyin_marketing_calendar` 或 `generate_wechat_marketing_calendar`，确认不再报 `不支持的 action`
 - 用 OpenClaw 走 `generate_douyin_marketing_calendar` 并直接提交 `payload.items`，确认无需 `reportId`、无需后端模型生成，也能直接写入营销日历工作区
+- 用 OpenClaw 走 `upsert_xiaohongshu_marketing_calendar_item` / `upsert_douyin_marketing_calendar_item` / `upsert_wechat_marketing_calendar_item`，确认按天提交时即使不显式传 `reportId` 也能续写最新营销日历
 - 确认生成后的营销日历仍然写回原有营销日历工作区，而不是新增第二套数据

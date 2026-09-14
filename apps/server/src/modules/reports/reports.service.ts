@@ -929,6 +929,12 @@ export type UpsertXiaohongshuMarketingCalendarItemPayload = {
   item: XiaohongshuMarketingCalendarItem;
 };
 
+export type OpenClawUpsertXiaohongshuMarketingCalendarItemParams = {
+  reportId?: string;
+  date?: string;
+  payload: UpsertXiaohongshuMarketingCalendarItemPayload;
+};
+
 export type UpdateDouyinTopicLibraryPayload = {
   items: DouyinTopicLibraryItem[];
 };
@@ -2829,6 +2835,39 @@ export class ReportsService {
     return this.updateXiaohongshuMarketingCalendar(brandId, reportId, {
       title: payload.title ?? currentRecord.title,
       items: currentItems,
+    });
+  }
+
+  async upsertXiaohongshuMarketingCalendarItemForOpenClaw(
+    brandId: string,
+    params: OpenClawUpsertXiaohongshuMarketingCalendarItemParams,
+  ) {
+    const targetDate = String(params.date || params.payload.item?.date || "").trim();
+    if (!targetDate) {
+      throw new BadRequestException("请提供 selectedDate 或 payload.item.date。");
+    }
+
+    const normalizedPayload: UpsertXiaohongshuMarketingCalendarItemPayload = {
+      title: params.payload.title,
+      item: {
+        ...params.payload.item,
+        date: targetDate,
+      },
+    };
+
+    const explicitReportId = String(params.reportId || "").trim();
+    if (explicitReportId) {
+      return this.upsertXiaohongshuMarketingCalendarItem(brandId, explicitReportId, targetDate, normalizedPayload);
+    }
+
+    const workspace = await this.getXiaohongshuMarketingCalendarWorkspace(brandId);
+    if (workspace.latest?.id) {
+      return this.upsertXiaohongshuMarketingCalendarItem(brandId, workspace.latest.id, targetDate, normalizedPayload);
+    }
+
+    return this.createManualXiaohongshuMarketingCalendar(brandId, {
+      title: normalizedPayload.title,
+      items: [normalizedPayload.item],
     });
   }
 

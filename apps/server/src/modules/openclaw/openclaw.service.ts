@@ -3226,12 +3226,12 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
     inputSchema: {
       type: "object",
       properties: {
-        action: { type: "string", description: "例如 get_growth_workspace、generate_visual_growth_report、update_douyin_topic_library、generate_brand_growth_marketing_calendar、generate_douyin_marketing_calendar。" },
+        action: { type: "string", description: "例如 get_growth_workspace、generate_visual_growth_report、update_douyin_topic_library、generate_brand_growth_marketing_calendar、generate_douyin_marketing_calendar、upsert_xiaohongshu_marketing_calendar_item。" },
         reportId: { type: "string" },
-        selectedDate: { type: "string", description: "热点选题候选日期，格式与原接口一致。" },
+        selectedDate: { type: "string", description: "热点选题候选日期或营销日历单日回填日期，格式与原接口一致。" },
         payload: {
           type: "object",
-          description: "对应动作的请求体，结构与网站原始接口保持一致。营销日历在 OpenClaw 已自行产出每日选题时，可直接传 title 与 items 写入工作区，不需要 reportId，也不需要后端再次生成。",
+          description: "对应动作的请求体，结构与网站原始接口保持一致。营销日历支持两种直提：整版提交时传 title 与 items；按天回填时传 title 与 item，并配合 reportId 或 selectedDate / payload.item.date 逐天写入。",
           additionalProperties: true,
         },
       },
@@ -10606,6 +10606,22 @@ export class OpenClawService {
     });
   }
 
+  async upsertBrandGrowthMarketingCalendarItem(
+    headers: HeadersMap,
+    options?: {
+      reportId?: string;
+      selectedDate?: string;
+      payload?: Record<string, unknown>;
+    },
+  ) {
+    return this.manageGrowthReports(headers, {
+      action: "upsert_xiaohongshu_marketing_calendar_item",
+      reportId: options?.reportId,
+      selectedDate: options?.selectedDate,
+      payload: options?.payload,
+    });
+  }
+
   async getBrandGrowthTopicLibraryWorkspace(
     headers: HeadersMap,
     options?: {
@@ -12529,6 +12545,25 @@ export class OpenClawService {
           data: result,
           url: "/xiaohongshu",
           label: "打开内容获客工作区",
+          resourceKind: "report",
+        });
+      }
+      case "upsert_xiaohongshu_marketing_calendar_item":
+      case "upsert_douyin_marketing_calendar_item":
+      case "upsert_wechat_marketing_calendar_item": {
+        await this.authService.assertBrandPermission(brandId, "xiaohongshu.calendar", "edit", auth);
+        const result = await this.reportsService.upsertXiaohongshuMarketingCalendarItemForOpenClaw(brandId, {
+          reportId: String(options?.reportId || "").trim() || undefined,
+          date: String(options?.selectedDate || "").trim() || undefined,
+          payload: payload as Parameters<ReportsService["upsertXiaohongshuMarketingCalendarItemForOpenClaw"]>[1]["payload"],
+        });
+        return this.buildManagedOperationResponse({
+          title: "营销日历单日已更新",
+          action,
+          data: result,
+          url: "/xiaohongshu",
+          label: "打开内容获客工作区",
+          resultStatus: "COMPLETED",
           resourceKind: "report",
         });
       }

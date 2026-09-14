@@ -165,7 +165,39 @@
 - 直接补某一天的营销日历内容，例如把 2026-07-15 的当天主题、各平台选题和朋友圈内容补进去
 - 处理内容获客下某书 / 某音/某号 / 公众号的 `营销日历` 入口；这三个入口当前不新增第二套工具，继续复用品牌增长营销日历语义工具
 - 当前营销日历已经去掉技能中心依赖：OpenClaw 直接走 `manage_growth_reports` 即可，后端不再先读取营销日历 skill / prompt 配置
-- 当 OpenClaw 已经自己生成好每日营销选题时，可以直接用 `generate_douyin_marketing_calendar` / `generate_wechat_marketing_calendar` 携带 `payload.items` 提交；这条链路会直接写入营销日历，不再要求后端再走模型生成
+- 当 OpenClaw 已经自己生成好每日营销选题时：
+  - 整版一次性提交：继续用 `generate_xiaohongshu_marketing_calendar` / `generate_douyin_marketing_calendar` / `generate_wechat_marketing_calendar` 携带 `payload.items`
+  - 逐天补写：优先用 `upsert_xiaohongshu_marketing_calendar_item` / `upsert_douyin_marketing_calendar_item` / `upsert_wechat_marketing_calendar_item`
+- 逐天补写推荐入参：
+  - `selectedDate=YYYY-MM-DD`
+  - `payload.item`
+  - 可选 `payload.title`
+  - `reportId` 可选；不传时后端会自动续写最新营销日历
+- 最小提交示例：
+
+```json
+{
+  "action": "upsert_xiaohongshu_marketing_calendar_item",
+  "selectedDate": "2026-09-15",
+  "payload": {
+    "title": "品牌全平台营销日历",
+    "item": {
+      "date": "2026-09-15",
+      "brandMarketing": { "theme": "中秋送礼预热", "description": "围绕节前送礼场景预热" },
+      "xiaohongshu": {
+        "brandAccount": { "topic": "中秋礼盒怎么选", "description": "主推送礼决策内容", "contentType": "图文", "noteKeywords": ["中秋礼盒"], "coverKeywords": ["礼盒"], "titleSuggestions": ["中秋礼盒怎么选"], "expectedPerformance": "提升收藏与咨询" },
+        "employeeAccount": { "topic": "", "description": "", "contentType": "", "noteKeywords": [], "coverKeywords": [], "titleSuggestions": [], "expectedPerformance": "" }
+      },
+      "douyin": {
+        "brandAccount": { "topic": "", "description": "", "contentType": "", "presentationFormat": "", "copyKeywords": [], "coverKeywords": [], "titleSuggestions": [], "expectedPerformance": "" },
+        "ipAccount": { "topic": "", "description": "", "contentType": "", "presentationFormat": "", "copyKeywords": [], "coverKeywords": [], "titleSuggestions": [], "expectedPerformance": "" },
+        "employeeAccount": { "topic": "", "description": "", "contentType": "", "presentationFormat": "", "copyKeywords": [], "coverKeywords": [], "titleSuggestions": [], "expectedPerformance": "" }
+      },
+      "moments": { "topic": "", "description": "", "presentationFormat": "" }
+    }
+  }
+}
+```
 - 内容获客页面已去掉“生成营销日历”按钮；营销日历当前默认走 OpenClaw 直提，不再建议从页面触发后端生成
 
 品牌增长报告分栏的推荐直连口径：
@@ -179,7 +211,7 @@
 
 - 以上新口径当前都只是对既有 `manage_growth_reports` / `get_unified_material_library_items` 的品牌增长语义别名
 - 旧工具仍保留，避免已有 Skill 与 MCP 调用中断
-- `manage_growth_reports` 当前兼容内容获客营销日历别名 action，例如 `get_douyin_marketing_calendar_workspace`、`generate_douyin_marketing_calendar`、`update_douyin_marketing_calendar`，以及公众号同类 action
+- `manage_growth_reports` 当前兼容内容获客营销日历别名 action，例如 `get_douyin_marketing_calendar_workspace`、`generate_douyin_marketing_calendar`、`update_douyin_marketing_calendar`、`upsert_douyin_marketing_calendar_item`，以及公众号同类 action
 - 当目标入口是内容获客三端营销日历时，Skill 需要自己控制字段边界：
   - 某书：只写 `xiaohongshu.*`
   - 某音/某号：只写 `douyin.*`
