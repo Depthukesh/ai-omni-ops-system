@@ -164,6 +164,7 @@
 - 读取营销日历、选题库、统一素材库相关能力
 - 直接补某一天的营销日历内容，例如把 2026-07-15 的当天主题、各平台选题和朋友圈内容补进去
 - 处理内容获客下某书 / 某音/某号 / 公众号的 `营销日历` 入口；这三个入口当前不新增第二套工具，继续复用品牌增长营销日历语义工具
+- 以上营销日历链路当前已支持“直接生成首版每日营销选题”；即使尚未先生成品牌增长报告或机会洞察总报告，也可以先基于品牌背景资料和产品资料补轻量摘要后直接发起生成
 
 品牌增长报告分栏的推荐直连口径：
 
@@ -176,6 +177,7 @@
 
 - 以上新口径当前都只是对既有 `manage_growth_reports` / `get_unified_material_library_items` 的品牌增长语义别名
 - 旧工具仍保留，避免已有 Skill 与 MCP 调用中断
+- `manage_growth_reports` 当前兼容内容获客营销日历别名 action，例如 `get_douyin_marketing_calendar_workspace`、`generate_douyin_marketing_calendar`、`update_douyin_marketing_calendar`，以及公众号同类 action
 - 当目标入口是内容获客三端营销日历时，Skill 需要自己控制字段边界：
   - 某书：只写 `xiaohongshu.*`
   - 某音/某号：只写 `douyin.*`

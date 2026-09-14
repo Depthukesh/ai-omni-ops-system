@@ -2653,30 +2653,15 @@ export class ReportsService {
   }
 
   async generateXiaohongshuMarketingCalendar(brandId: string, payload: GenerateXiaohongshuMarketingCalendarPayload = {}) {
+    const generatedAt = new Date().toISOString();
+    const archive = await this.brandsService.getArchive(brandId);
     const growthReportWorkspace = await this.getGrowthReportWorkspace(brandId);
     const opportunityInsightWorkspace = await this.getOpportunityInsightWorkspace(brandId);
-    const sourceReport = growthReportWorkspace.latest;
-    const opportunityReport = opportunityInsightWorkspace.finalOpportunityReport;
-    if (!sourceReport) {
-      throw new NotFoundException("请先生成品牌增长报告");
-    }
-    if (!opportunityReport?.htmlDocument?.trim()) {
-      throw new NotFoundException("请先生成机会洞察总报告");
-    }
-    if (
-      !sourceReport.reportMarkdown?.trim()
-      && !sourceReport.htmlContent?.trim()
-    ) {
-      throw new NotFoundException("品牌增长报告内容为空，请先完成品牌增长报告");
-    }
-    if (
-      !sourceReport.summary?.trim()
-      && !sourceReport.diagnosis.length
-      && !sourceReport.opportunities.length
-      && !sourceReport.nextActions.length
-    ) {
-      throw new NotFoundException("品牌增长报告内容为空，请先完成品牌增长报告");
-    }
+    const { sourceReport, opportunityReport } = this.resolveMarketingCalendarSourceReports(archive, {
+      generatedAt,
+      sourceReport: growthReportWorkspace.latest,
+      opportunityReport: opportunityInsightWorkspace.finalOpportunityReport,
+    });
     const workspace = await this.getXiaohongshuMarketingCalendarWorkspace(brandId);
     const runningTask = workspace.latestTask;
     if (runningTask && (runningTask.taskStatus === "QUEUED" || runningTask.taskStatus === "RUNNING")) {
@@ -5083,16 +5068,15 @@ export class ReportsService {
       const sourceReportId = this.readMetaString(currentTaskRow, "sourceReportId");
       const sourceOpportunityReportId = this.readMetaString(currentTaskRow, "sourceOpportunityReportId");
       const userRequirement = this.readMetaString(currentTaskRow, "userRequirement") || undefined;
-      const sourceReport = growthReportWorkspace.history.find((item) => item.id === sourceReportId) || growthReportWorkspace.latest;
-      const opportunityReport =
+      const sourceReportCandidate = growthReportWorkspace.history.find((item) => item.id === sourceReportId) || growthReportWorkspace.latest;
+      const opportunityReportCandidate =
         opportunityInsightWorkspace.history.find((item) => item.id === sourceOpportunityReportId)
         || opportunityInsightWorkspace.finalOpportunityReport;
-      if (!sourceReport) {
-        throw new NotFoundException("请先生成品牌增长报告");
-      }
-      if (!opportunityReport?.htmlDocument?.trim()) {
-        throw new NotFoundException("请先生成机会洞察总报告");
-      }
+      const { sourceReport, opportunityReport } = this.resolveMarketingCalendarSourceReports(archive, {
+        generatedAt: startedAt,
+        sourceReport: sourceReportCandidate,
+        opportunityReport: opportunityReportCandidate,
+      });
 
       currentPhaseStatus = this.buildXiaohongshuMarketingCalendarPhaseStatus("GENERATING");
       await applyRunningStatus();
@@ -6579,6 +6563,157 @@ export class ReportsService {
   private normalizeMarketingPlanUserRequirement(value?: string) {
     const normalized = typeof value === "string" ? value.trim() : "";
     return normalized ? this.truncateText(normalized, 1200) : undefined;
+  }
+
+  private hasUsableMarketingCalendarGrowthReport(report?: GrowthReportRecord | null) {
+    if (!report) {
+      return false;
+    }
+    if (
+      !report.reportMarkdown?.trim()
+      && !report.htmlContent?.trim()
+    ) {
+      return false;
+    }
+    return Boolean(
+      report.summary?.trim()
+      || report.diagnosis.length
+      || report.opportunities.length
+      || report.nextActions.length,
+    );
+  }
+
+  private hasUsableMarketingCalendarOpportunityReport(report?: OpportunityInsightReportRecord | null) {
+    return Boolean(report?.htmlDocument?.trim());
+  }
+
+  private resolveMarketingCalendarSourceReports(
+    archive: Awaited<ReturnType<BrandsService["getArchive"]>>,
+    options: {
+      generatedAt: string;
+      sourceReport?: GrowthReportRecord | null;
+      opportunityReport?: OpportunityInsightReportRecord | null;
+    },
+  ) {
+    const sourceReport = this.hasUsableMarketingCalendarGrowthReport(options.sourceReport)
+      ? options.sourceReport!
+      : this.buildMarketingCalendarFallbackGrowthReport(archive, options.generatedAt);
+    const opportunityReport = this.hasUsableMarketingCalendarOpportunityReport(options.opportunityReport)
+      ? options.opportunityReport!
+      : this.buildMarketingCalendarFallbackOpportunityReport(archive, options.generatedAt);
+    return {
+      sourceReport,
+      opportunityReport,
+    };
+  }
+
+  private buildMarketingCalendarFallbackGrowthReport(
+    archive: Awaited<ReturnType<BrandsService["getArchive"]>>,
+    generatedAt: string,
+  ): GrowthReportRecord {
+    const brandName = String(archive.brand.brandName || "").trim() || "当前品牌";
+    const brandDescription = String(archive.brand.brandDescription || archive.brand.enterpriseIntro || "").trim();
+    const productNames = archive.products
+      .map((item) => String(item.productName || "").trim())
+      .filter(Boolean)
+      .slice(0, 5);
+    const productLine = productNames.length ? productNames.join("、") : "待补充产品资料";
+    const summary = productNames.length
+      ? `当前先基于品牌背景与 ${productLine} 等产品资料直接生成首版每日营销选题，后续补齐增长报告后仍可继续迭代。`
+      : "当前先基于已有品牌背景资料直接生成首版每日营销选题，后续补齐产品与增长报告后仍可继续迭代。";
+    const diagnosis = [
+      brandDescription ? "品牌背景资料已具备基础信息，可先围绕现有定位输出首版排期。" : "品牌背景资料仍偏少，首版日历会以已有品牌名和平台定位做保守生成。",
+      productNames.length
+        ? `当前已录入 ${productNames.length} 个产品，可优先围绕 ${productNames.slice(0, 3).join("、")} 安排 7 天营销主题。`
+        : "当前产品资料仍较少，建议后续补齐核心产品卖点与使用场景。",
+      "本次不再强依赖已完成的品牌增长报告，支持直接先生成可执行的每日营销选题。",
+    ];
+    const opportunities = [
+      productNames.length
+        ? `围绕 ${productNames[0]} 等核心产品，优先铺设种草、转化和节日节点的连续选题。`
+        : "围绕品牌定位、门店场景或服务特色，先建立连续 7 天的主题内容节奏。",
+      "优先沉淀各平台当天可直接执行的话题、标题建议和关键词，缩短人工排期时间。",
+      "在首版日历跑通后，再结合后续增长报告与机会洞察继续细化内容表现预期。",
+    ];
+    const nextActions = [
+      "先生成首版未来 7 天营销日历，快速进入执行节奏。",
+      "补齐品牌增长报告与机会洞察总报告，供下一轮排期迭代使用。",
+      productNames.length ? "继续补充产品卖点、使用场景和人群差异，提升各平台选题精准度。" : "继续补充产品资料与品牌背景，提升后续排期质量。",
+    ];
+    const reportMarkdown = [
+      `# ${brandName} 首版营销日历前置摘要`,
+      "",
+      "## 摘要",
+      summary,
+      "",
+      "## 当前已知品牌信息",
+      brandDescription || "品牌背景资料待补充，当前仅基于已有品牌基础信息生成。",
+      productNames.length ? `当前产品：${productLine}` : "当前产品：待补充",
+      "",
+      "## 当前诊断",
+      ...diagnosis.map((item) => `- ${item}`),
+      "",
+      "## 当前机会",
+      ...opportunities.map((item) => `- ${item}`),
+      "",
+      "## 下一步动作",
+      ...nextActions.map((item) => `- ${item}`),
+    ].join("\n");
+    return {
+      id: `fallback-growth-${createHash("sha1").update(`${brandName}:${generatedAt}:calendar`).digest("hex").slice(0, 12)}`,
+      title: `${brandName} 首版营销日历前置摘要`,
+      summary,
+      generatedAt,
+      reportMarkdown,
+      htmlContent: this.renderMarkdownToHtml(reportMarkdown),
+      diagnosis,
+      opportunities,
+      nextActions,
+      metrics: {
+        productCount: archive.products.length,
+        platformAccountCount: 0,
+        competitorAccountCount: 0,
+        brandNoteCount: 0,
+        benchmarkNoteCount: 0,
+      },
+    };
+  }
+
+  private buildMarketingCalendarFallbackOpportunityReport(
+    archive: Awaited<ReturnType<BrandsService["getArchive"]>>,
+    generatedAt: string,
+  ): OpportunityInsightReportRecord {
+    const brandName = String(archive.brand.brandName || "").trim() || "当前品牌";
+    const brandDescription = String(archive.brand.brandDescription || archive.brand.enterpriseIntro || "").trim();
+    const productNames = archive.products
+      .map((item) => String(item.productName || "").trim())
+      .filter(Boolean)
+      .slice(0, 5);
+    const summary = productNames.length
+      ? `当前基于品牌背景与 ${productNames.join("、")} 等产品资料，补出一份轻量机会洞察摘要，支撑首版营销日历直接生成。`
+      : "当前基于已有品牌背景资料，补出一份轻量机会洞察摘要，支撑首版营销日历直接生成。";
+    const markdown = [
+      `# ${brandName} 首版机会洞察摘要`,
+      "",
+      "## 当前已知品牌信息",
+      brandDescription || "品牌背景资料待补充，当前仅基于已有品牌基础信息推导。",
+      productNames.length ? `当前产品：${productNames.join("、")}` : "当前产品：待补充",
+      "",
+      "## 轻量机会判断",
+      "- 优先围绕品牌最容易成交或最容易引发讨论的核心产品安排连续 7 天主题。",
+      "- 先把节日、场景、产品卖点和平台表现形式做成当天即可执行的选题清单。",
+      "- 后续补齐更完整的机会洞察总报告后，再继续细化账号角色、预期数据和转化动作。",
+    ].join("\n");
+    const htmlDocument = this.renderMarkdownToHtml(markdown);
+    return {
+      id: `fallback-opportunity-${createHash("sha1").update(`${brandName}:${generatedAt}:opportunity`).digest("hex").slice(0, 12)}`,
+      title: `${brandName} 首版机会洞察摘要`,
+      summary,
+      generatedAt,
+      htmlBody: htmlDocument,
+      htmlDocument,
+      stepKey: "finalOpportunityReport",
+    };
   }
 
   private hasBrandBackgroundInput(archive: Awaited<ReturnType<BrandsService["getArchive"]>>) {
@@ -8098,7 +8233,7 @@ export class ReportsService {
       skillPrompt,
       "",
       "请输出未来 7 天的品牌全平台营销日历。",
-      "输入包含品牌背景资料、机会洞察总报告、品牌增长报告、系统各板块生成内容功能清单和历史营销日历。",
+      "输入优先包含品牌背景资料、机会洞察总报告、品牌增长报告、系统各板块生成内容功能清单和历史营销日历；如果前置报告暂未生成，系统会提供基于品牌资料自动补出的轻量摘要作为兜底参考。",
       "从 startDate 开始连续输出 7 天，不要遗漏日期，不要与历史日期重复。",
       expectedDates.length
         ? `必须严格覆盖这 7 个日期，且顺序保持一致：${expectedDates.join("、")}`
@@ -12457,16 +12592,21 @@ ${normalizedMarkdown}`;
     );
     const effectiveRequestedModels = requestedModels.length ? requestedModels : preferredModels;
 
-    const [deepseekProvider, kimiProvider, doubaoProvider] = await Promise.all([
+    const [thirdPartyProvider, deepseekProvider, kimiProvider, doubaoProvider] = await Promise.all([
+      this.resolveRuntimeProviderByBaseUrl("text-global", settings.baseUrl, settings.preferredProviderIds, settings.preferredModelName),
       this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-deepseek"),
       this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-kimi"),
       this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-doubao"),
     ]);
-    const [deepseekApiKeys, kimiApiKeys, doubaoApiKeys] = await Promise.all([
+    const [thirdPartyApiKeys, deepseekApiKeys, kimiApiKeys, doubaoApiKeys] = await Promise.all([
+      this.resolveBrandAwareApiKeys(settings.brandId, thirdPartyProvider, apiKeyFallbackOptions),
       this.resolveBrandAwareApiKeys(settings.brandId, deepseekProvider, apiKeyFallbackOptions),
       this.resolveBrandAwareApiKeys(settings.brandId, kimiProvider, apiKeyFallbackOptions),
       this.resolveBrandAwareApiKeys(settings.brandId, doubaoProvider, apiKeyFallbackOptions),
     ]);
+    const thirdPartyModels = thirdPartyProvider
+      ? this.pickProviderModels(thirdPartyProvider.modelWhitelist, effectiveRequestedModels, preferredModels)
+      : [];
     const deepseekModels = deepseekProvider
       ? this.pickProviderModels(deepseekProvider.modelWhitelist, effectiveRequestedModels, ["deepseek-v4-pro", "deepseek-v4-flash"])
       : [];
@@ -12478,6 +12618,33 @@ ${normalizedMarkdown}`;
       : [];
 
     const providers: XiaohongshuMarketingProviderConfig[] = [];
+    if (thirdPartyProvider && thirdPartyModels.length && thirdPartyApiKeys.length) {
+      const configuredBaseUrls = this.apiProvidersService.getBaseUrls(thirdPartyProvider);
+      const prioritizedBaseUrls = settings.baseUrl
+        ? [settings.baseUrl, ...configuredBaseUrls.filter((item) => item !== settings.baseUrl)]
+        : configuredBaseUrls;
+      const usableBaseUrls = [
+        ...prioritizedBaseUrls.filter((item) => !this.isPlaceholderProxyBaseUrl(item)),
+        ...prioritizedBaseUrls.filter((item) => this.isPlaceholderProxyBaseUrl(item)),
+      ];
+      if (usableBaseUrls.length) {
+        providers.push({
+          provider: "THIRD_PARTY",
+          providerId: thirdPartyProvider.id,
+          providerName: thirdPartyProvider.name,
+          baseUrls: usableBaseUrls,
+          completionPath: this.apiProvidersService.getStringExtra(thirdPartyProvider, "completionPath") || "/v1/chat/completions",
+          apiKeys: thirdPartyApiKeys.slice(0, 2),
+          models: thirdPartyModels,
+          temperature: Math.min(settings.temperature || 0.3, 0.3),
+          maxTokens: Math.min(settings.maxTokens || 9000, 9000),
+          requestTimeoutMs: 240000,
+          payloadExtras: {
+            response_format: { type: "json_object" },
+          },
+        });
+      }
+    }
     if (deepseekProvider && deepseekModels.length && deepseekApiKeys.length) {
       providers.push({
         provider: "DEEPSEEK",

@@ -3222,11 +3222,11 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
   },
   {
     name: "manage_growth_reports",
-    description: "统一管理品牌增长报告链路，支持增长报告、可视化增长报告、半年营销规划、小红书/抖音营销策划、热点选题和营销日历。",
+    description: "统一管理品牌增长报告链路，支持增长报告、可视化增长报告、半年营销规划、小红书/抖音营销策划、热点选题和营销日历。内容获客某书/某音/某号/公众号的营销日历也复用这组能力。",
     inputSchema: {
       type: "object",
       properties: {
-        action: { type: "string", description: "例如 get_growth_workspace、generate_visual_growth_report、update_douyin_topic_library、generate_xiaohongshu_marketing_calendar。" },
+        action: { type: "string", description: "例如 get_growth_workspace、generate_visual_growth_report、update_douyin_topic_library、generate_brand_growth_marketing_calendar、generate_douyin_marketing_calendar。" },
         reportId: { type: "string" },
         selectedDate: { type: "string", description: "热点选题候选日期，格式与原接口一致。" },
         payload: {
@@ -12478,35 +12478,41 @@ export class OpenClawService {
           resourceKind: "report",
         });
       }
-      case "get_xiaohongshu_marketing_calendar_workspace": {
+      case "get_xiaohongshu_marketing_calendar_workspace":
+      case "get_douyin_marketing_calendar_workspace":
+      case "get_wechat_marketing_calendar_workspace": {
         await this.authService.assertBrandPermission(brandId, "xiaohongshu.calendar", "view", auth);
         const result = await this.reportsService.getXiaohongshuMarketingCalendarWorkspace(brandId);
         return this.buildManagedOperationResponse({
-          title: "小红书营销日历工作区",
+          title: "营销日历工作区",
           action,
           data: result,
           url: "/xiaohongshu",
-          label: "打开小红书工作区",
+          label: "打开内容获客工作区",
           resourceKind: "report",
         });
       }
-      case "generate_xiaohongshu_marketing_calendar": {
+      case "generate_xiaohongshu_marketing_calendar":
+      case "generate_douyin_marketing_calendar":
+      case "generate_wechat_marketing_calendar": {
         await this.authService.assertBrandPermission(brandId, "xiaohongshu.calendar", "edit", auth);
         const result = await this.reportsService.generateXiaohongshuMarketingCalendar(
           brandId,
           payload as Parameters<ReportsService["generateXiaohongshuMarketingCalendar"]>[1],
         );
         return this.buildManagedOperationResponse({
-          title: "小红书营销日历已触发",
+          title: "营销日历已触发",
           action,
           data: result,
           url: "/xiaohongshu",
-          label: "打开小红书工作区",
+          label: "打开内容获客工作区",
           resultStatus: "IN_PROGRESS",
           resourceKind: "report",
         });
       }
-      case "update_xiaohongshu_marketing_calendar": {
+      case "update_xiaohongshu_marketing_calendar":
+      case "update_douyin_marketing_calendar":
+      case "update_wechat_marketing_calendar": {
         const reportId = String(options?.reportId || "").trim();
         if (!reportId) {
           throw new BadRequestException("请提供 reportId");
@@ -12518,11 +12524,11 @@ export class OpenClawService {
           payload as Parameters<ReportsService["updateXiaohongshuMarketingCalendar"]>[2],
         );
         return this.buildManagedOperationResponse({
-          title: "小红书营销日历已更新",
+          title: "营销日历已更新",
           action,
           data: result,
           url: "/xiaohongshu",
-          label: "打开小红书工作区",
+          label: "打开内容获客工作区",
           resourceKind: "report",
         });
       }
