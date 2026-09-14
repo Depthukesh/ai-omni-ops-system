@@ -12109,15 +12109,15 @@ ${normalizedMarkdown}`;
     const prompt = await this.skillsPromptsService.getActivePromptById("prompt_xhs_calendar");
     const preferredSelections = [skill?.defaultModel || "", prompt?.modelName || ""];
     const provider = await this.resolvePreferredProvider(skill?.provider, "text-domestic-deepseek", [
+      "text-global",
       "text-domestic-deepseek",
       "text-domestic-kimi",
       "text-domestic-doubao",
-      "text-global",
     ], preferredSelections);
     const preferredModelNames = this.mergeModelPreferenceOrder(
       skill?.defaultModel || "",
       prompt?.modelName || "",
-      "deepseek-v4-pro, kimi-k2.6, doubao-seed-2-0-pro-260215",
+      "gpt-5.4, claude-sonnet-4-6, kimi-k2.6, doubao-seed-2-0-pro-260215, doubao-seed-2-0-mini-260215, doubao-seed-1-8-251228, deepseek-v4-pro, deepseek-v4-flash",
     );
     const preferredModelName = preferredModelNames[0] || skill?.defaultModel || prompt?.modelName || provider?.defaultModel || "deepseek-v4-pro";
     return {
@@ -12579,14 +12579,28 @@ ${normalizedMarkdown}`;
   }
 
   private async loadXiaohongshuMarketingCalendarProviderConfigs(settings: ModelGenerationSettings): Promise<XiaohongshuMarketingProviderConfig[]> {
-    const preferredModels = ["deepseek-v4-pro", "kimi-k2.6", "doubao-seed-2-0-pro-260215"];
+    const preferredModels = [
+      "gpt-5.4",
+      "claude-sonnet-4-6",
+      "kimi-k2.6",
+      "doubao-seed-2-0-pro-260215",
+      "doubao-seed-2-0-mini-260215",
+      "doubao-seed-1-8-251228",
+      "deepseek-v4-pro",
+      "deepseek-v4-flash",
+    ];
     const apiKeyFallbackOptions = { allowMissingBrandApiKey: true };
     const requestedModels = this.orderModels(
       this.parseDelimitedModels(settings.modelName).filter(
         (item) =>
-          item === "deepseek-v4-pro" ||
+          item === "gpt-5.4" ||
+          item === "claude-sonnet-4-6" ||
           item === "kimi-k2.6" ||
-          item === "doubao-seed-2-0-pro-260215",
+          item === "doubao-seed-2-0-pro-260215" ||
+          item === "doubao-seed-2-0-mini-260215" ||
+          item === "doubao-seed-1-8-251228" ||
+          item === "deepseek-v4-pro" ||
+          item === "deepseek-v4-flash",
       ),
       preferredModels,
     );
@@ -12605,7 +12619,7 @@ ${normalizedMarkdown}`;
       this.resolveBrandAwareApiKeys(settings.brandId, doubaoProvider, apiKeyFallbackOptions),
     ]);
     const thirdPartyModels = thirdPartyProvider
-      ? this.pickProviderModels(thirdPartyProvider.modelWhitelist, effectiveRequestedModels, preferredModels)
+      ? this.pickProviderModels(thirdPartyProvider.modelWhitelist, effectiveRequestedModels, ["gpt-5.4", "claude-sonnet-4-6"])
       : [];
     const deepseekModels = deepseekProvider
       ? this.pickProviderModels(deepseekProvider.modelWhitelist, effectiveRequestedModels, ["deepseek-v4-pro", "deepseek-v4-flash"])
@@ -12634,9 +12648,9 @@ ${normalizedMarkdown}`;
           providerName: thirdPartyProvider.name,
           baseUrls: usableBaseUrls,
           completionPath: this.apiProvidersService.getStringExtra(thirdPartyProvider, "completionPath") || "/v1/chat/completions",
-          apiKeys: thirdPartyApiKeys.slice(0, 2),
+          apiKeys: thirdPartyApiKeys.slice(0, 4),
           models: thirdPartyModels,
-          temperature: Math.min(settings.temperature || 0.3, 0.3),
+          temperature: settings.temperature,
           maxTokens: Math.min(settings.maxTokens || 9000, 9000),
           requestTimeoutMs: 240000,
           payloadExtras: {
