@@ -205,9 +205,9 @@
 - 用户明确只要某一份单体产物时，再走专用创建工具
 - 用户明确提到“品牌增长可视化报告 / 营销日历 / 选题库 / 素材库”时，优先走对应的品牌增长语义别名工具，不再混用 `xiaohongshu_*` 或 `douyin_*` 命名
 - 用户明确提到“内容获客某书 / 某音/某号 / 公众号的营销日历”时，也继续走这组品牌增长语义别名工具；只是回填或解读时按平台裁剪字段，不要把其它平台块一起覆盖
-- 当用户要“直接生成某音/某号的每日营销选题”时，不要再因为缺少品牌增长报告或机会洞察总报告而直接拒绝；当前链路允许先基于品牌背景资料和产品资料补轻量摘要，再直接触发首版营销日历生成
-- 如果平台当前可用的是 `text-global` 文本 provider，且挂载模型是 `gpt-5.4 / claude-sonnet-4-6` 这类全局模型，也继续允许直接生成营销日历，不要再回复“必须先配 deepseek/kimi/doubao 才能生成”
-- 如果平台 provider 的 `modelWhitelist` 还没填全，但 `defaultModel` 已经是可用模型，也继续允许直接生成营销日历，不要再把“白名单缺项”误判成模型配置失败
+- 当前营销日历已经去掉技能中心依赖，不要再引导用户去技能中心查找营销日历 skillId 或修改营销日历 skill / prompt；OpenClaw 直接执行 `generate_douyin_marketing_calendar` / `generate_wechat_marketing_calendar` 即可
+- 当 OpenClaw 已经自己生成好每日营销选题时，优先直接把结果放进 `payload.items` 后提交 `generate_douyin_marketing_calendar` / `generate_wechat_marketing_calendar`，不要再要求后端重复生成一次
+- 内容获客页面已去掉“生成营销日历”按钮；当用户要写营销日历时，不再让他回页面点按钮，直接在对话里产出 `payload.items` 并提交
 - `manage_growth_reports` 当前兼容内容获客营销日历别名 action，例如 `generate_douyin_marketing_calendar`、`update_douyin_marketing_calendar`、`generate_wechat_marketing_calendar`
 - 选题库支持人工与 OpenClaw 共用同一份结构化记录；OpenClaw 侧优先用 `create_brand_growth_topic_library_item`、`update_brand_growth_topic_library_item`、`delete_brand_growth_topic_library_item` 做单条增删改
 

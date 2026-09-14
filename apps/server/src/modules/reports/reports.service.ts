@@ -915,6 +915,8 @@ export type GenerateAnnualMarketingPlanPayload = {
 
 export type GenerateXiaohongshuMarketingCalendarPayload = {
   userRequirement?: string;
+  title?: string;
+  items?: XiaohongshuMarketingCalendarItem[];
 };
 
 export type UpdateXiaohongshuMarketingCalendarPayload = {
@@ -2653,6 +2655,12 @@ export class ReportsService {
   }
 
   async generateXiaohongshuMarketingCalendar(brandId: string, payload: GenerateXiaohongshuMarketingCalendarPayload = {}) {
+    if (Array.isArray(payload.items) && payload.items.length > 0) {
+      return this.createManualXiaohongshuMarketingCalendar(brandId, {
+        title: payload.title,
+        items: payload.items,
+      });
+    }
     const generatedAt = new Date().toISOString();
     const archive = await this.brandsService.getArchive(brandId);
     const growthReportWorkspace = await this.getGrowthReportWorkspace(brandId);
@@ -2729,6 +2737,55 @@ export class ReportsService {
         title: normalized.title,
         items: normalized.items,
       };
+    }
+
+    return this.getXiaohongshuMarketingCalendarWorkspace(brandId);
+  }
+
+  async createManualXiaohongshuMarketingCalendar(
+    brandId: string,
+    payload: UpdateXiaohongshuMarketingCalendarPayload,
+  ) {
+    const normalized = this.buildManualXiaohongshuMarketingCalendarResult(payload.items, payload.title);
+    const generatedAt = new Date().toISOString();
+    const executionCapabilityInventory = this.buildMarketingCalendarExecutionCapabilityInventory(generatedAt);
+
+    if (await this.prismaService.canUseDatabase()) {
+      await this.ensureBrandExistsInDatabase(brandId);
+      await this.prismaService.businessAsset.create({
+        data: {
+          brandId,
+          category: AssetCategory.GENERATED_REPORT,
+          title: normalized.title,
+          description: normalized.summary,
+          metadataJson: {
+            kind: "XHS_MARKETING_CALENDAR",
+            generatedAt,
+            summary: normalized.summary,
+            items: normalized.items,
+            executionCapabilityInventory,
+            sourceName: "OpenClaw直提",
+          } as Prisma.InputJsonValue,
+        },
+      });
+    } else {
+      database.assets.unshift({
+        id: createId("ast"),
+        brandId,
+        category: "GENERATED_REPORT",
+        title: normalized.title,
+        description: normalized.summary,
+        sourceName: "OpenClaw直提",
+        fileUrl: undefined,
+        metadataJson: {
+          kind: "XHS_MARKETING_CALENDAR",
+          generatedAt,
+          summary: normalized.summary,
+          items: normalized.items,
+          executionCapabilityInventory,
+          sourceName: "OpenClaw直提",
+        },
+      });
     }
 
     return this.getXiaohongshuMarketingCalendarWorkspace(brandId);
@@ -12105,30 +12162,33 @@ ${normalizedMarkdown}`;
   }
 
   private async loadXiaohongshuMarketingCalendarGenerationSettings(brandId?: string): Promise<ModelGenerationSettings> {
-    const skill = await this.skillsPromptsService.getActiveSkillBySlug("xiaohongshu-marketing-calendar");
-    const prompt = await this.skillsPromptsService.getActivePromptById("prompt_xhs_calendar");
-    const preferredSelections = [skill?.defaultModel || "", prompt?.modelName || ""];
-    const provider = await this.resolvePreferredProvider(skill?.provider, "text-domestic-deepseek", [
+    const provider = await this.resolvePreferredProvider(undefined, "text-global", [
       "text-global",
       "text-domestic-deepseek",
       "text-domestic-kimi",
       "text-domestic-doubao",
-    ], preferredSelections);
-    const preferredModelNames = this.mergeModelPreferenceOrder(
-      skill?.defaultModel || "",
-      prompt?.modelName || "",
-      "gpt-5.4, claude-sonnet-4-6, kimi-k2.6, doubao-seed-2-0-pro-260215, doubao-seed-2-0-mini-260215, doubao-seed-1-8-251228, deepseek-v4-pro, deepseek-v4-flash",
+    ]);
+    const configuredModelNames = this.mergeModelPreferenceOrder(
+      provider?.defaultModel || "",
     );
-    const preferredModelName = preferredModelNames[0] || skill?.defaultModel || prompt?.modelName || provider?.defaultModel || "deepseek-v4-pro";
+    const runtimeFallbackModels = this.getTextRuntimeFallbackModels(
+      provider ? this.apiProvidersService.getRuntimeKey(provider) : "text-global",
+    );
+    const preferredModelNames = configuredModelNames.length ? configuredModelNames : runtimeFallbackModels;
+    const preferredModelName =
+      configuredModelNames[0]
+      || provider?.defaultModel
+      || runtimeFallbackModels[0]
+      || "deepseek-v4-pro";
     return {
       baseUrl: provider?.baseUrl || "",
       modelName: preferredModelNames.join(", "),
-      temperature: prompt?.temperature ?? 0.6,
-      maxTokens: prompt?.maxTokens ?? 12000,
-      promptContent: prompt?.content || this.loadXiaohongshuMarketingCalendarPrompt(),
+      temperature: 0.6,
+      maxTokens: 12000,
+      promptContent: this.loadXiaohongshuMarketingCalendarPrompt(),
       preferredModelName,
       brandId,
-      preferredProviderIds: this.extractPreferredProviderIds(...preferredSelections),
+      preferredProviderIds: [],
     };
   }
 
@@ -12579,31 +12639,13 @@ ${normalizedMarkdown}`;
   }
 
   private async loadXiaohongshuMarketingCalendarProviderConfigs(settings: ModelGenerationSettings): Promise<XiaohongshuMarketingProviderConfig[]> {
-    const preferredModels = [
-      "gpt-5.4",
-      "claude-sonnet-4-6",
-      "kimi-k2.6",
-      "doubao-seed-2-0-pro-260215",
-      "doubao-seed-2-0-mini-260215",
-      "doubao-seed-1-8-251228",
-      "deepseek-v4-pro",
-      "deepseek-v4-flash",
-    ];
-    const apiKeyFallbackOptions = { allowMissingBrandApiKey: true };
-    const requestedModels = this.orderModels(
-      this.parseDelimitedModels(settings.modelName).filter(
-        (item) =>
-          item === "gpt-5.4" ||
-          item === "claude-sonnet-4-6" ||
-          item === "kimi-k2.6" ||
-          item === "doubao-seed-2-0-pro-260215" ||
-          item === "doubao-seed-2-0-mini-260215" ||
-          item === "doubao-seed-1-8-251228" ||
-          item === "deepseek-v4-pro" ||
-          item === "deepseek-v4-flash",
-      ),
-      preferredModels,
+    const preferredModels = this.mergeModelPreferenceOrder(
+      settings.preferredModelName || "",
+      settings.modelName || "",
+      "gpt-5.4, claude-sonnet-4-6, kimi-k2.6, doubao-seed-2-0-pro-260215, doubao-seed-2-0-mini-260215, doubao-seed-1-8-251228, deepseek-v4-pro, deepseek-v4-flash",
     );
+    const apiKeyFallbackOptions = { allowMissingBrandApiKey: true };
+    const requestedModels = this.orderModels(this.parseDelimitedModels(settings.modelName), preferredModels);
     const effectiveRequestedModels = requestedModels.length ? requestedModels : preferredModels;
 
     const [thirdPartyProvider, deepseekProvider, kimiProvider, doubaoProvider] = await Promise.all([
@@ -12620,26 +12662,30 @@ ${normalizedMarkdown}`;
     ]);
     const thirdPartyModels = thirdPartyProvider
       ? this.pickProviderModels(
-        this.collectProviderModelCandidates(thirdPartyProvider),
+        this.collectProviderModelCandidates(thirdPartyProvider, this.getTextRuntimeFallbackModels("text-global")),
         effectiveRequestedModels,
-        ["gpt-5.4", "claude-sonnet-4-6"],
+        this.getTextRuntimeFallbackModels("text-global"),
       )
       : [];
     const deepseekModels = deepseekProvider
       ? this.pickProviderModels(
-        this.collectProviderModelCandidates(deepseekProvider),
+        this.collectProviderModelCandidates(deepseekProvider, this.getTextRuntimeFallbackModels("text-domestic-deepseek")),
         effectiveRequestedModels,
-        ["deepseek-v4-pro", "deepseek-v4-flash"],
+        this.getTextRuntimeFallbackModels("text-domestic-deepseek"),
       )
       : [];
     const kimiModels = kimiProvider
-      ? this.pickProviderModels(this.collectProviderModelCandidates(kimiProvider), effectiveRequestedModels, ["kimi-k2.6"])
+      ? this.pickProviderModels(
+        this.collectProviderModelCandidates(kimiProvider, this.getTextRuntimeFallbackModels("text-domestic-kimi")),
+        effectiveRequestedModels,
+        this.getTextRuntimeFallbackModels("text-domestic-kimi"),
+      )
       : [];
     const arkModels = doubaoProvider
       ? this.pickProviderModels(
-        this.collectProviderModelCandidates(doubaoProvider),
+        this.collectProviderModelCandidates(doubaoProvider, this.getTextRuntimeFallbackModels("text-domestic-doubao")),
         effectiveRequestedModels,
-        ["doubao-seed-2-0-pro-260215", "doubao-seed-2-0-mini-260215", "doubao-seed-1-8-251228"],
+        this.getTextRuntimeFallbackModels("text-domestic-doubao"),
       )
       : [];
 
@@ -12864,14 +12910,29 @@ ${normalizedMarkdown}`;
     return this.orderModels(target.length ? target : normalizedAvailable, preferredModels);
   }
 
-  private collectProviderModelCandidates(provider?: ApiProviderRecord) {
+  private collectProviderModelCandidates(provider?: ApiProviderRecord, fallbackModels: string[] = []) {
     if (!provider) {
       return [];
     }
-    return Array.from(new Set([
+    const configuredModels = [
       ...provider.modelWhitelist.map((item) => item.trim()).filter(Boolean),
       String(provider.defaultModel || "").trim(),
-    ].filter(Boolean)));
+    ].filter(Boolean);
+    return Array.from(new Set(configuredModels.length ? configuredModels : fallbackModels));
+  }
+
+  private getTextRuntimeFallbackModels(runtimeKey: string) {
+    switch (runtimeKey) {
+      case "text-global":
+        return ["gpt-5.4", "claude-sonnet-4-6"];
+      case "text-domestic-kimi":
+        return ["kimi-k2.6"];
+      case "text-domestic-doubao":
+        return ["doubao-seed-2-0-pro-260215", "doubao-seed-2-0-mini-260215", "doubao-seed-1-8-251228"];
+      case "text-domestic-deepseek":
+      default:
+        return ["deepseek-v4-pro", "deepseek-v4-flash"];
+    }
   }
 
   async getReportAsset(brandId: string, fileName: string) {

@@ -16,8 +16,8 @@ export interface CalendarWorkspaceProps {
   platformView?: MarketingCalendarPlatformView;
   isLoading: boolean;
   isPublishing: boolean;
-  isGeneratingCalendar: boolean;
-  canGenerateCalendar: boolean;
+  isGeneratingCalendar?: boolean;
+  canGenerateCalendar?: boolean;
   isCalendarTaskActive: boolean;
   latestCalendar?: XiaohongshuMarketingCalendarRecord;
   latestCalendarTask?: XiaohongshuMarketingCalendarTaskRecord;
@@ -32,7 +32,7 @@ export interface CalendarWorkspaceProps {
   isSavingCalendarItem: boolean;
   canEditCalendar: boolean;
   onRefresh: AsyncAction;
-  onGenerate: AsyncAction;
+  onGenerate?: AsyncAction;
   onOpenDetail: (date: string, itemId?: string) => void;
   onCloseDetail: () => void;
   onStartEditDetail: () => void;
@@ -51,8 +51,8 @@ export function CalendarWorkspace(props: CalendarWorkspaceProps) {
     platformView = "all",
     isLoading,
     isPublishing,
-    isGeneratingCalendar,
-    canGenerateCalendar,
+    isGeneratingCalendar = false,
+    canGenerateCalendar = true,
     isCalendarTaskActive,
     latestCalendar,
     latestCalendarTask,
@@ -100,6 +100,7 @@ export function CalendarWorkspace(props: CalendarWorkspaceProps) {
   const [showGregorianFestivals, setShowGregorianFestivals] = useState(false);
   const [showSolarTerms, setShowSolarTerms] = useState(false);
   const readonlyDetailItem = selectedCalendarItem || calendarItemDraft || createEmptyMarketingCalendarItem(selectedCalendarDate || "");
+  const showGenerateAction = Boolean(onGenerate);
 
   useEffect(() => {
     setVisibleMonthKey((current) => current || initialMonthKey);
@@ -131,18 +132,24 @@ export function CalendarWorkspace(props: CalendarWorkspaceProps) {
             type="button"
             className="secondary-button"
             onClick={() => void onRefresh()}
-            disabled={isLoading || isPublishing || isGeneratingCalendar}
+            disabled={isLoading || isPublishing || (showGenerateAction && isGeneratingCalendar)}
           >
             刷新结果
           </button>
-          <button
-            type="button"
-            className="primary-button"
-            onClick={() => void onGenerate()}
-            disabled={isLoading || isPublishing || isGeneratingCalendar || !canGenerateCalendar || isCalendarTaskActive}
-          >
-            {isGeneratingCalendar ? "提交中..." : isCalendarTaskActive ? "后台生成中..." : latestCalendar ? "继续生成下一个7天" : "生成营销日历"}
-          </button>
+          {showGenerateAction ? (
+            <button
+              type="button"
+              className="primary-button"
+              onClick={() => {
+                if (onGenerate) {
+                  void onGenerate();
+                }
+              }}
+              disabled={isLoading || isPublishing || isGeneratingCalendar || !canGenerateCalendar || isCalendarTaskActive}
+            >
+              {isGeneratingCalendar ? "提交中..." : isCalendarTaskActive ? "后台生成中..." : latestCalendar ? "继续生成下一个7天" : "生成营销日历"}
+            </button>
+          ) : null}
         </div>
       </div>
 
@@ -181,8 +188,8 @@ export function CalendarWorkspace(props: CalendarWorkspaceProps) {
           </div>
         </div>
 
-        {!canGenerateCalendar ? <div className="report-inline-tip">请先补齐品牌背景资料、机会洞察总报告和品牌增长报告，再开始生成营销日历。</div> : null}
-        {isCalendarTaskActive ? (
+        {showGenerateAction && !canGenerateCalendar ? <div className="report-inline-tip">请先补齐品牌背景资料、机会洞察总报告和品牌增长报告，再开始生成营销日历。</div> : null}
+        {showGenerateAction && isCalendarTaskActive ? (
           <div className="report-inline-tip">
             {latestCalendarTask?.taskStatus === "QUEUED"
               ? "营销日历正在排队生成，页面会自动刷新结果。"
@@ -192,7 +199,7 @@ export function CalendarWorkspace(props: CalendarWorkspaceProps) {
           </div>
         ) : null}
         {calendarInlineError ? <div className="report-inline-tip report-inline-tip--error">{calendarInlineError}</div> : null}
-        {!calendarAllItems.length ? <div className="calendar-month-empty">当前还没有营销日历内容，先点击右上角按钮生成排期，月历仍可用于查看节日与节气。</div> : null}
+        {!calendarAllItems.length ? <div className="calendar-month-empty">当前还没有营销日历内容，月历仍可用于查看节日与节气；可由 OpenClaw 直接提交每日选题后写入这里。</div> : null}
 
         <div className="calendar-weekdays">
           {["周日", "周一", "周二", "周三", "周四", "周五", "周六"].map((label) => (

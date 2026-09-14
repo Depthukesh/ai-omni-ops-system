@@ -3231,7 +3231,7 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
         selectedDate: { type: "string", description: "热点选题候选日期，格式与原接口一致。" },
         payload: {
           type: "object",
-          description: "对应动作的请求体，结构与网站原始接口保持一致。",
+          description: "对应动作的请求体，结构与网站原始接口保持一致。营销日历在 OpenClaw 已自行产出每日选题时，可直接传 title 与 items 写入工作区，不需要 reportId，也不需要后端再次生成。",
           additionalProperties: true,
         },
       },
@@ -12496,17 +12496,17 @@ export class OpenClawService {
       case "generate_douyin_marketing_calendar":
       case "generate_wechat_marketing_calendar": {
         await this.authService.assertBrandPermission(brandId, "xiaohongshu.calendar", "edit", auth);
-        const result = await this.reportsService.generateXiaohongshuMarketingCalendar(
-          brandId,
-          payload as Parameters<ReportsService["generateXiaohongshuMarketingCalendar"]>[1],
-        );
+        const submitPayload = payload as Parameters<ReportsService["generateXiaohongshuMarketingCalendar"]>[1];
+        const hasDirectItems = Array.isArray((submitPayload as { items?: unknown[] })?.items)
+          && ((submitPayload as { items?: unknown[] }).items?.length || 0) > 0;
+        const result = await this.reportsService.generateXiaohongshuMarketingCalendar(brandId, submitPayload);
         return this.buildManagedOperationResponse({
-          title: "营销日历已触发",
+          title: hasDirectItems ? "营销日历已提交" : "营销日历已触发",
           action,
           data: result,
           url: "/xiaohongshu",
           label: "打开内容获客工作区",
-          resultStatus: "IN_PROGRESS",
+          resultStatus: hasDirectItems ? "COMPLETED" : "IN_PROGRESS",
           resourceKind: "report",
         });
       }

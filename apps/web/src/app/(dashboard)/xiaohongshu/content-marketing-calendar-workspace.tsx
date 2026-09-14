@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  generateXiaohongshuMarketingCalendar,
   getXiaohongshuMarketingCalendarWorkspace,
   upsertXiaohongshuMarketingCalendarItem,
   type XiaohongshuMarketingCalendarItem,
@@ -53,7 +52,6 @@ export function ContentMarketingCalendarWorkspace(props: ContentMarketingCalenda
 
   const [workspace, setWorkspace] = useState<XiaohongshuMarketingCalendarWorkspace>(initialWorkspace || EMPTY_WORKSPACE);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isGeneratingCalendar, setIsGeneratingCalendar] = useState(false);
   const [isCalendarDetailOpen, setIsCalendarDetailOpen] = useState(false);
   const [selectedCalendarItemId, setSelectedCalendarItemId] = useState("");
   const [selectedCalendarDate, setSelectedCalendarDate] = useState("");
@@ -118,25 +116,6 @@ export function ContentMarketingCalendarWorkspace(props: ContentMarketingCalenda
       emitError(readErrorMessage(error, "营销日历读取失败。"));
     } finally {
       setIsRefreshing(false);
-    }
-  }
-
-  async function handleGenerateCalendar() {
-    if (!canEditCalendar) {
-      emitError("当前账号没有营销日历板块的编辑权限。");
-      return;
-    }
-    setIsGeneratingCalendar(true);
-    emitError("");
-    emitNotice("");
-    try {
-      const nextWorkspace = await generateXiaohongshuMarketingCalendar(undefined, brandId);
-      applyWorkspace(nextWorkspace);
-      emitNotice("已提交后台生成任务，正在生成营销日历。");
-    } catch (error) {
-      emitError(`生成失败：${readErrorMessage(error, "营销日历生成失败。")}`);
-    } finally {
-      setIsGeneratingCalendar(false);
     }
   }
 
@@ -271,8 +250,6 @@ export function ContentMarketingCalendarWorkspace(props: ContentMarketingCalenda
       platformView={platformView}
       isLoading={isLoading}
       isPublishing={false}
-      isGeneratingCalendar={isGeneratingCalendar}
-      canGenerateCalendar
       isCalendarTaskActive={Boolean(latestCalendarTask && ["PENDING", "QUEUED", "RUNNING"].includes(latestCalendarTask.taskStatus))}
       latestCalendar={latestCalendar}
       latestCalendarTask={latestCalendarTask}
@@ -287,7 +264,6 @@ export function ContentMarketingCalendarWorkspace(props: ContentMarketingCalenda
       isSavingCalendarItem={isSavingCalendarItem}
       canEditCalendar={canEditCalendar}
       onRefresh={refreshWorkspace}
-      onGenerate={handleGenerateCalendar}
       onOpenDetail={handleOpenCalendarDetail}
       onCloseDetail={handleCloseCalendarDetail}
       onStartEditDetail={handleStartEditCalendarItem}
