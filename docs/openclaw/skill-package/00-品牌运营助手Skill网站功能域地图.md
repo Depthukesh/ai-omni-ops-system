@@ -61,6 +61,8 @@
 - `get_douyin_collection_workspace`
 - `extract_douyin_work_transcript`
 - `get_wechat_collection_workspace`
+- `get_daily_hotspot_workspace`
+- `sync_daily_hotspots`
 - `get_openclaw_daily_plans`
 - `get_openclaw_lobster_diaries`
 - `update_openclaw_lobster_diary`
@@ -105,6 +107,28 @@
   - 已抓到的联系电话 / 微信号 / 邮箱 / MCN
 - `extract_douyin_work_transcript` 用于在本地 ASR 环境准备完成或异常收口后，重新触发某条抖音采集作品的视频文案提取
 - 当用户反馈“预览打不开”时，Skill 应优先把它理解为受控预览链路问题，而不是简单外部链接失效
+
+收集数据补充：
+
+- 小红书采集已补齐评论链路直连工具：
+  - `sync_xiaohongshu_comment_data`
+  - `get_xiaohongshu_comment_replies`
+- 抖音采集已补齐品牌作品、竞品作品、达人结果池和删除动作：
+  - `sync_douyin_brand_works`
+  - `sync_douyin_competitor_works`
+  - `add_douyin_creators_to_result_pool`
+  - `delete_douyin_brand_account`
+  - `delete_douyin_competitor_account`
+  - `delete_douyin_keyword_recommendation`
+- 公众号采集已补齐品牌账号删除、正文读取、对标/搜一搜统计更新与搜一搜正文读取：
+  - `delete_wechat_brand_account`
+  - `read_wechat_article_content`
+  - `update_wechat_benchmark_article_stats`
+  - `read_wechat_search_item_content`
+  - `update_wechat_search_item_stats`
+- 每日热点已可直接在对话中查看指定日期工作区并按平台刷新：
+  - `get_daily_hotspot_workspace`
+  - `sync_daily_hotspots`
 
 ### 3.2 小红书 `/xiaohongshu`
 
@@ -409,9 +433,6 @@ OpenClaw 安装中心补充说明：
 当前承载：
 
 - 腾讯投流获客列表
-- 达人合作
-  - 达人匹配
-  - 达人跟踪
 - 查看详情后的留言协作
 - 由 OpenClaw 直接写入与删除单条投流获客记录
 
@@ -420,6 +441,16 @@ OpenClaw 安装中心补充说明：
 - `get_openclaw_tencent_ad_leads`
 - `create_openclaw_tencent_ad_lead`
 - `delete_openclaw_tencent_ad_lead`
+
+### 3.10 达人合作 `/creator-cooperation`
+
+当前承载：
+
+- 达人匹配
+- 达人跟踪
+
+当前优先 MCP：
+
 - `get_openclaw_creator_match_workspace`
 - `create_openclaw_creator_matches`
 - `delete_openclaw_creator_matches`

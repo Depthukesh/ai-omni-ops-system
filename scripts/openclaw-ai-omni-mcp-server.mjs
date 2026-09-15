@@ -521,6 +521,165 @@ const TOOL_DEFINITIONS = [
       required: ["trackingId", "workId"],
       additionalProperties: false,
     },
+  {
+    name: "get_xiaohongshu_collection_workspace",
+    description: "查看当前品牌资料库中的小红书搜集数据工作区摘要。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        limit: { type: "integer", minimum: 1, maximum: 50 },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "sync_xiaohongshu_brand_accounts",
+    description: "同步当前品牌的小红书品牌账号数据。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        accountLocators: { type: "array", items: { type: "string" } },
+        accountEntries: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              locator: { type: "string" },
+              accountRole: { type: "string" },
+            },
+            required: ["locator"],
+            additionalProperties: false,
+          },
+        },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "sync_xiaohongshu_competitor_accounts",
+    description: "同步当前品牌的小红书竞品账号数据。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        accountLocators: { type: "array", items: { type: "string" } },
+        accountEntries: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              locator: { type: "string" },
+              accountRole: { type: "string" },
+            },
+            required: ["locator"],
+            additionalProperties: false,
+          },
+        },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "sync_xiaohongshu_brand_notes",
+    description: "同步当前品牌的小红书品牌作品数据。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        accountLocators: { type: "array", items: { type: "string" } },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "sync_xiaohongshu_benchmark_notes",
+    description: "同步当前品牌的小红书对标作品数据。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        sourceUrls: { type: "array", items: { type: "string" } },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "sync_xiaohongshu_search_notes",
+    description: "按关键词同步当前品牌的小红书搜索笔记。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        keyword: { type: "string" },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "sync_xiaohongshu_comment_data",
+    description: "同步当前品牌的小红书评论数据。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        sourceUrls: { type: "array", items: { type: "string" } },
+        pageRequests: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              sourceUrl: { type: "string" },
+              cursor: { type: "string" },
+              index: { type: "integer", minimum: 1 },
+            },
+            required: ["sourceUrl"],
+            additionalProperties: false,
+          },
+        },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_xiaohongshu_comment_replies",
+    description: "读取指定小红书一级评论的二级评论。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        sourceUrl: { type: "string" },
+        commentId: { type: "string" },
+        cursor: { type: "string" },
+        index: { type: "integer", minimum: 1 },
+      },
+      required: ["sourceUrl", "commentId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "sync_xiaohongshu_target_users",
+    description: "从小红书评论里提取目标用户。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        sourceUrls: { type: "array", items: { type: "string" } },
+        matchKeywords: { type: "array", items: { type: "string" } },
+        syncCommentsFirst: { type: "boolean" },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "sync_xiaohongshu_feishu_workspace",
+    description: "从飞书副本同步小红书搜集数据工作区。",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
+    name: "add_xiaohongshu_note_to_material_library",
+    description: "把小红书对标作品加入素材库。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        assetId: { type: "string" },
+      },
+      required: ["assetId"],
+      additionalProperties: false,
+    },
+  },
   },
   {
     name: "get_douyin_collection_workspace",
@@ -578,6 +737,52 @@ const TOOL_DEFINITIONS = [
       },
       additionalProperties: false,
     },
+  {
+    name: "sync_douyin_brand_works",
+    description: "同步当前品牌的抖音品牌作品数据。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        accountLocators: { type: "array", items: { type: "string" } },
+        accountEntries: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              locator: { type: "string" },
+              accountRole: { type: "string" },
+            },
+            required: ["locator"],
+            additionalProperties: false,
+          },
+        },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "sync_douyin_competitor_works",
+    description: "同步当前品牌的抖音竞品作品数据。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        accountLocators: { type: "array", items: { type: "string" } },
+        accountEntries: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              locator: { type: "string" },
+              accountRole: { type: "string" },
+            },
+            required: ["locator"],
+            additionalProperties: false,
+          },
+        },
+      },
+      additionalProperties: false,
+    },
+  },
   },
   {
     name: "sync_douyin_benchmark_works",
@@ -627,6 +832,54 @@ const TOOL_DEFINITIONS = [
       },
       additionalProperties: false,
     },
+  {
+    name: "add_douyin_creators_to_result_pool",
+    description: "把达人搜索结果批量加入抖音达人结果池。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        searchResultIds: { type: "array", items: { type: "string" } },
+      },
+      required: ["searchResultIds"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "delete_douyin_brand_account",
+    description: "删除一条抖音品牌账号绑定。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        accountId: { type: "string" },
+      },
+      required: ["accountId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "delete_douyin_competitor_account",
+    description: "删除一条抖音竞品账号绑定。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        accountId: { type: "string" },
+      },
+      required: ["accountId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "delete_douyin_keyword_recommendation",
+    description: "删除一条抖音关键词推荐。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        assetId: { type: "string" },
+      },
+      required: ["assetId"],
+      additionalProperties: false,
+    },
+  },
   },
   {
     name: "sync_douyin_keyword_recommendations",
@@ -685,6 +938,190 @@ const TOOL_DEFINITIONS = [
       },
       additionalProperties: false,
     },
+  {
+    name: "get_wechat_collection_workspace",
+    description: "查看当前品牌的公众号采集数据工作区。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        limit: { type: "integer", minimum: 1, maximum: 50 },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "sync_wechat_brand_accounts",
+    description: "绑定品牌公众号账号。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        ghUsername: { type: "string" },
+      },
+      required: ["ghUsername"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "delete_wechat_brand_account",
+    description: "删除品牌公众号账号绑定。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        accountId: { type: "string" },
+      },
+      required: ["accountId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "fetch_wechat_brand_articles",
+    description: "抓取品牌公众号历史文章。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        ghUsername: { type: "string" },
+        offset: { type: "string" },
+      },
+      required: ["ghUsername"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "read_wechat_article_content",
+    description: "读取品牌公众号文章正文。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        articleUrl: { type: "string" },
+      },
+      required: ["articleUrl"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "sync_wechat_benchmark_articles",
+    description: "同步公众号对标文章。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        articleUrls: { type: "array", items: { type: "string" } },
+      },
+      required: ["articleUrls"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "update_wechat_benchmark_article_stats",
+    description: "更新公众号对标文章统计。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        articleUrl: { type: "string" },
+      },
+      required: ["articleUrl"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "sync_wechat_search_articles",
+    description: "同步微信搜一搜结果。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        searchKeyword: { type: "string" },
+        searchBusinessType: { type: "string" },
+        searchSort: { type: "string" },
+        searchPublishTime: { type: "string" },
+        offset: { type: "integer", minimum: 0 },
+      },
+      required: ["searchKeyword"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "read_wechat_search_item_content",
+    description: "读取微信搜一搜结果正文。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        articleUrl: { type: "string" },
+      },
+      required: ["articleUrl"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "update_wechat_search_item_stats",
+    description: "更新微信搜一搜结果统计。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        articleUrl: { type: "string" },
+      },
+      required: ["articleUrl"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "update_wechat_article_stats",
+    description: "兼容旧用法：更新公众号对标文章统计。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        articleUrl: { type: "string" },
+      },
+      required: ["articleUrl"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "add_wechat_article_to_material_library",
+    description: "把公众号对标文章或搜一搜结果加入素材库。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        assetId: { type: "string" },
+        kind: { type: "string" },
+      },
+      required: ["assetId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "delete_wechat_collected_article",
+    description: "删除公众号采集文章。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        assetId: { type: "string" },
+        kind: { type: "string" },
+      },
+      required: ["assetId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_daily_hotspot_workspace",
+    description: "查看每日热点工作区。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        date: { type: "string" },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "sync_daily_hotspots",
+    description: "同步每日热点。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        platformTitles: { type: "array", items: { type: "string" } },
+      },
+      additionalProperties: false,
+    },
+  },
   },
 ];
 

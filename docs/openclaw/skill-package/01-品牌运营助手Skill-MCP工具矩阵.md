@@ -74,6 +74,8 @@
 - `sync_xiaohongshu_brand_notes`
 - `sync_xiaohongshu_benchmark_notes`
 - `sync_xiaohongshu_search_notes`
+- `sync_xiaohongshu_comment_data`
+- `get_xiaohongshu_comment_replies`
 - `sync_xiaohongshu_target_users`
 - `sync_xiaohongshu_feishu_workspace`
 - `add_xiaohongshu_note_to_material_library`
@@ -84,14 +86,20 @@
 - `extract_douyin_work_transcript`
 - `sync_douyin_brand_accounts`
 - `sync_douyin_competitor_accounts`
+- `sync_douyin_brand_works`
+- `sync_douyin_competitor_works`
 - `sync_douyin_benchmark_works`
 - `sync_douyin_search_works`
 - `sync_douyin_comment_data`
+- `add_douyin_creators_to_result_pool`
 - `sync_douyin_keyword_recommendations`
 - `sync_douyin_low_fan_explosive_works`
 - `sync_douyin_high_completion_rate_works`
 - `sync_douyin_high_like_rate_works`
 - `sync_douyin_city_hotspots`
+- `delete_douyin_brand_account`
+- `delete_douyin_competitor_account`
+- `delete_douyin_keyword_recommendation`
 
 补充说明：
 
@@ -121,13 +129,24 @@
 
 - `get_wechat_collection_workspace`
 - `sync_wechat_brand_accounts`
+- `delete_wechat_brand_account`
 - `fetch_wechat_brand_articles`
+- `read_wechat_article_content`
 - `sync_wechat_benchmark_articles`
+- `update_wechat_benchmark_article_stats`
 - `sync_wechat_search_articles`
+- `read_wechat_search_item_content`
+- `update_wechat_search_item_stats`
+- `add_wechat_article_to_material_library`
 - `update_wechat_article_stats`
 - `delete_wechat_collected_article`
 
-### 4.4 采集删除
+### 4.4 每日热点
+
+- `get_daily_hotspot_workspace`
+- `sync_daily_hotspots`
+
+### 4.5 采集删除
 
 - `delete_xhs_collected_note`
 - `delete_douyin_collected_work`
@@ -598,7 +617,7 @@ RunningHub 上传节点补充规则：
 达人合作补充：
 
 - `create_openclaw_creator_matches`
-  - 用于把达人结果池中的达人写入 `投流获客 -> 达人合作 -> 达人匹配`
+  - 用于把达人结果池中的达人写入 `达人合作 -> 达人匹配`
 - `move_openclaw_creator_matches_to_tracking`
   - 用于把达人匹配中的达人加入 `达人跟踪`
 - `create_openclaw_creator_tracking_work`

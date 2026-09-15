@@ -240,17 +240,27 @@
 - 小红书：
   - `get_xiaohongshu_collection_workspace`
   - `sync_xiaohongshu_*`
+  - `get_xiaohongshu_comment_replies`
 - 抖音：
   - `get_douyin_collection_workspace`
   - `extract_douyin_work_transcript`
   - `sync_douyin_*`
+  - `add_douyin_creators_to_result_pool`
 - 公众号：
   - `get_wechat_collection_workspace`
   - `sync_wechat_brand_accounts`
+  - `delete_wechat_brand_account`
   - `fetch_wechat_brand_articles`
+  - `read_wechat_article_content`
   - `sync_wechat_benchmark_articles`
   - `sync_wechat_search_articles`
+  - `read_wechat_search_item_content`
+  - `update_wechat_benchmark_article_stats`
+  - `update_wechat_search_item_stats`
   - `update_wechat_article_stats`
+- 每日热点：
+  - `get_daily_hotspot_workspace`
+  - `sync_daily_hotspots`
 - 删除：
   - `delete_xhs_collected_note`
   - `delete_douyin_collected_work`
@@ -276,6 +286,23 @@
   - 当前问题是本地 ASR 运行时未安装或未配置，不是页面本身坏了
   - 需要先准备本地 ASR 环境后，再次调用 `extract_douyin_work_transcript`
 - 如果状态长期停在 `PENDING`，当前后端会自动把超时任务收口成可重试失败态；Skill 不需要继续把它描述成“还在正常处理中”
+- 用户明确要“补拉小红书评论”时：
+  - 首轮优先用 `sync_xiaohongshu_comment_data`
+  - 如果是继续翻页，带 `pageRequests`
+  - 如果是展开某条一级评论的二级评论，直接用 `get_xiaohongshu_comment_replies`
+- 用户明确要“同步抖音品牌作品 / 竞品作品”时，不再让他回网页点“提交”：
+  - 品牌作品：`sync_douyin_brand_works`
+  - 竞品作品：`sync_douyin_competitor_works`
+  - 从达人搜索结果沉淀到达人结果池：`add_douyin_creators_to_result_pool`
+- 用户明确要“读公众号正文”或“补公众号统计”时：
+  - 品牌公众号正文：`read_wechat_article_content`
+  - 对标文章统计：`update_wechat_benchmark_article_stats`
+  - 搜一搜正文：`read_wechat_search_item_content`
+  - 搜一搜统计：`update_wechat_search_item_stats`
+- 用户明确要“看今天热点”或“刷新某几个平台热点”时：
+  - 先 `get_daily_hotspot_workspace`
+  - 再按需要 `sync_daily_hotspots`
+- 当前 `品牌增长策略 -> 收集数据` 里页面已经支持的主动作，默认都优先走 MCP 直连；只有需要用户人工判断筛选结果时，才引导回网页查看表格
 
 ### 3.9 统一素材库
 
@@ -635,7 +662,7 @@ RunningHub 关键规则：
 - `create_openclaw_tencent_ad_lead`
 - `delete_openclaw_tencent_ad_lead`
 
-如果用户提到以下任何说法，也优先进入 `投流获客 -> 达人合作`：
+如果用户提到以下任何说法，也优先进入独立一级板块 `达人合作`：
 
 - 帮我看达人匹配列表
 - 帮我把这些达人加入合作清单

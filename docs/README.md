@@ -58,6 +58,8 @@
 - 作用：记录重要改动的背景、范围、验证和后续事项
 - 要求：真实代码改动默认同步补一条变更记录
 - 最新补充：
+  - `docs/changes/2026-09-15-openclaw-brand-growth-collection-tooling-completion.md`
+    - 把 `品牌增长策略 -> 收集数据` 里站内已落地的主要采集动作同步开放给 OpenClaw，补齐小红书评论链路、抖音品牌/竞品作品与达人结果池、公众号正文/统计、每日热点，并同步更新 MCP / Skill 口径
   - `docs/changes/2026-09-09-douyin-creator-collection-workbench-phase-1.md`
     - 给 `品牌增长策略 -> 收集数据 -> 抖音` 补齐达人抓取第一期：`达人搜索抓取`、`达人深度抓取`、`达人结果池`，并将深抓执行态收口到轻任务与抖音 workspace 聚合
   - `docs/changes/2026-08-31-runninghub-openclaw-jsonnull-guard.md`
