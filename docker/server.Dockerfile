@@ -14,8 +14,6 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends python3 python3-pip \
   && rm -rf /var/lib/apt/lists/*
 
-RUN npm install -g pnpm@10.0.0
-
 COPY docker/local-asr-requirements.txt docker/local-asr-requirements.txt
 
 # Keep heavyweight ASR Python dependencies in a stable layer so ordinary
@@ -24,14 +22,14 @@ RUN python3 -m pip install --no-cache-dir --break-system-packages --upgrade pip 
   && python3 -m pip install --no-cache-dir --break-system-packages --index-url https://download.pytorch.org/whl/cpu torch torchaudio \
   && python3 -m pip install --no-cache-dir --prefer-binary --break-system-packages -r docker/local-asr-requirements.txt
 
-COPY package.json pnpm-workspace.yaml ./
+COPY package.json package-lock.json ./
 COPY apps/server/package.json apps/server/package.json
 COPY apps/web/package.json apps/web/package.json
 COPY packages/prompt-runtime/package.json packages/prompt-runtime/package.json
 COPY packages/shared/package.json packages/shared/package.json
 COPY packages/ui/package.json packages/ui/package.json
 
-RUN pnpm install --no-frozen-lockfile
+RUN npm ci
 
 COPY . .
 
