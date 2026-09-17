@@ -1012,12 +1012,13 @@ export class SystemUpdateService {
             "$remote, $branch = $upstream.Split('/', 2)",
             "git checkout $branch",
             "git pull --ff-only $remote $branch",
-            `docker compose -f "${composePath}" up -d --build server web`,
+            `docker compose -f "${composePath}" up -d --build --force-recreate server web`,
             recentMigrationRelated ? `docker compose -f "${composePath}" run --rm db-init` : "如本次更新涉及 schema 或初始化链，再执行：docker compose -f \"docker/docker-compose.local-postgres.yml\" run --rm db-init",
           ],
           notices: [
             "Docker 标准运行态只负责版本提醒和更新指引，不会直接替你升级容器。",
             "页面生成的标准运行态更新命令以 PowerShell 为准，会先自动识别当前工作区 upstream；如果没有 upstream，则回退到 origin/HEAD。",
+            "首次安装标准运行态时，请执行带 `db-init server web` 的 compose 命令；更新阶段默认只重建 `server/web`，只有命中 schema 或初始化链时才额外补跑 `db-init`。",
             recentSkillRelated
               ? "最近版本记录里包含 Skill / MCP 相关改动，更新后请到个人中心 -> OpenClaw 安装中心重新同步对应 Skill 或安装说明。"
               : "如果本次改动涉及 Skill / MCP，请在更新完成后到个人中心 -> OpenClaw 安装中心同步最新 Skill 安装方式。",

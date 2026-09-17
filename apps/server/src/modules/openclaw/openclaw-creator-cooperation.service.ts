@@ -12,7 +12,7 @@ import {
   normalizeOpenClawWorkspaceScope,
 } from "./openclaw-workspace-scope";
 
-const DEFAULT_CREATOR_COOPERATION_WORKSPACE_SCOPE = "paid_acquisition";
+const DEFAULT_CREATOR_COOPERATION_WORKSPACE_SCOPE = "creator_cooperation";
 const CREATOR_COOPERATION_REFRESH_JOB_NAME = "openclaw_creator_cooperation_work_refresh";
 
 type OpenClawCreatorCooperationSnapshot = {
@@ -1611,6 +1611,21 @@ export class OpenClawCreatorCooperationService implements OnModuleInit {
     await this.prismaService.$executeRawUnsafe(`
       CREATE INDEX IF NOT EXISTS "OpenClawCreatorCooperationWork_refresh_idx"
       ON "OpenClawCreatorCooperationWork" ("nextRefreshAt")
+    `);
+    await this.prismaService.$executeRawUnsafe(`
+      UPDATE "OpenClawCreatorCooperationMatch"
+      SET "workspaceScope" = '${DEFAULT_CREATOR_COOPERATION_WORKSPACE_SCOPE}'
+      WHERE "workspaceScope" = 'paid_acquisition'
+    `);
+    await this.prismaService.$executeRawUnsafe(`
+      UPDATE "OpenClawCreatorCooperationTracking"
+      SET "workspaceScope" = '${DEFAULT_CREATOR_COOPERATION_WORKSPACE_SCOPE}'
+      WHERE "workspaceScope" = 'paid_acquisition'
+    `);
+    await this.prismaService.$executeRawUnsafe(`
+      UPDATE "OpenClawCreatorCooperationWork"
+      SET "workspaceScope" = '${DEFAULT_CREATOR_COOPERATION_WORKSPACE_SCOPE}'
+      WHERE "workspaceScope" = 'paid_acquisition'
     `);
   }
 }

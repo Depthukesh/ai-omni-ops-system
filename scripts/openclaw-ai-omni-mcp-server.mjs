@@ -347,11 +347,11 @@ const TOOL_DEFINITIONS = [
   },
   {
     name: "get_openclaw_creator_match_workspace",
-    description: "查看投流获客下达人合作中的达人匹配列表。",
+    description: "查看达人合作工作台中的达人匹配列表。",
     inputSchema: {
       type: "object",
       properties: {
-        workspaceScope: { type: "string", enum: ["paid_acquisition"] },
+        workspaceScope: { type: "string", enum: ["creator_cooperation"] },
         limit: { type: "integer", minimum: 1, maximum: 200 },
       },
       additionalProperties: false,
@@ -363,7 +363,7 @@ const TOOL_DEFINITIONS = [
     inputSchema: {
       type: "object",
       properties: {
-        workspaceScope: { type: "string", enum: ["paid_acquisition"] },
+        workspaceScope: { type: "string", enum: ["creator_cooperation"] },
         items: {
           type: "array",
           minItems: 1,
@@ -389,7 +389,7 @@ const TOOL_DEFINITIONS = [
     inputSchema: {
       type: "object",
       properties: {
-        workspaceScope: { type: "string", enum: ["paid_acquisition"] },
+        workspaceScope: { type: "string", enum: ["creator_cooperation"] },
         recordIds: { type: "array", minItems: 1, items: { type: "string" } },
       },
       required: ["recordIds"],
@@ -402,7 +402,7 @@ const TOOL_DEFINITIONS = [
     inputSchema: {
       type: "object",
       properties: {
-        workspaceScope: { type: "string", enum: ["paid_acquisition"] },
+        workspaceScope: { type: "string", enum: ["creator_cooperation"] },
         recordIds: { type: "array", minItems: 1, items: { type: "string" } },
       },
       required: ["recordIds"],
@@ -411,11 +411,11 @@ const TOOL_DEFINITIONS = [
   },
   {
     name: "get_openclaw_creator_tracking_workspace",
-    description: "查看投流获客下达人合作中的达人跟踪列表。",
+    description: "查看达人合作工作台中的达人跟踪列表。",
     inputSchema: {
       type: "object",
       properties: {
-        workspaceScope: { type: "string", enum: ["paid_acquisition"] },
+        workspaceScope: { type: "string", enum: ["creator_cooperation"] },
         limit: { type: "integer", minimum: 1, maximum: 200 },
       },
       additionalProperties: false,
@@ -427,7 +427,7 @@ const TOOL_DEFINITIONS = [
     inputSchema: {
       type: "object",
       properties: {
-        workspaceScope: { type: "string", enum: ["paid_acquisition"] },
+        workspaceScope: { type: "string", enum: ["creator_cooperation"] },
         items: {
           type: "array",
           minItems: 1,
@@ -451,7 +451,7 @@ const TOOL_DEFINITIONS = [
     inputSchema: {
       type: "object",
       properties: {
-        workspaceScope: { type: "string", enum: ["paid_acquisition"] },
+        workspaceScope: { type: "string", enum: ["creator_cooperation"] },
         trackingId: { type: "string" },
       },
       required: ["trackingId"],
@@ -464,7 +464,7 @@ const TOOL_DEFINITIONS = [
     inputSchema: {
       type: "object",
       properties: {
-        workspaceScope: { type: "string", enum: ["paid_acquisition"] },
+        workspaceScope: { type: "string", enum: ["creator_cooperation"] },
         trackingId: { type: "string" },
         limit: { type: "integer", minimum: 1, maximum: 200 },
       },
@@ -478,7 +478,7 @@ const TOOL_DEFINITIONS = [
     inputSchema: {
       type: "object",
       properties: {
-        workspaceScope: { type: "string", enum: ["paid_acquisition"] },
+        workspaceScope: { type: "string", enum: ["creator_cooperation"] },
         trackingId: { type: "string" },
         douyinWorkUrl: { type: "string" },
         refreshIntervalDays: { type: "integer", minimum: 1, maximum: 365 },
@@ -495,7 +495,7 @@ const TOOL_DEFINITIONS = [
     inputSchema: {
       type: "object",
       properties: {
-        workspaceScope: { type: "string", enum: ["paid_acquisition"] },
+        workspaceScope: { type: "string", enum: ["creator_cooperation"] },
         trackingId: { type: "string" },
         workId: { type: "string" },
         douyinWorkUrl: { type: "string" },
@@ -514,13 +514,14 @@ const TOOL_DEFINITIONS = [
     inputSchema: {
       type: "object",
       properties: {
-        workspaceScope: { type: "string", enum: ["paid_acquisition"] },
+        workspaceScope: { type: "string", enum: ["creator_cooperation"] },
         trackingId: { type: "string" },
         workId: { type: "string" },
       },
       required: ["trackingId", "workId"],
       additionalProperties: false,
     },
+  },
   {
     name: "get_xiaohongshu_collection_workspace",
     description: "查看当前品牌资料库中的小红书搜集数据工作区摘要。",
@@ -680,7 +681,6 @@ const TOOL_DEFINITIONS = [
       additionalProperties: false,
     },
   },
-  },
   {
     name: "get_douyin_collection_workspace",
     description: "查看当前品牌资料库中的抖音搜集数据工作区摘要，包含达人搜索结果、达人结果池、主页链接和已抓到的联系方式摘要。",
@@ -737,6 +737,7 @@ const TOOL_DEFINITIONS = [
       },
       additionalProperties: false,
     },
+  },
   {
     name: "sync_douyin_brand_works",
     description: "同步当前品牌的抖音品牌作品数据。",
@@ -782,7 +783,6 @@ const TOOL_DEFINITIONS = [
       },
       additionalProperties: false,
     },
-  },
   },
   {
     name: "sync_douyin_benchmark_works",
@@ -832,6 +832,7 @@ const TOOL_DEFINITIONS = [
       },
       additionalProperties: false,
     },
+  },
   {
     name: "add_douyin_creators_to_result_pool",
     description: "把达人搜索结果批量加入抖音达人结果池。",
@@ -879,7 +880,6 @@ const TOOL_DEFINITIONS = [
       required: ["assetId"],
       additionalProperties: false,
     },
-  },
   },
   {
     name: "sync_douyin_keyword_recommendations",
@@ -938,6 +938,7 @@ const TOOL_DEFINITIONS = [
       },
       additionalProperties: false,
     },
+  },
   {
     name: "get_wechat_collection_workspace",
     description: "查看当前品牌的公众号采集数据工作区。",
@@ -1121,7 +1122,6 @@ const TOOL_DEFINITIONS = [
       },
       additionalProperties: false,
     },
-  },
   },
 ];
 

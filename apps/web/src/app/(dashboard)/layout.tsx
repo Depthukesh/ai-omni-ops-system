@@ -14,6 +14,7 @@ const primaryNavItems = [
   { href: "/geo", label: "GEO获客", shortLabel: "G" },
   { href: "/all-network-growth", label: "全网获客", shortLabel: "全" },
   { href: "/paid-acquisition", label: "投流获客", shortLabel: "投" },
+  { href: "/creator-cooperation", label: "达人合作", shortLabel: "达" },
   { href: "/more-features", label: "更多功能", shortLabel: "更" },
   { href: "/personal-center", label: "个人中心", shortLabel: "我" },
 ];

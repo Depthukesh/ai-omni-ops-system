@@ -1185,7 +1185,7 @@ model OpenClawTencentAdLead {
 model OpenClawCreatorCooperationMatch {
   id                String   @id
   brandId           String
-  workspaceScope    String   @default("paid_acquisition")
+  workspaceScope    String   @default("creator_cooperation")
   createdByUserId   String
   sourceProfileId   String   @default("")
   creatorId         String
@@ -1203,7 +1203,7 @@ model OpenClawCreatorCooperationMatch {
 model OpenClawCreatorCooperationTracking {
   id               String   @id
   brandId          String
-  workspaceScope   String   @default("paid_acquisition")
+  workspaceScope   String   @default("creator_cooperation")
   createdByUserId  String
   sourceProfileId  String   @default("")
   creatorId        String
@@ -1220,7 +1220,7 @@ model OpenClawCreatorCooperationTracking {
 model OpenClawCreatorCooperationWork {
   id                  String   @id
   brandId             String
-  workspaceScope      String   @default("paid_acquisition")
+  workspaceScope      String   @default("creator_cooperation")
   trackingId          String
   createdByUserId     String
   douyinWorkUrl       String   @default("")

@@ -450,12 +450,13 @@ export class OpenClawInstallationService {
           "帮我把小红书和抖音评论用户生成评论获客列表，并同步到全网获客工作台",
           "帮我把这批平台名单写入平台获客，并同步到全网获客工作台",
           "帮我把一条腾讯投流获客内容写入投流获客工作台，并告诉我当前列表",
+          "帮我看达人合作里的达人匹配和达人跟踪，并把这几个达人加入跟踪",
           "帮我查看并调整当前品牌的技能配置和网站功能使用方式",
         ],
       },
       skillInstall: {
         title: "品牌运营助手 Skill 安装",
-        summary: "现在支持两种安装方式：直接下载 Skill ZIP 上传到客户端，或把 GitHub Skill 目录链接连同一句安装指令发给 OpenClaw 自动安装。",
+        summary: "现在支持两种安装方式：直接下载 Skill ZIP 上传到客户端，或把 GitHub Skill 目录链接连同一句安装指令发给 OpenClaw 自动安装。网站标准运行态更新后，如版本页提示涉及 Skill / MCP，请回到这里重新同步。",
         status: "ready",
         statusLabel: "双通道",
         installTarget: "客户端 Skill 配置区",
@@ -463,6 +464,7 @@ export class OpenClawInstallationService {
           "先完成上方 MCP 安装，确认品牌令牌和 MCP 地址可用",
           "二选一：下载下面的 Skill ZIP 手动导入，或复制 Git 安装指令把 GitHub Skill 链接发给 OpenClaw",
           "安装后把该 Skill 绑定到 ai-omni-ops MCP，并确认允许调用站内工具",
+          "如果网站刚完成 Docker 更新且版本页提示涉及 Skill / MCP，回到当前页面重新复制 MCP 配置并重新同步 Skill",
           "首次使用时先验证查询、生成和任务回读是否正常",
         ],
         fileName: this.buildSkillPackageFileName(input.brandName),
@@ -474,6 +476,7 @@ export class OpenClawInstallationService {
           "Git 安装与 ZIP 下载共用仓库里的同一套 Skill 真源：docs/openclaw/skill-package/。",
           "压缩包内包含根目录 SKILL.md、README.md，以及 docs/00-网站功能域地图.md、docs/01-MCP工具矩阵.md、docs/02-高频任务路由手册.md。",
           "GitHub 链接默认指向当前对外交付分支；如后续切主分支或固定版本，可用 OPENCLAW_SKILL_GITHUB_REF 覆盖。",
+          "若版本页本次更新提醒里出现 Skill / MCP 相关变更，请不要继续沿用旧 ZIP 或旧 MCP 片段，需重新同步当前页面导出的最新版。",
           "ZIP 会优先读取仓库里的 Markdown 真源；如果部署环境缺少文档文件，会自动回退到内置完整版内容，而不是只给空白占位说明。",
         ],
       },
@@ -647,6 +650,7 @@ description: AI 全域智能体网站能力总入口 Skill。先做网站功能�
 - \`geo\`
 - \`all_network_growth\`
 - \`paid_acquisition\`
+- \`creator_cooperation\`
 
 对应的常见能力包括：
 
@@ -1137,17 +1141,26 @@ RunningHub 当前常见 appKey 示例：
 当前承载：
 
 - 腾讯投流获客列表
-- 达人合作
-  - 达人匹配
-  - 达人跟踪
 
-其中腾讯投流获客仍由 OpenClaw 直接写入标题和正文内容；达人合作则由 OpenClaw 从达人结果池筛出匹配达人、加入达人跟踪，并持续维护合作作品与自动更新周期。
+其中腾讯投流获客由 OpenClaw 直接写入标题和正文内容。
 
 当前优先 MCP：
 
 - \`get_openclaw_tencent_ad_leads\`
 - \`create_openclaw_tencent_ad_lead\`
 - \`delete_openclaw_tencent_ad_lead\`
+
+### 3.10 达人合作 \`/creator-cooperation\`
+
+当前承载：
+
+- 达人匹配
+- 达人跟踪
+
+该板块与 \`投流获客\` 同级独立；OpenClaw 从达人结果池筛出匹配达人、加入达人跟踪，并持续维护合作作品与自动更新周期。
+
+当前优先 MCP：
+
 - \`get_openclaw_creator_match_workspace\`
 - \`create_openclaw_creator_matches\`
 - \`delete_openclaw_creator_matches\`
@@ -1160,7 +1173,7 @@ RunningHub 当前常见 appKey 示例：
 - \`update_openclaw_creator_tracking_work\`
 - \`delete_openclaw_creator_tracking_work\`
 
-### 3.10 后台管理 \`/admin\`
+### 3.11 后台管理 \`/admin\`
 
 默认不是品牌员工的标准执行域；非管理员会话不要默认把后台当成可执行域。
 

@@ -81,6 +81,8 @@
   - 全网获客工作台；承接 OpenClaw 从品牌增长评论用户结果生成的评论获客名单
 - `/paid-acquisition`
   - 投流获客工作台；承接 OpenClaw 直接写入的腾讯投流获客列表
+- `/creator-cooperation`
+  - 达人合作工作台；承接 OpenClaw 从达人结果池筛选的达人匹配、达人跟踪与合作作品跟踪
 - `/more-features`
   - 更多功能入口，当前重定向到 `/more-features/design`
 - `/more-features/design`
@@ -98,7 +100,7 @@
 
 ### 3.3 登录门卫规则
 
-- `/brand-growth`、`/xiaohongshu`、`/douyin`、`/wechat`、`/geo`、`/all-network-growth`、`/paid-acquisition`、`/more-features/design`、`/personal-center/*` 默认要求登录
+- `/brand-growth`、`/xiaohongshu`、`/douyin`、`/wechat`、`/geo`、`/all-network-growth`、`/paid-acquisition`、`/creator-cooperation`、`/more-features/design`、`/personal-center/*` 默认要求登录
 - 未登录时统一跳转 `/login?next=...`
 - `/admin` 额外要求管理员身份
 
@@ -137,13 +139,13 @@
 - 抖音采集表格当前会直接回显视频存储位置；若视频缓存失败或过期，页面会同时保留原作品回看入口，方便判断问题到底出在站内副本还是源作品
 - 抖音采集视频文案提取当前默认走本地 ASR 链路：Paraformer 主识别、Whisper 兜底；系统会记录状态更新时间，当本地 ASR 环境未就绪或任务长时间卡住时，会自动收口为可重试失败态
 - 小红书 / 抖音收集数据中的“评论数据”卡片现已补齐“从评论提取账号链接”动作，可直接把作品链接补拉为评论数据，再按关键词筛出评论用户并沉淀为目标用户账号链接结果，供 OpenClaw 与人工验证共用
-- 抖音收集数据当前新增达人抓取第一期：
-  - `达人搜索抓取`：按关键词、行业和商业指标抓达人基础资料
 - `品牌增长策略 -> 收集数据` 当前已把站内已落地的主要采集动作同步开放给 OpenClaw / MCP：
   - 小红书：评论数据同步、二级评论读取
   - 抖音：品牌作品、竞品作品、达人结果池沉淀、品牌/竞品账号删除、关键词推荐删除
   - 公众号：品牌账号删除、正文读取、对标统计刷新、搜一搜正文与统计刷新
   - 每日热点：指定日期工作区读取、按平台刷新
+- 抖音收集数据当前新增达人抓取第一期：
+  - `达人搜索抓取`：按关键词、行业和商业指标抓达人基础资料
   - `达人深度抓取`：按达人标识创建后台异步深抓任务
   - `达人结果池`：回显达人画像、热词、推荐视频和主页视频摘要
 - 达人深抓结果当前继续复用 `collectors/douyin` workspace 聚合，不单开第二套数据页
@@ -156,9 +158,9 @@
 - 参考变更：`docs/changes/2026-08-27-ip-voice-material-preview-openclaw-git-skill.md`
 - 参考变更：`docs/changes/2026-08-27-douyin-collection-preview-and-transcript-retry-ux.md`
 - 参考变更：`docs/changes/2026-09-09-douyin-creator-collection-workbench-phase-1.md`
+- 参考变更：`docs/changes/2026-09-15-openclaw-brand-growth-collection-tooling-completion.md`
 
 ### 4.2 内容获客工作台 `/xiaohongshu`
-- 参考变更：`docs/changes/2026-09-15-openclaw-brand-growth-collection-tooling-completion.md`
 
 包含：
 
@@ -403,24 +405,41 @@
 包含：
 
 - 腾讯投流获客
-- 达人合作
-  - 达人匹配
-  - 达人跟踪
 
 当前特点：
 
 - 顶栏当前在 `全网获客` 后面新增独立一级入口 `投流获客`
-- 左侧目录当前收口两个子板块：
-  - `腾讯投流获客`
-  - `达人合作`
-- `达人合作` 下再拆两块左侧子板块：
-  - `达人匹配`
-  - `达人跟踪`
+- 左侧目录当前只收口 `腾讯投流获客`
 - 腾讯投流获客列表统一由 `OpenClawTencentAdLead` 真源承接，字段固定为：
   - 标题
   - 内容
   - 创建时间
   - 留言
+- 页面支持：
+  - 按每页 20 条分页查看
+  - 查看单条内容详情
+  - 在详情下留言协作
+  - 删除单条腾讯投流获客记录
+- OpenClaw / MCP / Skill 当前已同步暴露：
+  - `get_openclaw_tencent_ad_leads`
+  - `create_openclaw_tencent_ad_lead`
+  - `delete_openclaw_tencent_ad_lead`
+- 腾讯投流获客真源默认写入 `paid_acquisition` workspace scope，避免混入品牌增长或全网获客的既有内容型记录
+- 参考变更：`docs/changes/2026-09-04-paid-acquisition-tencent-ad-lead-workspace.md`
+
+### 4.5D 达人合作工作台 `/creator-cooperation`
+
+包含：
+
+- 达人匹配
+- 达人跟踪
+
+当前特点：
+
+- 顶栏当前在 `投流获客` 右侧新增独立一级入口 `达人合作`
+- 左侧目录当前收口两个子板块：
+  - `达人匹配`
+  - `达人跟踪`
 - 达人匹配列表统一由 `OpenClawCreatorCooperationMatch` 真源承接，数据来源是抖音达人结果池快照，除达人基础字段外补充：
   - 推荐理由
   - 是否加入合作清单
@@ -438,10 +457,6 @@
   - 再次选择
   - X 天自动更新频率
 - 页面支持：
-  - 按每页 20 条分页查看
-  - 查看单条内容详情
-  - 在详情下留言协作
-  - 删除单条腾讯投流获客记录
   - 在达人匹配里批量勾选达人
   - 批量删除达人匹配记录
   - 批量把达人加入达人跟踪
@@ -449,9 +464,6 @@
   - 在达人详情弹窗里新增合作作品、编辑结果评估 / 再次选择 / 更新周期、手动刷新或删除作品
 - 合作作品数据按 `X` 天频率自动刷新；当前通过每日调度扫描到期作品并重新抓取抖音作品快照
 - OpenClaw / MCP / Skill 当前已同步暴露：
-  - `get_openclaw_tencent_ad_leads`
-  - `create_openclaw_tencent_ad_lead`
-  - `delete_openclaw_tencent_ad_lead`
   - `get_openclaw_creator_match_workspace`
   - `create_openclaw_creator_matches`
   - `delete_openclaw_creator_matches`
@@ -463,9 +475,7 @@
   - `create_openclaw_creator_tracking_work`
   - `update_openclaw_creator_tracking_work`
   - `delete_openclaw_creator_tracking_work`
-- 腾讯投流获客真源默认写入 `paid_acquisition` workspace scope，避免混入品牌增长或全网获客的既有内容型记录
-- 达人合作三张真源表也统一写入 `paid_acquisition` workspace scope，避免与品牌增长抖音采集快照或全网获客线索混用
-- 参考变更：`docs/changes/2026-09-04-paid-acquisition-tencent-ad-lead-workspace.md`
+- 达人合作三张真源表统一写入 `creator_cooperation` workspace scope，避免与投流获客或品牌增长抖音采集快照混用
 - 参考变更：`docs/changes/2026-09-10-paid-acquisition-creator-cooperation-workspace.md`
 
 ### 4.6 个人中心 `/personal-center`
@@ -511,18 +521,19 @@
 - 当前源码运行态允许查看最新发布信息，但会明确提示“不是安装态发布包，暂不支持一键升级”
 - 当前安装态会把升级包先落到 `LOCAL_APP_DATA_ROOT/updates`，完成 SHA256 校验后再由独立 updater 停机、替换安装目录、重启本地工作台，并在 API / Web 都通过验活后才标记升级成功；apply-run 阶段执行的 updater 现在会优先从刚下载的目标发布包里提取，而不是继续复用当前安装版本自带脚本；若新版本起不来，updater 会自动回滚到安装前 backup 并恢复上一版本；为避免磁盘空间被历史垃圾目录耗尽，updater 会在安装前先预清理历史遗留的 `downloads/*`、`extract-*`、旧 `apply-runs/*` 临时目录，并在成功后再复清一次，同时回收安装目录旁遗留的 `AiOmniOps-backup-*` 备份目录；安装器日志已统一回到 `LOCAL_APP_DATA_ROOT/logs`，历史遗留的 `%LOCALAPPDATA%\AiOmniOps` 安装/升级痕迹也会一起回收，避免长期占满 C 盘
 - Docker 标准运行态当前约定的更新闭环是：
-  - 未配远端清单时：用户端仍可先在 `版本与升级` 页面查看最近版本记录，以及“自动识别部署分支 -> `git checkout` -> `git pull --ff-only` -> `docker compose up -d --build ...`”的通用 PowerShell 指令
+  - 未配远端清单时：用户端仍可先在 `版本与升级` 页面查看最近版本记录，以及“自动识别部署分支 -> `git checkout` -> `git pull --ff-only` -> `docker compose up -d --build --force-recreate server web`，必要时再补 `db-init`”的通用 PowerShell 指令
   - 发布端如果同步更新远端 JSON 清单，用户端还会在 `版本与升级` 页面进一步看到“有新版本”提醒
   - 更新后按页面给出的 Skill / MCP 同步说明完成收口
 - 标准运行态的 `版本与升级` 页面当前还会固定展示：
   - 安装前需要的软件与依赖（Git、WSL 2、Docker Desktop）
-  - 下载项目代码、复制 `.env`、启动容器、补跑 `db-init` 的完整安装命令
+  - 下载项目代码、复制 `.env`、执行 `docker compose ... up -d --build --force-recreate db-init server web` 的完整安装命令
   - 标准运行态更新命令与 Skill / MCP 同步提醒
 - 参考变更：`docs/changes/2026-08-30-openclaw-weekly-review-and-version-history-fix.md`
 - 参考变更：`docs/changes/2026-08-22-docker-standard-version-update-guide-page.md`
 - 参考变更：`docs/changes/2026-08-22-personal-center-version-update-reminder.md`
 - 参考变更：`docs/changes/2026-08-28-version-workspace-install-guide-and-readme-refresh.md`
 - 参考变更：`docs/changes/2026-09-04-version-workspace-upstream-branch-update-guide-fix.md`
+- 参考变更：`docs/changes/2026-09-17-standard-runtime-install-guide-and-openclaw-install-sync.md`
 - 安装、升级、自启与修复脚本当前统一以 `runtime/local-single-user-runtime.json` 里的 `browserUrl / previewUrl / apiHealthUrl` 作为页面入口与验活真值，不再把 `127.0.0.1:3001` 当成固定页面地址
 - `local-single-user` 安装态访问 `/` 时，前端会直接重定向到 `/brand-growth`；安装态不再把官网营销首页作为默认落地页，避免独立发布包里根路由因为首页模板读取失败而直接掉进 `/error`
 - `start-local-single-user.cmd` 现在按“健康实例复用 + 启动加锁”工作：如果当前本地工作台已经可用，重复双击只会复用现有实例；如果首次启动仍在拉起中，后续重复启动会等待当前启动完成，而不是并发重建运行时目录

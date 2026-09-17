@@ -4,18 +4,17 @@ import { useEffect, useMemo, useState } from "react";
 import {
   addOpenClawCreatorMatchesToTracking,
   createOpenClawCreatorTrackingWork,
+  deleteOpenClawCreatorMatches,
   deleteOpenClawCreatorTrackingRecord,
   deleteOpenClawCreatorTrackingWork,
   getOpenClawCreatorTrackingWorkWorkspace,
-  type OpenClawCreatorWorkNextAction,
-  type OpenClawCreatorMatchRecord,
   type OpenClawCreatorMatchWorkspace,
   type OpenClawCreatorTrackingRecord,
   type OpenClawCreatorTrackingWorkRecord,
   type OpenClawCreatorTrackingWorkWorkspace,
   type OpenClawCreatorTrackingWorkspace,
+  type OpenClawCreatorWorkNextAction,
   updateOpenClawCreatorTrackingWork,
-  deleteOpenClawCreatorMatches,
 } from "../../../services/openclaw";
 
 const PAGE_SIZE = 20;
@@ -30,6 +29,7 @@ type OptionalDateFormatter = (value?: string) => string;
 
 export interface OpenClawCreatorCooperationWorkspaceProps {
   brandId: string;
+  workspaceScope: "paid_acquisition" | "creator_cooperation";
   activeSection: CreatorCooperationSectionKey;
   onChangeSection: (section: CreatorCooperationSectionKey) => void;
   matchingWorkspace: OpenClawCreatorMatchWorkspace;
@@ -120,7 +120,7 @@ export function OpenClawCreatorCooperationWorkspace(props: OpenClawCreatorCooper
     setSelectedTracking(tracking);
     setIsLoadingWorks(true);
     try {
-      const workspace = await getOpenClawCreatorTrackingWorkWorkspace(props.brandId, "paid_acquisition", tracking.id, 200);
+      const workspace = await getOpenClawCreatorTrackingWorkWorkspace(props.brandId, props.workspaceScope, tracking.id, 200);
       setWorksWorkspace(workspace);
     } catch (error) {
       props.onError(error instanceof Error ? error.message : "加载合作作品失败。");
@@ -162,7 +162,7 @@ export function OpenClawCreatorCooperationWorkspace(props: OpenClawCreatorCooper
     }
     setIsDeletingMatches(true);
     try {
-      const response = await deleteOpenClawCreatorMatches(props.brandId, "paid_acquisition", selectedMatchIds);
+      const response = await deleteOpenClawCreatorMatches(props.brandId, props.workspaceScope, selectedMatchIds);
       setSelectedMatchIds([]);
       props.onNotice(`已删除 ${response.deletedCount} 条达人匹配记录。`);
       await props.onRefreshMatching();
@@ -180,7 +180,7 @@ export function OpenClawCreatorCooperationWorkspace(props: OpenClawCreatorCooper
     }
     setIsMovingMatches(true);
     try {
-      const response = await addOpenClawCreatorMatchesToTracking(props.brandId, "paid_acquisition", selectedMatchIds);
+      const response = await addOpenClawCreatorMatchesToTracking(props.brandId, props.workspaceScope, selectedMatchIds);
       setSelectedMatchIds([]);
       props.onNotice(`已把 ${response.items.length} 位达人加入达人跟踪。`);
       await props.onRefreshMatching();
@@ -198,7 +198,7 @@ export function OpenClawCreatorCooperationWorkspace(props: OpenClawCreatorCooper
     }
     setDeletingTrackingId(trackingId);
     try {
-      await deleteOpenClawCreatorTrackingRecord(props.brandId, "paid_acquisition", trackingId);
+      await deleteOpenClawCreatorTrackingRecord(props.brandId, props.workspaceScope, trackingId);
       if (selectedTracking?.id === trackingId) {
         setSelectedTracking(null);
       }
@@ -218,7 +218,7 @@ export function OpenClawCreatorCooperationWorkspace(props: OpenClawCreatorCooper
     }
     setCreatingWork(true);
     try {
-      const response = await createOpenClawCreatorTrackingWork(props.brandId, "paid_acquisition", selectedTracking.id, {
+      const response = await createOpenClawCreatorTrackingWork(props.brandId, props.workspaceScope, selectedTracking.id, {
         douyinWorkUrl: newWorkUrl,
         refreshIntervalDays: Number(newWorkRefreshDays) || 7,
         resultEvaluation: newWorkEvaluation,
@@ -248,7 +248,7 @@ export function OpenClawCreatorCooperationWorkspace(props: OpenClawCreatorCooper
     }
     setSavingWorkId(work.id);
     try {
-      const response = await updateOpenClawCreatorTrackingWork(props.brandId, "paid_acquisition", selectedTracking.id, work.id, {
+      const response = await updateOpenClawCreatorTrackingWork(props.brandId, props.workspaceScope, selectedTracking.id, work.id, {
         resultEvaluation: draft.resultEvaluation,
         nextAction: draft.nextAction,
         refreshIntervalDays: Number(draft.refreshIntervalDays) || 7,
@@ -273,7 +273,7 @@ export function OpenClawCreatorCooperationWorkspace(props: OpenClawCreatorCooper
     }
     setSavingWorkId(workId);
     try {
-      const response = await deleteOpenClawCreatorTrackingWork(props.brandId, "paid_acquisition", selectedTracking.id, workId);
+      const response = await deleteOpenClawCreatorTrackingWork(props.brandId, props.workspaceScope, selectedTracking.id, workId);
       setWorksWorkspace(response.workspace);
       props.onNotice("合作作品记录已删除。");
       await props.onRefreshTracking();

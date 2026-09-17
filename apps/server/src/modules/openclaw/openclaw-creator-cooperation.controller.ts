@@ -36,7 +36,7 @@ export class OpenClawCreatorCooperationController {
     await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "view", auth);
     return this.openClawCreatorCooperationService.listMatchingWorkspace(
       brandId,
-      workspaceScope || "paid_acquisition",
+      workspaceScope || "creator_cooperation",
       limit ? Number(limit) : undefined,
     );
   }
@@ -62,11 +62,11 @@ export class OpenClawCreatorCooperationController {
     await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "edit", auth);
     const items = await this.openClawCreatorCooperationService.createMatchingRecords({
       brandId,
-      workspaceScope: payload?.workspaceScope || "paid_acquisition",
+      workspaceScope: payload?.workspaceScope || "creator_cooperation",
       createdByUserId: auth.userId,
       items: payload?.items,
     });
-    const workspace = await this.openClawCreatorCooperationService.listMatchingWorkspace(brandId, payload?.workspaceScope || "paid_acquisition");
+    const workspace = await this.openClawCreatorCooperationService.listMatchingWorkspace(brandId, payload?.workspaceScope || "creator_cooperation");
     return {
       items,
       workspace,
@@ -90,10 +90,10 @@ export class OpenClawCreatorCooperationController {
     await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "edit", auth);
     const deletedCount = await this.openClawCreatorCooperationService.deleteMatchingRecords(
       brandId,
-      payload?.workspaceScope || "paid_acquisition",
+      payload?.workspaceScope || "creator_cooperation",
       Array.isArray(payload?.recordIds) ? payload?.recordIds : [],
     );
-    const workspace = await this.openClawCreatorCooperationService.listMatchingWorkspace(brandId, payload?.workspaceScope || "paid_acquisition");
+    const workspace = await this.openClawCreatorCooperationService.listMatchingWorkspace(brandId, payload?.workspaceScope || "creator_cooperation");
     return {
       deletedCount,
       workspace,
@@ -117,12 +117,12 @@ export class OpenClawCreatorCooperationController {
     await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "edit", auth);
     const items = await this.openClawCreatorCooperationService.moveMatchesToTracking({
       brandId,
-      workspaceScope: payload?.workspaceScope || "paid_acquisition",
+      workspaceScope: payload?.workspaceScope || "creator_cooperation",
       createdByUserId: auth.userId,
       recordIds: Array.isArray(payload?.recordIds) ? payload.recordIds : [],
     });
-    const matchingWorkspace = await this.openClawCreatorCooperationService.listMatchingWorkspace(brandId, payload?.workspaceScope || "paid_acquisition");
-    const trackingWorkspace = await this.openClawCreatorCooperationService.listTrackingWorkspace(brandId, payload?.workspaceScope || "paid_acquisition");
+    const matchingWorkspace = await this.openClawCreatorCooperationService.listMatchingWorkspace(brandId, payload?.workspaceScope || "creator_cooperation");
+    const trackingWorkspace = await this.openClawCreatorCooperationService.listTrackingWorkspace(brandId, payload?.workspaceScope || "creator_cooperation");
     return {
       items,
       matchingWorkspace,
@@ -144,7 +144,7 @@ export class OpenClawCreatorCooperationController {
     await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "view", auth);
     return this.openClawCreatorCooperationService.listTrackingWorkspace(
       brandId,
-      workspaceScope || "paid_acquisition",
+      workspaceScope || "creator_cooperation",
       limit ? Number(limit) : undefined,
     );
   }
@@ -169,11 +169,11 @@ export class OpenClawCreatorCooperationController {
     await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "edit", auth);
     const items = await this.openClawCreatorCooperationService.createTrackingRecords({
       brandId,
-      workspaceScope: payload?.workspaceScope || "paid_acquisition",
+      workspaceScope: payload?.workspaceScope || "creator_cooperation",
       createdByUserId: auth.userId,
       items: payload?.items,
     });
-    const workspace = await this.openClawCreatorCooperationService.listTrackingWorkspace(brandId, payload?.workspaceScope || "paid_acquisition");
+    const workspace = await this.openClawCreatorCooperationService.listTrackingWorkspace(brandId, payload?.workspaceScope || "creator_cooperation");
     return {
       items,
       workspace,
@@ -194,10 +194,10 @@ export class OpenClawCreatorCooperationController {
     await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "edit", auth);
     const item = await this.openClawCreatorCooperationService.deleteTrackingRecord(
       brandId,
-      workspaceScope || "paid_acquisition",
+      workspaceScope || "creator_cooperation",
       trackingId,
     );
-    const workspace = await this.openClawCreatorCooperationService.listTrackingWorkspace(brandId, workspaceScope || "paid_acquisition");
+    const workspace = await this.openClawCreatorCooperationService.listTrackingWorkspace(brandId, workspaceScope || "creator_cooperation");
     return {
       item,
       workspace,
@@ -219,7 +219,7 @@ export class OpenClawCreatorCooperationController {
     await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "view", auth);
     return this.openClawCreatorCooperationService.listTrackingWorkWorkspace(
       brandId,
-      workspaceScope || "paid_acquisition",
+      workspaceScope || "creator_cooperation",
       trackingId,
       limit ? Number(limit) : undefined,
     );
@@ -246,7 +246,7 @@ export class OpenClawCreatorCooperationController {
     await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "edit", auth);
     const item = await this.openClawCreatorCooperationService.createTrackingWork({
       brandId,
-      workspaceScope: payload?.workspaceScope || "paid_acquisition",
+      workspaceScope: payload?.workspaceScope || "creator_cooperation",
       trackingId,
       createdByUserId: auth.userId,
       douyinWorkUrl: payload?.douyinWorkUrl,
@@ -256,7 +256,7 @@ export class OpenClawCreatorCooperationController {
     });
     const workspace = await this.openClawCreatorCooperationService.listTrackingWorkWorkspace(
       brandId,
-      payload?.workspaceScope || "paid_acquisition",
+      payload?.workspaceScope || "creator_cooperation",
       trackingId,
     );
     return {
@@ -288,7 +288,7 @@ export class OpenClawCreatorCooperationController {
     await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "edit", auth);
     const item = await this.openClawCreatorCooperationService.updateTrackingWork({
       brandId,
-      workspaceScope: payload?.workspaceScope || "paid_acquisition",
+      workspaceScope: payload?.workspaceScope || "creator_cooperation",
       trackingId,
       workId,
       douyinWorkUrl: payload?.douyinWorkUrl,
@@ -299,7 +299,7 @@ export class OpenClawCreatorCooperationController {
     });
     const workspace = await this.openClawCreatorCooperationService.listTrackingWorkWorkspace(
       brandId,
-      payload?.workspaceScope || "paid_acquisition",
+      payload?.workspaceScope || "creator_cooperation",
       trackingId,
     );
     return {
@@ -323,13 +323,13 @@ export class OpenClawCreatorCooperationController {
     await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "edit", auth);
     const item = await this.openClawCreatorCooperationService.deleteTrackingWork(
       brandId,
-      workspaceScope || "paid_acquisition",
+      workspaceScope || "creator_cooperation",
       trackingId,
       workId,
     );
     const workspace = await this.openClawCreatorCooperationService.listTrackingWorkWorkspace(
       brandId,
-      workspaceScope || "paid_acquisition",
+      workspaceScope || "creator_cooperation",
       trackingId,
     );
     return {

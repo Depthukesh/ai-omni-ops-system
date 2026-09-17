@@ -44,6 +44,8 @@ const STANDARD_RUNTIME_SOFTWARE_GUIDE = [
 const STANDARD_RUNTIME_DEPENDENCY_NOTICES = [
   "需要可访问 GitHub 与 Docker Hub 的网络；如果当前网络依赖代理，Git 与 Docker Desktop 都要分别配置代理。",
   "首次启动至少需要可用的 13001、13011、15432 端口，以及足够磁盘空间拉取镜像和保存容器数据。",
+  "首次安装请直接执行包含 `db-init server web` 的 compose 命令，不要再沿用旧的 `postgres server web` 口径。",
+  "如果 `docker pull postgres:16-bookworm` 或 `docker pull node:22-bookworm-slim` 都失败，先检查 Docker Desktop 到 Docker Hub 的网络、代理或 IPv6/DNS，再继续安装。",
   "如果 `docker compose up` 首次执行被中断，补跑一次 `db-init` 就能把建表、邀请码与演示账号补齐。",
 ] as const;
 
@@ -52,7 +54,7 @@ const STANDARD_RUNTIME_INSTALL_COMMANDS = [
   "git clone https://github.com/Depthukesh/ai-omni-ops-system.git",
   "cd \"D:\\aiproject\\ai-omni-ops-system\"",
   "Copy-Item .env.docker.example .env",
-  "docker compose -f docker/docker-compose.local-postgres.yml up -d --build postgres server web",
+  "docker compose -f docker/docker-compose.local-postgres.yml up -d --build --force-recreate db-init server web",
   "如果首次初始化被打断，再执行：docker compose -f docker/docker-compose.local-postgres.yml run --rm db-init",
   "浏览器打开：http://127.0.0.1:13001",
 ] as const;
@@ -60,7 +62,9 @@ const STANDARD_RUNTIME_INSTALL_COMMANDS = [
 const STANDARD_RUNTIME_INSTALL_NOTICES = [
   "默认演示账号：13800000000 / 123456。",
   "如果 `git` 命令不存在，通常是 Git 没进 PATH；重开终端或使用 Git 的完整路径后再试。",
-  "如果 Docker 拉镜像失败，多半是 Docker Desktop 还没有配置 HTTPS 代理。",
+  "如果你要复现当前交付分支，而不是仓库默认分支，请在 clone 后先执行 `git branch -r` 找到对应远端分支，再 `git switch --track origin/<交付分支>` 后再启动容器。",
+  "如果 Docker 拉镜像失败，多半是 Docker Desktop 还没有配置 HTTPS 代理，或者当前网络到 `registry-1.docker.io` / `auth.docker.io` 不通。",
+  "如果 `server` 构建失败，请优先抓完整日志看 `openclaw.service.ts` 或其他 TypeScript 报错行，而不是只看 compose 最后一行 `exit code`。",
 ] as const;
 
 export default function PersonalCenterVersionPage() {
@@ -294,7 +298,7 @@ export default function PersonalCenterVersionPage() {
       : [
           "git fetch --all --prune",
           "git pull",
-          "docker compose -f docker/docker-compose.local-postgres.yml up -d --build server web",
+          "docker compose -f docker/docker-compose.local-postgres.yml up -d --build --force-recreate server web",
           "若本次更新涉及 Skill ZIP，请从 OpenClaw 安装中心重新下载最新 skill-package.zip 并重新导入客户端",
         ])
     : [

@@ -13,10 +13,10 @@ import {
   CollectorsService,
   type DouyinCollectionWorkspace,
   type XhsAccountRole,
+  type XhsCollectionWorkspace,
   type WechatSearchBusinessType,
   type WechatSearchPublishTime,
   type WechatSearchSortType,
-  type XhsCollectionWorkspace,
 } from "../collectors/collectors.service";
 import { FeedbackService } from "../feedback/feedback.service";
 import { OpenClawCommentLeadService } from "./openclaw-comment-lead.service";
@@ -286,9 +286,9 @@ const OPENCLAW_WEBSITE_FUNCTION_CATALOG: OpenClawWebsiteFunctionCatalogItem[] = 
       "sync_xiaohongshu_competitor_accounts",
       "sync_xiaohongshu_brand_notes",
       "sync_xiaohongshu_benchmark_notes",
+      "sync_xiaohongshu_search_notes",
       "sync_xiaohongshu_comment_data",
       "get_xiaohongshu_comment_replies",
-      "sync_xiaohongshu_search_notes",
       "sync_xiaohongshu_target_users",
       "sync_xiaohongshu_feishu_workspace",
       "add_xiaohongshu_note_to_material_library",
@@ -310,14 +310,15 @@ const OPENCLAW_WEBSITE_FUNCTION_CATALOG: OpenClawWebsiteFunctionCatalogItem[] = 
     mcpTools: [
       "get_douyin_collection_workspace",
       "sync_douyin_brand_accounts",
+      "sync_douyin_competitor_accounts",
       "sync_douyin_brand_works",
       "sync_douyin_competitor_works",
-      "sync_douyin_competitor_accounts",
       "sync_douyin_benchmark_works",
       "sync_douyin_search_works",
       "sync_douyin_comment_data",
       "sync_douyin_target_users",
       "search_douyin_creators",
+      "create_douyin_creator_deep_fetch_tasks",
       "add_douyin_creators_to_result_pool",
       "sync_douyin_keyword_recommendations",
       "sync_douyin_low_fan_explosive_works",
@@ -330,7 +331,6 @@ const OPENCLAW_WEBSITE_FUNCTION_CATALOG: OpenClawWebsiteFunctionCatalogItem[] = 
       "extract_douyin_work_transcript",
       "add_douyin_work_to_material_library",
       "remove_douyin_work_from_material_library",
-      "create_douyin_creator_deep_fetch_tasks",
     ],
   },
   {
@@ -661,12 +661,12 @@ const OPENCLAW_WEBSITE_FUNCTION_CATALOG: OpenClawWebsiteFunctionCatalogItem[] = 
   },
   {
     key: "openclaw_creator_cooperation_workspace",
-    domainKey: "paid_acquisition",
-    domainName: "投流获客",
+    domainKey: "creator_cooperation",
+    domainName: "达人合作",
     name: "查看并维护达人合作工作区",
-    summary: "适合由 OpenClaw 从达人结果池筛出匹配达人、加入达人跟踪，并持续维护合作作品与自动更新周期。",
-    pageUrl: "/paid-acquisition",
-    pageLabel: "打开 投流获客工作台",
+    summary: "适合由 OpenClaw 从达人结果池筛出匹配达人、加入达人跟踪，并持续维护合作作品与自动更新周期；该板块与投流获客同级独立。",
+    pageUrl: "/creator-cooperation",
+    pageLabel: "打开 达人合作工作台",
     riskLevel: "medium",
     intentKeywords: ["达人合作", "达人匹配", "达人跟踪", "合作清单", "合作作品", "达人合作作品"],
     requiredInputKeys: [],
@@ -725,18 +725,19 @@ const OPENCLAW_WEBSITE_FUNCTION_CATALOG: OpenClawWebsiteFunctionCatalogItem[] = 
     recommendedQuestions: ["帮我看公众号采集数据板块", "帮我绑定这个公众号并抓历史文章", "帮我同步微信搜一搜数据", "帮我更新这篇文章的阅读量"],
     mcpTools: [
       "get_wechat_collection_workspace",
-      "delete_wechat_brand_account",
       "sync_wechat_brand_accounts",
-      "read_wechat_article_content",
+      "delete_wechat_brand_account",
       "fetch_wechat_brand_articles",
-      "update_wechat_benchmark_article_stats",
+      "read_wechat_article_content",
       "sync_wechat_benchmark_articles",
+      "update_wechat_benchmark_article_stats",
       "sync_wechat_search_articles",
       "read_wechat_search_item_content",
       "update_wechat_search_item_stats",
       "add_wechat_article_to_material_library",
       "delete_wechat_collected_article",
     ],
+  },
   {
     key: "daily_hotspot_workspace",
     domainKey: "brand_growth",
@@ -754,7 +755,6 @@ const OPENCLAW_WEBSITE_FUNCTION_CATALOG: OpenClawWebsiteFunctionCatalogItem[] = 
       "get_daily_hotspot_workspace",
       "sync_daily_hotspots",
     ],
-  },
   },
   {
     key: "collection_data_management",
@@ -1133,6 +1133,7 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
       },
       additionalProperties: false,
     },
+  },
   {
     name: "sync_xiaohongshu_comment_data",
     description: "同步品牌资料库里小红书评论数据，可传作品链接列表或分页请求。",
@@ -1171,7 +1172,6 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
       required: ["sourceUrl", "commentId"],
       additionalProperties: false,
     },
-  },
   },
   {
     name: "sync_xiaohongshu_target_users",
@@ -1259,6 +1259,7 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
       },
       additionalProperties: false,
     },
+  },
   {
     name: "sync_douyin_brand_works",
     description: "同步品牌资料库里抖音品牌作品数据，可传品牌账号链接或账号条目。",
@@ -1304,7 +1305,6 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
       },
       additionalProperties: false,
     },
-  },
   },
   {
     name: "sync_douyin_benchmark_works",
@@ -1418,6 +1418,7 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
       required: ["identifiers"],
       additionalProperties: false,
     },
+  },
   {
     name: "add_douyin_creators_to_result_pool",
     description: "把达人搜索结果批量加入抖音达人结果池。",
@@ -1465,7 +1466,6 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
       required: ["assetId"],
       additionalProperties: false,
     },
-  },
   },
   {
     name: "sync_douyin_keyword_recommendations",
@@ -1524,6 +1524,7 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
       },
       additionalProperties: false,
     },
+  },
   {
     name: "get_daily_hotspot_workspace",
     description: "查看品牌增长里的每日热点工作区，可按日期读取已采集的平台热点榜。",
@@ -1545,7 +1546,6 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
       },
       additionalProperties: false,
     },
-  },
   },
   {
     name: "get_opportunity_insight_workspace",
@@ -3139,11 +3139,11 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
   },
   {
     name: "get_openclaw_creator_match_workspace",
-    description: "查看投流获客下达人合作中的达人匹配列表。",
+    description: "查看达人合作工作台中的达人匹配列表。",
     inputSchema: {
       type: "object",
       properties: {
-        workspaceScope: { type: "string", enum: ["paid_acquisition"], description: "可选：当前固定读取投流获客工作台。" },
+        workspaceScope: { type: "string", enum: ["creator_cooperation"], description: "可选：当前固定读取达人合作工作台。" },
         limit: { type: "integer", minimum: 1, maximum: 200 },
       },
       additionalProperties: false,
@@ -3155,7 +3155,7 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
     inputSchema: {
       type: "object",
       properties: {
-        workspaceScope: { type: "string", enum: ["paid_acquisition"], description: "可选：当前固定写入投流获客工作台。" },
+        workspaceScope: { type: "string", enum: ["creator_cooperation"], description: "可选：当前固定写入达人合作工作台。" },
         items: {
           type: "array",
           minItems: 1,
@@ -3181,7 +3181,7 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
     inputSchema: {
       type: "object",
       properties: {
-        workspaceScope: { type: "string", enum: ["paid_acquisition"], description: "可选：当前固定删除投流获客工作台数据。" },
+        workspaceScope: { type: "string", enum: ["creator_cooperation"], description: "可选：当前固定删除达人合作工作台数据。" },
         recordIds: {
           type: "array",
           minItems: 1,
@@ -3198,7 +3198,7 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
     inputSchema: {
       type: "object",
       properties: {
-        workspaceScope: { type: "string", enum: ["paid_acquisition"], description: "可选：当前固定写入投流获客工作台。" },
+        workspaceScope: { type: "string", enum: ["creator_cooperation"], description: "可选：当前固定写入达人合作工作台。" },
         recordIds: {
           type: "array",
           minItems: 1,
@@ -3211,11 +3211,11 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
   },
   {
     name: "get_openclaw_creator_tracking_workspace",
-    description: "查看投流获客下达人合作中的达人跟踪列表。",
+    description: "查看达人合作工作台中的达人跟踪列表。",
     inputSchema: {
       type: "object",
       properties: {
-        workspaceScope: { type: "string", enum: ["paid_acquisition"], description: "可选：当前固定读取投流获客工作台。" },
+        workspaceScope: { type: "string", enum: ["creator_cooperation"], description: "可选：当前固定读取达人合作工作台。" },
         limit: { type: "integer", minimum: 1, maximum: 200 },
       },
       additionalProperties: false,
@@ -3227,7 +3227,7 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
     inputSchema: {
       type: "object",
       properties: {
-        workspaceScope: { type: "string", enum: ["paid_acquisition"], description: "可选：当前固定写入投流获客工作台。" },
+        workspaceScope: { type: "string", enum: ["creator_cooperation"], description: "可选：当前固定写入达人合作工作台。" },
         items: {
           type: "array",
           minItems: 1,
@@ -3251,7 +3251,7 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
     inputSchema: {
       type: "object",
       properties: {
-        workspaceScope: { type: "string", enum: ["paid_acquisition"], description: "可选：当前固定删除投流获客工作台数据。" },
+        workspaceScope: { type: "string", enum: ["creator_cooperation"], description: "可选：当前固定删除达人合作工作台数据。" },
         trackingId: { type: "string", description: "达人跟踪记录 ID。" },
       },
       required: ["trackingId"],
@@ -3264,7 +3264,7 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
     inputSchema: {
       type: "object",
       properties: {
-        workspaceScope: { type: "string", enum: ["paid_acquisition"], description: "可选：当前固定读取投流获客工作台。" },
+        workspaceScope: { type: "string", enum: ["creator_cooperation"], description: "可选：当前固定读取达人合作工作台。" },
         trackingId: { type: "string", description: "达人跟踪记录 ID。" },
         limit: { type: "integer", minimum: 1, maximum: 200 },
       },
@@ -3278,7 +3278,7 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
     inputSchema: {
       type: "object",
       properties: {
-        workspaceScope: { type: "string", enum: ["paid_acquisition"], description: "可选：当前固定写入投流获客工作台。" },
+        workspaceScope: { type: "string", enum: ["creator_cooperation"], description: "可选：当前固定写入达人合作工作台。" },
         trackingId: { type: "string", description: "达人跟踪记录 ID。" },
         douyinWorkUrl: { type: "string", description: "抖音作品链接。" },
         refreshIntervalDays: { type: "integer", minimum: 1, maximum: 365, description: "多少天自动更新一次作品数据。" },
@@ -3295,7 +3295,7 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
     inputSchema: {
       type: "object",
       properties: {
-        workspaceScope: { type: "string", enum: ["paid_acquisition"], description: "可选：当前固定写入投流获客工作台。" },
+        workspaceScope: { type: "string", enum: ["creator_cooperation"], description: "可选：当前固定写入达人合作工作台。" },
         trackingId: { type: "string", description: "达人跟踪记录 ID。" },
         workId: { type: "string", description: "合作作品记录 ID。" },
         douyinWorkUrl: { type: "string", description: "可选：新的抖音作品链接。" },
@@ -3314,7 +3314,7 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
     inputSchema: {
       type: "object",
       properties: {
-        workspaceScope: { type: "string", enum: ["paid_acquisition"], description: "可选：当前固定删除投流获客工作台数据。" },
+        workspaceScope: { type: "string", enum: ["creator_cooperation"], description: "可选：当前固定删除达人合作工作台数据。" },
         trackingId: { type: "string", description: "达人跟踪记录 ID。" },
         workId: { type: "string", description: "合作作品记录 ID。" },
       },
@@ -3513,8 +3513,8 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
     inputSchema: {
       type: "object",
       properties: {
-        kind: { type: "string", description: "可选：benchmark、search。默认自动按 benchmark 处理。" },
         assetId: { type: "string", description: "公众号采集文章 ID。" },
+        kind: { type: "string", description: "可选：benchmark、search。默认自动按 benchmark 处理。" },
       },
       required: ["assetId"],
       additionalProperties: false,
@@ -3566,6 +3566,7 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
       required: ["ghUsername"],
       additionalProperties: false,
     },
+  },
   {
     name: "delete_wechat_brand_account",
     description: "删除品牌资料库里的公众号账号绑定。",
@@ -3577,7 +3578,6 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
       required: ["accountId"],
       additionalProperties: false,
     },
-  },
   },
   {
     name: "fetch_wechat_brand_articles",
@@ -3591,6 +3591,7 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
       required: ["ghUsername"],
       additionalProperties: false,
     },
+  },
   {
     name: "read_wechat_article_content",
     description: "读取一篇品牌公众号文章的正文内容。",
@@ -3602,7 +3603,6 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
       required: ["articleUrl"],
       additionalProperties: false,
     },
-  },
   },
   {
     name: "sync_wechat_benchmark_articles",
@@ -3619,6 +3619,7 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
       required: ["articleUrls"],
       additionalProperties: false,
     },
+  },
   {
     name: "update_wechat_benchmark_article_stats",
     description: "更新一篇公众号对标文章的阅读量、点赞数、分享数、收藏数、评论数、喜欢数。",
@@ -3631,22 +3632,22 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
       additionalProperties: false,
     },
   },
-  },
   {
     name: "sync_wechat_search_articles",
     description: "同步品牌资料库里微信搜一搜数据，需要提供搜索关键词。",
     inputSchema: {
       type: "object",
       properties: {
+        searchKeyword: { type: "string", description: "微信搜一搜关键词。" },
         searchBusinessType: { type: "string", description: "可选：搜索业务类型。" },
         searchSort: { type: "string", description: "可选：搜索排序方式。" },
         searchPublishTime: { type: "string", description: "可选：发布时间范围。" },
         offset: { type: "integer", minimum: 0, description: "可选：分页偏移量。" },
-        searchKeyword: { type: "string", description: "微信搜一搜关键词。" },
       },
       required: ["searchKeyword"],
       additionalProperties: false,
     },
+  },
   {
     name: "read_wechat_search_item_content",
     description: "读取一条微信搜一搜结果的正文内容。",
@@ -3670,7 +3671,6 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
       required: ["articleUrl"],
       additionalProperties: false,
     },
-  },
   },
   {
     name: "update_wechat_article_stats",
@@ -4582,8 +4582,8 @@ export class OpenClawService {
         `竞品账号：${counts.competitorAccounts}`,
         `品牌作品：${counts.brandNotes}`,
         `对标作品：${counts.benchmarkNotes}`,
-        `评论数据：${counts.commentData}`,
         `搜索笔记：${counts.searchNotes}`,
+        `评论数据：${counts.commentData}`,
         `目标用户：${counts.targetUsers}`,
       ],
       data: {
@@ -4592,8 +4592,8 @@ export class OpenClawService {
         competitorAccounts: workspace.competitorAccounts.slice(0, limit),
         brandNotes: workspace.brandNotes.slice(0, limit),
         benchmarkNotes: workspace.benchmarkNotes.slice(0, limit),
-        commentData: workspace.commentData.slice(0, limit),
         searchNotes: workspace.searchNotes.slice(0, limit),
+        commentData: workspace.commentData.slice(0, limit),
         targetUsers: workspace.targetUsers.slice(0, limit),
       },
       links: [{ label: "打开品牌增长工作台", url: "/brand-growth" }],
@@ -4754,6 +4754,7 @@ export class OpenClawService {
       resourceKind: "xiaohongshu_collection",
     });
   }
+
   async syncXiaohongshuCommentData(
     headers: HeadersMap,
     options?: {
@@ -4842,7 +4843,6 @@ export class OpenClawService {
       resourceKind: "xiaohongshu_collection",
     });
   }
-
 
   async syncXiaohongshuTargetUsers(
     headers: HeadersMap,
@@ -5062,6 +5062,7 @@ export class OpenClawService {
       resourceKind: "douyin_collection",
     });
   }
+
   async syncDouyinBrandWorks(
     headers: HeadersMap,
     options?: {
@@ -5125,7 +5126,6 @@ export class OpenClawService {
       resourceKind: "douyin_collection",
     });
   }
-
 
   async syncDouyinBenchmarkWorks(
     headers: HeadersMap,
@@ -6133,7 +6133,7 @@ export class OpenClawService {
     const brandId = await this.requireCurrentBrandId(auth);
     await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "view", auth);
 
-    const workspaceScopes: OpenClawWorkspaceScope[] = ["brand_growth", "xiaohongshu", "douyin", "wechat", "geo", "all_network_growth", "paid_acquisition"];
+    const workspaceScopes: OpenClawWorkspaceScope[] = ["brand_growth", "xiaohongshu", "douyin", "wechat", "geo", "all_network_growth", "paid_acquisition", "creator_cooperation"];
     const workspaces = await Promise.all(
       workspaceScopes.map((scope) => this.openClawCreativeMaterialService.listWorkspace(brandId, scope, 200)),
     );
@@ -8467,8 +8467,8 @@ export class OpenClawService {
   async addWechatArticleToMaterialLibrary(
     headers: HeadersMap,
     options?: {
-      kind?: string;
       assetId?: string;
+      kind?: string;
     },
   ) {
     const auth = await this.requireAuth(headers);
@@ -8619,6 +8619,7 @@ export class OpenClawService {
       resourceKind: "wechat_collection",
     });
   }
+
   async deleteWechatBrandAccount(
     headers: HeadersMap,
     options?: {
@@ -8645,7 +8646,6 @@ export class OpenClawService {
       resourceKind: "wechat_collection",
     });
   }
-
 
   async fetchWechatBrandArticles(
     headers: HeadersMap,
@@ -8683,6 +8683,7 @@ export class OpenClawService {
         : [{ label: "继续抓取下一页", action: "check_status", target: result.nextOffset || "" }],
     });
   }
+
   async readWechatArticleContent(
     headers: HeadersMap,
     options?: {
@@ -8712,7 +8713,6 @@ export class OpenClawService {
       resourceKind: "wechat_collection",
     });
   }
-
 
   async syncWechatBenchmarkArticles(
     headers: HeadersMap,
@@ -8754,11 +8754,11 @@ export class OpenClawService {
   async syncWechatSearchArticles(
     headers: HeadersMap,
     options?: {
+      searchKeyword?: string;
       searchBusinessType?: string;
       searchSort?: string;
       searchPublishTime?: string;
       offset?: number;
-      searchKeyword?: string;
     },
   ) {
     const auth = await this.requireAuth(headers);
@@ -8860,6 +8860,7 @@ export class OpenClawService {
       resourceKind: "wechat_collection",
     });
   }
+
   async readWechatSearchItemContent(
     headers: HeadersMap,
     options?: {
@@ -8920,7 +8921,6 @@ export class OpenClawService {
       resourceKind: "wechat_collection",
     });
   }
-
 
   async deleteXhsCollectedNote(
     headers: HeadersMap,
@@ -9008,6 +9008,7 @@ export class OpenClawService {
       resourceKind: "douyin_collection",
     });
   }
+
   async getDailyHotspotWorkspace(
     headers: HeadersMap,
     options?: {
@@ -9054,7 +9055,6 @@ export class OpenClawService {
       resourceKind: "daily_hotspot",
     });
   }
-
 
   async deleteWechatCollectedArticle(
     headers: HeadersMap,
@@ -10639,7 +10639,7 @@ export class OpenClawService {
     const auth = await this.requireAuth(headers);
     const brandId = await this.requireCurrentBrandId(auth);
     await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "view", auth);
-    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope || "paid_acquisition");
+    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope || "creator_cooperation");
     const workspaceLabel = getOpenClawWorkspaceDisplayName(workspaceScope);
     const workspacePath = getOpenClawWorkspaceDashboardPath(workspaceScope);
     const workspace = await this.openClawCreatorCooperationService.listMatchingWorkspace(brandId, workspaceScope, options?.limit);
@@ -10676,7 +10676,7 @@ export class OpenClawService {
     const auth = await this.requireAuth(headers);
     const brandId = await this.requireCurrentBrandId(auth);
     await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "edit", auth);
-    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope || "paid_acquisition");
+    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope || "creator_cooperation");
     const workspaceLabel = getOpenClawWorkspaceDisplayName(workspaceScope);
     const workspacePath = getOpenClawWorkspaceDashboardPath(workspaceScope);
     const items = await this.openClawCreatorCooperationService.createMatchingRecords({
@@ -10707,7 +10707,7 @@ export class OpenClawService {
     const auth = await this.requireAuth(headers);
     const brandId = await this.requireCurrentBrandId(auth);
     await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "edit", auth);
-    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope || "paid_acquisition");
+    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope || "creator_cooperation");
     const workspaceLabel = getOpenClawWorkspaceDisplayName(workspaceScope);
     const workspacePath = getOpenClawWorkspaceDashboardPath(workspaceScope);
     const deletedCount = await this.openClawCreatorCooperationService.deleteMatchingRecords(
@@ -10739,7 +10739,7 @@ export class OpenClawService {
     const auth = await this.requireAuth(headers);
     const brandId = await this.requireCurrentBrandId(auth);
     await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "edit", auth);
-    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope || "paid_acquisition");
+    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope || "creator_cooperation");
     const workspaceLabel = getOpenClawWorkspaceDisplayName(workspaceScope);
     const workspacePath = getOpenClawWorkspaceDashboardPath(workspaceScope);
     const items = await this.openClawCreatorCooperationService.moveMatchesToTracking({
@@ -10770,7 +10770,7 @@ export class OpenClawService {
     const auth = await this.requireAuth(headers);
     const brandId = await this.requireCurrentBrandId(auth);
     await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "view", auth);
-    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope || "paid_acquisition");
+    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope || "creator_cooperation");
     const workspaceLabel = getOpenClawWorkspaceDisplayName(workspaceScope);
     const workspacePath = getOpenClawWorkspaceDashboardPath(workspaceScope);
     const workspace = await this.openClawCreatorCooperationService.listTrackingWorkspace(brandId, workspaceScope, options?.limit);
@@ -10806,7 +10806,7 @@ export class OpenClawService {
     const auth = await this.requireAuth(headers);
     const brandId = await this.requireCurrentBrandId(auth);
     await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "edit", auth);
-    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope || "paid_acquisition");
+    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope || "creator_cooperation");
     const workspaceLabel = getOpenClawWorkspaceDisplayName(workspaceScope);
     const workspacePath = getOpenClawWorkspaceDashboardPath(workspaceScope);
     const items = await this.openClawCreatorCooperationService.createTrackingRecords({
@@ -10837,7 +10837,7 @@ export class OpenClawService {
     const auth = await this.requireAuth(headers);
     const brandId = await this.requireCurrentBrandId(auth);
     await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "edit", auth);
-    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope || "paid_acquisition");
+    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope || "creator_cooperation");
     const workspaceLabel = getOpenClawWorkspaceDisplayName(workspaceScope);
     const workspacePath = getOpenClawWorkspaceDashboardPath(workspaceScope);
     const trackingId = String(options?.trackingId || "").trim();
@@ -10868,7 +10868,7 @@ export class OpenClawService {
     const auth = await this.requireAuth(headers);
     const brandId = await this.requireCurrentBrandId(auth);
     await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "view", auth);
-    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope || "paid_acquisition");
+    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope || "creator_cooperation");
     const workspaceLabel = getOpenClawWorkspaceDisplayName(workspaceScope);
     const workspacePath = getOpenClawWorkspaceDashboardPath(workspaceScope);
     const trackingId = String(options?.trackingId || "").trim();
@@ -10915,7 +10915,7 @@ export class OpenClawService {
     const auth = await this.requireAuth(headers);
     const brandId = await this.requireCurrentBrandId(auth);
     await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "edit", auth);
-    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope || "paid_acquisition");
+    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope || "creator_cooperation");
     const workspaceLabel = getOpenClawWorkspaceDisplayName(workspaceScope);
     const workspacePath = getOpenClawWorkspaceDashboardPath(workspaceScope);
     const item = await this.openClawCreatorCooperationService.createTrackingWork({
@@ -10960,7 +10960,7 @@ export class OpenClawService {
     const auth = await this.requireAuth(headers);
     const brandId = await this.requireCurrentBrandId(auth);
     await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "edit", auth);
-    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope || "paid_acquisition");
+    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope || "creator_cooperation");
     const workspaceLabel = getOpenClawWorkspaceDisplayName(workspaceScope);
     const workspacePath = getOpenClawWorkspaceDashboardPath(workspaceScope);
     const item = await this.openClawCreatorCooperationService.updateTrackingWork({
@@ -11001,7 +11001,7 @@ export class OpenClawService {
     const auth = await this.requireAuth(headers);
     const brandId = await this.requireCurrentBrandId(auth);
     await this.authService.assertBrandPermission(brandId, "brandGrowth.report.topicLibrary", "edit", auth);
-    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope || "paid_acquisition");
+    const workspaceScope = normalizeOpenClawWorkspaceScope(options?.workspaceScope || "creator_cooperation");
     const workspaceLabel = getOpenClawWorkspaceDisplayName(workspaceScope);
     const workspacePath = getOpenClawWorkspaceDashboardPath(workspaceScope);
     const item = await this.openClawCreatorCooperationService.deleteTrackingWork(
@@ -12081,7 +12081,7 @@ export class OpenClawService {
     if (!normalizedMaterialId) {
       return undefined;
     }
-    const scopes: OpenClawWorkspaceScope[] = ["wechat", "brand_growth", "douyin", "xiaohongshu", "geo", "all_network_growth", "paid_acquisition"];
+    const scopes: OpenClawWorkspaceScope[] = ["wechat", "brand_growth", "douyin", "xiaohongshu", "geo", "all_network_growth", "paid_acquisition", "creator_cooperation"];
     for (const scope of scopes) {
       const matched = await this.openClawCreativeMaterialService.getMaterialById(brandId, scope, normalizedMaterialId);
       if (matched) {
@@ -14976,8 +14976,8 @@ export class OpenClawService {
       competitorAccounts: workspace.competitorAccounts.length,
       brandNotes: workspace.brandNotes.length,
       benchmarkNotes: workspace.benchmarkNotes.length,
-      commentData: workspace.commentData.length,
       searchNotes: workspace.searchNotes.length,
+      commentData: workspace.commentData.length,
       targetUsers: workspace.targetUsers.length,
     };
   }
@@ -15287,6 +15287,7 @@ export class OpenClawService {
       case "sync_xiaohongshu_search_notes":
         return this.syncXiaohongshuSearchNotes(headers, {
           keyword: typeof toolArgs.keyword === "string" ? toolArgs.keyword : undefined,
+        });
       case "sync_xiaohongshu_comment_data":
         return this.syncXiaohongshuCommentData(headers, {
           sourceUrls: Array.isArray(toolArgs.sourceUrls)
@@ -15310,7 +15311,6 @@ export class OpenClawService {
           commentId: typeof toolArgs.commentId === "string" ? toolArgs.commentId : undefined,
           cursor: typeof toolArgs.cursor === "string" ? toolArgs.cursor : undefined,
           index: typeof toolArgs.index === "number" ? toolArgs.index : undefined,
-        });
         });
       case "sync_xiaohongshu_target_users":
         return this.syncXiaohongshuTargetUsers(headers, {
@@ -15363,6 +15363,7 @@ export class OpenClawService {
                 accountRole: typeof item.accountRole === "string" ? item.accountRole : undefined,
               }))
             : undefined,
+        });
       case "sync_douyin_brand_works":
         return this.syncDouyinBrandWorks(headers, {
           accountLocators: Array.isArray(toolArgs.accountLocators)
@@ -15394,7 +15395,6 @@ export class OpenClawService {
                 accountRole: typeof item.accountRole === "string" ? item.accountRole : undefined,
               }))
             : undefined,
-        });
         });
       case "sync_douyin_benchmark_works":
         return this.syncDouyinBenchmarkWorks(headers, {
@@ -15463,12 +15463,12 @@ export class OpenClawService {
           identityType: typeof toolArgs.identityType === "string" ? toolArgs.identityType : undefined,
           linkType: typeof toolArgs.linkType === "number" ? toolArgs.linkType : undefined,
           homepageVideoPageLimit: typeof toolArgs.homepageVideoPageLimit === "number" ? toolArgs.homepageVideoPageLimit : undefined,
+        });
       case "add_douyin_creators_to_result_pool":
         return this.addDouyinCreatorsToResultPool(headers, {
           searchResultIds: Array.isArray(toolArgs.searchResultIds)
             ? toolArgs.searchResultIds.map((item) => String(item || ""))
             : undefined,
-        });
         });
       case "sync_douyin_keyword_recommendations":
         return this.syncDouyinKeywordRecommendations(headers, {
@@ -15492,6 +15492,7 @@ export class OpenClawService {
       case "sync_douyin_city_hotspots":
         return this.syncDouyinCityHotspots(headers, {
           cityCode: typeof toolArgs.cityCode === "number" ? toolArgs.cityCode : undefined,
+        });
       case "delete_douyin_brand_account":
         return this.deleteDouyinBrandAccount(headers, {
           accountId: typeof toolArgs.accountId === "string" ? toolArgs.accountId : undefined,
@@ -15513,7 +15514,6 @@ export class OpenClawService {
           platformTitles: Array.isArray(toolArgs.platformTitles)
             ? toolArgs.platformTitles.map((item) => String(item || ""))
             : undefined,
-        });
         });
       case "get_opportunity_insight_workspace":
         return this.getOpportunityInsightWorkspace(headers);
@@ -16404,8 +16404,8 @@ export class OpenClawService {
         });
       case "add_wechat_article_to_material_library":
         return this.addWechatArticleToMaterialLibrary(headers, {
-          kind: typeof toolArgs.kind === "string" ? toolArgs.kind : undefined,
           assetId: typeof toolArgs.assetId === "string" ? toolArgs.assetId : undefined,
+          kind: typeof toolArgs.kind === "string" ? toolArgs.kind : undefined,
         });
       case "remove_xiaohongshu_note_from_material_library":
         return this.removeXiaohongshuNoteFromMaterialLibrary(headers, {
@@ -16422,32 +16422,33 @@ export class OpenClawService {
       case "sync_wechat_brand_accounts":
         return this.syncWechatBrandAccounts(headers, {
           ghUsername: typeof toolArgs.ghUsername === "string" ? toolArgs.ghUsername : undefined,
+        });
       case "delete_wechat_brand_account":
         return this.deleteWechatBrandAccount(headers, {
           accountId: typeof toolArgs.accountId === "string" ? toolArgs.accountId : undefined,
-        });
         });
       case "fetch_wechat_brand_articles":
         return this.fetchWechatBrandArticles(headers, {
           ghUsername: typeof toolArgs.ghUsername === "string" ? toolArgs.ghUsername : undefined,
           offset: typeof toolArgs.offset === "string" ? toolArgs.offset : undefined,
+        });
       case "read_wechat_article_content":
         return this.readWechatArticleContent(headers, {
           articleUrl: typeof toolArgs.articleUrl === "string" ? toolArgs.articleUrl : undefined,
-        });
         });
       case "sync_wechat_benchmark_articles":
         return this.syncWechatBenchmarkArticles(headers, {
           articleUrls: Array.isArray(toolArgs.articleUrls)
             ? toolArgs.articleUrls.map((item) => String(item || ""))
             : undefined,
+        });
       case "update_wechat_benchmark_article_stats":
         return this.updateWechatBenchmarkArticleStats(headers, {
           articleUrl: typeof toolArgs.articleUrl === "string" ? toolArgs.articleUrl : undefined,
         });
-        });
       case "sync_wechat_search_articles":
         return this.syncWechatSearchArticles(headers, {
+          searchKeyword: typeof toolArgs.searchKeyword === "string" ? toolArgs.searchKeyword : undefined,
           searchBusinessType: typeof toolArgs.searchBusinessType === "string" ? toolArgs.searchBusinessType : undefined,
           searchSort: typeof toolArgs.searchSort === "string" ? toolArgs.searchSort : undefined,
           searchPublishTime: typeof toolArgs.searchPublishTime === "string" ? toolArgs.searchPublishTime : undefined,
@@ -16460,7 +16461,6 @@ export class OpenClawService {
       case "update_wechat_search_item_stats":
         return this.updateWechatSearchItemStats(headers, {
           articleUrl: typeof toolArgs.articleUrl === "string" ? toolArgs.articleUrl : undefined,
-          searchKeyword: typeof toolArgs.searchKeyword === "string" ? toolArgs.searchKeyword : undefined,
         });
       case "update_wechat_article_stats":
         return this.updateWechatArticleStats(headers, {

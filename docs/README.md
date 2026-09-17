@@ -58,6 +58,8 @@
 - 作用：记录重要改动的背景、范围、验证和后续事项
 - 要求：真实代码改动默认同步补一条变更记录
 - 最新补充：
+  - `docs/changes/2026-09-17-standard-runtime-install-guide-and-openclaw-install-sync.md`
+    - 收口标准运行态安装/更新命令、修复 fresh clone 后 `openclaw.service.ts` 语法断裂导致的 Docker 构建失败，并同步把 OpenClaw 安装中心 / MCP / Skill 与独立 `达人合作` 工作台口径对齐
   - `docs/changes/2026-09-15-openclaw-brand-growth-collection-tooling-completion.md`
     - 把 `品牌增长策略 -> 收集数据` 里站内已落地的主要采集动作同步开放给 OpenClaw，补齐小红书评论链路、抖音品牌/竞品作品与达人结果池、公众号正文/统计、每日热点，并同步更新 MCP / Skill 口径
   - `docs/changes/2026-09-09-douyin-creator-collection-workbench-phase-1.md`
@@ -204,7 +206,7 @@
 - `docs/changes/2026-09-04-paid-acquisition-tencent-ad-lead-workspace.md`
   - 新增顶栏 `投流获客` 一级入口与左侧 `腾讯投流获客` 板块，列表固定展示标题 / 内容 / 创建时间 / 留言，并支持查看详情留言、删除，以及同步补齐 OpenClaw MCP / Skill / Prisma 真源
 - `docs/changes/2026-09-10-paid-acquisition-creator-cooperation-workspace.md`
-  - 在 `投流获客` 下新增 `达人合作` 板块，并拆成 `达人匹配 / 达人跟踪`；OpenClaw 可从达人结果池写入匹配达人、加入跟踪、维护合作作品与 X 天自动更新，同时同步补齐 MCP / Skill / Prisma 真源
+  - 新增与 `投流获客` 同级的独立一级板块 `达人合作`，并拆成 `达人匹配 / 达人跟踪`；OpenClaw 可从达人结果池写入匹配达人、加入跟踪、维护合作作品与 X 天自动更新，同时同步补齐 MCP / Skill / Prisma 真源
 - `docs/changes/2026-09-04-content-acquisition-marketing-calendar-platform-views.md`
   - 给内容获客某书 / 某音/某号 / 公众号补独立 `营销日历` 入口，三端复用品牌增长报告下的同一份营销日历真源，并按平台过滤展示与编辑字段
 - `docs/changes/2026-09-04-standard-db-init-openclaw-runtime-table-schema-alignment.md`

@@ -1,8 +1,8 @@
-# 2026-09-10 投流获客达人合作工作区
+# 2026-09-10 达人合作独立工作区
 
 ## 背景
 
-`投流获客` 原先只承接 `腾讯投流获客` 单块内容型列表，缺少一套按达人合作链路持续沉淀候选达人、合作档案和作品跟踪数据的真源工作区。当前需要把品牌增长里已经沉淀的抖音达人结果池继续往下游衔接，让 OpenClaw 可以直接筛达人、入合作清单、跟踪合作作品，并按设定周期自动更新作品数据。
+系统原先只存在 `投流获客 /paid-acquisition`，缺少一块与其同级独立的 `达人合作` 一级板块，用来按达人合作链路持续沉淀候选达人、合作档案和作品跟踪数据。当前需要把品牌增长里已经沉淀的抖音达人结果池继续往下游衔接，让 OpenClaw 可以直接筛达人、入合作清单、跟踪合作作品，并按设定周期自动更新作品数据。
 
 ## 本次收口
 
@@ -10,9 +10,9 @@
 
 - `投流获客 /paid-acquisition`
   - 保留 `腾讯投流获客`
-  - 新增 `达人合作`
-    - `达人匹配`
-    - `达人跟踪`
+- `达人合作 /creator-cooperation`
+  - `达人匹配`
+  - `达人跟踪`
 
 ### 2. 真源与接口
 
@@ -64,7 +64,7 @@
 - 不改抖音达人结果池原有采集协议，只复用其结果快照做下游合作链路
 - 不改数据库已有业务表语义；达人合作使用独立真源表，避免把合作状态混写进采集结果池
 - 自动刷新只读取合作作品记录，不会改动原有品牌增长抖音采集列表
-- 所有达人合作真源统一收口到 `paid_acquisition` workspace scope，避免混入 `brand_growth` 或 `all_network_growth`
+- 所有达人合作真源统一收口到 `creator_cooperation` workspace scope，避免混入 `paid_acquisition`、`brand_growth` 或 `all_network_growth`
 
 ## 验证
 
@@ -79,7 +79,9 @@
 - `apps/server/src/modules/openclaw/openclaw.module.ts`
 - `apps/server/src/modules/collectors/collectors.service.ts`
 - `apps/web/src/app/(dashboard)/paid-acquisition/workspace-shell.tsx`
-- `apps/web/src/app/(dashboard)/paid-acquisition/openclaw-creator-cooperation-workspace.tsx`
+- `apps/web/src/app/(dashboard)/creator-cooperation/workspace-shell.tsx`
+- `apps/web/src/app/(dashboard)/creator-cooperation/page.tsx`
+- `apps/web/src/app/(dashboard)/creator-cooperation/openclaw-creator-cooperation-workspace.tsx`
 - `apps/web/src/services/openclaw.ts`
 - `prisma/schema.prisma`
 - `prisma/schema.local.prisma`

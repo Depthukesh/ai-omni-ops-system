@@ -82,6 +82,8 @@ docker version
 - 如果当前网络依赖代理，Git 与 Docker Desktop 都要分别配置代理
 - 首次启动至少需要可用的 `13001`、`13011`、`15432` 端口
 - 首次拉镜像与构建容器时，需要预留足够磁盘空间
+- 首次安装请直接执行带 `db-init server web` 的 compose 命令，不要再沿用旧的 `postgres server web` 口径
+- 如果 `docker pull postgres:16-bookworm` 或 `docker pull node:22-bookworm-slim` 失败，先检查 Docker Desktop 到 Docker Hub 的网络、代理或 IPv6/DNS
 
 ### 2. local-single-user 单机安装态
 
@@ -116,10 +118,11 @@ git clone https://github.com/Depthukesh/ai-omni-ops-system.git
 cd "D:\aiproject\ai-omni-ops-system"
 ```
 
-如果你要切到指定分支，例如当前线上交付分支，可以执行：
+如果你要复现当前交付分支，而不是仓库默认分支，建议先查看远端分支并切到目标交付分支：
 
 ```powershell
-git pull origin push_version_update_3384a55
+git branch -r
+git switch --track origin/<交付分支>
 ```
 
 3. 准备环境变量
@@ -131,7 +134,7 @@ Copy-Item .env.docker.example .env
 4. 启动主站
 
 ```powershell
-docker compose -f docker/docker-compose.local-postgres.yml up -d --build postgres server web
+docker compose -f docker/docker-compose.local-postgres.yml up -d --build --force-recreate db-init server web
 ```
 
 首次启动会自动执行一次 `db-init`：
@@ -163,8 +166,9 @@ http://127.0.0.1:13001
 7. 更新步骤与命令
 
 ```powershell
-git pull origin push_version_update_3384a55
-docker compose -f docker/docker-compose.local-postgres.yml up -d --build server web
+git fetch --all --prune
+git pull --ff-only
+docker compose -f docker/docker-compose.local-postgres.yml up -d --build --force-recreate server web
 ```
 
 如果这次更新涉及 schema 初始化链，额外补一次：

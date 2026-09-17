@@ -110,7 +110,8 @@ export type OpenClawWorkspaceScope =
   | "wechat"
   | "geo"
   | "all_network_growth"
-  | "paid_acquisition";
+  | "paid_acquisition"
+  | "creator_cooperation";
 export type OpenClawCommentResourceType =
   | "creative_material"
   | "daily_plan"
@@ -130,6 +131,7 @@ export const PERSONAL_CENTER_OPENCLAW_WORKSPACE_SCOPES = [
   "geo",
   "all_network_growth",
   "paid_acquisition",
+  "creator_cooperation",
 ] as const;
 
 export type OpenClawCommentRecord = {

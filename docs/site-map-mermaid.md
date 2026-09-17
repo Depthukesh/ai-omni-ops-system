@@ -25,6 +25,7 @@ flowchart TD
     B --> B7["GEO获客 /geo"]
     B --> B8["全网获客 /all-network-growth"]
     B --> B9["投流获客 /paid-acquisition"]
+    B --> B9A["达人合作 /creator-cooperation"]
     B --> B10["设计工作台 /more-features/design"]
     B --> B11["个人中心 /personal-center"]
     B --> B12["后台 /admin"]
@@ -102,6 +103,8 @@ flowchart LR
     Dash --> Wechat["/wechat"]
     Dash --> Geo["/geo"]
     Dash --> AllNetworkGrowth["/all-network-growth"]
+    Dash --> PaidAcquisition["/paid-acquisition"]
+    Dash --> CreatorCooperation["/creator-cooperation"]
     Dash --> Design["/more-features/design"]
     Dash --> Personal["/personal-center"]
     Personal --> PersonalVersion["/personal-center/version"]
@@ -133,7 +136,7 @@ flowchart TD
     H1 --> H15["验活失败自动回滚安装前 backup"]
     H1 --> H16["apply-run 从目标发布包提取最新 updater；updater 安装前预清理并在成功后复清历史 downloads/* / extract-* / 旧 apply-runs/* / AiOmniOps-backup-* / 历史 %LOCALAPPDATA%\\AiOmniOps 痕迹"]
     H1 --> H17["安装 / 升级 / 自启 / 修复脚本统一读取 runtime metadata 的 browserUrl / previewUrl 做入口与验活"]
-    H1 --> H18["standard 运行态默认展示仓库版本记录 + 安装前软件依赖 + 自动识别部署分支的通用 Docker 更新命令；配置 STANDARD_RUNTIME_UPDATE_MANIFEST_URL 后再叠加远端更新清单与新版本提醒"]
+    H1 --> H18["standard 运行态默认展示仓库版本记录 + 安装前软件依赖 + `db-init server web` 首装命令 + 自动识别部署分支的 Docker 更新命令与 Skill/MCP 同步提醒；配置 STANDARD_RUNTIME_UPDATE_MANIFEST_URL 后再叠加远端更新清单与新版本提醒"]
     H --> H3["重复双击 start-local-single-user.cmd"]
     H3 --> H31["已健康运行时直接复用现有实例"]
     H3 --> H32["首次启动未完成时等待当前启动锁释放"]
@@ -204,19 +207,23 @@ flowchart TD
     F --> F3["评论获客由 OpenClaw 从品牌增长评论用户结果生成；平台获客由 OpenClaw 直接写入"]
     F --> F4["两块列表都按每页 20 条分页，并支持单条删除"]
 
-    I --> I1["投流获客：腾讯投流获客 + 达人合作"]
-    I --> I2["腾讯投流获客：字段固定为 标题 / 内容 / 创建时间 / 留言"]
-    I --> I3["达人合作：左侧再拆 达人匹配 / 达人跟踪"]
-    I --> I4["达人匹配：沿用达人结果池快照，并补 推荐理由 / 是否加入合作清单"]
-    I --> I5["达人跟踪：按达人建档，补 合作作品数量"]
-    I --> I6["作品详情：标题 / 链接 / 播放 / 点赞 / 收藏 / 评论 / 转发 / 结果评估 / 再次选择 / X天更新"]
-    I --> I7["OpenClaw 真源：OpenClawTencentAdLead + OpenClawCreatorCooperationMatch + OpenClawCreatorCooperationTracking + OpenClawCreatorCooperationWork"]
-    I --> I8["合作作品按每日调度扫描到期记录，再按 X 天周期自动刷新抖音作品数据"]
+    I --> I1["投流获客：腾讯投流获客列表"]
+    I --> I2["字段固定为 标题 / 内容 / 创建时间 / 留言"]
+    I --> I3["支持查看详情、详情留言、删除单条记录"]
+    I --> I4["由 OpenClaw 直接写入 OpenClawTencentAdLead，固定 workspaceScope=paid_acquisition"]
+
+    J --> J1["达人合作：达人匹配 + 达人跟踪"]
+    J --> J2["达人匹配：沿用达人结果池快照，并补 推荐理由 / 是否加入合作清单"]
+    J --> J3["达人跟踪：按达人建档，补 合作作品数量"]
+    J --> J4["作品详情：标题 / 链接 / 播放 / 点赞 / 收藏 / 评论 / 转发 / 结果评估 / 再次选择 / X天更新"]
+    J --> J5["OpenClaw 真源：OpenClawCreatorCooperationMatch + OpenClawCreatorCooperationTracking + OpenClawCreatorCooperationWork"]
+    J --> J6["合作作品按每日调度扫描到期记录，再按 X 天周期自动刷新抖音作品数据"]
 
     B --> G
     C --> G
     D --> G
     B --> I
+    B --> J
     G --> G1["当前仅承接 OpenClaw 自由生图结果回看"]
     G --> G2["用户侧不再暴露手动创建入口、运营提示词中心、生图提示词中心"]
     G --> G3["OpenClaw create_design_work 图片模块默认自由生图，不自动套社媒模板或品牌资料"]
