@@ -84,7 +84,12 @@ Use "node .next/standalone/server.js" instead.
 HOSTNAME=0.0.0.0 PORT=3001 node .next/standalone/apps/web/server.js
 ```
 
-这样标准运行态在新机器上不会再因为 `next start` 与 standalone 模式不匹配而反复重启。
+并且显式把：
+
+- `apps/web/.next/static`
+- `apps/web/public`
+
+复制到 standalone app 目录中，避免 standalone server 已启动但浏览器访问 `/_next/static/...` 和 `/public` 资源时继续返回 `404`，导致页面只有裸 HTML、登录按钮不完成 hydration。
 
 ### 2.2 修复 OpenClaw 主服务与 MCP 脚本中的已提交语法断裂
 
