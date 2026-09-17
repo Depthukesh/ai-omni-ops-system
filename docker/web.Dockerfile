@@ -17,4 +17,4 @@ RUN npm run build:web
 
 EXPOSE 3001
 
-CMD ["sh", "-lc", "cd /app/apps/web && node node_modules/next/dist/bin/next start --hostname 0.0.0.0 -p 3001"]
+CMD ["sh", "-lc", "cd /app/apps/web && HOSTNAME=0.0.0.0 PORT=3001 node .next/standalone/apps/web/server.js"]

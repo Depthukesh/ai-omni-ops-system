@@ -53,6 +53,39 @@ docker compose -f docker/docker-compose.local-postgres.yml run --rm db-init
   - 如果要复现当前交付分支，不要只 clone 默认分支，要先切到对应远端分支
   - 如果 `server` 构建失败，应优先抓完整 TypeScript 日志，而不是只看 compose 最后一行
 
+### 2.1.1 修正 web 容器的 Next.js standalone 启动方式
+
+更新：
+
+- `docker/web.Dockerfile`
+
+问题现象：
+
+- `db-init` 已成功
+- `server` 已正常启动
+- `web` 容器仍可能反复 `Restarting (1)`
+
+根因：
+
+- `apps/web/next.config.ts` 已启用 `output: "standalone"`
+- 但 Docker 里仍在执行 `next start`
+- Next.js 15 会明确提示：
+
+```text
+"next start" does not work with "output: standalone" configuration.
+Use "node .next/standalone/server.js" instead.
+```
+
+修正后：
+
+- `web` 容器改为直接执行 standalone 产物：
+
+```bash
+HOSTNAME=0.0.0.0 PORT=3001 node .next/standalone/apps/web/server.js
+```
+
+这样标准运行态在新机器上不会再因为 `next start` 与 standalone 模式不匹配而反复重启。
+
 ### 2.2 修复 OpenClaw 主服务与 MCP 脚本中的已提交语法断裂
 
 更新：
