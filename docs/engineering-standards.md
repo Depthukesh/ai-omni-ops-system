@@ -173,6 +173,7 @@
 - 如果标准 Docker 运行态需要把素材库或站内存储根目录挂到宿主机，必须统一通过配置模块读取容器路径与展示路径；不能在业务链路里硬编码 `/data/...` 或 Windows 盘符
 - 标准 Docker 运行态的首装链不能只把 `postgres / server / web` 拉起来就算完成；必须在 compose 主链中受控完成 schema 初始化、邀请码同步和最小演示账号/品牌补齐，优先收口为 one-shot `db-init` 服务，而不是再要求用户手动进容器执行 `pnpm db:init`
 - 标准 Docker 运行态的容器不能继续依赖 `corepack` 在构建期或运行期临时解析 `pnpm`；像 `web`、`db-init`、`server` 这类容器需要的包管理器必须在镜像构建阶段通过确定性方式准备好，运行时尽量直接执行应用或 `npm run ...`，避免用户机器网络、代理或 npm registry 抖动导致容器“镜像已构建但启动即退出”
+- 标准 Docker 首装链默认不能再被本地 ASR 这类重型 Python 依赖阻塞；若视频文案提取依赖的 `torch / torchaudio / funasr / faster-whisper` 在部分机器上因 PyPI / TLS / 代理问题安装缓慢或失败，主系统必须仍可先完成 `db-init + server + web` 安装，再通过显式开关单独补装 ASR 运行时
 - 标准 Docker 运行态的默认演示数据只能“补缺即止”，不能在每次 `server` 重启时重复执行会清空或重置品牌资料的破坏性 seed
 - 标准 Docker 运行态下，只要某张运行时自举表会长期承接真实业务或缓存数据，并且 `db-init` 仍会执行 `prisma db push`，这张表就不能长期停留在 `prisma/schema.prisma` 之外；否则 Prisma 会在更新时把它误判为待删除表并中断初始化链。若短期确实不能入 schema，就必须同步把 `db-init` 路径改成不会碰这张表的受控方案
 

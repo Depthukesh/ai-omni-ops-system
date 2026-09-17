@@ -58,6 +58,7 @@ docker/docker-compose.local-postgres.yml
 - 素材与受控存储可统一挂到宿主机目录
 - 个人中心 `版本与升级` 支持“更新通知 + 操作引导”
 - 配置 `STANDARD_RUNTIME_UPDATE_MANIFEST_URL` 后，可在页面看到更新说明、容器重建命令和 Skill 重导提醒
+- 标准 Docker 首装默认不再预装本地 ASR Python 重依赖；主系统优先保证可安装，视频文案提取需要时再单独启用 ASR 运行时
 
 安装这套标准运行态前，电脑至少需要：
 
@@ -84,6 +85,7 @@ docker version
 - 首次拉镜像与构建容器时，需要预留足够磁盘空间
 - 首次安装请直接执行带 `db-init server web` 的 compose 命令，不要再沿用旧的 `postgres server web` 口径
 - 如果 `docker pull postgres:16-bookworm` 或 `docker pull node:22-bookworm-slim` 失败，先检查 Docker Desktop 到 Docker Hub 的网络、代理或 IPv6/DNS
+- 如果只是先把系统装起来，不需要额外处理本地 ASR；若后续要用抖音视频文案提取，再把 `.env` 里的 `INSTALL_LOCAL_ASR=1` 后重建 `server/db-init`
 
 ### 2. local-single-user 单机安装态
 
@@ -148,6 +150,13 @@ docker compose -f docker/docker-compose.local-postgres.yml up -d --build --force
 
 ```powershell
 docker compose -f docker/docker-compose.local-postgres.yml run --rm db-init
+```
+
+如果后续需要启用本地视频文案提取，再额外执行：
+
+```powershell
+(Get-Content .env) -replace '^INSTALL_LOCAL_ASR=.*$', 'INSTALL_LOCAL_ASR=1' | Set-Content .env
+docker compose -f docker/docker-compose.local-postgres.yml up -d --build --force-recreate db-init server
 ```
 
 5. 打开：

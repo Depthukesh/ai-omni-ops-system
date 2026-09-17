@@ -129,16 +129,27 @@ export class LocalAsrService {
       args.push("--device", this.appConfigService.getWhisperDevice());
       args.push("--compute-type", this.appConfigService.getWhisperComputeType());
     }
-    const result = await execFileAsync(pythonBin, args, {
-      encoding: "utf8",
-      windowsHide: true,
-      maxBuffer: 16 * 1024 * 1024,
-      timeout: 10 * 60 * 1000,
-      env: {
-        ...process.env,
-        HF_HUB_DISABLE_XET: process.env.HF_HUB_DISABLE_XET || "1",
-      },
-    });
+    let result: Awaited<ReturnType<typeof execFileAsync>>;
+    try {
+      result = await execFileAsync(pythonBin, args, {
+        encoding: "utf8",
+        windowsHide: true,
+        maxBuffer: 16 * 1024 * 1024,
+        timeout: 10 * 60 * 1000,
+        env: {
+          ...process.env,
+          HF_HUB_DISABLE_XET: process.env.HF_HUB_DISABLE_XET || "1",
+        },
+      });
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error || "unknown error");
+      if (detail.includes("ENOENT")) {
+        throw new ServiceUnavailableException(
+          "当前环境未安装本地 ASR Python 运行时。标准 Docker 首装默认不会预装该重依赖；如需视频文案提取，请将 INSTALL_LOCAL_ASR=1 后重建 server / db-init。",
+        );
+      }
+      throw error;
+    }
     const rawOutput = String(result.stdout || "").trim();
     if (!rawOutput) {
       const stderr = String(result.stderr || "").trim();

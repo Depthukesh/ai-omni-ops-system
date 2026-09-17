@@ -4,6 +4,8 @@ x-server-image: &server-image
   build:
     context: ..
     dockerfile: docker/server.Dockerfile
+    args:
+      INSTALL_LOCAL_ASR: ${INSTALL_LOCAL_ASR:-0}
   image: ai-omni-ops-local-server
 
 services:

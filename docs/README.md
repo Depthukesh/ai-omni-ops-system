@@ -58,6 +58,8 @@
 - 作用：记录重要改动的背景、范围、验证和后续事项
 - 要求：真实代码改动默认同步补一条变更记录
 - 最新补充：
+  - `docs/changes/2026-09-17-standard-docker-optional-local-asr-install.md`
+    - 把标准 Docker 首装改成默认不预装本地 ASR Python 重依赖，避免新机器因 `pip / torch / TLS` 下载问题把 `db-init + server + web` 整体卡死；需要视频文案提取时再通过 `INSTALL_LOCAL_ASR=1` 单独启用
   - `docs/changes/2026-09-17-standard-runtime-install-guide-and-openclaw-install-sync.md`
     - 收口标准运行态安装/更新命令、修复 fresh clone 后 `openclaw.service.ts` 语法断裂导致的 Docker 构建失败，并同步把 OpenClaw 安装中心 / MCP / Skill 与独立 `达人合作` 工作台口径对齐
   - `docs/changes/2026-09-15-openclaw-brand-growth-collection-tooling-completion.md`

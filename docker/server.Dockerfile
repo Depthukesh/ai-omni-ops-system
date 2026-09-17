@@ -2,6 +2,8 @@ FROM node:22-bookworm-slim
 
 WORKDIR /app
 
+ARG INSTALL_LOCAL_ASR=0
+
 ENV PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple \
     PIP_EXTRA_INDEX_URL=https://pypi.org/simple \
     PIP_DEFAULT_TIMEOUT=180 \
@@ -10,17 +12,25 @@ ENV PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple \
     HF_ENDPOINT=https://hf-mirror.com \
     HF_HUB_DISABLE_XET=1
 
-RUN apt-get update \
-  && apt-get install -y --no-install-recommends python3 python3-pip \
-  && rm -rf /var/lib/apt/lists/*
+RUN if [ "$INSTALL_LOCAL_ASR" = "1" ]; then \
+      apt-get update \
+      && apt-get install -y --no-install-recommends python3 python3-pip \
+      && rm -rf /var/lib/apt/lists/*; \
+    else \
+      echo "Skip local ASR runtime install during standard Docker build"; \
+    fi
 
 COPY docker/local-asr-requirements.txt docker/local-asr-requirements.txt
 
 # Keep heavyweight ASR Python dependencies in a stable layer so ordinary
 # source-code changes do not force torch/torchaudio to download again.
-RUN python3 -m pip install --no-cache-dir --break-system-packages --upgrade pip setuptools wheel \
-  && python3 -m pip install --no-cache-dir --break-system-packages --index-url https://download.pytorch.org/whl/cpu torch torchaudio \
-  && python3 -m pip install --no-cache-dir --prefer-binary --break-system-packages -r docker/local-asr-requirements.txt
+RUN if [ "$INSTALL_LOCAL_ASR" = "1" ]; then \
+      python3 -m pip install --no-cache-dir --break-system-packages --upgrade pip setuptools wheel \
+      && python3 -m pip install --no-cache-dir --break-system-packages --index-url https://download.pytorch.org/whl/cpu torch torchaudio \
+      && python3 -m pip install --no-cache-dir --prefer-binary --break-system-packages -r docker/local-asr-requirements.txt; \
+    else \
+      echo "Local ASR runtime is optional. Rebuild with INSTALL_LOCAL_ASR=1 when transcript extraction is needed."; \
+    fi
 
 COPY package.json package-lock.json ./
 COPY apps/server/package.json apps/server/package.json

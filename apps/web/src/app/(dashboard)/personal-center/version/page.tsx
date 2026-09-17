@@ -47,6 +47,7 @@ const STANDARD_RUNTIME_DEPENDENCY_NOTICES = [
   "首次安装请直接执行包含 `db-init server web` 的 compose 命令，不要再沿用旧的 `postgres server web` 口径。",
   "如果 `docker pull postgres:16-bookworm` 或 `docker pull node:22-bookworm-slim` 都失败，先检查 Docker Desktop 到 Docker Hub 的网络、代理或 IPv6/DNS，再继续安装。",
   "如果 `docker compose up` 首次执行被中断，补跑一次 `db-init` 就能把建表、邀请码与演示账号补齐。",
+  "标准 Docker 首装默认不会预装本地 ASR Python 重依赖；如果只是先装主系统，不需要额外处理。后续要启用视频文案提取时，再把 `.env` 里的 `INSTALL_LOCAL_ASR=1` 后重建 `db-init/server`。",
 ] as const;
 
 const STANDARD_RUNTIME_INSTALL_COMMANDS = [
@@ -56,6 +57,7 @@ const STANDARD_RUNTIME_INSTALL_COMMANDS = [
   "Copy-Item .env.docker.example .env",
   "docker compose -f docker/docker-compose.local-postgres.yml up -d --build --force-recreate db-init server web",
   "如果首次初始化被打断，再执行：docker compose -f docker/docker-compose.local-postgres.yml run --rm db-init",
+  "如需启用本地视频文案提取：把 `.env` 中 `INSTALL_LOCAL_ASR=1` 后，再执行 docker compose -f docker/docker-compose.local-postgres.yml up -d --build --force-recreate db-init server",
   "浏览器打开：http://127.0.0.1:13001",
 ] as const;
 
@@ -65,6 +67,7 @@ const STANDARD_RUNTIME_INSTALL_NOTICES = [
   "如果你要复现当前交付分支，而不是仓库默认分支，请在 clone 后先执行 `git branch -r` 找到对应远端分支，再 `git switch --track origin/<交付分支>` 后再启动容器。",
   "如果 Docker 拉镜像失败，多半是 Docker Desktop 还没有配置 HTTPS 代理，或者当前网络到 `registry-1.docker.io` / `auth.docker.io` 不通。",
   "如果 `server` 构建失败，请优先抓完整日志看 `openclaw.service.ts` 或其他 TypeScript 报错行，而不是只看 compose 最后一行 `exit code`。",
+  "如果构建日志卡在 `python3 -m pip install ... torch torchaudio ...`，通常是这台机器到 PyPI / 镜像站 TLS 不稳定；先保持 `INSTALL_LOCAL_ASR=0` 装起主系统，再按需单独启用 ASR。",
 ] as const;
 
 export default function PersonalCenterVersionPage() {
