@@ -329,6 +329,7 @@
   - 图片在当前会话里时可直接传 `referenceImage.fileName / contentType / dataBase64`
 - 如果用户明确指定尺寸，优先传 `create_design_work.imageSize="宽x高"`，例如 `1200x628`
 - 兼容旧链路时，也可以继续传 `create_design_work.spec="宽x高"`
+- 如果用户要用多元探索 `gpt-image-2.5-sunburst` 或 `gpt-image-2.5-flare`，不要手写 providerId，直接使用模型列表里返回的 `selectionKey`
 - 当前 `create_design_work` 在图片模块下如果未显式传 `modelSelection`，OpenClaw 默认会优先尝试工作台模型列表里 `providerName=多元探索` 的 `gpt-image-2`；若当前品牌没有多元探索可用项，才回退到工作台推荐项
 - 图片模块默认就是自由生图，不自动套社媒配图模板、不默认植入品牌资料，也不强制追加中文排版文案
 - `/more-features/design` 当前只是站内结果回看页，不再给用户手动创建任务，也不再暴露运营提示词中心或生图提示词中心

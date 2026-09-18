@@ -337,6 +337,7 @@
 - 如果用户明确指定生图模型，必须先从 `get_design_workspace_options` 返回的 `moduleOptions.image.models` 中读取对应 `selectionKey`
 - 再把该 `selectionKey` 原样传给 `create_design_work.modelSelection`
 - 如果用户要用火山方舟 `doubao-seedream-5-0-pro-260628`，不要手写 providerId，直接使用模型列表里返回的 `selectionKey`
+- 如果用户要用多元探索 `gpt-image-2.5-sunburst` 或 `gpt-image-2.5-flare`，不要手写 providerId，直接使用模型列表里返回的 `selectionKey`
 - 如果用户提供了参考图：
   - 图片已有 URL 时优先传 `referenceImageUrl`
   - 图片在当前会话里时可直接传 `referenceImage.fileName / contentType / dataBase64`

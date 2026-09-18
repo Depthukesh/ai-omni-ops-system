@@ -479,6 +479,7 @@ RunningHub 关键规则：
 - 如果用户指定参考图，尽量带上参考图输入
 - 如果用户明确指定图片尺寸，优先传 `imageSize: "宽x高"`，例如 `1200x628`
 - 兼容旧链路时也可以继续传 `spec: "宽x高"`
+- 如果用户明确指定多元探索 `gpt-image-2.5-sunburst` 或 `gpt-image-2.5-flare`，必须先从 `get_design_workspace_options` 返回的 `moduleOptions.image.models` 中读取对应 `selectionKey`
 - 当前 `create_design_work` 在图片模块下如果未显式传 `modelSelection`，OpenClaw 默认会优先尝试工作台模型列表里 `providerName=多元探索` 的 `gpt-image-2`；若当前品牌没有多元探索可用项，才回退到工作台推荐项
 - 图片模块默认就是自由生图，不自动套社媒配图模板、不默认植入品牌资料，也不强制追加中文排版文案
 - 设计页当前只是结果回看面板，不再给用户暴露手动创建入口、运营提示词中心或生图提示词中心
